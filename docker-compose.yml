@@ -1,0 +1,32 @@
+# Local/self-hosted deployment.
+#
+# NOTE: the app uses Supabase for Auth + Storage. Two options:
+#  (A) Supabase cloud  — drop the `db` service and point DATABASE_URL +
+#      NEXT_PUBLIC_SUPABASE_* at your Supabase project (see .env.example).
+#  (B) Self-hosted DB  — keep the `db` service for Postgres; you still need a
+#      Supabase project (or compatible) for Auth + Storage.
+
+services:
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tt
+      POSTGRES_PASSWORD: tt
+      POSTGRES_DB: tt_station_hub
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:

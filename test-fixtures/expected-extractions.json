@@ -1,0 +1,108 @@
+{
+  "13119": {
+    "meterType": "mechanical",
+    "reading": "455679",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 1",
+    "fuelType": "DO",
+    "notes": ""
+  },
+  "13120": {
+    "meterType": "electronic_montech",
+    "reading": "30256194",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 1",
+    "fuelType": "DO",
+    "notes": ""
+  },
+  "13121": {
+    "meterType": "mechanical",
+    "reading": "1042745",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 2",
+    "fuelType": "E0",
+    "hasUnreadableDigits": true,
+    "notes": "last digit blurry — confirm against real photo"
+  },
+  "13123": {
+    "meterType": "electronic_montech",
+    "reading": "18886374",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 2",
+    "fuelType": "E0",
+    "notes": ""
+  },
+  "13124": {
+    "meterType": "mechanical",
+    "reading": "235624",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 3",
+    "fuelType": "E0",
+    "notes": ""
+  },
+  "13125": {
+    "meterType": "electronic_montech",
+    "reading": "9832398",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 3",
+    "fuelType": "E0",
+    "notes": ""
+  },
+  "13126": {
+    "meterType": "mechanical",
+    "reading": "0213277",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 4",
+    "fuelType": "DC",
+    "notes": "leading zero must be preserved"
+  },
+  "13127": {
+    "meterType": "electronic_montech",
+    "reading": "5875597",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 4",
+    "fuelType": "DC",
+    "notes": ""
+  },
+  "13128": {
+    "meterType": "mechanical",
+    "reading": "010003",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 5",
+    "fuelType": "DC",
+    "notes": "leading zero must be preserved"
+  },
+  "13129": {
+    "meterType": "electronic_montech",
+    "reading": "10070152",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 5",
+    "fuelType": "DC",
+    "notes": ""
+  },
+  "13130": {
+    "meterType": "mechanical",
+    "reading": "045955",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 6",
+    "fuelType": "DO",
+    "hasUnreadableDigits": true,
+    "notes": "very blurry — confirm against real photo"
+  },
+  "13131": {
+    "meterType": "electronic_montech",
+    "reading": "73854860",
+    "stationLabel": "DAKNONG 1",
+    "dispenserLabel": "TRU 6",
+    "fuelType": "DO",
+    "notes": ""
+  },
+  "13133": {
+    "meterType": "electronic_lungbor",
+    "reading": "4757.420",
+    "stationLabel": null,
+    "dispenserLabel": null,
+    "fuelType": null,
+    "notes": "LungBor LCD with decimal point"
+  }
+}

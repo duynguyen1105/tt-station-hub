@@ -1,0 +1,265 @@
+// TT Station Hub — Prisma schema (Module 5).
+// Conventions: code/identifiers in English; snake_case DB columns via @map.
+// Meter readings are stored as Decimal but extracted as strings elsewhere to
+// preserve leading zeros (see lib/ai). FKs are kept as scalar columns to mirror
+// the build plan; relations can be layered on later if referential integrity
+// is needed at the DB level.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// === USERS ===
+model Profile {
+  id        String   @id @db.Uuid // = auth.users.id
+  email     String   @unique
+  fullName  String   @map("full_name")
+  role      String // 'admin' | 'accountant' | 'viewer'
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("profiles")
+}
+
+// === STATIONS & DISPENSERS ===
+model Station {
+  id                   String   @id @default(uuid()) @db.Uuid
+  code                 String   @unique // "DAKNONG_1"
+  name                 String // "Trạm Đăk Nông 1"
+  branch               String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
+  address              String?
+  zaloGroupId          String?  @map("zalo_group_id") // shift-photo Zalo group
+  zaloDebtGroupId      String?  @map("zalo_debt_group_id") // debt group (if separated)
+  assignedAccountantId String?  @map("assigned_accountant_id") @db.Uuid
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@map("stations")
+}
+
+model Dispenser {
+  id                    String    @id @default(uuid()) @db.Uuid
+  stationId             String    @map("station_id") @db.Uuid
+  code                  String // "TRU_1"
+  displayName           String    @map("display_name") // "Trụ 1"
+  fuelType              String    @map("fuel_type") // "DO" | "E0" | "DC" | "XANG_A95"
+  tankCode              String?   @map("tank_code") // "HAM_3"
+  tankCapacityK         Int?      @map("tank_capacity_k") // 25
+  hasElectronicMeter    Boolean   @default(true) @map("has_electronic_meter")
+  hasMechanicalMeter    Boolean   @default(true) @map("has_mechanical_meter")
+  lastElectronicReading Decimal?  @map("last_electronic_reading") @db.Decimal(15, 3)
+  lastMechanicalReading Decimal?  @map("last_mechanical_reading") @db.Decimal(15, 3)
+  lastReadingAt         DateTime? @map("last_reading_at")
+  displayOrder          Int       @default(0) @map("display_order")
+  isActive              Boolean   @default(true) @map("is_active")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  @@unique([stationId, code])
+  @@map("dispensers")
+}
+
+// === SHIFTS ===
+model Shift {
+  id                         String    @id @default(uuid()) @db.Uuid
+  stationId                  String    @map("station_id") @db.Uuid
+  shiftDate                  DateTime  @map("shift_date") @db.Date
+  shiftType                  String    @map("shift_type") // 'morning'|'afternoon'|'night'|'full_day'
+  employeeName               String?   @map("employee_name")
+  status                     String // 'open'|'collecting_photos'|'ai_processing'|'pending_review'|'completed'|'cancelled'
+  totalDispensers            Int       @default(0) @map("total_dispensers")
+  photosUploadedCount        Int       @default(0) @map("photos_uploaded_count")
+  readingsPendingReviewCount Int       @default(0) @map("readings_pending_review_count")
+  notes                      String?
+  startedAt                  DateTime  @default(now()) @map("started_at")
+  completedAt                DateTime? @map("completed_at")
+  reviewedBy                 String?   @map("reviewed_by") @db.Uuid
+  createdAt                  DateTime  @default(now()) @map("created_at")
+
+  @@index([stationId, shiftDate(sort: Desc)], map: "idx_shifts_station_date")
+  @@map("shifts")
+}
+
+model ShiftReading {
+  id                        String    @id @default(uuid()) @db.Uuid
+  shiftId                   String    @map("shift_id") @db.Uuid
+  dispenserId               String    @map("dispenser_id") @db.Uuid
+  electronicReading         Decimal?  @map("electronic_reading") @db.Decimal(15, 3)
+  mechanicalReading         Decimal?  @map("mechanical_reading") @db.Decimal(15, 3)
+  electronicPhotoId         String?   @map("electronic_photo_id") @db.Uuid
+  mechanicalPhotoId         String?   @map("mechanical_photo_id") @db.Uuid
+  aiElectronicConfidence    Int?      @map("ai_electronic_confidence")
+  aiMechanicalConfidence    Int?      @map("ai_mechanical_confidence")
+  electronicDelta           Decimal?  @map("electronic_delta") @db.Decimal(15, 3)
+  mechanicalDelta           Decimal?  @map("mechanical_delta") @db.Decimal(15, 3)
+  isAnomaly                 Boolean   @default(false) @map("is_anomaly")
+  anomalyReasons            String[]  @default([]) @map("anomaly_reasons")
+  reviewStatus              String    @map("review_status") // 'pending'|'auto_approved'|'needs_review'|'approved'|'rejected'|'corrected'
+  originalElectronicReading Decimal?  @map("original_electronic_reading") @db.Decimal(15, 3)
+  originalMechanicalReading Decimal?  @map("original_mechanical_reading") @db.Decimal(15, 3)
+  reviewedBy                String?   @map("reviewed_by") @db.Uuid
+  reviewedAt                DateTime? @map("reviewed_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  @@unique([shiftId, dispenserId])
+  @@index([shiftId], map: "idx_readings_shift")
+  @@index([reviewStatus], map: "idx_readings_review")
+  @@map("shift_readings")
+}
+
+model ShiftPhoto {
+  id                     String    @id @default(uuid()) @db.Uuid
+  shiftId                String?   @map("shift_id") @db.Uuid
+  source                 String // 'zalo' | 'web_upload'
+  zaloMessageId          String?   @map("zalo_message_id")
+  zaloSenderUserId       String?   @map("zalo_sender_user_id")
+  zaloSenderName         String?   @map("zalo_sender_name")
+  zaloGroupId            String?   @map("zalo_group_id")
+  zaloReceivedAt         DateTime? @map("zalo_received_at") // trusted time; do NOT trust watermark
+  storageUrl             String    @map("storage_url")
+  storagePath            String?   @map("storage_path")
+  fileSizeBytes          Int?      @map("file_size_bytes")
+  aiProcessedAt          DateTime? @map("ai_processed_at")
+  meterType              String?   @map("meter_type") // 'electronic_montech'|'electronic_lungbor'|'mechanical'|'unclear'|'not_a_meter'
+  extractedReading       Decimal?  @map("extracted_reading") @db.Decimal(15, 3)
+  extractedStationCode   String?   @map("extracted_station_code")
+  extractedDispenserCode String?   @map("extracted_dispenser_code")
+  extractedFuelType      String?   @map("extracted_fuel_type")
+  aiConfidence           Int?      @map("ai_confidence")
+  aiRawResponse          Json?     @map("ai_raw_response")
+  matchedReadingId       String?   @map("matched_reading_id") @db.Uuid
+  matchStatus            String    @default("unmatched") @map("match_status") // 'unmatched'|'matched'|'ambiguous'|'rejected'
+  createdAt              DateTime  @default(now()) @map("created_at")
+
+  @@index([zaloGroupId, zaloReceivedAt(sort: Desc)], map: "idx_photos_zalo_group")
+  @@map("shift_photos")
+}
+
+// === LEGAL DOCUMENTS ===
+model StationDocument {
+  id               String    @id @default(uuid()) @db.Uuid
+  stationId        String    @map("station_id") @db.Uuid
+  docType          String    @map("doc_type") // 'business_license'|'fire_safety'|'environment'|'measurement'|'other'
+  docName          String    @map("doc_name")
+  docNumber        String?   @map("doc_number")
+  issuedDate       DateTime? @map("issued_date") @db.Date
+  expiryDate       DateTime? @map("expiry_date") @db.Date
+  issuingAuthority String?   @map("issuing_authority")
+  fileUrl          String?   @map("file_url") // attached scan
+  status           String // 'valid'|'expiring_soon'|'expired' (computed)
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([stationId], map: "idx_documents_station")
+  @@index([expiryDate], map: "idx_documents_expiry")
+  @@map("station_documents")
+}
+
+// === INVENTORY ===
+model InventoryBalance {
+  id                String    @id @default(uuid()) @db.Uuid
+  stationId         String    @map("station_id") @db.Uuid
+  fuelType          String    @map("fuel_type")
+  estimatedStock    Decimal   @default(0) @map("estimated_stock") @db.Decimal(15, 3) // estimated stock (liters)
+  lastPhysicalStock Decimal?  @map("last_physical_stock") @db.Decimal(15, 3) // last tank-dip physical stock
+  lastPhysicalAt    DateTime? @map("last_physical_at")
+  lowThreshold      Decimal?  @map("low_threshold") @db.Decimal(15, 3) // low-stock alert threshold
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([stationId, fuelType])
+  @@index([stationId], map: "idx_inventory_station")
+  @@map("inventory_balances")
+}
+
+model InventoryMovement {
+  id           String   @id @default(uuid()) @db.Uuid
+  stationId    String   @map("station_id") @db.Uuid
+  fuelType     String   @map("fuel_type")
+  movementType String   @map("movement_type") // 'import'|'sale'|'physical_count'|'adjustment'
+  quantity     Decimal  @db.Decimal(15, 3) // + import, - sale
+  sourceRef    String?  @map("source_ref") // e.g. shift_id when sale comes from a shift
+  note         String?
+  movementDate DateTime @map("movement_date") @db.Date
+  createdBy    String?  @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("inventory_movements")
+}
+
+// === PER-TRIP DEBT ===
+model DebtCustomer {
+  id             String   @id @default(uuid()) @db.Uuid
+  stationId      String?  @map("station_id") @db.Uuid // may owe at multiple stations
+  name           String // "Tiến Oanh"
+  phone          String?
+  knownPlates    String[] @default([]) @map("known_plates") // known plates for AI cross-check
+  openingBalance Decimal  @default(0) @map("opening_balance") @db.Decimal(15, 0)
+  currentBalance Decimal  @default(0) @map("current_balance") @db.Decimal(15, 0)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("debt_customers")
+}
+
+model DebtVehicleVisit {
+  id                   String    @id @default(uuid()) @db.Uuid
+  customerId           String?   @map("customer_id") @db.Uuid // assigned after identifying customer
+  stationId            String    @map("station_id") @db.Uuid
+  visitDate            DateTime  @map("visit_date")
+  // AI reads from the meter photo
+  litersRead           Decimal?  @map("liters_read") @db.Decimal(15, 4) // liters read by AI
+  unitPriceRead        Decimal?  @map("unit_price_read") @db.Decimal(15, 0) // unit price read by AI
+  displayedAmount      Decimal?  @map("displayed_amount") @db.Decimal(15, 0) // DISPLAYED total (may be truncated)
+  computedAmount       Decimal?  @map("computed_amount") @db.Decimal(15, 0) // = liters × unitPrice (CORRECT)
+  amountMatchesDisplay Boolean?  @map("amount_matches_display") // does computed match displayed after truncation rule?
+  // Vehicle plate
+  plateRead            String?   @map("plate_read") // AI-read plate
+  plateConfirmed       String?   @map("plate_confirmed") // accountant-confirmed plate
+  // Photos
+  vehiclePhotoId       String?   @map("vehicle_photo_id") @db.Uuid
+  meterPhotoId         String?   @map("meter_photo_id") @db.Uuid
+  // AI & review
+  aiConfidence         Int?      @map("ai_confidence")
+  aiRawResponse        Json?     @map("ai_raw_response")
+  reviewStatus         String    @map("review_status") // 'pending'|'needs_review'|'approved'|'rejected'|'corrected'
+  anomalyReasons       String[]  @default([]) @map("anomaly_reasons")
+  reviewedBy           String?   @map("reviewed_by") @db.Uuid
+  reviewedAt           DateTime? @map("reviewed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  @@index([customerId, visitDate(sort: Desc)], map: "idx_visits_customer")
+  @@index([reviewStatus], map: "idx_visits_review")
+  @@map("debt_vehicle_visits")
+}
+
+model DebtTransaction {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  txType     String   @map("tx_type") // 'charge' (incur debt) | 'payment' (settle)
+  amount     Decimal  @db.Decimal(15, 0)
+  sourceRef  String?  @map("source_ref") // visit_id when charge comes from a visit
+  note       String?
+  txDate     DateTime @map("tx_date") @db.Date
+  createdBy  String?  @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([customerId, txDate(sort: Desc)], map: "idx_debt_tx_customer")
+  @@map("debt_transactions")
+}
+
+// === AUDIT ===
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  action    String
+  entity    String?
+  entityId  String?  @map("entity_id") @db.Uuid
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
