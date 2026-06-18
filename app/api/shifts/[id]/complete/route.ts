@@ -1,6 +1,7 @@
 import { badRequest, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { computeShiftSales } from '@/lib/inventory/shift-sales'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,17 +21,72 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return badRequest('Vẫn còn số liệu chưa được duyệt trong ca này.')
   }
 
-  const updated = await prisma.shift.update({
-    where: { id },
-    data: { status: 'completed', completedAt: new Date(), reviewedBy: user.id },
+  // Approved readings drive the inventory deduction (sold liters per fuel type).
+  const [readings, dispensers] = await Promise.all([
+    prisma.shiftReading.findMany({
+      where: { shiftId: id, reviewStatus: { in: ['approved', 'auto_approved', 'corrected'] } },
+    }),
+    prisma.dispenser.findMany({ where: { stationId: shift.stationId } }),
+  ])
+
+  const { sales, advances } = computeShiftSales(
+    readings.map((r) => ({
+      dispenserId: r.dispenserId,
+      electronicReading: r.electronicReading !== null ? Number(r.electronicReading) : null,
+    })),
+    dispensers.map((d) => ({
+      id: d.id,
+      fuelType: d.fuelType,
+      lastElectronicReading:
+        d.lastElectronicReading !== null ? Number(d.lastElectronicReading) : null,
+    }))
+  )
+
+  const updated = await prisma.$transaction(async (db) => {
+    const shiftRow = await db.shift.update({
+      where: { id },
+      data: { status: 'completed', completedAt: new Date(), reviewedBy: user.id },
+    })
+
+    for (const sale of sales) {
+      await db.inventoryMovement.create({
+        data: {
+          stationId: shift.stationId,
+          fuelType: sale.fuelType,
+          movementType: 'sale',
+          quantity: -sale.liters,
+          sourceRef: id,
+          movementDate: shift.shiftDate,
+          createdBy: user.id,
+        },
+      })
+      await db.inventoryBalance.upsert({
+        where: { stationId_fuelType: { stationId: shift.stationId, fuelType: sale.fuelType } },
+        update: { estimatedStock: { decrement: sale.liters } },
+        create: {
+          stationId: shift.stationId,
+          fuelType: sale.fuelType,
+          estimatedStock: -sale.liters,
+        },
+      })
+    }
+
+    for (const advance of advances) {
+      await db.dispenser.update({
+        where: { id: advance.dispenserId },
+        data: { lastElectronicReading: advance.newReading, lastReadingAt: new Date() },
+      })
+    }
+
+    return shiftRow
   })
+
   await writeAudit({
     userId: user.id,
     action: 'shift.complete',
     entity: 'shift',
     entityId: id,
+    metadata: { sales },
   })
-  // TODO: post inventory 'sale' movements from approved electronic deltas
-  // (wire lib/inventory/stock-calculator once fuel-type mapping is confirmed).
   return ok(updated)
 }
