@@ -1,9 +1,9 @@
 # TT Station Hub — Project Status
 
-_Module 5 — Hồ sơ Trạm (Công ty Hóa dầu Trường Thịnh). Last updated: 2026-06-17._
+_Module 5 — Hồ sơ Trạm (Công ty Hóa dầu Trường Thịnh). Last updated: 2026-06-18._
 
-This document tracks **what is built**, **what is blocked on keys/credentials**, and
-**what is blocked on clarification**. Source code is in English; user-facing UI text is
+This document tracks **what is built**, **external-service status**, and **what is
+blocked on clarification**. Source code is in English; user-facing UI text is
 Vietnamese (centralized in `messages/vi.ts`).
 
 ---
@@ -15,19 +15,20 @@ pnpm install
 pnpm exec prisma generate     # generates the typed client into lib/generated/prisma
 pnpm type-check               # tsc --noEmit       ✅ passes
 pnpm lint                     # eslint             ✅ passes
-pnpm test                     # vitest (50 tests)  ✅ passes
+pnpm test                     # vitest (53 tests)  ✅ passes
 pnpm build                    # next build         ✅ passes
-pnpm dev                      # local dev server
+pnpm dev                      # http://localhost:3000
 ```
 
-To run **end-to-end** you must provide credentials (see §3) and run `prisma migrate dev`
+The shared Trường Thịnh **Supabase** project is connected (see §3). For a fresh DB,
+fill `.env` from `.env.example`, then `pnpm exec prisma db push` + `pnpm exec prisma db seed`.
+Local-only demo (no accounts): see [`docs/local-development.md`](docs/local-development.md).
 
-- `prisma db seed`.
+**Mock modes** (develop without external services):
 
-**Mock modes** (develop with no external services):
-
+- `DEMO_MODE=true` — skip Supabase auth, act as the seeded admin (local only).
 - `AI_MOCK=true` — meter extraction returns fixtures from `test-fixtures/expected-extractions.json`.
-- `ZALO_MOCK=true` — the webhook accepts a POST with header `x-mock-secret: <ZALO_OA_WEBHOOK_SECRET>` and replies via console log.
+- `ZALO_MOCK=true` — the webhook accepts a mock POST and replies via console log.
 
 ---
 
@@ -41,15 +42,14 @@ Auth + Storage) + **Prisma 7** (new `prisma-client` generator + pg driver adapte
 
 ---
 
-## 2. What is BUILT (and verified: build + lint + types + tests all green)
+## 2. What is BUILT (verified: build + lint + types + tests all green)
 
 ### Foundation
 
 - Next 16 project, Be Vietnam Pro font (`vietnamese` subset), `lang="vi"`, providers
   (TanStack Query + theme + sonner). `lib/format.ts` (VND / liters / date formatting).
-- Prisma 7 schema — all 13 models from the plan with snake_case columns + indexes
-  (`prisma/schema.prisma`), generated client, idempotent seed for **ĐAKNONG_1**
-  (`prisma/seed.ts`).
+- Prisma 7 schema — all 13 models from the plan with snake_case columns + indexes,
+  generated client, idempotent seed for **ĐAKNONG_1** (`prisma/seed.ts`).
 - Supabase clients: browser, server (async cookies for Next 16), service-role admin.
 
 ### Auth & layout
@@ -57,65 +57,64 @@ Auth + Storage) + **Prisma 7** (new `prisma-client` generator + pg driver adapte
 - **`proxy.ts`** (Next 16 renamed `middleware` → `proxy`) + `lib/supabase/update-session.ts`:
   session refresh + page gating.
 - `lib/auth/session.ts` (`getCurrentUser` / `requireUser` / `requireRole`),
-  `lib/auth/permissions.ts`, `lib/auth/audit.ts`.
+  `permissions.ts`, `audit.ts`.
 - Login page + form; dashboard shell with shadcn sidebar (5 nav items) + logout.
 
 ### AI Vision (`lib/ai/`)
 
 - `claude-vision.ts` — Anthropic wrapper, 3× retry + backoff, JSON extraction.
 - `prompts.ts` — router / electronic / mechanical / **debt-meter** / vehicle prompts
-  (English instructions quoting the Vietnamese on-meter terms TRẠM/TRU/HẦM/ĐỒNG/LÍT).
-- `extract-meter.ts` — shift pipeline (classify → read → normalize).
-- `extract-visit.ts` — **debt pipeline with anti-truncation (§5.6)**: amount = liters ×
-  unit price, reconciled against the truncated display; also reads plate.
-- `image-prep.ts` (sharp resize ≤1568px, JPEG 85), `confidence.ts` (§5.7 thresholds),
-  `mock.ts` (AI_MOCK).
+  (English instructions quoting the on-meter Vietnamese terms TRẠM/TRU/HẦM/ĐỒNG/LÍT).
+- `extract-meter.ts` (shift pipeline) · `extract-visit.ts` (**debt anti-truncation §5.6**:
+  amount = liters × unit price, reconciled vs the truncated display; also reads plate).
+- `image-prep.ts` (sharp ≤1568px JPEG 85), `confidence.ts` (§5.7 thresholds), `mock.ts`.
 
 ### Domain logic (`lib/matching`, `lib/inventory`, `lib/documents`, `lib/debts`)
 
-- `anomaly-detection.ts` — 5 rules (decreased, large delta, meters diverge, low
-  confidence, missing photo).
-- `photo-to-reading.ts` — match photo → dispenser + meter slot.
-- `visit-pairing.ts` — pair vehicle + meter photos for a credit fill.
-- `stock-calculator.ts` — estimated stock, variance, low-stock.
-- `expiry-checker.ts` — document status + 60/30/15-day reminder marks.
-- `aging.ts` — debt balance, aging buckets, FIFO payment allocation.
+- `anomaly-detection.ts` (5 rules) · `photo-to-reading.ts` · `visit-pairing.ts` ·
+  `stock-calculator.ts` · `shift-sales.ts` (inventory deduction on shift complete) ·
+  `expiry-checker.ts` (status + 60/30/15 reminders) · `aging.ts` (balance, aging, FIFO).
 
 ### Integration
 
 - **Zalo webhook** (`app/api/zalo/webhook/route.ts` + `lib/zalo/*`): signature verify,
-  event parse, download → Storage, find/create shift, classify shift-vs-debt by caption,
-  fire-and-forget AI. `ZALO_MOCK` supported.
+  event parse, download → Storage, find/create shift, classify shift-vs-debt, fire-and-forget AI.
 
 ### API routes (zod + auth/role + audit log)
 
-`stations`, `shifts/[id]` (+`complete`), `readings/[id]/{approve,correct,reject}`
-(**correct preserves the original AI value**), `documents`, `inventory` (+`movements`
-with balance update), `debts/payments` (FIFO), `shifts/[id]/export-misa`.
+`stations`, `shifts/[id]` (+`complete`, which **posts inventory sales**),
+`readings/[id]/{approve,correct,reject}` (**correct preserves the original AI value**),
+`documents`, `inventory` (+`movements`), `debts/payments` (FIFO),
+`debts/visits/[id]/{approve,correct}`, `shifts/[id]/export-misa`, cron routes.
+
+### UI (Phase D)
+
+All screens built (no 404s) — see §7.
 
 ### Ops & docs
 
-- Cron: `document-reminders` (status + 60/30/15 reminders), `scheduled-tasks` stub
-  (both guarded by `CRON_SECRET`).
-- `Dockerfile` + `docker-compose.yml` + `.dockerignore`.
-- Vietnamese docs: `docs/huong-dan-ke-toan.md`, `docs/huong-dan-nhan-vien-tram.md`.
+- Cron: `document-reminders` + `scheduled-tasks` (guarded by `CRON_SECRET`).
+- `Dockerfile` + `docker-compose.yml`. GitHub Actions CI (type-check/lint/test/build).
+- Docs: `docs/local-development.md`, Vietnamese guides (`huong-dan-ke-toan`,
+  `huong-dan-nhan-vien-tram`, `huong-dan-zalo-oa`).
 
-### Tests (50, all passing)
+### Tests (53, all passing)
 
 format, AI extraction + fixtures, anti-truncation, anomaly rules, photo matching,
-visit pairing, stock, expiry, debt aging, Zalo classify/parse/signature.
+visit pairing, stock, **shift-sales**, expiry, debt aging, Zalo classify/parse/signature.
 
 ---
 
-## 3. BLOCKED on keys / credentials
+## 3. External services
 
-| Need                                                                                                                                           | Used for           | How to unblock                                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Supabase project** (`DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`) | DB, Auth, Storage  | Create the project → fill `.env` → `prisma migrate dev` → `prisma db seed` → create private bucket `station-photos` → create Supabase Auth users matching the seeded profile IDs |
-| **`ANTHROPIC_API_KEY`**                                                                                                                        | Live meter reading | Add to `.env`; until then `AI_MOCK=true`                                                                                                                                         |
-| **Zalo OA** (`ZALO_OA_APP_ID`, `ZALO_OA_ACCESS_TOKEN`, `ZALO_OA_WEBHOOK_SECRET`)                                                               | Receiving photos   | Register OA, set webhook URL; until then `ZALO_MOCK=true`                                                                                                                        |
+| Service                                                                          | Status             | Notes                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Supabase** (Postgres / Auth / Storage)                                         | ✅ **Provisioned** | Trường Thịnh org project, connected via the **Session pooler** (`ap-southeast-1`, IPv4). Schema pushed + seeded; private `station-photos` bucket created; login accounts `admin@truongthinh.local` + `vi@truongthinh.local` linked to profiles. Env: `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`. |
+| **Anthropic** (`ANTHROPIC_API_KEY`)                                              | ✅ **Key added**   | `AI_MOCK=false`. Live reading ready; accuracy tuning still needs the 13 sample photos (§4).                                                                                                                                                                                                                                                                                   |
+| **Zalo OA** (`ZALO_OA_APP_ID`, `ZALO_OA_ACCESS_TOKEN`, `ZALO_OA_WEBHOOK_SECRET`) | ⏳ **Pending**     | OA exists; still need app id/secret + access/refresh token + webhook URL, and the group-vs-1:1 test (§12.3). Until then `ZALO_MOCK=true`. See `docs/huong-dan-zalo-oa.md`.                                                                                                                                                                                                    |
 
-Everything above is **coded and type-checked** — it runs as soon as the values are present.
+> The direct DB host (`db.<ref>.supabase.co`) is IPv6-only → use the **Session pooler**
+> (IPv4). All secrets live in the gitignored `.env` — never committed.
 
 ---
 
@@ -131,22 +130,20 @@ Everything above is **coded and type-checked** — it runs as soon as the values
 | §12.6 | Tank dip → liters conversion (barem bồn)                             | Physical stock entry             | Physical count entered directly for now                                                                                                        |
 | §12.7 | Partially-readable mechanical meter: write `"?"` or force review?    | Edge handling                    | AI writes `"?"`, flagged low-confidence → review                                                                                               |
 
-Anomaly thresholds (max delta, meter divergence) are set to sensible defaults in
-`DEFAULT_ANOMALY_CONFIG` and are meant to be **tuned during the 3-day pilot** with real data.
+Anomaly thresholds (max delta, meter divergence) use sensible defaults in
+`DEFAULT_ANOMALY_CONFIG`, to be **tuned during the 3-day pilot** with real data.
 
 ---
 
-## 5. Remaining work (not blocked — buildable now)
+## 5. Remaining work (not blocked)
 
-- **UI screens (Phase D)** — the API + logic are ready; the React screens still to build:
-  station tabs (overview/shifts/documents/inventory/debts), shift detail + reading rows +
-  photo viewer + correction dialog, the two review queues, document table + form, inventory
-  cards + movement form, debt customer list + visit review + payment form, and the
-  all-stations overview with centralized alerts. (Login + dashboard shell + overview exist.)
-- A few remaining API routes follow the same pattern (dispensers CRUD, debt visit
-  approve/correct, debt customers CRUD, document update/delete).
-- Wire shift-completion → inventory `sale` postings (uses `stock-calculator`).
-- Deliver reminders over a real channel (Zalo/email) from the cron.
+- **UI polish** (see §7): settings management screens (currently placeholders),
+  in-app photo viewer (signed-URL) in the shift detail, document edit/delete.
+- **A few CRUD routes** following the existing pattern: dispensers, debt customers,
+  document update/delete.
+- **Deliver cron reminders** over a real channel (Zalo/email) once the OA is live.
+- **AI accuracy tuning** — add the 13 sample photos to `test-fixtures/sample-photos/`,
+  confirm each expected reading, and tune to ≥12/13.
 
 ---
 
@@ -154,35 +151,27 @@ Anomaly thresholds (max delta, meter divergence) are set to sensible defaults in
 
 - Next 16: `middleware.ts` → **`proxy.ts`**; async `cookies()`; stricter
   `react-hooks/set-state-in-effect` (fixed `use-mobile` with `useSyncExternalStore`).
-- Prisma 7: `prisma-client` generator (output `lib/generated/prisma`), Query Compiler +
+- Prisma 7: `prisma-client` generator (`lib/generated/prisma`), Query Compiler +
   **pg driver adapter**, config in `prisma.config.ts`.
 - shadcn: radix-vega preset; the old RHF `form` is replaced by the `field` primitive.
+- Supabase: direct connection is IPv6-only → use the Session pooler; modern
+  **publishable/secret** API keys (not legacy anon/service_role).
 
 ---
 
-## 7. UI (Phase D) — BUILT
+## 7. UI — BUILT
 
-The app is now fully navigable (no 404s). Server components read Prisma directly; small
-client islands call the API routes then `router.refresh()`.
+Fully navigable (no 404s). Server components read Prisma directly; small client islands
+call the API routes then `router.refresh()`. Aesthetic: a warm "petroleum operations
+console" theme (bone paper · petroleum-teal · brass), inked sidebar with a gauge mark.
 
-- **All-stations overview** (`/`) — global alert cards + per-station table (pending /
-  expiring docs / low stock / debt balance).
-- **Stations list** (`/stations`) and **station profile** with tabs
-  (`/stations/[id]` + `…/shifts`, `…/documents`, `…/inventory`, `…/debts`).
-- **Shift detail** — reading table with **Approve / Correct / Reject** (correction dialog
-  preserves the original AI value) + **Complete shift** (guarded while reviews pending).
-- **Review queues** — `/review/shifts` and `/review/debts`.
-- **MISA export** page (`/reports/misa-export`) — completed-shift list with download links.
-- **Settings** pages (`/settings/{stations,dispensers,users,zalo}`) — admin-gated.
-- Shared: `StatusBadge`, `ExpiryBadge`, `StationTabs`, `ReadingRow`, status/label helpers.
-
-### Data-entry forms — BUILT
-
-- **Add document** (`document-form`), **add inventory movement** (`movement-form`, signs the
-  quantity: sales negative), **record payment** (`payment-form`, per customer).
-- **Debt visit review** (`visit-review`): assign customer + **Approve** (charges the debt
-  ledger in a transaction) + **Correct** dialog (plate/liters/unit-price → recomputes amount).
-  Backed by `app/api/debts/visits/[id]/{approve,correct}`.
+- **All-stations overview** (`/`) — alert cards + per-station table.
+- **Stations list** + **station profile** tabs (overview / shifts / documents / inventory / debts).
+- **Shift detail** — readings with **Approve / Correct / Reject** (correction preserves the
+  original AI value) + **Complete shift** (deducts inventory; guarded while reviews pending).
+- **Review queues** (`/review/shifts`, `/review/debts`, with assign-customer + approve/correct).
+- **Data-entry forms** — add document, add inventory movement, record payment.
+- **MISA export** page (download links). **Settings** pages (admin-gated).
 
 ### Remaining UI polish (not blocked)
 

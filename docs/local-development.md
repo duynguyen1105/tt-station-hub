@@ -110,13 +110,17 @@ pnpm db:push | db:seed
 
 ## Running for real (production)
 
-1. Create a **Supabase** project; set `NEXT_PUBLIC_SUPABASE_URL`,
+> A Trường Thịnh **Supabase** project is already provisioned. With the team's
+> credentials you can point at it directly and skip steps 1 & 3.
+
+1. Create/obtain a **Supabase** project; set `NEXT_PUBLIC_SUPABASE_URL`,
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and point
-   `DATABASE_URL`/`DIRECT_URL` at it.
+   `DATABASE_URL`/`DIRECT_URL` at its **Session pooler** connection string
+   (the direct `db.<ref>.supabase.co` host is IPv6-only).
 2. Add `ANTHROPIC_API_KEY` and the Zalo OA keys; set
    `DEMO_MODE`/`AI_MOCK`/`ZALO_MOCK` to `false`.
-3. `pnpm exec prisma migrate deploy`, seed, and create the private
-   `station-photos` Storage bucket. Full checklist in `PROJECT_STATUS.md`.
+3. `pnpm exec prisma db push`, `pnpm exec prisma db seed`, and create the private
+   `station-photos` Storage bucket. Full status in `PROJECT_STATUS.md`.
 
 ## Troubleshooting
 
