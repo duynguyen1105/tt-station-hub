@@ -13,7 +13,7 @@ import './globals.css'
 // correctly. Exposed as `--font-sans`, which globals.css applies to <html>.
 const beVietnamPro = Be_Vietnam_Pro({
   subsets: ['latin', 'vietnamese'],
-  weight: ['400', '500', '600', '700'],
+  weight: ['400', '500', '600', '700', '800'],
   variable: '--font-sans',
   display: 'swap',
 })

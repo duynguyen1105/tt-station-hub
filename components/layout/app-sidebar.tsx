@@ -5,6 +5,7 @@ import { Building2, ClipboardCheck, FileSpreadsheet, LayoutDashboard, Settings }
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import { BrandMark } from '@/components/layout/brand-mark'
 import { SidebarUser } from '@/components/layout/sidebar-user'
 import {
   Sidebar,
@@ -12,6 +13,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -36,11 +38,24 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <span className="text-base font-semibold">{vi.appShortName}</span>
+      <SidebarHeader className="border-sidebar-border border-b p-4">
+        <div className="flex items-center gap-2.5">
+          <span className="text-sidebar-primary shrink-0">
+            <BrandMark className="size-9" />
+          </span>
+          <div className="leading-tight">
+            <div className="text-sidebar-foreground text-sm font-bold tracking-tight">
+              {vi.appShortName}
+            </div>
+            <div className="label-micro text-sidebar-foreground/55">Trường Thịnh</div>
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel className="label-micro text-sidebar-foreground/45">
+            Điều hướng
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV_ITEMS.map((item) => {
@@ -48,7 +63,12 @@ export function AppSidebar({ user }: AppSidebarProps) {
                   item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
                 return (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={item.label}
+                      className="data-[active=true]:shadow-[inset_2px_0_0_var(--sidebar-primary)]"
+                    >
                       <Link href={item.href}>
                         <item.icon />
                         <span>{item.label}</span>
@@ -61,7 +81,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-sidebar-border border-t">
         <SidebarUser user={user} />
       </SidebarFooter>
     </Sidebar>

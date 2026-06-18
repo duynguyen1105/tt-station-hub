@@ -16,6 +16,15 @@ export type CurrentUser = {
  * valid session. Never throws — callers decide how to handle an absent user.
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
+  // Local demo only (DEMO_MODE=true): act as the seeded admin and skip Supabase
+  // auth. Off by default; safe to leave in place for production (gated by env).
+  if (process.env.DEMO_MODE === 'true') {
+    const demo = await prisma.profile.findFirst({ where: { role: 'admin', isActive: true } })
+    if (demo && isAppRole(demo.role)) {
+      return { id: demo.id, email: demo.email, fullName: demo.fullName, role: demo.role }
+    }
+  }
+
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return null
   }
