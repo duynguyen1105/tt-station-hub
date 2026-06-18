@@ -3,6 +3,7 @@ import { Be_Vietnam_Pro, Geist_Mono } from 'next/font/google'
 
 import { ClientToaster } from '@/components/layout/client-toaster'
 import { ThemeProvider } from '@/components/layout/theme-provider'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { QueryProvider } from '@/lib/query-provider'
 import { vi } from '@/messages/vi'
 
@@ -47,8 +48,10 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            {children}
-            <ClientToaster />
+            <TooltipProvider delayDuration={0}>
+              {children}
+              <ClientToaster />
+            </TooltipProvider>
           </ThemeProvider>
         </QueryProvider>
       </body>
