@@ -47,11 +47,12 @@ The test: every changed line should trace directly to the user's request.
 
 ## 4. Goal-Driven Execution
 
-Define verifiable success before coding. This repo has **no test runner** (see CLAUDE.md), so success criteria are observable runtime behavior, not passing tests:
+Define verifiable success before coding. Success = `pnpm type-check && pnpm lint && pnpm test && pnpm build` green, plus the right observable behavior:
 
-- **UI changes** → load `https://localhost:3000` via `pnpm dev`, exercise the feature in the browser, verify the golden path and at least one edge case.
-- **Code-only changes** → `pnpm lint` passes, TypeScript type check is clean.
-- **Bugs** → reproduce in the running app first, then fix, then re-verify the same path.
+- **Domain logic** → add/extend a **Vitest** unit test (`pnpm test`); cover the golden path and at least one edge case.
+- **UI changes** → load `http://localhost:3000` via `pnpm dev`, exercise the feature in the browser, verify the golden path and one edge case.
+- **Code-only changes** → `pnpm type-check` + `pnpm lint` clean.
+- **Bugs** → reproduce first (a failing test or the running app), then fix, then re-verify.
 
 For multi-step tasks, state a brief plan up front:
 
