@@ -43,3 +43,11 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# coding agent
+/.agents
+/.claude/skills
+/issues
+/ralph
+/.playwright-mcp
+/.impeccable
