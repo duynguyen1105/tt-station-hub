@@ -67,8 +67,8 @@ STORAGE_BUCKET=station-photos
 
 # Leave empty in demo mode (DEMO_MODE bypasses Supabase auth/storage).
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
 ## 4. Create the schema + seed data
@@ -111,7 +111,7 @@ pnpm db:push | db:seed
 ## Running for real (production)
 
 1. Create a **Supabase** project; set `NEXT_PUBLIC_SUPABASE_URL`,
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and point
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and point
    `DATABASE_URL`/`DIRECT_URL` at it.
 2. Add `ANTHROPIC_API_KEY` and the Zalo OA keys; set
    `DEMO_MODE`/`AI_MOCK`/`ZALO_MOCK` to `false`.
