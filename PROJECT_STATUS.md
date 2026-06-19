@@ -79,6 +79,9 @@ Auth + Storage) + **Prisma 7** (new `prisma-client` generator + pg driver adapte
 
 - **Zalo webhook** (`app/api/zalo/webhook/route.ts` + `lib/zalo/*`): signature verify,
   event parse, download → Storage, find/create shift, classify shift-vs-debt, fire-and-forget AI.
+- **Manual photo upload** (`app/api/photos/route.ts` + `/upload` page): the non-Zalo entry
+  point into the same pipeline (see §"Manual upload" below). The shared store → AI → review
+  core lives in **`lib/photos/ingest.ts`**, used by both the webhook and the upload route.
 
 ### API routes (zod + auth/role + audit log)
 
@@ -111,10 +114,24 @@ visit pairing, stock, **shift-sales**, expiry, debt aging, Zalo classify/parse/s
 | -------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Supabase** (Postgres / Auth / Storage)                                         | ✅ **Provisioned** | Trường Thịnh org project, connected via the **Session pooler** (`ap-southeast-1`, IPv4). Schema pushed + seeded; private `station-photos` bucket created; login accounts `admin@truongthinh.local` + `vi@truongthinh.local` linked to profiles. Env: `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`. |
 | **Anthropic** (`ANTHROPIC_API_KEY`)                                              | ✅ **Key added**   | `AI_MOCK=false`. Live reading ready; accuracy tuning still needs the 13 sample photos (§4).                                                                                                                                                                                                                                                                                   |
-| **Zalo OA** (`ZALO_OA_APP_ID`, `ZALO_OA_ACCESS_TOKEN`, `ZALO_OA_WEBHOOK_SECRET`) | ⏳ **Pending**     | OA exists; still need app id/secret + access/refresh token + webhook URL, and the group-vs-1:1 test (§12.3). Until then `ZALO_MOCK=true`. See `docs/huong-dan-zalo-oa.md`.                                                                                                                                                                                                    |
+| **Zalo OA** (`ZALO_OA_APP_ID`, `ZALO_OA_ACCESS_TOKEN`, `ZALO_OA_WEBHOOK_SECRET`) | ⏳ **Pending**     | Dev app "TT Station Hub" created — **App ID + App Secret set** in `.env`. Official Account API permissions submitted for Zalo review (messages / send / group GMF). Still need: app activated (contact phone+email), **access/refresh token**, webhook URL (ngrok), and the group-vs-1:1 test (§12.3). Until then `ZALO_MOCK=true`. See `docs/huong-dan-zalo-oa.md`.                                                          |
 
 > The direct DB host (`db.<ref>.supabase.co`) is IPv6-only → use the **Session pooler**
 > (IPv4). All secrets live in the gitignored `.env` — never committed.
+
+### Manual upload (test the pipeline without Zalo)
+
+Zalo is only the delivery channel — the **store → AI-read → review** pipeline is independent.
+Until the OA is live (Zalo review can take hours/days), use the manual entry point:
+
+- **`/upload`** (sidebar → "Tải ảnh") — pick a station, drop a real meter photo, and the AI
+  reading comes back inline (reading / dispenser / fuel / confidence; for debt photos:
+  liters / unit price / computed amount + the anti-truncation match check).
+- It stores to the same Storage bucket, creates the same `shift_photos` row, finds/creates
+  the shift, and runs the **same** `extractMeter` / `extractVisitMeter` as the webhook —
+  via the shared `lib/photos/ingest.ts`. So a shift photo lands in the normal review queue.
+- Requires `ANTHROPIC_API_KEY` + `AI_MOCK=false` for a real read (or `AI_MOCK=true` for a
+  fixture). HEIC may not decode — JPEG/PNG/WebP recommended.
 
 ---
 
@@ -171,6 +188,8 @@ console" theme (bone paper · petroleum-teal · brass), inked sidebar with a gau
   original AI value) + **Complete shift** (deducts inventory; guarded while reviews pending).
 - **Review queues** (`/review/shifts`, `/review/debts`, with assign-customer + approve/correct).
 - **Data-entry forms** — add document, add inventory movement, record payment.
+- **Photo upload** (`/upload`) — drag-and-drop a meter photo → AI reading shown inline; links
+  through to the created shift. Runs the real pipeline without Zalo (see §"Manual upload").
 - **MISA export** page (download links). **Settings** pages (admin-gated).
 
 ### Remaining UI polish (not blocked)

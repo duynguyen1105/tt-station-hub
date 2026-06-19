@@ -1,6 +1,5 @@
-import { extractMeter } from '@/lib/ai/extract-meter'
-import { Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
+import { findOrCreateShift, runShiftExtraction } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { classifyZaloMessage } from '@/lib/zalo/classify'
@@ -53,29 +52,6 @@ export function parseZaloEvent(payload: unknown): ZaloImageMessage | null {
   }
 }
 
-// Shift windows by Vietnam (GMT+7) hour. TODO(§12.5): confirm real ca times.
-function vietnamParts(timestamp: number) {
-  const shifted = new Date(timestamp + 7 * 60 * 60 * 1000)
-  return {
-    year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth(),
-    day: shifted.getUTCDate(),
-    hour: shifted.getUTCHours(),
-  }
-}
-
-function shiftDateFor(timestamp: number): Date {
-  const p = vietnamParts(timestamp)
-  return new Date(Date.UTC(p.year, p.month, p.day))
-}
-
-function shiftTypeFor(timestamp: number): 'morning' | 'afternoon' | 'night' {
-  const { hour } = vietnamParts(timestamp)
-  if (hour < 12) return 'morning'
-  if (hour < 18) return 'afternoon'
-  return 'night'
-}
-
 async function findStationForMessage(msg: ZaloImageMessage) {
   if (msg.groupId) {
     return prisma.station.findFirst({
@@ -88,35 +64,6 @@ async function findStationForMessage(msg: ZaloImageMessage) {
   }
   // TODO: 1-1 chat needs a sender->station mapping (employee config) — not yet available.
   return null
-}
-
-async function findOrCreateShift(stationId: string, timestamp: number) {
-  const shiftDate = shiftDateFor(timestamp)
-  const shiftType = shiftTypeFor(timestamp)
-  const existing = await prisma.shift.findFirst({
-    where: { stationId, shiftDate, shiftType, status: { notIn: ['completed', 'cancelled'] } },
-  })
-  if (existing) return existing
-  return prisma.shift.create({
-    data: { stationId, shiftDate, shiftType, status: 'collecting_photos' },
-  })
-}
-
-async function runShiftExtraction(photoId: string, buffer: Buffer): Promise<void> {
-  const result = await extractMeter({ imageBuffer: buffer })
-  await prisma.shiftPhoto.update({
-    where: { id: photoId },
-    data: {
-      aiProcessedAt: new Date(),
-      meterType: result.meterType,
-      extractedReading: result.reading,
-      extractedStationCode: result.stationLabel,
-      extractedDispenserCode: result.dispenserLabel,
-      extractedFuelType: result.fuelType,
-      aiConfidence: result.readingConfidence,
-      aiRawResponse: result.raw as Prisma.InputJsonValue,
-    },
-  })
 }
 
 /**
