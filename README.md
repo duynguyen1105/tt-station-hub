@@ -28,8 +28,10 @@ pnpm dev                           # http://localhost:3000
 
 ## Docs
 
-- [`docs/local-development.md`](docs/local-development.md) — run it locally (this is what teammates need)
-- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — what's built, what's blocked on keys/clarification, and next steps
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — **start here**: onboarding, env setup, dev loop
+- [`docs/architecture.md`](docs/architecture.md) — how the system fits together + module map
+- [`docs/local-development.md`](docs/local-development.md) — run it locally (demo + real)
+- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — what's built, external services, blockers, next steps
 - [`docs/huong-dan-ke-toan.md`](docs/huong-dan-ke-toan.md) — accountant guide (Vietnamese)
 - [`docs/huong-dan-nhan-vien-tram.md`](docs/huong-dan-nhan-vien-tram.md) — station-staff guide (Vietnamese)
 - [`docs/huong-dan-zalo-oa.md`](docs/huong-dan-zalo-oa.md) — Zalo OA setup sheet (Vietnamese)
