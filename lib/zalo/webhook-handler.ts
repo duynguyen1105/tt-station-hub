@@ -105,9 +105,9 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         },
       })
 
-      if (kind === 'shift') {
-        void runShiftExtraction(photo.id, buffer).catch((error) =>
-          logger.error({ error, photoId: photo.id }, 'Shift extraction failed')
+      if (kind === 'shift' && shift) {
+        void runShiftExtraction(photo.id, buffer, { id: shift.id, stationId: station.id }).catch(
+          (error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed')
         )
       }
       // Debt photos are extracted + paired in the per-trip debt pipeline.

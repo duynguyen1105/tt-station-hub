@@ -1,13 +1,18 @@
 import { randomUUID } from 'crypto'
 
+import { type ConfidenceClass, classifyElectronic, classifyMechanical } from '@/lib/ai/confidence'
 import { extractMeter } from '@/lib/ai/extract-meter'
-import { extractVisitMeter } from '@/lib/ai/extract-visit'
+import { extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
 import { type ExtractMeterResult, type ExtractVisitResult } from '@/lib/ai/types'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
+import { DEFAULT_ANOMALY_CONFIG, detectAnomalies } from '@/lib/matching/anomaly-detection'
+import { matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { type ZaloMessageKind, classifyZaloMessage } from '@/lib/zalo/classify'
+
+type ShiftRef = { id: string; stationId: string }
 
 // Shift windows by Vietnam (GMT+7) hour. TODO(§12.5): confirm real ca times.
 function vietnamParts(timestamp: number) {
@@ -45,10 +50,132 @@ export async function findOrCreateShift(stationId: string, timestamp: number) {
   })
 }
 
-/** Runs the shift meter extraction, persists the AI draft on the photo, returns it. */
+const num = (value: unknown): number | null => (value == null ? null : Number(value))
+
+const SEVERITY: Record<ConfidenceClass, number> = {
+  auto_approved: 0,
+  pending: 1,
+  needs_review: 2,
+}
+
+/**
+ * Matches an extracted shift photo to a dispenser meter, upserts the
+ * `shift_readings` row (filling the electronic or mechanical slot), runs the
+ * anomaly rules + confidence thresholds, links the photo, and advances the shift
+ * out of `collecting_photos`. This is the build-plan §2.2 assembly step that turns
+ * a stored+read photo into a reviewable reading.
+ */
+async function assembleShiftReading(
+  photoId: string,
+  shift: ShiftRef,
+  result: ExtractMeterResult
+): Promise<void> {
+  const dispensers = await prisma.dispenser.findMany({
+    where: { stationId: shift.stationId, isActive: true },
+    orderBy: { displayOrder: 'asc' },
+  })
+
+  const match = matchPhotoToDispenser(
+    { extractedDispenserCode: result.dispenserLabel, meterType: result.meterType },
+    dispensers.map((d) => ({ id: d.id, code: d.code }))
+  )
+  await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus: match.status } })
+
+  const dispenser =
+    match.status === 'matched' && match.slot
+      ? dispensers.find((d) => d.id === match.dispenserId)
+      : undefined
+
+  if (dispenser && match.slot) {
+    const existing = await prisma.shiftReading.findUnique({
+      where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
+    })
+    const reading = parseNumericString(result.reading)
+    const conf = result.readingConfidence
+
+    const elecReading = match.slot === 'electronic' ? reading : num(existing?.electronicReading)
+    const mechReading = match.slot === 'mechanical' ? reading : num(existing?.mechanicalReading)
+    const elecConf = match.slot === 'electronic' ? conf : (existing?.aiElectronicConfidence ?? null)
+    const mechConf = match.slot === 'mechanical' ? conf : (existing?.aiMechanicalConfidence ?? null)
+    const elecPhoto = match.slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
+    const mechPhoto = match.slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
+
+    const anomaly = detectAnomalies(
+      {
+        electronicReading: elecReading,
+        mechanicalReading: mechReading,
+        lastElectronicReading: num(dispenser.lastElectronicReading),
+        lastMechanicalReading: num(dispenser.lastMechanicalReading),
+        electronicConfidence: elecConf,
+        mechanicalConfidence: mechConf,
+        hasElectronicMeter: dispenser.hasElectronicMeter,
+        hasMechanicalMeter: dispenser.hasMechanicalMeter,
+        hasElectronicPhoto: elecPhoto != null,
+        hasMechanicalPhoto: mechPhoto != null,
+      },
+      DEFAULT_ANOMALY_CONFIG
+    )
+
+    const classes: ConfidenceClass[] = []
+    if (elecReading != null && elecConf != null) classes.push(classifyElectronic(elecConf))
+    if (mechReading != null && mechConf != null) classes.push(classifyMechanical(mechConf))
+    // Most-severe confidence class across the filled slots; default to
+    // needs_review when nothing could be classified.
+    const worst = classes.length
+      ? classes.reduce((a, b) => (SEVERITY[b] > SEVERITY[a] ? b : a))
+      : 'needs_review'
+    const reviewStatus = anomaly.isAnomaly ? 'needs_review' : worst
+
+    const data = {
+      electronicReading: elecReading,
+      mechanicalReading: mechReading,
+      electronicPhotoId: elecPhoto,
+      mechanicalPhotoId: mechPhoto,
+      aiElectronicConfidence: elecConf,
+      aiMechanicalConfidence: mechConf,
+      electronicDelta: anomaly.electronicDelta,
+      mechanicalDelta: anomaly.mechanicalDelta,
+      isAnomaly: anomaly.isAnomaly,
+      anomalyReasons: anomaly.reasons,
+      reviewStatus,
+      // Preserve the first AI value so a later correction can show the original.
+      originalElectronicReading:
+        num(existing?.originalElectronicReading) ?? (match.slot === 'electronic' ? reading : null),
+      originalMechanicalReading:
+        num(existing?.originalMechanicalReading) ?? (match.slot === 'mechanical' ? reading : null),
+    }
+
+    const row = await prisma.shiftReading.upsert({
+      where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
+      create: { shiftId: shift.id, dispenserId: dispenser.id, ...data },
+      update: data,
+    })
+    await prisma.shiftPhoto.update({
+      where: { id: photoId },
+      data: { matchStatus: 'matched', matchedReadingId: row.id },
+    })
+  }
+
+  // Advance the shift out of "collecting photos" now that AI has processed a photo.
+  const pendingCount = await prisma.shiftReading.count({
+    where: { shiftId: shift.id, reviewStatus: { in: ['pending', 'needs_review'] } },
+  })
+  await prisma.shift.update({
+    where: { id: shift.id },
+    data: {
+      status: 'pending_review',
+      totalDispensers: dispensers.length,
+      readingsPendingReviewCount: pendingCount,
+      photosUploadedCount: { increment: 1 },
+    },
+  })
+}
+
+/** Runs the shift meter extraction, persists the AI draft, then assembles the reading. */
 export async function runShiftExtraction(
   photoId: string,
-  buffer: Buffer
+  buffer: Buffer,
+  shift: ShiftRef
 ): Promise<ExtractMeterResult> {
   const result = await extractMeter({ imageBuffer: buffer })
   await prisma.shiftPhoto.update({
@@ -56,7 +183,7 @@ export async function runShiftExtraction(
     data: {
       aiProcessedAt: new Date(),
       meterType: result.meterType,
-      extractedReading: result.reading,
+      extractedReading: parseNumericString(result.reading),
       extractedStationCode: result.stationLabel,
       extractedDispenserCode: result.dispenserLabel,
       extractedFuelType: result.fuelType,
@@ -64,6 +191,7 @@ export async function runShiftExtraction(
       aiRawResponse: result.raw as Prisma.InputJsonValue,
     },
   })
+  await assembleShiftReading(photoId, shift, result)
   return result
 }
 
@@ -132,8 +260,14 @@ export async function ingestManualPhoto(params: {
   let debt_result: ExtractVisitResult | null = null
   let extractionError: string | null = null
   try {
-    if (kind === 'shift') shift_result = await runShiftExtraction(photo.id, params.buffer)
-    else debt_result = await runDebtExtraction(photo.id, params.buffer)
+    if (kind === 'shift' && shift) {
+      shift_result = await runShiftExtraction(photo.id, params.buffer, {
+        id: shift.id,
+        stationId: params.station.id,
+      })
+    } else {
+      debt_result = await runDebtExtraction(photo.id, params.buffer)
+    }
   } catch (error) {
     logger.error({ error, photoId: photo.id }, 'Manual upload extraction failed')
     extractionError = error instanceof Error ? error.message : 'extraction failed'
