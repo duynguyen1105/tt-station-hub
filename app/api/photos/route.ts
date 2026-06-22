@@ -11,6 +11,10 @@ import { prisma } from '@/lib/prisma'
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 const idSchema = z.string().uuid()
 
+// sharp + Claude vision can take >10s; run on Node with a longer serverless budget.
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
 /**
  * Manual photo upload: the non-Zalo entry point into the store -> AI -> review
  * pipeline. Accepts a multipart form (file + stationId + optional kind/caption),

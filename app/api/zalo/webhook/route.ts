@@ -1,10 +1,11 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse, after } from 'next/server'
 
 import { logger } from '@/lib/logger'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
 import { handleZaloImageMessage, parseZaloEvent } from '@/lib/zalo/webhook-handler'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 // Zalo may verify the webhook URL with a GET challenge.
 export async function GET() {
@@ -66,9 +67,12 @@ export async function POST(req: NextRequest) {
 
   const message = parseZaloEvent(payload)
   if (message) {
-    // Fire-and-forget: reply fast (<5s), process in the background.
-    void handleZaloImageMessage(message).catch((error) =>
-      logger.error({ error }, 'Zalo webhook handler failed')
+    // Reply fast (<5s); finish the AI processing in the background. after() keeps the
+    // serverless function alive past the response so the work completes on Vercel.
+    after(() =>
+      handleZaloImageMessage(message).catch((error) =>
+        logger.error({ error }, 'Zalo webhook handler failed')
+      )
     )
   }
 
