@@ -1,3 +1,5 @@
+import { ChevronRight } from 'lucide-react'
+
 import Link from 'next/link'
 
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -21,37 +23,33 @@ export default async function StationShiftsPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-muted-foreground border-b text-left">
-          <th className="p-2">{vi.shifts.date}</th>
-          <th className="p-2">{vi.shifts.shiftType}</th>
-          <th className="p-2">{vi.shifts.status}</th>
-          <th className="p-2"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {shifts.map((shift) => {
-          const status = shiftStatusInfo(shift.status)
-          return (
-            <tr key={shift.id} className="border-b">
-              <td className="p-2">{formatDate(shift.shiftDate)}</td>
-              <td className="p-2">{shiftTypeLabel(shift.shiftType)}</td>
-              <td className="p-2">
-                <StatusBadge label={status.label} tone={status.tone} />
-              </td>
-              <td className="p-2 text-right">
-                <Link
-                  href={`/stations/${id}/shifts/${shift.id}`}
-                  className="text-primary text-sm hover:underline"
-                >
-                  {vi.stationTabs.shifts}
-                </Link>
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+    <div className="overflow-hidden rounded-lg border">
+      <div className="text-muted-foreground bg-muted/50 grid grid-cols-[1.2fr_1fr_1fr_auto] items-center gap-3 border-b px-3 py-2.5">
+        <span className="label-micro">{vi.shifts.date}</span>
+        <span className="label-micro">{vi.shifts.shiftType}</span>
+        <span className="label-micro">{vi.shifts.status}</span>
+        <span></span>
+      </div>
+      {shifts.map((shift) => {
+        const status = shiftStatusInfo(shift.status)
+        return (
+          <Link
+            key={shift.id}
+            href={`/stations/${id}/shifts/${shift.id}`}
+            className="hover:bg-muted/40 grid grid-cols-[1.2fr_1fr_1fr_auto] items-center gap-3 border-b px-3 py-3 text-sm transition-colors last:border-0"
+          >
+            <span>{formatDate(shift.shiftDate)}</span>
+            <span>{shiftTypeLabel(shift.shiftType)}</span>
+            <span>
+              <StatusBadge label={status.label} tone={status.tone} />
+            </span>
+            <span className="text-primary inline-flex items-center gap-1 font-medium whitespace-nowrap">
+              {vi.shifts.viewDetail}
+              <ChevronRight className="size-4" />
+            </span>
+          </Link>
+        )
+      })}
+    </div>
   )
 }

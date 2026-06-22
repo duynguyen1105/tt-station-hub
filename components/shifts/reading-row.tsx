@@ -23,6 +23,7 @@ import { vi } from '@/messages/vi'
 
 export type ReadingRowData = {
   readingId: string | null
+  stationName?: string | null
   dispenserName: string
   fuelType: string
   electronicReading: string | null
@@ -79,6 +80,7 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
 
   return (
     <tr className="border-b align-top">
+      {data.stationName != null && <td className="p-2 align-middle">{data.stationName}</td>}
       <td className="p-2">
         <div className="font-medium">{data.dispenserName}</div>
         <div className="text-muted-foreground text-xs">{fuelTypeLabel(data.fuelType)}</div>

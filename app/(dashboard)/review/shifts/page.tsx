@@ -1,9 +1,6 @@
-import Link from 'next/link'
-
-import { StatusBadge } from '@/components/shared/status-badge'
+import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { requireUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
-import { reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export default async function ReviewShiftsPage() {
@@ -40,6 +37,8 @@ export default async function ReviewShiftsPage() {
             <tr className="text-muted-foreground border-b text-left">
               <th className="p-2">{vi.review.station}</th>
               <th className="p-2">{vi.shifts.dispenser}</th>
+              <th className="p-2">{vi.shifts.electronic}</th>
+              <th className="p-2">{vi.shifts.mechanical}</th>
               <th className="p-2">{vi.shifts.status}</th>
               <th className="p-2"></th>
             </tr>
@@ -49,26 +48,19 @@ export default async function ReviewShiftsPage() {
               const shift = shiftById.get(reading.shiftId)
               const station = shift ? stationById.get(shift.stationId) : undefined
               const dispenser = dispenserById.get(reading.dispenserId)
-              const info = reviewStatusInfo(reading.reviewStatus)
-              return (
-                <tr key={reading.id} className="border-b">
-                  <td className="p-2">{station?.name ?? '—'}</td>
-                  <td className="p-2">{dispenser?.displayName ?? '—'}</td>
-                  <td className="p-2">
-                    <StatusBadge label={info.label} tone={info.tone} />
-                  </td>
-                  <td className="p-2 text-right">
-                    {shift && station && (
-                      <Link
-                        href={`/stations/${station.id}/shifts/${shift.id}`}
-                        className="text-primary hover:underline"
-                      >
-                        {vi.common.actions}
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              )
+              const data: ReadingRowData = {
+                readingId: reading.id,
+                stationName: station?.name ?? '—',
+                dispenserName: dispenser?.displayName ?? '—',
+                fuelType: dispenser?.fuelType ?? '',
+                electronicReading: reading.electronicReading?.toString() ?? null,
+                mechanicalReading: reading.mechanicalReading?.toString() ?? null,
+                electronicConfidence: reading.aiElectronicConfidence ?? null,
+                mechanicalConfidence: reading.aiMechanicalConfidence ?? null,
+                reviewStatus: reading.reviewStatus,
+                anomalyReasons: reading.anomalyReasons,
+              }
+              return <ReadingRow key={reading.id} data={data} />
             })}
           </tbody>
         </table>

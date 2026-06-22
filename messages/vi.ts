@@ -140,6 +140,7 @@ export const vi = {
     completing: 'Đang chốt...',
     empty: 'Chưa có ca nào.',
     noReadings: 'Chưa có số liệu cho ca này.',
+    viewDetail: 'Xem / Duyệt',
   },
 
   review: {
