@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { matchPhotoToDispenser, normalizeLabel } from '@/lib/matching/photo-to-reading'
+import {
+  dispenserKey,
+  matchPhotoToDispenser,
+  normalizeLabel,
+} from '@/lib/matching/photo-to-reading'
 
 const dispensers = [
   { id: 'd1', code: 'TRU_1' },
@@ -12,6 +16,15 @@ describe('normalizeLabel', () => {
     expect(normalizeLabel('TRU 1')).toBe('TRU_1')
     expect(normalizeLabel('tru-2')).toBe('TRU_2')
     expect(normalizeLabel(null)).toBeNull()
+  })
+})
+
+describe('dispenserKey', () => {
+  it('extracts TRU_<n>, ignoring fuel/tank suffixes and leading zeros', () => {
+    expect(dispenserKey('TRU 4 - DC')).toBe('TRU_4')
+    expect(dispenserKey('TRU 04')).toBe('TRU_4')
+    expect(dispenserKey('TRU_2')).toBe('TRU_2')
+    expect(dispenserKey(null)).toBeNull()
   })
 })
 
@@ -30,6 +43,13 @@ describe('matchPhotoToDispenser', () => {
     )
     expect(result.slot).toBe('mechanical')
     expect(result.dispenserId).toBe('d2')
+  })
+  it('matches despite a fuel suffix on the label ("TRU 1 - DO")', () => {
+    const result = matchPhotoToDispenser(
+      { extractedDispenserCode: 'TRU 1 - DO', meterType: 'mechanical' },
+      dispensers
+    )
+    expect(result).toEqual({ dispenserId: 'd1', slot: 'mechanical', status: 'matched' })
   })
   it('returns unmatched when the code is unknown or missing', () => {
     expect(
