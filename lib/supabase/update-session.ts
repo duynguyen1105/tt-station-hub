@@ -5,6 +5,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 const PUBLIC_PATHS = ['/login']
 
 function isPublicPath(pathname: string): boolean {
+  // Zalo domain-verification file (zalo_verifierXXXX.html) must be reachable
+  // without auth so Zalo can fetch it to verify domain ownership.
+  if (pathname.startsWith('/zalo_verifier')) return true
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
 

@@ -53,16 +53,46 @@ export function parseZaloEvent(payload: unknown): ZaloImageMessage | null {
 }
 
 async function findStationForMessage(msg: ZaloImageMessage) {
+  // Group routing: a station that owns this Zalo group.
   if (msg.groupId) {
-    return prisma.station.findFirst({
+    const byGroup = await prisma.station.findFirst({
       where: {
         OR: [{ zaloGroupId: msg.groupId }, { zaloDebtGroupId: msg.groupId }],
         isActive: true,
       },
       select: { id: true, code: true },
     })
+    if (byGroup) return byGroup
   }
-  // TODO: 1-1 chat needs a sender->station mapping (employee config) — not yet available.
+
+  // 1-1 chat: only a registered, active staff sender is accepted (allowlist).
+  const sender = await prisma.zaloSender.findFirst({
+    where: { zaloUserId: msg.senderId, isActive: true },
+    select: { stationId: true },
+  })
+  if (sender) {
+    const station = await prisma.station.findFirst({
+      where: { id: sender.stationId, isActive: true },
+      select: { id: true, code: true },
+    })
+    if (station) return station
+  }
+
+  // Explicit pilot override — off unless ZALO_DEFAULT_STATION_CODE is set.
+  const defaultCode = process.env.ZALO_DEFAULT_STATION_CODE
+  if (defaultCode) {
+    return prisma.station.findFirst({
+      where: { code: defaultCode, isActive: true },
+      select: { id: true, code: true },
+    })
+  }
+
+  // Unknown sender / unmapped group: ignore, but log the id so an admin can
+  // register a legitimate staff member via the zalo_senders allowlist.
+  logger.warn(
+    { senderId: msg.senderId, groupId: msg.groupId },
+    'Unregistered Zalo sender — ignored. Register with scripts/register-zalo-sender.ts to enable.'
+  )
   return null
 }
 

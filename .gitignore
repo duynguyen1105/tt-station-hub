@@ -51,3 +51,7 @@ next-env.d.ts
 /ralph
 /.playwright-mcp
 /.impeccable
+
+# Local Zalo webhook simulation temp images + env-specific domain verifier
+public/zalo-sim-*
+public/zalo_verifier*

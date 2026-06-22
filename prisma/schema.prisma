@@ -263,3 +263,19 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+// === ZALO SENDER ALLOWLIST ===
+// Authorized station staff: maps a Zalo OA sender user id to the station whose
+// photos they may submit (build plan §12.3). A 1-1 Zalo photo is only processed
+// when its sender is a registered, active sender here — strangers are ignored.
+model ZaloSender {
+  id          String   @id @default(uuid()) @db.Uuid
+  stationId   String   @map("station_id") @db.Uuid
+  zaloUserId  String   @unique @map("zalo_user_id")
+  displayName String?  @map("display_name")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([stationId], map: "idx_zalo_senders_station")
+  @@map("zalo_senders")
+}
