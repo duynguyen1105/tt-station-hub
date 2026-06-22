@@ -46,11 +46,15 @@ type DebtRead = {
   notes: string
 }
 
+type PlateRead = { plate: string | null; confidence: number; notes: string }
+
 type UploadResult = {
   kind: 'shift' | 'debt'
   shiftId: string | null
+  visitId: string | null
   shift: ShiftRead | null
   debt: DebtRead | null
+  plate: PlateRead | null
   extractionError: string | null
 }
 
@@ -97,6 +101,7 @@ export function PhotoUploadForm({
   const [kind, setKind] = useState<'auto' | 'shift' | 'debt'>('auto')
   const [dispenserId, setDispenserId] = useState('') // '' = auto (match by AI label)
   const [meterSlot, setMeterSlot] = useState<'auto' | 'electronic' | 'mechanical'>('auto')
+  const [debtType, setDebtType] = useState<'debt_meter' | 'vehicle'>('debt_meter')
   const [caption, setCaption] = useState('')
 
   const stationDispensers = dispensers.filter((d) => d.stationId === stationId)
@@ -149,6 +154,7 @@ export function PhotoUploadForm({
     if (kind !== 'auto') body.append('kind', kind)
     if (dispenserId) body.append('dispenserId', dispenserId)
     if (dispenserId && meterSlot !== 'auto') body.append('meterSlot', meterSlot)
+    if (kind === 'debt') body.append('debtType', debtType)
     if (caption.trim()) body.append('caption', caption.trim())
 
     try {
@@ -257,6 +263,21 @@ export function PhotoUploadForm({
                 </p>
               )}
             </div>
+          )}
+
+          {kind === 'debt' && (
+            <Field>
+              <FieldLabel>{vi.upload.debtTypeLabel}</FieldLabel>
+              <Select value={debtType} onValueChange={(v) => setDebtType(v as typeof debtType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="debt_meter">{vi.upload.debtMeter}</SelectItem>
+                  <SelectItem value="vehicle">{vi.upload.debtVehicle}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           )}
 
           <Field>
@@ -421,13 +442,32 @@ export function PhotoUploadForm({
             </div>
           )}
 
+          {result?.plate && (
+            <div>
+              <div className="mb-3 flex items-baseline justify-between">
+                <span className="label-micro text-muted-foreground">{vi.upload.plateResult}</span>
+                <span className="readout text-foreground text-2xl font-bold">
+                  {result.plate.plate ?? vi.upload.empty}
+                </span>
+              </div>
+              <ReadoutRow label={vi.upload.confidence}>
+                <ConfidenceBadge value={result.plate.confidence} />
+              </ReadoutRow>
+              {result.plate.notes && (
+                <p className="text-muted-foreground mt-3 text-xs italic">{result.plate.notes}</p>
+              )}
+            </div>
+          )}
+
           {result && !result.extractionError && (
             <Button asChild variant="outline" size="sm" className="mt-5 w-full">
               <Link
                 href={
-                  result.shiftId
-                    ? `/stations/${stationId}/shifts/${result.shiftId}`
-                    : '/review/shifts'
+                  result.kind === 'debt'
+                    ? '/review/debts'
+                    : result.shiftId
+                      ? `/stations/${stationId}/shifts/${result.shiftId}`
+                      : '/review/shifts'
                 }
               >
                 {vi.upload.viewReview}

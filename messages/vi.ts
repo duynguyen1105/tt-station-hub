@@ -97,6 +97,7 @@ export const vi = {
     meters_diverge: 'Hai đồng hồ lệch',
     low_confidence: 'Độ tin cậy thấp',
     missing_photo: 'Thiếu ảnh',
+    amount_mismatch: 'Lệch số tiền',
   },
 
   docStatus: { valid: 'Còn hạn', expiring_soon: 'Sắp hết hạn', expired: 'Hết hạn' },
@@ -222,6 +223,10 @@ export const vi = {
     slotAuto: 'Tự động (theo AI)',
     slotElectronic: 'Điện tử',
     slotMechanical: 'Cơ',
+    debtTypeLabel: 'Loại ảnh công nợ',
+    debtMeter: 'Ảnh đồng hồ (lít + đơn giá)',
+    debtVehicle: 'Ảnh biển số xe',
+    plateResult: 'Biển số đọc được',
     photo: 'Ảnh đồng hồ',
     dropHint: 'Kéo thả ảnh vào đây hoặc bấm để chọn',
     changePhoto: 'Chọn ảnh khác',

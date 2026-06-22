@@ -1,9 +1,18 @@
 import { randomUUID } from 'crypto'
 
-import { type ConfidenceClass, classifyElectronic, classifyMechanical } from '@/lib/ai/confidence'
+import {
+  type ConfidenceClass,
+  classifyDebt,
+  classifyElectronic,
+  classifyMechanical,
+} from '@/lib/ai/confidence'
 import { extractMeter } from '@/lib/ai/extract-meter'
-import { extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
-import { type ExtractMeterResult, type ExtractVisitResult } from '@/lib/ai/types'
+import { extractPlate, extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
+import {
+  type ExtractMeterResult,
+  type ExtractPlateResult,
+  type ExtractVisitResult,
+} from '@/lib/ai/types'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
 import { DEFAULT_ANOMALY_CONFIG, detectAnomalies } from '@/lib/matching/anomaly-detection'
@@ -17,6 +26,9 @@ type ShiftRef = { id: string; stationId: string }
 // Optional manual assignment from the upload form: force the pump/meter slot when
 // the AI can't read the label (e.g. a Lungbor LCD with no plate in frame).
 export type ManualOverride = { dispenserId?: string | null; slot?: MeterSlot | null }
+
+// A per-trip debt photo is either the pump meter (liters + unit price) or the vehicle plate.
+export type DebtPhotoType = 'debt_meter' | 'vehicle'
 
 // Shift windows by Vietnam (GMT+7) hour. TODO(§12.5): confirm real ca times.
 function vietnamParts(timestamp: number) {
@@ -205,19 +217,134 @@ export async function runShiftExtraction(
   return result
 }
 
-/** Runs the debt (per-trip) extraction and records it on the photo. */
-async function runDebtExtraction(photoId: string, buffer: Buffer): Promise<ExtractVisitResult> {
-  const result = await extractVisitMeter({ imageBuffer: buffer })
+const DEBT_PAIR_WINDOW_MS = 5 * 60 * 1000
+
+/** Debt review status from the weakest of liters/unit-price confidence + the §5.6 amount check. */
+function debtReview(meter: ExtractVisitResult): { reviewStatus: string; anomalies: string[] } {
+  const anomalies: string[] = []
+  if (meter.amountMatchesDisplay === false) anomalies.push('amount_mismatch')
+  const confs = [meter.litersConfidence, meter.unitPriceConfidence].filter(
+    (c): c is number => c != null
+  )
+  const conf = confs.length ? Math.min(...confs) : null
+  if (anomalies.length || conf == null) return { reviewStatus: 'needs_review', anomalies }
+  // A debt visit always needs a human to assign the customer + approve (that is what
+  // posts the charge), so never auto-approve — a confident read still waits in the
+  // queue as 'pending', a weak one as 'needs_review'.
+  const reviewStatus = classifyDebt(conf) === 'needs_review' ? 'needs_review' : 'pending'
+  return { reviewStatus, anomalies }
+}
+
+/**
+ * Per-trip debt counterpart to assembleShiftReading: reads the photo (meter ->
+ * liters + unit price + computed amount; or vehicle -> plate), then upserts a
+ * `debt_vehicle_visit`, pairing a meter photo with a recent vehicle photo (or
+ * vice-versa) at the same station within a 5-min window (build plan §4.2). A
+ * vehicle plate is cross-checked against known customer plates to auto-assign.
+ */
+export async function assembleDebtVisit(params: {
+  photoId: string
+  station: { id: string }
+  timestamp: number
+  type: DebtPhotoType
+  buffer: Buffer
+}): Promise<{
+  visitId: string
+  meter: ExtractVisitResult | null
+  plate: ExtractPlateResult | null
+}> {
+  const { photoId, station, timestamp, type, buffer } = params
+  const visitDate = new Date(timestamp)
+  const windowStart = new Date(timestamp - DEBT_PAIR_WINDOW_MS)
+
+  if (type === 'debt_meter') {
+    const meter = await extractVisitMeter({ imageBuffer: buffer })
+    await prisma.shiftPhoto.update({
+      where: { id: photoId },
+      data: {
+        aiProcessedAt: new Date(),
+        meterType: meter.meterType,
+        aiConfidence: meter.amountConfidence,
+        aiRawResponse: meter.raw as Prisma.InputJsonValue,
+      },
+    })
+    const { reviewStatus, anomalies } = debtReview(meter)
+    const meterData = {
+      litersRead: parseNumericString(meter.liters),
+      unitPriceRead: parseNumericString(meter.unitPrice),
+      displayedAmount: parseNumericString(meter.displayedAmount),
+      computedAmount: meter.computedAmount,
+      amountMatchesDisplay: meter.amountMatchesDisplay,
+      meterPhotoId: photoId,
+      aiConfidence: meter.amountConfidence,
+      aiRawResponse: meter.raw as Prisma.InputJsonValue,
+      anomalyReasons: anomalies,
+      reviewStatus,
+    }
+    // Pair with a recent vehicle-only visit at this station, else open a new one.
+    const open = await prisma.debtVehicleVisit.findFirst({
+      where: {
+        stationId: station.id,
+        meterPhotoId: null,
+        vehiclePhotoId: { not: null },
+        visitDate: { gte: windowStart },
+      },
+      orderBy: { visitDate: 'desc' },
+    })
+    const visit = open
+      ? await prisma.debtVehicleVisit.update({ where: { id: open.id }, data: meterData })
+      : await prisma.debtVehicleVisit.create({
+          data: { stationId: station.id, visitDate, ...meterData },
+        })
+    return { visitId: visit.id, meter, plate: null }
+  }
+
+  // Vehicle / plate photo.
+  const plate = await extractPlate({ imageBuffer: buffer })
   await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
       aiProcessedAt: new Date(),
-      meterType: result.meterType,
-      aiConfidence: result.amountConfidence,
-      aiRawResponse: result.raw as Prisma.InputJsonValue,
+      meterType: 'vehicle',
+      aiConfidence: plate.confidence,
+      aiRawResponse: { plate: plate.plate, confidence: plate.confidence } as Prisma.InputJsonValue,
     },
   })
-  return result
+  const customer = plate.plate
+    ? await prisma.debtCustomer.findFirst({
+        where: { stationId: station.id, knownPlates: { has: plate.plate }, isActive: true },
+        select: { id: true },
+      })
+    : null
+  const open = await prisma.debtVehicleVisit.findFirst({
+    where: {
+      stationId: station.id,
+      vehiclePhotoId: null,
+      meterPhotoId: { not: null },
+      visitDate: { gte: windowStart },
+    },
+    orderBy: { visitDate: 'desc' },
+  })
+  const visit = open
+    ? await prisma.debtVehicleVisit.update({
+        where: { id: open.id },
+        data: {
+          vehiclePhotoId: photoId,
+          plateRead: plate.plate,
+          customerId: open.customerId ?? customer?.id ?? null,
+        },
+      })
+    : await prisma.debtVehicleVisit.create({
+        data: {
+          stationId: station.id,
+          visitDate,
+          vehiclePhotoId: photoId,
+          plateRead: plate.plate,
+          customerId: customer?.id ?? null,
+          reviewStatus: 'needs_review',
+        },
+      })
+  return { visitId: visit.id, meter: null, plate }
 }
 
 const EXT_BY_TYPE: Record<string, string> = {
@@ -232,6 +359,8 @@ export type ManualIngestResult = {
   shiftId: string | null
   shift: ExtractMeterResult | null
   debt: ExtractVisitResult | null
+  plate: ExtractPlateResult | null
+  visitId: string | null
   extractionError: string | null
 }
 
@@ -248,6 +377,7 @@ export async function ingestManualPhoto(params: {
   caption: string | null
   kind?: ZaloMessageKind
   override?: ManualOverride
+  debtType?: DebtPhotoType
 }): Promise<ManualIngestResult> {
   const kind = params.kind ?? classifyZaloMessage(params.caption)
   const ext = EXT_BY_TYPE[params.contentType] ?? 'jpg'
@@ -269,6 +399,8 @@ export async function ingestManualPhoto(params: {
 
   let shift_result: ExtractMeterResult | null = null
   let debt_result: ExtractVisitResult | null = null
+  let plate_result: ExtractPlateResult | null = null
+  let visitId: string | null = null
   let extractionError: string | null = null
   try {
     if (kind === 'shift' && shift) {
@@ -279,7 +411,16 @@ export async function ingestManualPhoto(params: {
         params.override
       )
     } else {
-      debt_result = await runDebtExtraction(photo.id, params.buffer)
+      const visit = await assembleDebtVisit({
+        photoId: photo.id,
+        station: { id: params.station.id },
+        timestamp: Date.now(),
+        type: params.debtType ?? 'debt_meter',
+        buffer: params.buffer,
+      })
+      debt_result = visit.meter
+      plate_result = visit.plate
+      visitId = visit.visitId
     }
   } catch (error) {
     logger.error({ error, photoId: photo.id }, 'Manual upload extraction failed')
@@ -293,6 +434,8 @@ export async function ingestManualPhoto(params: {
     shiftId: shift?.id ?? null,
     shift: shift_result,
     debt: debt_result,
+    plate: plate_result,
+    visitId,
     extractionError,
   }
 }

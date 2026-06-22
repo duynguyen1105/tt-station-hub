@@ -103,3 +103,19 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
   // Not a shift-closing meter (debt meter, vehicle, label only, or unrelated).
   return emptyResult(router.image_type === 'not_relevant' ? 'not_a_meter' : 'unclear', router)
 }
+
+/**
+ * Router-only classification — used to route a per-trip debt photo to the meter
+ * reader vs the plate reader. Returns the router's image_type.
+ */
+export async function classifyImageType(
+  imageBuffer: Buffer | Uint8Array
+): Promise<RouterResult['image_type']> {
+  if (isAiMockEnabled()) {
+    await mockDelay()
+    return 'debt_meter'
+  }
+  const image = await prepareImageForAI(imageBuffer)
+  const text = await callClaudeVision({ prompt: ROUTER_PROMPT, images: [image], maxTokens: 300 })
+  return routerSchema.parse(parseJsonFromText(text)).image_type
+}

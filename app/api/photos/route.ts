@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
   }
 
   const kind = kindRaw === 'debt' ? 'debt' : kindRaw === 'shift' ? 'shift' : undefined
+  const debtTypeRaw = form.get('debtType')
+  const debtType =
+    debtTypeRaw === 'vehicle' ? 'vehicle' : debtTypeRaw === 'debt_meter' ? 'debt_meter' : undefined
   const caption =
     typeof captionRaw === 'string' && captionRaw.trim() !== '' ? captionRaw.trim() : null
 
@@ -72,6 +75,7 @@ export async function POST(req: NextRequest) {
     caption,
     kind,
     override,
+    debtType,
   })
 
   await writeAudit({

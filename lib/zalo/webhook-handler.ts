@@ -1,5 +1,6 @@
+import { classifyImageType } from '@/lib/ai/extract-meter'
 import { logger } from '@/lib/logger'
-import { findOrCreateShift, runShiftExtraction } from '@/lib/photos/ingest'
+import { assembleDebtVisit, findOrCreateShift, runShiftExtraction } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { classifyZaloMessage } from '@/lib/zalo/classify'
@@ -139,8 +140,21 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         void runShiftExtraction(photo.id, buffer, { id: shift.id, stationId: station.id }).catch(
           (error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed')
         )
+      } else if (kind === 'debt') {
+        // Classify meter vs vehicle, then create/pair the per-trip debt visit.
+        void (async () => {
+          const cls = await classifyImageType(buffer)
+          await assembleDebtVisit({
+            photoId: photo.id,
+            station: { id: station.id },
+            timestamp: msg.timestamp,
+            type: cls === 'vehicle' ? 'vehicle' : 'debt_meter',
+            buffer,
+          })
+        })().catch((error) =>
+          logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
+        )
       }
-      // Debt photos are extracted + paired in the per-trip debt pipeline.
     } catch (error) {
       logger.error({ error, url }, 'Failed to process Zalo image')
     }
