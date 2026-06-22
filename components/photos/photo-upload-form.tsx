@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
 type Station = { id: string; code: string; name: string }
+type Dispenser = { id: string; stationId: string; displayName: string; fuelType: string }
 
 type ShiftRead = {
   meterType: string
@@ -82,13 +83,28 @@ function ReadoutRow({ label, children }: { label: string; children: React.ReactN
   )
 }
 
-export function PhotoUploadForm({ stations }: { stations: Station[] }) {
+export function PhotoUploadForm({
+  stations,
+  dispensers,
+}: {
+  stations: Station[]
+  dispensers: Dispenser[]
+}) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const previewUrlRef = useRef<string | null>(null)
   const [stationId, setStationId] = useState(stations[0]?.id ?? '')
   const [kind, setKind] = useState<'auto' | 'shift' | 'debt'>('auto')
+  const [dispenserId, setDispenserId] = useState('') // '' = auto (match by AI label)
+  const [meterSlot, setMeterSlot] = useState<'auto' | 'electronic' | 'mechanical'>('auto')
   const [caption, setCaption] = useState('')
+
+  const stationDispensers = dispensers.filter((d) => d.stationId === stationId)
+
+  function onStationChange(next: string) {
+    setStationId(next)
+    setDispenserId('') // pumps differ per station — reset the manual assignment
+  }
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -131,6 +147,8 @@ export function PhotoUploadForm({ stations }: { stations: Station[] }) {
     body.append('file', file)
     body.append('stationId', stationId)
     if (kind !== 'auto') body.append('kind', kind)
+    if (dispenserId) body.append('dispenserId', dispenserId)
+    if (dispenserId && meterSlot !== 'auto') body.append('meterSlot', meterSlot)
     if (caption.trim()) body.append('caption', caption.trim())
 
     try {
@@ -160,7 +178,11 @@ export function PhotoUploadForm({ stations }: { stations: Station[] }) {
         <CardContent className="space-y-4">
           <Field>
             <FieldLabel>{vi.upload.station}</FieldLabel>
-            <Select value={stationId} onValueChange={setStationId} disabled={stations.length === 0}>
+            <Select
+              value={stationId}
+              onValueChange={onStationChange}
+              disabled={stations.length === 0}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={vi.upload.selectStation} />
               </SelectTrigger>
@@ -190,6 +212,52 @@ export function PhotoUploadForm({ stations }: { stations: Station[] }) {
               </SelectContent>
             </Select>
           </Field>
+
+          {kind !== 'debt' && stationDispensers.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>{vi.upload.assignPump}</FieldLabel>
+                <Select
+                  value={dispenserId || 'auto'}
+                  onValueChange={(v) => setDispenserId(v === 'auto' ? '' : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{vi.upload.pumpAuto}</SelectItem>
+                    {stationDispensers.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.displayName} · {d.fuelType}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>{vi.upload.slotLabel}</FieldLabel>
+                <Select
+                  value={meterSlot}
+                  onValueChange={(v) => setMeterSlot(v as typeof meterSlot)}
+                  disabled={!dispenserId}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{vi.upload.slotAuto}</SelectItem>
+                    <SelectItem value="electronic">{vi.upload.slotElectronic}</SelectItem>
+                    <SelectItem value="mechanical">{vi.upload.slotMechanical}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              {dispenserId && (
+                <p className="text-muted-foreground col-span-2 -mt-1 text-xs">
+                  {vi.upload.pumpHint}
+                </p>
+              )}
+            </div>
+          )}
 
           <Field>
             <FieldLabel>{vi.upload.photo}</FieldLabel>

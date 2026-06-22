@@ -5,7 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
-import { ingestManualPhoto } from '@/lib/photos/ingest'
+import { type ManualOverride, ingestManualPhoto } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
@@ -45,6 +45,25 @@ export async function POST(req: NextRequest) {
   })
   if (!station) return badRequest('Không tìm thấy trạm.')
 
+  // Optional manual assignment: force the pump (and meter slot) for label-less photos.
+  const dispenserIdRaw = form.get('dispenserId')
+  const meterSlotRaw = form.get('meterSlot')
+  let override: ManualOverride | undefined
+  if (typeof dispenserIdRaw === 'string' && idSchema.safeParse(dispenserIdRaw).success) {
+    const dispenser = await prisma.dispenser.findFirst({
+      where: { id: dispenserIdRaw, stationId: station.id, isActive: true },
+      select: { id: true },
+    })
+    if (!dispenser) return badRequest('Trụ không hợp lệ cho trạm này.')
+    const slot =
+      meterSlotRaw === 'electronic'
+        ? 'electronic'
+        : meterSlotRaw === 'mechanical'
+          ? 'mechanical'
+          : null
+    override = { dispenserId: dispenser.id, slot }
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer())
   const result = await ingestManualPhoto({
     station,
@@ -52,6 +71,7 @@ export async function POST(req: NextRequest) {
     contentType: file.type,
     caption,
     kind,
+    override,
   })
 
   await writeAudit({

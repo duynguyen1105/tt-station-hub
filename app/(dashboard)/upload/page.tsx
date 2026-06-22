@@ -6,11 +6,18 @@ import { vi } from '@/messages/vi'
 export default async function UploadPage() {
   await requireUser()
 
-  const stations = await prisma.station.findMany({
-    where: { isActive: true },
-    orderBy: { code: 'asc' },
-    select: { id: true, code: true, name: true },
-  })
+  const [stations, dispensers] = await Promise.all([
+    prisma.station.findMany({
+      where: { isActive: true },
+      orderBy: { code: 'asc' },
+      select: { id: true, code: true, name: true },
+    }),
+    prisma.dispenser.findMany({
+      where: { isActive: true },
+      orderBy: { displayOrder: 'asc' },
+      select: { id: true, stationId: true, displayName: true, fuelType: true },
+    }),
+  ])
 
   return (
     <div className="space-y-6">
@@ -20,7 +27,7 @@ export default async function UploadPage() {
         <p className="text-muted-foreground mt-1 text-sm">{vi.upload.subtitle}</p>
       </div>
 
-      <PhotoUploadForm stations={stations} />
+      <PhotoUploadForm stations={stations} dispensers={dispensers} />
     </div>
   )
 }

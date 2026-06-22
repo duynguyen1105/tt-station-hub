@@ -7,12 +7,16 @@ import { type ExtractMeterResult, type ExtractVisitResult } from '@/lib/ai/types
 import { Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
 import { DEFAULT_ANOMALY_CONFIG, detectAnomalies } from '@/lib/matching/anomaly-detection'
-import { matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
+import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { type ZaloMessageKind, classifyZaloMessage } from '@/lib/zalo/classify'
 
 type ShiftRef = { id: string; stationId: string }
+
+// Optional manual assignment from the upload form: force the pump/meter slot when
+// the AI can't read the label (e.g. a Lungbor LCD with no plate in frame).
+export type ManualOverride = { dispenserId?: string | null; slot?: MeterSlot | null }
 
 // Shift windows by Vietnam (GMT+7) hour. TODO(§12.5): confirm real ca times.
 function vietnamParts(timestamp: number) {
@@ -68,7 +72,8 @@ const SEVERITY: Record<ConfidenceClass, number> = {
 async function assembleShiftReading(
   photoId: string,
   shift: ShiftRef,
-  result: ExtractMeterResult
+  result: ExtractMeterResult,
+  override?: ManualOverride
 ): Promise<void> {
   const dispensers = await prisma.dispenser.findMany({
     where: { stationId: shift.stationId, isActive: true },
@@ -79,26 +84,30 @@ async function assembleShiftReading(
     { extractedDispenserCode: result.dispenserLabel, meterType: result.meterType },
     dispensers.map((d) => ({ id: d.id, code: d.code }))
   )
-  await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus: match.status } })
 
-  const dispenser =
-    match.status === 'matched' && match.slot
-      ? dispensers.find((d) => d.id === match.dispenserId)
-      : undefined
+  // A manual override (chosen pump/meter) wins over the AI-label match — this is
+  // how label-less photos (e.g. a Lungbor LCD with no plate) still land correctly.
+  const dispenserId =
+    override?.dispenserId ?? (match.status === 'matched' ? match.dispenserId : null)
+  const slot = override?.slot ?? match.slot
+  const matchStatus = override?.dispenserId ? 'matched' : match.status
+  await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus } })
 
-  if (dispenser && match.slot) {
+  const dispenser = dispenserId ? dispensers.find((d) => d.id === dispenserId) : undefined
+
+  if (dispenser && slot) {
     const existing = await prisma.shiftReading.findUnique({
       where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
     })
     const reading = parseNumericString(result.reading)
     const conf = result.readingConfidence
 
-    const elecReading = match.slot === 'electronic' ? reading : num(existing?.electronicReading)
-    const mechReading = match.slot === 'mechanical' ? reading : num(existing?.mechanicalReading)
-    const elecConf = match.slot === 'electronic' ? conf : (existing?.aiElectronicConfidence ?? null)
-    const mechConf = match.slot === 'mechanical' ? conf : (existing?.aiMechanicalConfidence ?? null)
-    const elecPhoto = match.slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
-    const mechPhoto = match.slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
+    const elecReading = slot === 'electronic' ? reading : num(existing?.electronicReading)
+    const mechReading = slot === 'mechanical' ? reading : num(existing?.mechanicalReading)
+    const elecConf = slot === 'electronic' ? conf : (existing?.aiElectronicConfidence ?? null)
+    const mechConf = slot === 'mechanical' ? conf : (existing?.aiMechanicalConfidence ?? null)
+    const elecPhoto = slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
+    const mechPhoto = slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
 
     const anomaly = detectAnomalies(
       {
@@ -140,9 +149,9 @@ async function assembleShiftReading(
       reviewStatus,
       // Preserve the first AI value so a later correction can show the original.
       originalElectronicReading:
-        num(existing?.originalElectronicReading) ?? (match.slot === 'electronic' ? reading : null),
+        num(existing?.originalElectronicReading) ?? (slot === 'electronic' ? reading : null),
       originalMechanicalReading:
-        num(existing?.originalMechanicalReading) ?? (match.slot === 'mechanical' ? reading : null),
+        num(existing?.originalMechanicalReading) ?? (slot === 'mechanical' ? reading : null),
     }
 
     const row = await prisma.shiftReading.upsert({
@@ -175,7 +184,8 @@ async function assembleShiftReading(
 export async function runShiftExtraction(
   photoId: string,
   buffer: Buffer,
-  shift: ShiftRef
+  shift: ShiftRef,
+  override?: ManualOverride
 ): Promise<ExtractMeterResult> {
   const result = await extractMeter({ imageBuffer: buffer })
   await prisma.shiftPhoto.update({
@@ -191,7 +201,7 @@ export async function runShiftExtraction(
       aiRawResponse: result.raw as Prisma.InputJsonValue,
     },
   })
-  await assembleShiftReading(photoId, shift, result)
+  await assembleShiftReading(photoId, shift, result, override)
   return result
 }
 
@@ -237,6 +247,7 @@ export async function ingestManualPhoto(params: {
   contentType: string
   caption: string | null
   kind?: ZaloMessageKind
+  override?: ManualOverride
 }): Promise<ManualIngestResult> {
   const kind = params.kind ?? classifyZaloMessage(params.caption)
   const ext = EXT_BY_TYPE[params.contentType] ?? 'jpg'
@@ -261,10 +272,12 @@ export async function ingestManualPhoto(params: {
   let extractionError: string | null = null
   try {
     if (kind === 'shift' && shift) {
-      shift_result = await runShiftExtraction(photo.id, params.buffer, {
-        id: shift.id,
-        stationId: params.station.id,
-      })
+      shift_result = await runShiftExtraction(
+        photo.id,
+        params.buffer,
+        { id: shift.id, stationId: params.station.id },
+        params.override
+      )
     } else {
       debt_result = await runDebtExtraction(photo.id, params.buffer)
     }
