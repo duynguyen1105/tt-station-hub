@@ -7,10 +7,12 @@ import {
   classifyMechanical,
 } from '@/lib/ai/confidence'
 import { extractMeter } from '@/lib/ai/extract-meter'
+import { extractTankDip } from '@/lib/ai/extract-tank-dip'
 import { extractPlate, extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
 import {
   type ExtractMeterResult,
   type ExtractPlateResult,
+  type ExtractTankDipResult,
   type ExtractVisitResult,
 } from '@/lib/ai/types'
 import { Prisma } from '@/lib/generated/prisma/client'
@@ -347,19 +349,40 @@ export async function assembleDebtVisit(params: {
   return { visitId: visit.id, meter: null, plate }
 }
 
+/** Reads a tank-dip (barem) photo and records it on the photo for inventory. */
+async function ingestTankDip(photoId: string, buffer: Buffer): Promise<ExtractTankDipResult> {
+  const result = await extractTankDip({ imageBuffer: buffer })
+  await prisma.shiftPhoto.update({
+    where: { id: photoId },
+    data: {
+      aiProcessedAt: new Date(),
+      meterType: 'tank_dip',
+      aiConfidence: result.confidence,
+      extractedFuelType: result.fuelType,
+      aiRawResponse: result.raw as Prisma.InputJsonValue,
+    },
+  })
+  return result
+}
+
 const EXT_BY_TYPE: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
 }
 
+// Manual upload categories: shift/debt come from Zalo classification; inventory
+// (tank dip) is an explicit web-upload choice only.
+export type ManualPhotoKind = ZaloMessageKind | 'inventory'
+
 export type ManualIngestResult = {
   photoId: string
-  kind: ZaloMessageKind
+  kind: ManualPhotoKind
   storagePath: string
   shiftId: string | null
   shift: ExtractMeterResult | null
   debt: ExtractVisitResult | null
   plate: ExtractPlateResult | null
+  tankDip: ExtractTankDipResult | null
   visitId: string | null
   extractionError: string | null
 }
@@ -375,7 +398,7 @@ export async function ingestManualPhoto(params: {
   buffer: Buffer
   contentType: string
   caption: string | null
-  kind?: ZaloMessageKind
+  kind?: ManualPhotoKind
   override?: ManualOverride
   debtType?: DebtPhotoType
 }): Promise<ManualIngestResult> {
@@ -400,6 +423,7 @@ export async function ingestManualPhoto(params: {
   let shift_result: ExtractMeterResult | null = null
   let debt_result: ExtractVisitResult | null = null
   let plate_result: ExtractPlateResult | null = null
+  let tank_result: ExtractTankDipResult | null = null
   let visitId: string | null = null
   let extractionError: string | null = null
   try {
@@ -410,6 +434,8 @@ export async function ingestManualPhoto(params: {
         { id: shift.id, stationId: params.station.id },
         params.override
       )
+    } else if (kind === 'inventory') {
+      tank_result = await ingestTankDip(photo.id, params.buffer)
     } else {
       const visit = await assembleDebtVisit({
         photoId: photo.id,
@@ -435,6 +461,7 @@ export async function ingestManualPhoto(params: {
     shift: shift_result,
     debt: debt_result,
     plate: plate_result,
+    tankDip: tank_result,
     visitId,
     extractionError,
   }

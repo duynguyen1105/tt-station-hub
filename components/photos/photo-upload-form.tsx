@@ -47,14 +47,23 @@ type DebtRead = {
 }
 
 type PlateRead = { plate: string | null; confidence: number; notes: string }
+type TankDipRead = {
+  tankLabel: string | null
+  fuelType: string | null
+  capacityK: number | null
+  dipValue: string | null
+  confidence: number
+  notes: string
+}
 
 type UploadResult = {
-  kind: 'shift' | 'debt'
+  kind: 'shift' | 'debt' | 'inventory'
   shiftId: string | null
   visitId: string | null
   shift: ShiftRead | null
   debt: DebtRead | null
   plate: PlateRead | null
+  tankDip: TankDipRead | null
   extractionError: string | null
 }
 
@@ -98,7 +107,7 @@ export function PhotoUploadForm({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const previewUrlRef = useRef<string | null>(null)
   const [stationId, setStationId] = useState(stations[0]?.id ?? '')
-  const [kind, setKind] = useState<'auto' | 'shift' | 'debt'>('auto')
+  const [kind, setKind] = useState<'auto' | 'shift' | 'debt' | 'inventory'>('auto')
   const [dispenserId, setDispenserId] = useState('') // '' = auto (match by AI label)
   const [meterSlot, setMeterSlot] = useState<'auto' | 'electronic' | 'mechanical'>('auto')
   const [debtType, setDebtType] = useState<'debt_meter' | 'vehicle'>('debt_meter')
@@ -215,11 +224,12 @@ export function PhotoUploadForm({
                 <SelectItem value="auto">{vi.upload.kindAuto}</SelectItem>
                 <SelectItem value="shift">{vi.upload.kindShift}</SelectItem>
                 <SelectItem value="debt">{vi.upload.kindDebt}</SelectItem>
+                <SelectItem value="inventory">{vi.upload.kindInventory}</SelectItem>
               </SelectContent>
             </Select>
           </Field>
 
-          {kind !== 'debt' && stationDispensers.length > 0 && (
+          {(kind === 'auto' || kind === 'shift') && stationDispensers.length > 0 && (
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>{vi.upload.assignPump}</FieldLabel>
@@ -459,7 +469,35 @@ export function PhotoUploadForm({
             </div>
           )}
 
-          {result && !result.extractionError && (
+          {result?.tankDip && (
+            <div>
+              <div className="mb-3 flex items-baseline justify-between">
+                <span className="label-micro text-muted-foreground">{vi.upload.tankDipValue}</span>
+                <span className="readout text-foreground text-2xl font-bold">
+                  {result.tankDip.dipValue ?? vi.upload.empty}
+                </span>
+              </div>
+              <ReadoutRow label={vi.upload.tankLabel}>
+                {result.tankDip.tankLabel ?? vi.upload.empty}
+              </ReadoutRow>
+              <ReadoutRow label={vi.upload.tankFuel}>
+                {result.tankDip.fuelType ?? vi.upload.empty}
+              </ReadoutRow>
+              <ReadoutRow label={vi.upload.tankCapacity}>
+                {result.tankDip.capacityK != null
+                  ? `${result.tankDip.capacityK}K`
+                  : vi.upload.empty}
+              </ReadoutRow>
+              <ReadoutRow label={vi.upload.confidence}>
+                <ConfidenceBadge value={result.tankDip.confidence} />
+              </ReadoutRow>
+              <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                {vi.upload.tankBaremNote}
+              </p>
+            </div>
+          )}
+
+          {result && !result.extractionError && result.kind !== 'inventory' && (
             <Button asChild variant="outline" size="sm" className="mt-5 w-full">
               <Link
                 href={

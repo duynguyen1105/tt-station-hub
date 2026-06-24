@@ -7,6 +7,7 @@ export const routerSchema = z.object({
     'mechanical_meter',
     'debt_meter',
     'vehicle',
+    'tank_dip',
     'label_only',
     'not_relevant',
   ]),
@@ -105,4 +106,30 @@ export type ExtractPlateResult = {
   plate: string | null
   confidence: number
   notes: string
+}
+
+// === Tank dip (inventory / barem §12.6) ===
+export const tankDipSchema = z.object({
+  is_tank_dip: z.boolean(),
+  tank_label: z.string().nullable(), // "HẦM 3"
+  tank_number: z.string().nullable(), // "3"
+  fuel_type: z.string().nullable(), // "DO" | "E0" | "DC" | "XANG_A95"
+  capacity_k: z.number().nullable(), // tank capacity in thousands of liters (e.g. 25 = 25K)
+  dip_value: z.string().nullable(), // raw measurement as shown (unit unknown until barem §12.6)
+  ruler_present: z.boolean().optional().default(false),
+  confidence: z.number(),
+  notes: z.string().optional().default(''),
+})
+export type TankDipRaw = z.infer<typeof tankDipSchema>
+
+export type ExtractTankDipResult = {
+  tankLabel: string | null
+  tankNumber: string | null
+  fuelType: string | null
+  capacityK: number | null
+  dipValue: string | null
+  rulerPresent: boolean
+  confidence: number
+  notes: string
+  raw: unknown
 }

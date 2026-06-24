@@ -12,11 +12,12 @@ Decide in this priority order:
 2. "electronic_meter": an electronic shift-closing display is visible (Montech red LED, or LungBor black-and-white LCD) showing a single running total.
 3. "debt_meter": an electronic pump screen showing 3 lines — amount / liters / unit price (a per-trip credit sale).
 4. "vehicle": a vehicle is the subject (per-trip credit sale).
-5. "label_only": a hard label plate is present but NO meter counter or display is visible at all.
-6. "not_relevant": unrelated to a fuel station.
+5. "tank_dip": a tank-dipping / barem photo — a printed tank label "HẦM <n>" (with a fuel type and a capacity like "DO - 25K"), typically with a measuring ruler / dip-stick and a written measurement, and NO pump meter in the frame.
+6. "label_only": a hard label plate is present but NO meter counter, display, or tank dip is visible at all.
+7. "not_relevant": unrelated to a fuel station.
 
 Return JSON only:
-{ "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|label_only|not_relevant", "confidence": 0-100, "notes": "..." }`
+{ "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|tank_dip|label_only|not_relevant", "confidence": 0-100, "notes": "..." }`
 
 export const ELECTRONIC_PROMPT = `Read this electronic gas-station meter (Montech red LED on black, or LungBor LCD on a blue keypad panel).
 Read the displayed number EXACTLY as shown on THIS meter. KEEP leading zeros, keep the decimal point in the correct position, and output the digits as ONE continuous number with NO spaces. Do NOT copy the example below — it only shows the JSON shape.
@@ -77,3 +78,20 @@ export const VEHICLE_PROMPT = `Read the license plate of the vehicle in this pho
 
 Return JSON only:
 { "plate": "51B-12345" | "unclear", "confidence": 0-100, "notes": "..." }`
+
+export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
+Read the printed label: the tank ("HẦM" + number), the fuel type (DO / E0 / DC / XĂNG), and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
+Read the measurement value EXACTLY as written/shown (it may be hand-written or a coloured overlay; keep it verbatim, including dots — its unit and conversion to liters are applied later from a barem table).
+
+Return JSON only (example values are placeholders, replace with what you actually see):
+{
+  "is_tank_dip": true,
+  "tank_label": "<HẦM + number>" | null,
+  "tank_number": "<number>" | null,
+  "fuel_type": "DO" | "E0" | "DC" | "XANG_A95" | null,
+  "capacity_k": <number> | null,
+  "dip_value": "<measurement exactly as shown>" | null,
+  "ruler_present": true | false,
+  "confidence": 0-100,
+  "notes": "describe what the measurement looks like"
+}`

@@ -39,7 +39,14 @@ export async function POST(req: NextRequest) {
     return badRequest('Vui lòng chọn trạm hợp lệ.')
   }
 
-  const kind = kindRaw === 'debt' ? 'debt' : kindRaw === 'shift' ? 'shift' : undefined
+  const kind =
+    kindRaw === 'debt'
+      ? 'debt'
+      : kindRaw === 'shift'
+        ? 'shift'
+        : kindRaw === 'inventory'
+          ? 'inventory'
+          : undefined
   const debtTypeRaw = form.get('debtType')
   const debtType =
     debtTypeRaw === 'vehicle' ? 'vehicle' : debtTypeRaw === 'debt_meter' ? 'debt_meter' : undefined
