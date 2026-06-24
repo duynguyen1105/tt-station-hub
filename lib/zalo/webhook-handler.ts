@@ -88,11 +88,19 @@ async function findStationForMessage(msg: ZaloImageMessage) {
     })
   }
 
-  // Unknown sender / unmapped group: ignore, but log the id so an admin can
-  // register a legitimate staff member via the zalo_senders allowlist.
+  // PILOT (no sender restriction yet): if there is exactly one active station,
+  // accept any sender and route to it. TODO(§12.3): once multiple stations are
+  // active, register staff senders (zalo_senders) or map station groups instead.
+  const active = await prisma.station.findMany({
+    where: { isActive: true },
+    select: { id: true, code: true },
+    take: 2,
+  })
+  if (active.length === 1) return active[0]!
+
   logger.warn(
     { senderId: msg.senderId, groupId: msg.groupId },
-    'Unregistered Zalo sender — ignored. Register with scripts/register-zalo-sender.ts to enable.'
+    'No station mapping for message — register a sender or map a group.'
   )
   return null
 }
