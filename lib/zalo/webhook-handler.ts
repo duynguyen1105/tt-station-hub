@@ -169,9 +169,10 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
     }
   }
 
-  // Best-effort receipt confirmation back to the sender. No-op (logged) without
-  // a valid OA access token; the Zalo send-message API may also require a VN IP.
-  if (received > 0) {
+  // Best-effort receipt confirmation back to the sender. Gated behind ZALO_AUTO_REPLY
+  // because the OA send-message API (v3.0/oa/message/cs) requires a paid OA tier
+  // package — it returns error -224 otherwise. Enable once the OA is upgraded.
+  if (received > 0 && process.env.ZALO_AUTO_REPLY === 'true') {
     const label = kind === 'debt' ? 'lượt xe / công nợ' : 'chốt ca'
     const text = `✅ Trường Thịnh đã nhận ${received} ảnh ${label}. Hệ thống đang xử lý, kế toán sẽ kiểm tra và duyệt. Cảm ơn!`
     await sendZaloMessage(msg.senderId, text).catch((error) =>
