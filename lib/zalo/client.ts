@@ -30,7 +30,9 @@ export async function downloadZaloAttachment(url: string): Promise<Buffer> {
     } catch (error) {
       lastError = error
       if (attempt < MAX_ATTEMPTS) {
-        await new Promise((r) => setTimeout(r, 400 * 2 ** (attempt - 1) + Math.floor(Math.random() * 300)))
+        await new Promise((r) =>
+          setTimeout(r, 400 * 2 ** (attempt - 1) + Math.floor(Math.random() * 300))
+        )
       }
     }
   }
