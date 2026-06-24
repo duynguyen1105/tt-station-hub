@@ -59,13 +59,29 @@ export function shiftTypeFor(timestamp: number): 'morning' | 'afternoon' | 'nigh
 export async function findOrCreateShift(stationId: string, timestamp: number) {
   const shiftDate = shiftDateFor(timestamp)
   const shiftType = shiftTypeFor(timestamp)
-  const existing = await prisma.shift.findFirst({
-    where: { stationId, shiftDate, shiftType, status: { notIn: ['completed', 'cancelled'] } },
+  const key = { stationId, shiftDate, shiftType }
+
+  const existing = await prisma.shift.findUnique({
+    where: { stationId_shiftDate_shiftType: key },
   })
   if (existing) return existing
-  return prisma.shift.create({
-    data: { stationId, shiftDate, shiftType, status: 'collecting_photos' },
-  })
+
+  // When many photos arrive at once each webhook races to create the shift. The
+  // (station, date, type) unique constraint guarantees only one create wins; the
+  // losers catch the violation (P2002) and read back the shift the winner made.
+  try {
+    return await prisma.shift.create({
+      data: { stationId, shiftDate, shiftType, status: 'collecting_photos' },
+    })
+  } catch (error) {
+    if (error instanceof Error && (error as { code?: string }).code === 'P2002') {
+      const won = await prisma.shift.findUnique({
+        where: { stationId_shiftDate_shiftType: key },
+      })
+      if (won) return won
+    }
+    throw error
+  }
 }
 
 const num = (value: unknown): number | null => (value == null ? null : Number(value))

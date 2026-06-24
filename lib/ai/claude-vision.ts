@@ -29,11 +29,18 @@ function isRetryable(error: unknown): boolean {
   return true
 }
 
-const MAX_ATTEMPTS = 3
+const MAX_ATTEMPTS = 5
+
+// Exponential backoff with random jitter. The jitter de-correlates retries when a
+// burst of photos (e.g. all dispensers sent at once) hits the rate limit together,
+// so they don't all wake up and collide again (thundering herd).
+function backoffMs(attempt: number): number {
+  return 500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 400)
+}
 
 /**
  * Sends one or more images plus a text prompt to Claude Vision and returns the
- * raw text response. Retries up to 3 times with exponential backoff on
+ * raw text response. Retries up to 5 times with jittered exponential backoff on
  * transient (429/5xx/network) errors.
  */
 export async function callClaudeVision(params: {
@@ -76,7 +83,7 @@ export async function callClaudeVision(params: {
     } catch (error) {
       lastError = error
       if (!isRetryable(error) || attempt === MAX_ATTEMPTS) break
-      await sleep(500 * 2 ** (attempt - 1))
+      await sleep(backoffMs(attempt))
     }
   }
 

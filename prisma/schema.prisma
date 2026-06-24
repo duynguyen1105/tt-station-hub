@@ -80,6 +80,9 @@ model Shift {
   reviewedBy                 String?   @map("reviewed_by") @db.Uuid
   createdAt                  DateTime  @default(now()) @map("created_at")
 
+  // One shift per station per date per type — lets findOrCreateShift upsert
+  // atomically so a burst of concurrent webhooks can't create duplicate shifts.
+  @@unique([stationId, shiftDate, shiftType], map: "uq_shifts_station_date_type")
   @@index([stationId, shiftDate(sort: Desc)], map: "idx_shifts_station_date")
   @@map("shifts")
 }
