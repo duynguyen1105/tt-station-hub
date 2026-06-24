@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 import { logger } from '@/lib/logger'
+import { storeZaloToken } from '@/lib/zalo/token'
 
 export const runtime = 'nodejs'
 
@@ -43,20 +44,18 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Log the full tokens so the operator can copy them into .env (local log only).
-  logger.info(
-    {
-      oaId,
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_in: data.expires_in,
-    },
-    'Zalo OA authorized — access/refresh token obtained'
-  )
+  // Persist the tokens so replies work unattended (auto-refreshed before expiry).
+  await storeZaloToken({
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token ?? '',
+    expiresIn: Number(data.expires_in ?? 0),
+    oaId,
+  }).catch((error) => logger.error({ error }, 'Failed to store Zalo OA token'))
+  logger.info({ oaId, expires_in: data.expires_in }, 'Zalo OA authorized — token stored')
 
   return NextResponse.json({
     ok: true,
-    message: 'OA authorized. The app can now receive webhooks. Tokens captured server-side.',
+    message: 'OA authorized. The app can now receive webhooks and send replies.',
     oa_id: oaId,
     expires_in: data.expires_in,
   })

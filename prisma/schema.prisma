@@ -279,3 +279,16 @@ model ZaloSender {
   @@index([stationId], map: "idx_zalo_senders_station")
   @@map("zalo_senders")
 }
+
+/// Zalo OA OAuth tokens (single "default" row). The access token expires ~25h and
+/// is refreshed via the rotating refresh token, so replies keep working unattended.
+model ZaloOaToken {
+  id           String   @id @default("default")
+  oaId         String?  @map("oa_id")
+  accessToken  String   @map("access_token")
+  refreshToken String   @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("zalo_oa_tokens")
+}
