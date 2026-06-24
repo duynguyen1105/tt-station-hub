@@ -79,5 +79,11 @@
     "*.{js,jsx,mjs,json,css,md}": [
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": ["current", "linux"],
+      "cpu": ["current", "x64"]
+    }
   }
 }
