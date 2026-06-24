@@ -144,22 +144,21 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         },
       })
 
+      // Awaited (not fire-and-forget) so the AI processing completes within the
+      // webhook's after() window on serverless — otherwise the function freezes first.
       if (kind === 'shift' && shift) {
-        void runShiftExtraction(photo.id, buffer, { id: shift.id, stationId: station.id }).catch(
+        await runShiftExtraction(photo.id, buffer, { id: shift.id, stationId: station.id }).catch(
           (error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed')
         )
       } else if (kind === 'debt') {
-        // Classify meter vs vehicle, then create/pair the per-trip debt visit.
-        void (async () => {
-          const cls = await classifyImageType(buffer)
-          await assembleDebtVisit({
-            photoId: photo.id,
-            station: { id: station.id },
-            timestamp: msg.timestamp,
-            type: cls === 'vehicle' ? 'vehicle' : 'debt_meter',
-            buffer,
-          })
-        })().catch((error) =>
+        const cls = await classifyImageType(buffer).catch(() => 'debt_meter')
+        await assembleDebtVisit({
+          photoId: photo.id,
+          station: { id: station.id },
+          timestamp: msg.timestamp,
+          type: cls === 'vehicle' ? 'vehicle' : 'debt_meter',
+          buffer,
+        }).catch((error) =>
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
         )
       }
