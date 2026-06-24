@@ -4,7 +4,7 @@ import { assembleDebtVisit, findOrCreateShift, runShiftExtraction } from '@/lib/
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { classifyZaloMessage } from '@/lib/zalo/classify'
-import { downloadZaloAttachment } from '@/lib/zalo/client'
+import { downloadZaloAttachment, sendZaloMessage } from '@/lib/zalo/client'
 
 export type ZaloImageMessage = {
   messageId: string
@@ -118,6 +118,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
   }
 
   const kind = classifyZaloMessage(msg.caption)
+  let received = 0
 
   for (let i = 0; i < msg.imageUrls.length; i++) {
     const url = msg.imageUrls[i]!
@@ -162,8 +163,19 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
         )
       }
+      received++
     } catch (error) {
       logger.error({ error, url }, 'Failed to process Zalo image')
     }
+  }
+
+  // Best-effort receipt confirmation back to the sender. No-op (logged) without
+  // a valid OA access token; the Zalo send-message API may also require a VN IP.
+  if (received > 0) {
+    const label = kind === 'debt' ? 'lượt xe / công nợ' : 'chốt ca'
+    const text = `✅ Trường Thịnh đã nhận ${received} ảnh ${label}. Hệ thống đang xử lý, kế toán sẽ kiểm tra và duyệt. Cảm ơn!`
+    await sendZaloMessage(msg.senderId, text).catch((error) =>
+      logger.error({ error }, 'Zalo confirm reply failed')
+    )
   }
 }
