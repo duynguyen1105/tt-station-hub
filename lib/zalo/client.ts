@@ -5,16 +5,38 @@ function isZaloMock(): boolean {
   return process.env.ZALO_MOCK === 'true'
 }
 
-/** Downloads an image attachment from Zalo. Returns a placeholder in mock mode. */
+/**
+ * Downloads an image attachment from Zalo. Returns a placeholder in mock mode.
+ *
+ * Under a burst (many photos sent at once) Zalo's CDN sometimes answers HTTP 200
+ * with an EMPTY body, which would otherwise be stored as a 0-byte image the AI
+ * can't read. So we retry with jittered backoff and reject empty responses,
+ * throwing only if every attempt fails (the caller then skips that photo instead
+ * of persisting a broken one).
+ */
 export async function downloadZaloAttachment(url: string): Promise<Buffer> {
   if (isZaloMock()) {
     return Buffer.from('zalo-mock-image')
   }
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`Failed to download Zalo attachment (${response.status})`)
+  const MAX_ATTEMPTS = 4
+  let lastError: unknown
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`status ${response.status}`)
+      const buffer = Buffer.from(await response.arrayBuffer())
+      if (buffer.byteLength === 0) throw new Error('empty body')
+      return buffer
+    } catch (error) {
+      lastError = error
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 400 * 2 ** (attempt - 1) + Math.floor(Math.random() * 300)))
+      }
+    }
   }
-  return Buffer.from(await response.arrayBuffer())
+  throw new Error(
+    `Failed to download Zalo attachment: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+  )
 }
 
 /** Sends a text reply to a Zalo user. Logs only in mock mode. */
