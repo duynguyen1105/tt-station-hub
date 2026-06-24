@@ -42,9 +42,12 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims() refreshes the session cookie (via the cookie handlers above) and
+  // verifies the JWT locally when asymmetric signing keys are enabled, avoiding an
+  // Auth-server round-trip on every navigation. Falls back to a network check
+  // otherwise, so it is never slower than getUser().
+  const { data } = await supabase.auth.getClaims()
+  const user = data?.claims ?? null
 
   const { pathname } = request.nextUrl
 

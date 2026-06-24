@@ -1,3 +1,5 @@
+import { cache } from 'react'
+
 import { redirect } from 'next/navigation'
 
 import { type AppRole, isAppRole } from '@/lib/auth/permissions'
@@ -14,8 +16,14 @@ export type CurrentUser = {
 /**
  * Returns the signed-in user joined with their profile, or null if there is no
  * valid session. Never throws — callers decide how to handle an absent user.
+ *
+ * Wrapped in React `cache()` so the layout and the page in a single render share
+ * one lookup instead of each re-validating the session + re-querying the profile.
+ * Uses `getClaims()`, which verifies the JWT locally (no Auth-server round-trip)
+ * when the project uses asymmetric signing keys, and falls back to a network
+ * check otherwise — so it is never slower than `getUser()`.
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // Local demo only (DEMO_MODE=true): act as the seeded admin and skip Supabase
   // auth. Off by default; safe to leave in place for production (gated by env).
   if (process.env.DEMO_MODE === 'true') {
@@ -30,13 +38,11 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   }
 
   const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error || !user) return null
+  const { data, error } = await supabase.auth.getClaims()
+  const userId = data?.claims?.sub
+  if (error || !userId) return null
 
-  const profile = await prisma.profile.findUnique({ where: { id: user.id } })
+  const profile = await prisma.profile.findUnique({ where: { id: userId } })
   if (!profile || !profile.isActive || !isAppRole(profile.role)) return null
 
   return {
@@ -45,7 +51,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     fullName: profile.fullName,
     role: profile.role,
   }
-}
+})
 
 /**
  * Requires an authenticated user; redirects to /login otherwise.
