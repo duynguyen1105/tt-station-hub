@@ -8,7 +8,7 @@ export const VISION_MODEL = 'claude-sonnet-4-6'
 export const ROUTER_PROMPT = `You are looking at a photo a gas-station attendant sent via Zalo. Classify it into exactly one type. A photo very often shows BOTH a printed label plate AND the meter — when so, classify by the METER, never as "label_only".
 
 Decide in this priority order:
-1. "mechanical_meter": a mechanical rolling-digit counter is visible ANYWHERE in the frame — a small rectangular window with number wheels, often near the bottom of the pump and frequently rusty, dirty, dark, small, or partly obscured. Even a small or partially-readable counter counts.
+1. "mechanical_meter": a mechanical rolling-digit counter is visible ANYWHERE in the frame — a small dark rectangular window with 6-7 white number wheels, often near the bottom of the pump, frequently rusty/dirty/dark/small/partly-obscured, and often with hand-painted marks like "D1" beside it. Even a tiny, dim, or partly-readable counter counts — if you can see digit wheels at all, choose this (NOT label_only).
 2. "electronic_meter": an electronic shift-closing display is visible (Montech red LED, or LungBor black-and-white LCD) showing a single running total.
 3. "debt_meter": an electronic pump screen showing 3 lines — amount / liters / unit price (a per-trip credit sale).
 4. "vehicle": a vehicle is the subject (per-trip credit sale).
@@ -18,8 +18,9 @@ Decide in this priority order:
 Return JSON only:
 { "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|label_only|not_relevant", "confidence": 0-100, "notes": "..." }`
 
-export const ELECTRONIC_PROMPT = `Read this electronic gas-station meter (Montech red LED, or LungBor black-and-white LCD).
-Read the displayed number EXACTLY as shown on THIS meter. KEEP leading zeros and keep the decimal point in the correct position. Do NOT copy the example below — it only shows the JSON shape.
+export const ELECTRONIC_PROMPT = `Read this electronic gas-station meter (Montech red LED on black, or LungBor LCD on a blue keypad panel).
+Read the displayed number EXACTLY as shown on THIS meter. KEEP leading zeros, keep the decimal point in the correct position, and output the digits as ONE continuous number with NO spaces. Do NOT copy the example below — it only shows the JSON shape.
+LungBor (blue panel): the running total is the ONE large number on the top "SALE/LITER" row — read that whole number with its decimal point, no spaces. IGNORE any small lone digit sitting by itself in a LITER/PRICE corner (e.g. a single "1") — that is a mode indicator, not part of the total. Set meter_type "electronic_lungbor".
 Also read the hard label plate if present — it may show the station ("TRẠM"), the dispenser ("TRU" + number), the fuel type, and the tank ("HẦM").
 If the digits are not clearly legible, set a low reading confidence and say so in notes — never guess.
 
@@ -34,7 +35,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "notes": "..."
 }`
 
-export const MECHANICAL_PROMPT = `Read this mechanical gas-station meter (6-7 rolling digits in a small window, often dusty, blurry, rusty, dark, or with glare). The counter window is frequently small and near the bottom of the pump, sometimes below a large printed label plate — find it and read the number wheels inside it.
+export const MECHANICAL_PROMPT = `Read this mechanical gas-station meter: 6-7 rolling digits inside a small dark metal window (white digits on black wheels), often dusty, blurry, rusty, dark, or with glare. The window is frequently small and near the bottom of the pump, sometimes below a large printed label plate and beside hand-painted marks like "D1" — find that window and read the wheels inside it.
 - Read the rolling digits left to right and KEEP leading zeros. Read THIS meter; do NOT copy the example below.
 - If the last digit is mid-roll between two values, record the SMALLER one.
 - If a digit is too blurry to read, write "?" in its place and set has_unreadable_digits=true.
