@@ -16,7 +16,10 @@ There Is No Limit To What You Can Accomplish Using Zalo!
 </body>
 </html>`
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ verifier: string }> }) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ verifier: string }> }
+) {
   const { verifier } = await params
   if (verifier.startsWith('zalo_verifier') && verifier.endsWith('.html')) {
     return new NextResponse(VERIFIER_HTML, {
