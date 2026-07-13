@@ -1,0 +1,378 @@
+[
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "A",
+    "range": "A1:A1001",
+    "header": "Hiển thị trên sổ",
+    "title": "MISA SME.NET",
+    "note": "Nhập Hiển thị trên sổ\nNhập 0: Sổ tài chính\nNhập 1: Sổ quản trị\nNhập 2 hoặc bỏ trống: Sổ tài chính và quản trị"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "B",
+    "range": "B1:B1001",
+    "header": "Hình thức bán hàng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Hình thức bán hàng\nNhập 0 hoặc bỏ trống: Bán hàng hóa dịch vụ trong nước\nNhập 1: Bán hàng xuất khẩu\nNhập 2: Bán hàng đại lý bán đúng giá\nNhập 3: Bán hàng ủy thác xuất khẩu"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "C",
+    "range": "C1:C1001",
+    "header": "Phương thức thanh toán",
+    "title": "MISA SME.NET",
+    "note": "Nhập Phương thức thanh toán.\nNhập 0 hoặc để trống:  Chưa thu tiền\nNhập 1: Thu tiền ngay - Tiền mặt\nNhập 2: Thu tiền ngay - Chuyển khoản"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "D",
+    "range": "D1",
+    "header": "Kiêm phiếu xuất kho",
+    "title": "MISA SME.NET",
+    "note": "Nhập Kiêm phiếu xuất kho.\nNhập 1 hoặc để trống:  Kiêm phiếu xuất kho.\nNhập 0: Không kiêm phiếu xuất kho."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "E",
+    "range": "E1:E1001",
+    "header": "XK vào khu phi thuế quan và các TH được coi như XK",
+    "title": "MISA SME.NET",
+    "note": "Xuất khẩu vào khu phi thuế quan và các trường hợp được coi như xuất khẩu.\nNhập 0 hoặc để trống: Không XK vào khu phi thuế quan và các TH được coi như XK.\nNhập 1: XK vào khu phi thuế quan và các TH được coi như XK."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "F",
+    "range": "F1:F1001",
+    "header": "Lập kèm hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Lập kèm hóa đơn\nNhập 0: Không lập kèm hóa đơn\nNhập 1 hoặc bỏ trống: Lập kèm hóa đơn"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "G",
+    "range": "G1:G1001",
+    "header": "Đã lập hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Đã lập hóa đơn\nNhập 0 hoặc bỏ trống: Chưa lập hóa đơn\nNhập 1: Đã lập hóa đơn"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "H",
+    "range": "H1:H1001",
+    "header": "Ngày hạch toán (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày hạch toán."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "I",
+    "range": "I1:I1001",
+    "header": "Ngày chứng từ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày chứng từ."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "J",
+    "range": "J1:J1001",
+    "header": "Số chứng từ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập số chứng từ bán hàng\nTối đa 20 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "K",
+    "range": "K1:K1001",
+    "header": "Số phiếu xuất",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số chứng từ phiếu xuất.\nTối đa 20 ký tự.\nLưu ý: Chỉ nhập với hóa đơn bán hàng kiêm phiếu xuất."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "L",
+    "range": "L1:L1001",
+    "header": "Lý do xuất",
+    "title": "MISA SME.NET",
+    "note": "Nhập Lý do xuất.\nTối đa 255 ký tự.\nLưu ý: Chỉ nhập với hóa đơn bán hàng kiếm phiếu xuất."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "M",
+    "range": "M1:M1001",
+    "header": "Số hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số hóa đơn.\nTối đa 25 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "N",
+    "range": "N1:N1001",
+    "header": "Ngày hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày hóa đơn."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "O",
+    "range": "O1:O1001",
+    "header": "Mã khách hàng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã khách hàng"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "P",
+    "range": "P1:P1001",
+    "header": "Tên khách hàng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tên khách hàng\nTối đa 128 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "Q",
+    "range": "Q1:Q1001",
+    "header": "Địa chỉ",
+    "title": "MISA SME.NET",
+    "note": "Nhập Địa chỉ\nTối đa 255 ký tự"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "R",
+    "range": "R1:R1001",
+    "header": "Mã số thuế",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã số thuế.\nTối đa 50 ký tự"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "S",
+    "range": "S1:S1001",
+    "header": "Diễn giải",
+    "title": "MISA SME.NET",
+    "note": "Nhập Diễn giải\nTối đa 255 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "T",
+    "range": "T1:T1001",
+    "header": "Nộp vào TK",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số tài khoản ngân hàng"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "U",
+    "range": "U1:U1001",
+    "header": "NV bán hàng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã nhân viên bán hàng."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "V",
+    "range": "V1:V1001",
+    "header": "Mã hàng (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã hàng."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "W",
+    "range": "W1:W1001",
+    "header": "Tên hàng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tên mặt hàng\nTối đa 255 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "X",
+    "range": "X1:X1001",
+    "header": "Hàng khuyến mại",
+    "title": "MISA SME.NET",
+    "note": "Nhập Là hàng khuyến mại.\nNhập 0 hoặc để trống: Không là hàng khuyến mại.\nNhập 1: Là hàng khuyến mại."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "Y",
+    "range": "Y1:Y1001",
+    "header": "TK Tiền/Chi phí/Nợ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản tiền/Tài khoản chi phí/Tài khoản nợ\nTối đa 20 ký tự"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "Z",
+    "range": "Z1:Z1001",
+    "header": "TK Doanh thu/Có (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản doanh thu/Tài khoản có\nTối đa 20 ký tự"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AA",
+    "range": "AA1:AA1001",
+    "header": "ĐVT",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã đơn vị tính."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AB",
+    "range": "AB1:AB1001",
+    "header": "Số lượng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số lượng\nTối đa 14 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AC",
+    "range": "AC1:AC1001",
+    "header": "Đơn giá sau thuế",
+    "title": "MISA SME.NET",
+    "note": "Nhập đơn giá sau thuế\nTối đa 14 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AD",
+    "range": "AD1:AD1001",
+    "header": "Đơn giá",
+    "title": "MISA SME.NET",
+    "note": "Nhập Đơn giá\nTối đa 14 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AE",
+    "range": "AE1:AE1001",
+    "header": "Thành tiền",
+    "title": "MISA SME.NET",
+    "note": "Nhập Thành tiền\nTối đa 14 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AF",
+    "range": "AF1:AF1001",
+    "header": "Tỷ lệ CK (%)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tỷ lệ chiết khẩu\nNhập giá trị trong khoảng 0 - 100."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AG",
+    "range": "AG1:AG1001",
+    "header": "Tiền chiết khấu",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tiền chiết khấu\nTối đa 14 ký tự."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AH",
+    "range": "AH1:AH1001",
+    "header": "TK chiết khấu",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản chiết khấu."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AI",
+    "range": "AI1:AI1001",
+    "header": "Giá tính thuế XK",
+    "title": "MISA SME.NET",
+    "note": "Nhập Giá tính thuế xuất khẩu\nTối đa 14 ký tự.\nLưu ý chỉ nhập với Hình thức bán hàng là (Bán hàng xuất khẩu hoặc Bán hàng ủy thác xuất khẩu)."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AJ",
+    "range": "AJ1:AJ1001",
+    "header": "% thuế XK",
+    "title": "MISA SME.NET",
+    "note": "Nhập Thuế suất thuế xuất khẩu.\nLưu ý chỉ nhập với Hình thức bán hàng là (Bán hàng xuất khẩu hoặc Bán hàng ủy thác xuất khẩu)."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AK",
+    "range": "AK1:AK1001",
+    "header": "Tiền thuế XK",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tiền thuế xuất khẩu\nTối đa 14 ký tự.\nLưu ý chỉ nhập với Hình thức bán hàng là (Bán hàng xuất khẩu hoặc Bán hàng ủy thác xuất khẩu)."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AL",
+    "range": "AL1:AL1001",
+    "header": "TK thuế XK",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản thuế xuất khẩu.\nLưu ý chỉ nhập với Hình thức bán hàng là (Bán hàng xuất khẩu hoặc Bán hàng ủy thác xuất khẩu)."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AM",
+    "range": "AM1:AM1001",
+    "header": "% thuế GTGT",
+    "title": "MISA SME.NET",
+    "note": "Nhập Thuế suất thuế GTGT\nNhập 0: 0%\nNhập 5: 5%\nNhập 8: 8%\nNhập 10: 10%.\nNhập KCT: KCT\nNhập KKKNT: Không kê khai, nộp thuế\nNhập KHAC: Thuế suất khác"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AN",
+    "range": "AN1:AN1001",
+    "header": "Tỷ lệ tính thuế (Thuế suất KHAC)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tỷ lệ tính thuế (Thuế suất KHAC)\nNếu thuế suất là KHAC thì nhập giá trị lớn hơn 0 đến 100"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AO",
+    "range": "AO1:AO1001",
+    "header": "Tiền thuế GTGT",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tiền thuế giá trị gia tăng\nTối đa 14 ký tự.\nLưu ý chỉ nhập với Hình thức bán hàng là (Bán hàng hóa dịch vụ trong nước hoặc Bán hàng đại lý bán đúng giá)."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AP",
+    "range": "AP1:AP1001",
+    "header": "TK thuế GTGT",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản thuế giá trị gia tăng.\nLưu ý chỉ nhập với Hình thức bán hàng là (Bán hàng hóa dịch vụ trong nước hoặc Bán hàng đại lý bán đúng giá)."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AQ",
+    "range": "AQ1:AQ1001",
+    "header": "HH không TH trên tờ khai thuế GTGT",
+    "title": "MISA SME.NET",
+    "note": "Nhập Hàng hóa không tổng hợp trên tờ khai thuế giá trị gia tăng.\nLưu ý chỉ nhập với Hình thức bán hàng là (Bán hàng hóa dịch vụ trong nước).\nNhập 0 hoặc bỏ trống: Không tích chọn\nNhập 1: Tích chọn"
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AR",
+    "range": "AR1:AR1001",
+    "header": "Kho",
+    "title": "MISA SME",
+    "note": "- Nhập Mã kho.\n- Bắt buộc nhập với các dòng thuộc hóa đơn bán hàng kiêm phiếu xuất kho có tính chất là Vật tư hàng hóa, Thành phẩm."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AS",
+    "range": "AS1:AS1001",
+    "header": "TK giá vốn",
+    "title": "MISA SME",
+    "note": "- Nhập tài khoản giá vốn.\n- Bắt buộc nhập với các dòng thuộc hóa đơn bán hàng kiêm phiếu xuất kho có tính chất là Vật tư hàng hóa, Thành phẩm."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AT",
+    "range": "AT1:AT1001",
+    "header": "TK Kho",
+    "title": "MISA SME",
+    "note": "- Nhập tài khoản kho.\n- Bắt buộc nhập với các dòng thuộc hóa đơn bán hàng kiêm phiếu xuất kho có tính chất là Vật tư hàng hóa, Thành phẩm."
+  },
+  {
+    "sheet": "Chứng từ bán hàng",
+    "column": "AW",
+    "range": "AW1:AW1001",
+    "header": "Hàng hóa giữ hộ/bán hộ",
+    "title": "MISA SME.NET",
+    "note": "Nhập Hàng hóa giữ hộ/bán hộ. Đối với QĐ48 không sử dụng cột này mà hạch toán trực tiếp vào tài khoản 002, 003.\nNhập 0 hoặc bỏ trống: Bỏ trống\nNhập 1: Hàng hóa giữ hô, gia công\nNhâp 2: Hàng hóa bán hộ, ký gửi"
+  }
+]

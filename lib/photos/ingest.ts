@@ -19,6 +19,7 @@ import { Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
 import { DEFAULT_ANOMALY_CONFIG, detectAnomalies } from '@/lib/matching/anomaly-detection'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
+import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { type ZaloMessageKind, classifyZaloMessage } from '@/lib/zalo/classify'
@@ -287,9 +288,22 @@ export async function assembleDebtVisit(params: {
       },
     })
     const { reviewStatus, anomalies } = debtReview(meter)
+    // Default the visit's fuel type from the pump-read price via the station's retail
+    // prices (best-effort: null on no/ambiguous match — the accountant sets it in review).
+    const unitPriceRead = parseNumericString(meter.unitPrice)
+    const priceRows = await prisma.misaRetailPrice.findMany({
+      where: { stationId: station.id },
+    })
+    const prices = priceRows.map((p) => ({
+      fuelType: p.fuelType,
+      effectiveDate: p.effectiveDate,
+      unitPrice: p.unitPrice.toNumber(),
+    }))
     const meterData = {
       litersRead: parseNumericString(meter.liters),
-      unitPriceRead: parseNumericString(meter.unitPrice),
+      unitPriceRead,
+      fuelType:
+        unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null,
       displayedAmount: parseNumericString(meter.displayedAmount),
       computedAmount: meter.computedAmount,
       amountMatchesDisplay: meter.amountMatchesDisplay,

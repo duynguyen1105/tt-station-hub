@@ -52,6 +52,7 @@ export default async function ReviewDebtsPage() {
                       liters: visit.litersRead !== null ? visit.litersRead.toString() : '',
                       unitPrice: visit.unitPriceRead !== null ? visit.unitPriceRead.toString() : '',
                       customerId: visit.customerId ?? '',
+                      fuelType: visit.fuelType ?? '',
                       customers,
                     }}
                   />
