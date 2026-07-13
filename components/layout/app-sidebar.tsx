@@ -34,7 +34,7 @@ const NAV_ITEMS = [
   { href: '/review/shifts', label: vi.nav.review, icon: ClipboardCheck },
   { href: '/upload', label: vi.nav.upload, icon: Upload },
   { href: '/reports/misa-export', label: vi.nav.misaReport, icon: FileSpreadsheet },
-  { href: '/settings/stations', label: vi.nav.settings, icon: Settings },
+  { href: '/settings/misa', label: vi.nav.settings, icon: Settings },
 ]
 
 type AppSidebarProps = {

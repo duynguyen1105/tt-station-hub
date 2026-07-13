@@ -1,3 +1,4 @@
+import { ExportPreflightDialog } from '@/components/misa-export/export-preflight-dialog'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate } from '@/lib/format'
@@ -34,12 +35,11 @@ export default async function MisaExportPage() {
                 <td className="p-2">{formatDate(shift.shiftDate)}</td>
                 <td className="p-2">{shiftTypeLabel(shift.shiftType)}</td>
                 <td className="p-2 text-right">
-                  <a
-                    href={`/api/shifts/${shift.id}/export-misa`}
-                    className="text-primary hover:underline"
-                  >
-                    Tải Excel
-                  </a>
+                  <ExportPreflightDialog
+                    shiftId={shift.id}
+                    stationId={shift.stationId}
+                    shiftDate={shift.shiftDate.toISOString().slice(0, 10)}
+                  />
                 </td>
               </tr>
             ))}

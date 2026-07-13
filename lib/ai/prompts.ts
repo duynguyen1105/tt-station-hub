@@ -31,7 +31,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "reading": "<digits exactly as shown>",
   "station_label": "<station name on the plate>" | null,
   "dispenser_label": "<TRU + number on the plate>" | null,
-  "fuel_type": "DO" | "E0" | "DC" | null,
+  "fuel_type": "DO" | "E0" | "DC" | "URE" | null,
   "confidence": { "reading": 0-100, "labels": 0-100 },
   "notes": "..."
 }`
@@ -49,7 +49,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "has_unreadable_digits": false,
   "station_label": "<station name on the plate>" | null,
   "dispenser_label": "<TRU + number on the plate>" | null,
-  "fuel_type": "DO" | "E0" | "DC" | null,
+  "fuel_type": "DO" | "E0" | "DC" | "URE" | null,
   "confidence": { "reading": 0-100, "labels": 0-100 },
   "notes": "e.g. last digit blurry, could be 8 or 9"
 }`
@@ -80,7 +80,7 @@ Return JSON only:
 { "plate": "51B-12345" | "unclear", "confidence": 0-100, "notes": "..." }`
 
 export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
-Read the printed label: the tank ("HẦM" + number), the fuel type (DO / E0 / DC / XĂNG), and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
+Read the printed label: the tank ("HẦM" + number), the fuel type (DO / E0 / DC / XĂNG / URE), and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
 Read the measurement value EXACTLY as written/shown (it may be hand-written or a coloured overlay; keep it verbatim, including dots — its unit and conversion to liters are applied later from a barem table).
 
 Return JSON only (example values are placeholders, replace with what you actually see):
@@ -88,7 +88,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "is_tank_dip": true,
   "tank_label": "<HẦM + number>" | null,
   "tank_number": "<number>" | null,
-  "fuel_type": "DO" | "E0" | "DC" | "XANG_A95" | null,
+  "fuel_type": "DO" | "E0" | "DC" | "XANG_A95" | "URE" | null,
   "capacity_k": <number> | null,
   "dip_value": "<measurement exactly as shown>" | null,
   "ruler_present": true | false,

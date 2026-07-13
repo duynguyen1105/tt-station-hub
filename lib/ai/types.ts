@@ -113,7 +113,7 @@ export const tankDipSchema = z.object({
   is_tank_dip: z.boolean(),
   tank_label: z.string().nullable(), // "HẦM 3"
   tank_number: z.string().nullable(), // "3"
-  fuel_type: z.string().nullable(), // "DO" | "E0" | "DC" | "XANG_A95"
+  fuel_type: z.string().nullable(), // "DO" | "E0" | "DC" | "XANG_A95" | "URE"
   capacity_k: z.number().nullable(), // tank capacity in thousands of liters (e.g. 25 = 25K)
   dip_value: z.string().nullable(), // raw measurement as shown (unit unknown until barem §12.6)
   ruler_present: z.boolean().optional().default(false),
