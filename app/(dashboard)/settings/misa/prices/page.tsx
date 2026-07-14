@@ -1,7 +1,8 @@
 import { RetailPriceForm } from '@/components/misa-export/retail-price-form'
-import { StationSelect } from '@/components/misa-export/station-select'
+import { VungSelect } from '@/components/misa-export/vung-select'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatVND } from '@/lib/format'
+import { Vung } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -9,24 +10,13 @@ import { vi } from '@/messages/vi'
 export default async function MisaPricesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ station?: string }>
+  searchParams: Promise<{ vung?: string }>
 }) {
-  const { station } = await searchParams
-  const stations = await prisma.station.findMany({
-    where: { isActive: true },
-    orderBy: { code: 'asc' },
-    select: { id: true, code: true, name: true },
-  })
-
-  const first = stations[0]
-  if (!first) {
-    return <p className="text-muted-foreground text-sm">{vi.misaSettings.noStations}</p>
-  }
-
-  const stationId = stations.some((s) => s.id === station) ? station! : first.id
+  const { vung: vungParam } = await searchParams
+  const vung = vungParam === Vung.VUNG_2 ? Vung.VUNG_2 : Vung.VUNG_1
 
   const prices = await prisma.misaRetailPrice.findMany({
-    where: { stationId },
+    where: { vung },
     orderBy: [{ fuelType: 'asc' }, { effectiveDate: 'desc' }],
   })
 
@@ -37,8 +27,8 @@ export default async function MisaPricesPage({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <StationSelect stations={stations} value={stationId} />
-        <RetailPriceForm stationId={stationId} />
+        <VungSelect value={vung} />
+        <RetailPriceForm vung={vung} />
       </div>
 
       {prices.length === 0 ? (

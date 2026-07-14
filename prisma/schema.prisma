@@ -296,13 +296,13 @@ model MisaFuelMap {
 
 model MisaRetailPrice {
   id            String   @id @default(uuid()) @db.Uuid
-  stationId     String   @map("station_id") @db.Uuid
+  vung          Vung // retail price zone (prices are set per Vùng, not per station)
   fuelType      String   @map("fuel_type")
   effectiveDate DateTime @map("effective_date") @db.Date
   unitPrice     Decimal  @map("unit_price") @db.Decimal(15, 0)
   createdAt     DateTime @default(now()) @map("created_at")
 
-  @@unique([stationId, fuelType, effectiveDate])
+  @@unique([vung, fuelType, effectiveDate])
   @@map("misa_retail_prices")
 }
 
