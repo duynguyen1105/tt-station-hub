@@ -27,11 +27,18 @@ model Profile {
 }
 
 // === STATIONS & DISPENSERS ===
+// Vùng = retail price zone (Vietnam's fixed two-tier national scheme).
+enum Vung {
+  VUNG_1
+  VUNG_2
+}
+
 model Station {
   id                   String   @id @default(uuid()) @db.Uuid
   code                 String   @unique // "DAKNONG_1"
   name                 String // "Trạm Đăk Nông 1"
   branch               String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
+  vung                 Vung     @default(VUNG_1) // retail price zone
   address              String?
   zaloGroupId          String?  @map("zalo_group_id") // shift-photo Zalo group
   zaloDebtGroupId      String?  @map("zalo_debt_group_id") // debt group (if separated)
