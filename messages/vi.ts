@@ -93,7 +93,7 @@ export const vi = {
     unitPrice: 'Đơn giá',
     addPrice: 'Thêm giá',
     current: 'Hiện hành',
-    noPrices: 'Chưa có giá bán lẻ cho trạm này.',
+    noPrices: 'Chưa có giá bán lẻ cho vùng này.',
     noStations: 'Chưa có trạm nào. Hãy chạy seed dữ liệu trước.',
     duplicate: 'Đã có giá cho nhiên liệu này vào ngày này.',
     invalidPrice: 'Vui lòng nhập đơn giá hợp lệ.',

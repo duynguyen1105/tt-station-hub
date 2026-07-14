@@ -236,18 +236,18 @@ async function main() {
     })
   }
 
-  // Current retail prices (dated rows).
+  // Current retail prices (dated rows), keyed by the station's Vùng.
   for (const [fuelType, unitPrice] of Object.entries(RETAIL_PRICES)) {
     await prisma.misaRetailPrice.upsert({
       where: {
-        stationId_fuelType_effectiveDate: {
-          stationId: station.id,
+        vung_fuelType_effectiveDate: {
+          vung: station.vung,
           fuelType,
           effectiveDate: PRICE_DATE,
         },
       },
       update: { unitPrice },
-      create: { stationId: station.id, fuelType, effectiveDate: PRICE_DATE, unitPrice },
+      create: { vung: station.vung, fuelType, effectiveDate: PRICE_DATE, unitPrice },
     })
   }
 

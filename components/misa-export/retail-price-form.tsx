@@ -24,11 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { type Vung } from '@/lib/generated/prisma/client'
 import { vi } from '@/messages/vi'
 
 const fuelOptions = Object.entries(vi.fuelType)
 
-export function RetailPriceForm({ stationId }: { stationId: string }) {
+export function RetailPriceForm({ vung }: { vung: Vung }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -50,7 +51,7 @@ export function RetailPriceForm({ stationId }: { stationId: string }) {
     const res = await fetch('/api/settings/misa/prices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stationId, fuelType, effectiveDate, unitPrice: value }),
+      body: JSON.stringify({ vung, fuelType, effectiveDate, unitPrice: value }),
     })
     setBusy(false)
     if (res.ok) {

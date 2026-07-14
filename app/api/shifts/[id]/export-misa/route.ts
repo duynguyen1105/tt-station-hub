@@ -51,29 +51,31 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const dayStart = new Date(shiftDate.getTime() - VN_OFFSET_MS)
   const dayEnd = new Date(shiftDate.getTime() + 24 * 60 * 60 * 1000 - VN_OFFSET_MS)
 
-  const [station, config, fuelMap, priceRows, readingRows, dispenserRows, visitRows] =
-    await Promise.all([
-      prisma.station.findUnique({ where: { id: stationId } }),
-      prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } }),
-      prisma.misaFuelMap.findMany({ where: { stationId } }),
-      prisma.misaRetailPrice.findMany({
-        where: { stationId },
-        orderBy: { effectiveDate: 'asc' },
-      }),
-      prisma.shiftReading.findMany({
-        where: { shiftId: id, reviewStatus: { in: APPROVED_READING_STATUSES } },
-        orderBy: { dispenserId: 'asc' },
-      }),
-      prisma.dispenser.findMany({ where: { stationId } }),
-      prisma.debtVehicleVisit.findMany({
-        where: {
-          stationId,
-          reviewStatus: { in: APPROVED_VISIT_STATUSES },
-          visitDate: { gte: dayStart, lt: dayEnd },
-        },
-        orderBy: [{ visitDate: 'asc' }, { id: 'asc' }],
-      }),
-    ])
+  // Prices are keyed by the station's Vùng (retail zone), so resolve the station first.
+  const station = await prisma.station.findUnique({ where: { id: stationId } })
+  if (!station) return notFound()
+
+  const [config, fuelMap, priceRows, readingRows, dispenserRows, visitRows] = await Promise.all([
+    prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } }),
+    prisma.misaFuelMap.findMany({ where: { stationId } }),
+    prisma.misaRetailPrice.findMany({
+      where: { vung: station.vung },
+      orderBy: { effectiveDate: 'asc' },
+    }),
+    prisma.shiftReading.findMany({
+      where: { shiftId: id, reviewStatus: { in: APPROVED_READING_STATUSES } },
+      orderBy: { dispenserId: 'asc' },
+    }),
+    prisma.dispenser.findMany({ where: { stationId } }),
+    prisma.debtVehicleVisit.findMany({
+      where: {
+        stationId,
+        reviewStatus: { in: APPROVED_VISIT_STATUSES },
+        visitDate: { gte: dayStart, lt: dayEnd },
+      },
+      orderBy: [{ visitDate: 'asc' }, { id: 'asc' }],
+    }),
+  ])
 
   const customerIds = [
     ...new Set(visitRows.map((v) => v.customerId).filter((cid): cid is string => cid !== null)),
