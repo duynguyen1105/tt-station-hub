@@ -12,7 +12,6 @@ export function MisaSettingsTabs() {
   const tabs = [
     { href: '/settings/misa/prices', label: vi.misaSettings.prices },
     { href: '/settings/misa/config', label: vi.misaSettings.config },
-    { href: '/settings/misa/fuel-map', label: vi.misaSettings.fuelMap },
   ]
 
   return (
