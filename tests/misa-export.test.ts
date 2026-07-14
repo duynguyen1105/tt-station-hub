@@ -349,6 +349,12 @@ describe('buildMisaSalesVoucher — preflight warnings', () => {
 })
 
 describe('buildMisaSalesVoucher — blocking errors', () => {
+  it('blocks when the global MISA config is missing', () => {
+    const result = buildMisaSalesVoucher(baseInput({ stationConfig: null }))
+    expect(result.errors).toContainEqual(expect.objectContaining({ code: 'missing_global_config' }))
+    expect(result.rows).toHaveLength(0)
+  })
+
   it('blocks a credit customer without a MISA code', () => {
     const result = buildMisaSalesVoucher(
       baseInput({

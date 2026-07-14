@@ -197,9 +197,9 @@ async function main() {
     create: { id: CUSTOMER_ID, name: 'Tiến Oanh', stationId: station.id },
   })
 
-  // MISA station config (business unit + account codes).
-  await prisma.misaStationConfig.upsert({
-    where: { stationId: station.id },
+  // MISA company-global config (account codes) — single "default" row for all stations.
+  await prisma.misaGlobalConfig.upsert({
+    where: { id: 'default' },
     update: {
       revenueAccount: '5111',
       costAccount: '632',
@@ -208,7 +208,7 @@ async function main() {
       cashDebitAccount: '11111',
     },
     create: {
-      stationId: station.id,
+      id: 'default',
       revenueAccount: '5111',
       costAccount: '632',
       stockAccount: '1561',

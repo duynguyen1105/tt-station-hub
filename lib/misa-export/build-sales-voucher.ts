@@ -165,7 +165,7 @@ export type MisaSalesRow = {
 
 export type PreflightError = {
   code:
-    | 'missing_station_config'
+    | 'missing_global_config'
     | 'missing_fuel_map'
     | 'missing_price'
     | 'customer_without_misa_code'
@@ -269,8 +269,8 @@ export function buildMisaSalesVoucher(input: MisaBuildInput): MisaBuildResult {
 
   if (stationConfig === null) {
     errors.push({
-      code: 'missing_station_config',
-      message: 'Station has no MISA config (business unit + account codes).',
+      code: 'missing_global_config',
+      message: 'No global MISA config (account codes).',
     })
     return { rows, errors, warnings, fuelSummary: [] }
   }

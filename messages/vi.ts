@@ -98,7 +98,7 @@ export const vi = {
     duplicate: 'Đã có giá cho nhiên liệu này vào ngày này.',
     invalidPrice: 'Vui lòng nhập đơn giá hợp lệ.',
     selectDate: 'Vui lòng chọn ngày áp dụng.',
-    configNote: 'Cấu hình MISA theo trạm: đơn vị và các tài khoản kế toán.',
+    configNote: 'Cấu hình MISA chung cho toàn công ty: các tài khoản kế toán.',
     fuelMapNote: 'Map nhiên liệu → mã hàng và kho MISA theo trạm.',
     revenueAccount: 'TK doanh thu',
     costAccount: 'TK giá vốn',
@@ -112,7 +112,7 @@ export const vi = {
     edit: 'Chỉnh sửa',
     editConfig: 'Chỉnh sửa cấu hình',
     editFuelMap: 'Chỉnh sửa map nhiên liệu',
-    noConfig: 'Chưa có cấu hình MISA cho trạm này.',
+    noConfig: 'Chưa có cấu hình MISA chung.',
   },
 
   misaExport: {
@@ -136,7 +136,7 @@ export const vi = {
     invoiceDate: 'Ngày hóa đơn',
     download: 'Tải xuống',
     errorCodes: {
-      missing_station_config: 'Thiếu cấu hình MISA của trạm',
+      missing_global_config: 'Thiếu cấu hình MISA chung',
       missing_fuel_map: 'Thiếu map nhiên liệu',
       missing_price: 'Thiếu giá bán lẻ',
       customer_without_misa_code: 'Khách nợ chưa có mã MISA',
