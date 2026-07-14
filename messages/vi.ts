@@ -77,6 +77,11 @@ export const vi = {
     URE: 'URE (Adblue)',
   },
 
+  vung: {
+    VUNG_1: 'Vùng 1',
+    VUNG_2: 'Vùng 2',
+  },
+
   misaSettings: {
     title: 'Cài đặt MISA',
     prices: 'Giá bán lẻ',

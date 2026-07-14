@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import 'dotenv/config'
 
 import { PrismaClient } from '../lib/generated/prisma/client'
+import { vungForProvince } from '../lib/misa-export/station-mapping/province-vung'
 
 // Standalone seed script (run via `tsx prisma/seed.ts`). Self-contained so it
 // does not depend on the `@/` path alias. Seeds station ĐAKNONG 1 from the
@@ -141,6 +142,7 @@ async function main() {
     update: {
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
+      vung: vungForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
@@ -149,6 +151,7 @@ async function main() {
       code: 'DAKNONG_1',
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
+      vung: vungForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
