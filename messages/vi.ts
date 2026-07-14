@@ -22,6 +22,7 @@ export const vi = {
     documents: 'Giấy tờ pháp lý',
     inventory: 'Hàng tồn',
     debts: 'Công nợ',
+    misa: 'MISA',
   },
 
   common: {
@@ -113,6 +114,9 @@ export const vi = {
     editConfig: 'Chỉnh sửa cấu hình',
     editFuelMap: 'Chỉnh sửa map nhiên liệu',
     noConfig: 'Chưa có cấu hình MISA chung.',
+    vungLabel: 'Vùng',
+    vungNote: 'Vùng quyết định bảng giá bán lẻ áp dụng cho trạm khi xuất MISA.',
+    saved: 'Đã lưu',
   },
 
   misaExport: {
