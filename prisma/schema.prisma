@@ -264,9 +264,10 @@ model DebtTransaction {
 }
 
 // === MISA EXPORT REFERENCE DATA ===
-model MisaStationConfig {
-  id                 String   @id @default(uuid()) @db.Uuid
-  stationId          String   @unique @map("station_id") @db.Uuid
+/// Company-global MISA GL account codes (single "default" row). All five codes are
+/// Trường Thịnh's single chart of accounts, identical for every station.
+model MisaGlobalConfig {
+  id                 String   @id @default("default")
   revenueAccount     String   @map("revenue_account") // 5111
   costAccount        String   @map("cost_account") // 632
   stockAccount       String   @map("stock_account") // 1561
@@ -275,7 +276,7 @@ model MisaStationConfig {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  @@map("misa_station_configs")
+  @@map("misa_global_configs")
 }
 
 model MisaFuelMap {

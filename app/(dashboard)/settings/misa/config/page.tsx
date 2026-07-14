@@ -1,28 +1,9 @@
 import { MisaConfigForm } from '@/components/misa-export/config-form'
-import { StationSelect } from '@/components/misa-export/station-select'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
-export default async function MisaConfigPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ station?: string }>
-}) {
-  const { station } = await searchParams
-  const stations = await prisma.station.findMany({
-    where: { isActive: true },
-    orderBy: { code: 'asc' },
-    select: { id: true, code: true, name: true },
-  })
-
-  const first = stations[0]
-  if (!first) {
-    return <p className="text-muted-foreground text-sm">{vi.misaSettings.noStations}</p>
-  }
-
-  const stationId = stations.some((s) => s.id === station) ? station! : first.id
-
-  const config = await prisma.misaStationConfig.findUnique({ where: { stationId } })
+export default async function MisaConfigPage() {
+  const config = await prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } })
 
   const rows = [
     { label: vi.misaSettings.revenueAccount, value: config?.revenueAccount },
@@ -35,8 +16,8 @@ export default async function MisaConfigPage({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <StationSelect stations={stations} value={stationId} />
-        <MisaConfigForm stationId={stationId} config={config} />
+        <p className="text-muted-foreground text-sm">{vi.misaSettings.configNote}</p>
+        <MisaConfigForm config={config} />
       </div>
 
       {config === null ? (

@@ -54,7 +54,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const [station, config, fuelMap, priceRows, readingRows, dispenserRows, visitRows] =
     await Promise.all([
       prisma.station.findUnique({ where: { id: stationId } }),
-      prisma.misaStationConfig.findUnique({ where: { stationId } }),
+      prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } }),
       prisma.misaFuelMap.findMany({ where: { stationId } }),
       prisma.misaRetailPrice.findMany({
         where: { stationId },

@@ -43,13 +43,7 @@ const EMPTY: MisaConfigValues = {
   cashDebitAccount: '',
 }
 
-export function MisaConfigForm({
-  stationId,
-  config,
-}: {
-  stationId: string
-  config: MisaConfigValues | null
-}) {
+export function MisaConfigForm({ config }: { config: MisaConfigValues | null }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -71,7 +65,7 @@ export function MisaConfigForm({
     const res = await fetch('/api/settings/misa/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stationId, ...trimmed }),
+      body: JSON.stringify(trimmed),
     })
     setBusy(false)
     if (res.ok) {

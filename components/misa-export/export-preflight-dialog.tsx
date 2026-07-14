@@ -32,8 +32,8 @@ type PreflightResult = {
 /** The Settings screen that fixes each blocking error, given the station. */
 function fixLink(error: PreflightError, stationId: string): string {
   switch (error.code) {
-    case 'missing_station_config':
-      return `/settings/misa/config?station=${stationId}`
+    case 'missing_global_config':
+      return '/settings/misa/config'
     case 'missing_fuel_map':
       return `/settings/misa/fuel-map?station=${stationId}`
     case 'missing_price':
