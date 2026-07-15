@@ -27,11 +27,18 @@ model Profile {
 }
 
 // === STATIONS & DISPENSERS ===
+// Vùng = retail price zone (Vietnam's fixed two-tier national scheme).
+enum Vung {
+  VUNG_1
+  VUNG_2
+}
+
 model Station {
   id                   String   @id @default(uuid()) @db.Uuid
   code                 String   @unique // "DAKNONG_1"
   name                 String // "Trạm Đăk Nông 1"
   branch               String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
+  vung                 Vung     @default(VUNG_1) // retail price zone
   address              String?
   zaloGroupId          String?  @map("zalo_group_id") // shift-photo Zalo group
   zaloDebtGroupId      String?  @map("zalo_debt_group_id") // debt group (if separated)
@@ -47,7 +54,7 @@ model Dispenser {
   stationId             String    @map("station_id") @db.Uuid
   code                  String // "TRU_1"
   displayName           String    @map("display_name") // "Trụ 1"
-  fuelType              String    @map("fuel_type") // "DO" | "E0" | "DC" | "XANG_A95"
+  fuelType              String    @map("fuel_type") // "DO" | "E0" | "DC" | "XANG_A95" | "URE"
   tankCode              String?   @map("tank_code") // "HAM_3"
   tankCapacityK         Int?      @map("tank_capacity_k") // 25
   hasElectronicMeter    Boolean   @default(true) @map("has_electronic_meter")
@@ -198,6 +205,7 @@ model DebtCustomer {
   id             String   @id @default(uuid()) @db.Uuid
   stationId      String?  @map("station_id") @db.Uuid // may owe at multiple stations
   name           String // "Tiến Oanh"
+  misaCode       String?  @map("misa_code") // MISA "Mã khách hàng"
   phone          String?
   knownPlates    String[] @default([]) @map("known_plates") // known plates for AI cross-check
   openingBalance Decimal  @default(0) @map("opening_balance") @db.Decimal(15, 0)
@@ -213,6 +221,7 @@ model DebtVehicleVisit {
   customerId           String?   @map("customer_id") @db.Uuid // assigned after identifying customer
   stationId            String    @map("station_id") @db.Uuid
   visitDate            DateTime  @map("visit_date")
+  fuelType             String?   @map("fuel_type") // defaulted by price→product inference; editable in review
   // AI reads from the meter photo
   litersRead           Decimal?  @map("liters_read") @db.Decimal(15, 4) // liters read by AI
   unitPriceRead        Decimal?  @map("unit_price_read") @db.Decimal(15, 0) // unit price read by AI
@@ -252,6 +261,49 @@ model DebtTransaction {
 
   @@index([customerId, txDate(sort: Desc)], map: "idx_debt_tx_customer")
   @@map("debt_transactions")
+}
+
+// === MISA EXPORT REFERENCE DATA ===
+/// Company-global MISA GL account codes (single "default" row). All five codes are
+/// Trường Thịnh's single chart of accounts, identical for every station.
+model MisaGlobalConfig {
+  id                 String   @id @default("default")
+  revenueAccount     String   @map("revenue_account") // 5111
+  costAccount        String   @map("cost_account") // 632
+  stockAccount       String   @map("stock_account") // 1561
+  creditDebitAccount String   @map("credit_debit_account") // 131 (bán nợ)
+  cashDebitAccount   String   @map("cash_debit_account") // 11111 (bán lẻ)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("misa_global_configs")
+}
+
+model MisaFuelMap {
+  id            String   @id @default(uuid()) @db.Uuid
+  stationId     String   @map("station_id") @db.Uuid
+  fuelType      String   @map("fuel_type")
+  productCode   String   @map("product_code") // MISA "Mã hàng"
+  productName   String?  @map("product_name") // MISA "Tên hàng"
+  warehouseCode String   @map("warehouse_code") // MISA "Kho"
+  unit          String? // optional ĐVT
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([stationId, fuelType])
+  @@map("misa_fuel_maps")
+}
+
+model MisaRetailPrice {
+  id            String   @id @default(uuid()) @db.Uuid
+  vung          Vung // retail price zone (prices are set per Vùng, not per station)
+  fuelType      String   @map("fuel_type")
+  effectiveDate DateTime @map("effective_date") @db.Date
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(15, 0)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([vung, fuelType, effectiveDate])
+  @@map("misa_retail_prices")
 }
 
 // === AUDIT ===

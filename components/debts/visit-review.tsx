@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export type VisitReviewData = {
@@ -32,10 +33,13 @@ export type VisitReviewData = {
   liters: string
   unitPrice: string
   customerId: string
+  fuelType: string
   customers: { id: string; name: string }[]
 }
 
 const UNASSIGNED = '__none__'
+
+const FUEL_TYPES = ['DO', 'E0', 'DC', 'XANG_A95', 'URE'] as const
 
 async function post(url: string, body: unknown): Promise<Response> {
   return fetch(url, {
@@ -53,6 +57,7 @@ export function VisitReview({ data }: { data: VisitReviewData }) {
   const [plate, setPlate] = useState(data.plate)
   const [liters, setLiters] = useState(data.liters)
   const [unitPrice, setUnitPrice] = useState(data.unitPrice)
+  const [fuelType, setFuelType] = useState(data.fuelType || UNASSIGNED)
 
   async function approve() {
     if (customerId === UNASSIGNED) {
@@ -76,6 +81,7 @@ export function VisitReview({ data }: { data: VisitReviewData }) {
       litersRead: liters ? Number(liters) : null,
       unitPriceRead: unitPrice ? Number(unitPrice) : null,
       customerId: customerId === UNASSIGNED ? null : customerId,
+      fuelType: fuelType === UNASSIGNED ? null : fuelType,
     })
     setBusy(false)
     if (res.ok) {
@@ -139,6 +145,22 @@ export function VisitReview({ data }: { data: VisitReviewData }) {
                 />
               </Field>
             </div>
+            <Field>
+              <FieldLabel htmlFor="fuelType">{vi.debts.fuelType}</FieldLabel>
+              <Select value={fuelType} onValueChange={setFuelType}>
+                <SelectTrigger id="fuelType">
+                  <SelectValue placeholder={vi.debts.fuelType} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>—</SelectItem>
+                  {FUEL_TYPES.map((ft) => (
+                    <SelectItem key={ft} value={ft}>
+                      {fuelTypeLabel(ft)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>

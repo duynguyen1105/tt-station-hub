@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import 'dotenv/config'
 
 import { PrismaClient } from '../lib/generated/prisma/client'
+import { vungForProvince } from '../lib/misa-export/station-mapping/province-vung'
 
 // Standalone seed script (run via `tsx prisma/seed.ts`). Self-contained so it
 // does not depend on the `@/` path alias. Seeds station ĐAKNONG 1 from the
@@ -15,6 +16,40 @@ const STATION_ID = '11111111-1111-1111-1111-111111111111'
 const ADMIN_ID = '22222222-2222-2222-2222-222222222201'
 const ACCOUNTANT_ID = '22222222-2222-2222-2222-222222222202'
 const CUSTOMER_ID = '33333333-3333-3333-3333-333333333301'
+
+// Latest retail-price effective date from the accountant's GBL sheet. Fixed so
+// re-running the seed upserts the same dated rows.
+const PRICE_DATE = new Date('2026-06-25')
+
+// Fuel → MISA product/warehouse map for DAKNONG_1 (from the sample sales file).
+// productName (Tên hàng) is a starting default — the accountant verifies/replaces it in
+// Settings → MISA → Map nhiên liệu against the official Trường Thịnh product list.
+type FuelMapSeed = {
+  fuelType: string
+  productCode: string
+  productName: string
+  warehouseCode: string
+}
+const FUEL_MAP: FuelMapSeed[] = [
+  { fuelType: 'DO', productCode: 'DO', productName: 'Dầu DO', warehouseCode: 'TT-DN1' },
+  { fuelType: 'E0', productCode: 'XA E0', productName: 'Xăng E5 RON 92', warehouseCode: 'TT-DN1' },
+  { fuelType: 'DC', productCode: 'DO01', productName: 'Dầu DO 0,001S-V', warehouseCode: 'TT-DN1' },
+  { fuelType: 'XANG_A95', productCode: 'A95', productName: 'Xăng RON 95', warehouseCode: 'TT-DN1' },
+  {
+    fuelType: 'URE',
+    productCode: 'URE',
+    productName: 'Dung dịch URE (AdBlue)',
+    warehouseCode: 'KHONHOTDAKNONG1',
+  },
+]
+
+// Current retail prices (VND) per fuel. No A95 — not sold at DAKNONG_1.
+const RETAIL_PRICES: Record<string, number> = {
+  DO: 22290,
+  E0: 20300,
+  DC: 24430,
+  URE: 15000,
+}
 
 type DispenserSeed = {
   code: string
@@ -107,6 +142,7 @@ async function main() {
     update: {
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
+      vung: vungForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
@@ -115,6 +151,7 @@ async function main() {
       code: 'DAKNONG_1',
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
+      vung: vungForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
@@ -159,6 +196,60 @@ async function main() {
     update: { name: 'Tiến Oanh', stationId: station.id },
     create: { id: CUSTOMER_ID, name: 'Tiến Oanh', stationId: station.id },
   })
+
+  // MISA company-global config (account codes) — single "default" row for all stations.
+  await prisma.misaGlobalConfig.upsert({
+    where: { id: 'default' },
+    update: {
+      revenueAccount: '5111',
+      costAccount: '632',
+      stockAccount: '1561',
+      creditDebitAccount: '131',
+      cashDebitAccount: '11111',
+    },
+    create: {
+      id: 'default',
+      revenueAccount: '5111',
+      costAccount: '632',
+      stockAccount: '1561',
+      creditDebitAccount: '131',
+      cashDebitAccount: '11111',
+    },
+  })
+
+  // MISA fuel → product/warehouse map.
+  for (const f of FUEL_MAP) {
+    await prisma.misaFuelMap.upsert({
+      where: { stationId_fuelType: { stationId: station.id, fuelType: f.fuelType } },
+      update: {
+        productCode: f.productCode,
+        productName: f.productName,
+        warehouseCode: f.warehouseCode,
+      },
+      create: {
+        stationId: station.id,
+        fuelType: f.fuelType,
+        productCode: f.productCode,
+        productName: f.productName,
+        warehouseCode: f.warehouseCode,
+      },
+    })
+  }
+
+  // Current retail prices (dated rows), keyed by the station's Vùng.
+  for (const [fuelType, unitPrice] of Object.entries(RETAIL_PRICES)) {
+    await prisma.misaRetailPrice.upsert({
+      where: {
+        vung_fuelType_effectiveDate: {
+          vung: station.vung,
+          fuelType,
+          effectiveDate: PRICE_DATE,
+        },
+      },
+      update: { unitPrice },
+      create: { vung: station.vung, fuelType, effectiveDate: PRICE_DATE, unitPrice },
+    })
+  }
 
   console.log('Seed completed: station DAKNONG_1 with %d dispensers.', DISPENSERS.length)
 }
