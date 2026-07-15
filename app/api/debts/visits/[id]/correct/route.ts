@@ -14,6 +14,7 @@ const correctSchema = z.object({
   litersRead: z.number().nullable().optional(),
   unitPriceRead: z.number().nullable().optional(),
   customerId: z.string().uuid().nullable().optional(),
+  fuelType: z.enum(['DO', 'E0', 'DC', 'XANG_A95', 'URE']).nullable().optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (parsed.data.plateConfirmed !== undefined) data.plateConfirmed = parsed.data.plateConfirmed
   if (parsed.data.customerId !== undefined) data.customerId = parsed.data.customerId
+  if (parsed.data.fuelType !== undefined) data.fuelType = parsed.data.fuelType
   if (parsed.data.litersRead !== undefined) data.litersRead = parsed.data.litersRead
   if (parsed.data.unitPriceRead !== undefined) data.unitPriceRead = parsed.data.unitPriceRead
 

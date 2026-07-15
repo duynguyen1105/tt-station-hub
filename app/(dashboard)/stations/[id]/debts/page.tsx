@@ -1,3 +1,4 @@
+import { CustomerMisaForm } from '@/components/debts/customer-misa-form'
 import { PaymentForm } from '@/components/debts/payment-form'
 import { requireUser } from '@/lib/auth/session'
 import { formatVND } from '@/lib/format'
@@ -21,6 +22,7 @@ export default async function StationDebtsPage({ params }: { params: Promise<{ i
       <thead>
         <tr className="text-muted-foreground border-b text-left">
           <th className="p-2">{vi.debts.customer}</th>
+          <th className="p-2">{vi.debts.misaCode}</th>
           <th className="p-2 text-right">{vi.debts.balance}</th>
           <th className="p-2"></th>
         </tr>
@@ -29,10 +31,16 @@ export default async function StationDebtsPage({ params }: { params: Promise<{ i
         {customers.map((customer) => (
           <tr key={customer.id} className="border-b">
             <td className="p-2">{customer.name}</td>
+            <td className="p-2 font-mono">{customer.misaCode ?? '—'}</td>
             <td className="p-2 text-right font-mono">
               {formatVND(Number(customer.currentBalance))}
             </td>
             <td className="p-2 text-right">
+              <CustomerMisaForm
+                customerId={customer.id}
+                customerName={customer.name}
+                misaCode={customer.misaCode}
+              />
               <PaymentForm customerId={customer.id} customerName={customer.name} />
             </td>
           </tr>
