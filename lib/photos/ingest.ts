@@ -1,11 +1,6 @@
 import { randomUUID } from 'crypto'
 
-import {
-  type ConfidenceClass,
-  classifyDebt,
-  classifyElectronic,
-  classifyMechanical,
-} from '@/lib/ai/confidence'
+import { classifyDebt } from '@/lib/ai/confidence'
 import { extractMeter } from '@/lib/ai/extract-meter'
 import { extractTankDip } from '@/lib/ai/extract-tank-dip'
 import { extractPlate, extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
@@ -18,8 +13,9 @@ import {
 } from '@/lib/ai/types'
 import { Prisma, Vung } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
-import { DEFAULT_ANOMALY_CONFIG, detectAnomalies } from '@/lib/matching/anomaly-detection'
+import { DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
+import { deriveReviewState } from '@/lib/matching/review-state'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
@@ -88,18 +84,12 @@ export async function findOrCreateShift(stationId: string, timestamp: number) {
 
 const num = (value: unknown): number | null => (value == null ? null : Number(value))
 
-const SEVERITY: Record<ConfidenceClass, number> = {
-  auto_approved: 0,
-  pending: 1,
-  needs_review: 2,
-}
-
 /**
  * Matches an extracted shift photo to a dispenser meter, upserts the
- * `shift_readings` row (filling the electronic or mechanical slot), runs the
- * anomaly rules + confidence thresholds, links the photo, and advances the shift
- * out of `collecting_photos`. This is the build-plan §2.2 assembly step that turns
- * a stored+read photo into a reviewable reading.
+ * `shift_readings` row (filling the electronic or mechanical slot), derives the
+ * review state, links the photo, and advances the shift out of
+ * `collecting_photos`. This is the build-plan §2.2 assembly step that turns a
+ * stored+read photo into a reviewable reading.
  */
 async function assembleShiftReading(
   photoId: string,
@@ -141,7 +131,7 @@ async function assembleShiftReading(
     const elecPhoto = slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
     const mechPhoto = slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
 
-    const anomaly = detectAnomalies(
+    const review = deriveReviewState(
       {
         electronicReading: elecReading,
         mechanicalReading: mechReading,
@@ -157,16 +147,6 @@ async function assembleShiftReading(
       DEFAULT_ANOMALY_CONFIG
     )
 
-    const classes: ConfidenceClass[] = []
-    if (elecReading != null && elecConf != null) classes.push(classifyElectronic(elecConf))
-    if (mechReading != null && mechConf != null) classes.push(classifyMechanical(mechConf))
-    // Most-severe confidence class across the filled slots; default to
-    // needs_review when nothing could be classified.
-    const worst = classes.length
-      ? classes.reduce((a, b) => (SEVERITY[b] > SEVERITY[a] ? b : a))
-      : 'needs_review'
-    const reviewStatus = anomaly.isAnomaly ? 'needs_review' : worst
-
     const data = {
       electronicReading: elecReading,
       mechanicalReading: mechReading,
@@ -174,11 +154,11 @@ async function assembleShiftReading(
       mechanicalPhotoId: mechPhoto,
       aiElectronicConfidence: elecConf,
       aiMechanicalConfidence: mechConf,
-      electronicDelta: anomaly.electronicDelta,
-      mechanicalDelta: anomaly.mechanicalDelta,
-      isAnomaly: anomaly.isAnomaly,
-      anomalyReasons: anomaly.reasons,
-      reviewStatus,
+      electronicDelta: review.electronicDelta,
+      mechanicalDelta: review.mechanicalDelta,
+      isAnomaly: review.isAnomaly,
+      anomalyReasons: review.anomalyReasons,
+      reviewStatus: review.reviewStatus,
       // Preserve the first AI value so a later correction can show the original.
       originalElectronicReading:
         num(existing?.originalElectronicReading) ?? (slot === 'electronic' ? reading : null),
