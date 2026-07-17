@@ -1,7 +1,9 @@
-import { VisitReview } from '@/components/debts/visit-review'
+import dayjs from 'dayjs'
+
+import { DebtVisitCard } from '@/components/debts/debt-visit-card'
 import { requireUser } from '@/lib/auth/session'
-import { formatLiters, formatVND } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
+import { getSignedUrl } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
 export default async function ReviewDebtsPage() {
@@ -19,48 +21,63 @@ export default async function ReviewDebtsPage() {
     }),
   ])
 
+  // Sign the paired photos so the reviewer can check the AI reading against them.
+  const photoIds = [
+    ...new Set(
+      visits.flatMap((v) => [v.vehiclePhotoId, v.meterPhotoId]).filter((x): x is string => !!x)
+    ),
+  ]
+  const photos = photoIds.length
+    ? await prisma.shiftPhoto.findMany({
+        where: { id: { in: photoIds } },
+        select: { id: true, storagePath: true },
+      })
+    : []
+  const urlById = new Map<string, string>()
+  await Promise.all(
+    photos.map(async (p) => {
+      if (!p.storagePath) return
+      const url = await getSignedUrl(p.storagePath).catch(() => null)
+      if (url) urlById.set(p.id, url)
+    })
+  )
+
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">{vi.review.debtsTitle}</h1>
+      <div>
+        <p className="label-micro">{vi.debtReview.subtitle}</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{vi.debtReview.title}</h1>
+      </div>
+
       {visits.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{vi.review.empty}</p>
+        <p className="text-muted-foreground text-sm">{vi.debtReview.empty}</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-muted-foreground border-b text-left">
-              <th className="p-2">{vi.debts.plate}</th>
-              <th className="p-2 text-right">{vi.debts.liters}</th>
-              <th className="p-2 text-right">{vi.debts.amount}</th>
-              <th className="p-2 text-right"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {visits.map((visit) => (
-              <tr key={visit.id} className="border-b align-middle">
-                <td className="p-2">{visit.plateConfirmed ?? visit.plateRead ?? '—'}</td>
-                <td className="p-2 text-right font-mono">
-                  {visit.litersRead !== null ? formatLiters(Number(visit.litersRead)) : '—'}
-                </td>
-                <td className="p-2 text-right font-mono">
-                  {visit.computedAmount !== null ? formatVND(Number(visit.computedAmount)) : '—'}
-                </td>
-                <td className="p-2 text-right">
-                  <VisitReview
-                    data={{
-                      visitId: visit.id,
-                      plate: visit.plateConfirmed ?? visit.plateRead ?? '',
-                      liters: visit.litersRead !== null ? visit.litersRead.toString() : '',
-                      unitPrice: visit.unitPriceRead !== null ? visit.unitPriceRead.toString() : '',
-                      customerId: visit.customerId ?? '',
-                      fuelType: visit.fuelType ?? '',
-                      customers,
-                    }}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {visits.map((v) => (
+            <DebtVisitCard
+              key={v.id}
+              data={{
+                visitId: v.id,
+                reviewStatus: v.reviewStatus,
+                plate: v.plateConfirmed ?? v.plateRead,
+                liters: v.litersRead !== null ? v.litersRead.toString() : null,
+                unitPrice: v.unitPriceRead !== null ? v.unitPriceRead.toString() : null,
+                computedAmount: v.computedAmount !== null ? Number(v.computedAmount) : null,
+                displayedAmount: v.displayedAmount !== null ? Number(v.displayedAmount) : null,
+                amountMatchesDisplay: v.amountMatchesDisplay,
+                fuelType: v.fuelType,
+                customerId: v.customerId,
+                autoMatched: v.customerId !== null,
+                anomalyReasons: v.anomalyReasons,
+                aiConfidence: v.aiConfidence,
+                visitTime: dayjs(v.visitDate).format('HH:mm · DD/MM'),
+                vehiclePhotoUrl: v.vehiclePhotoId ? (urlById.get(v.vehiclePhotoId) ?? null) : null,
+                meterPhotoUrl: v.meterPhotoId ? (urlById.get(v.meterPhotoId) ?? null) : null,
+                customers,
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   )
