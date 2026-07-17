@@ -9,12 +9,14 @@ export const ROUTER_PROMPT = `You are looking at a photo a gas-station attendant
 
 Decide in this priority order:
 1. "mechanical_meter": a mechanical rolling-digit counter is visible ANYWHERE in the frame — a small dark rectangular window with 6-7 white number wheels, often near the bottom of the pump, frequently rusty/dirty/dark/small/partly-obscured, and often with hand-painted marks like "D1" beside it. Even a tiny, dim, or partly-readable counter counts — if you can see digit wheels at all, choose this (NOT label_only).
-2. "electronic_meter": an electronic shift-closing display is visible (Montech red LED, or LungBor black-and-white LCD) showing a single running total.
-3. "debt_meter": an electronic pump screen showing 3 lines — amount / liters / unit price (a per-trip credit sale).
+2. "electronic_meter": an electronic SHIFT-CLOSING totalizer showing the cumulative running total — EITHER a single-number display (Montech red LED, or LungBor black-and-white LCD), OR a green dot-matrix display with 3 stacked lines labeled Đồng/Tiền, LÍT, Đơn giá whose LÍT line is a LARGE cumulative number (5+ digits, e.g. 1843352).
+3. "debt_meter": an electronic pump screen with 3 lines (amount / liters / unit price) for ONE per-trip credit sale — here the liters line is a SMALL single-fill amount (e.g. 34.0) and amount ≈ liters × unit price.
 4. "vehicle": a vehicle is the subject (per-trip credit sale).
 5. "tank_dip": a tank-dipping / barem photo — a printed tank label "HẦM <n>" (with a fuel type and a capacity like "DO - 25K"), typically with a measuring ruler / dip-stick and a written measurement, and NO pump meter in the frame.
 6. "label_only": a hard label plate is present but NO meter counter, display, or tank dip is visible at all.
 7. "not_relevant": unrelated to a fuel station.
+
+When a display shows 3 stacked lines (Đồng/Tiền / LÍT / Đơn giá), decide electronic_meter vs debt_meter by the LÍT magnitude: a LARGE cumulative number (5+ digits) → electronic_meter (shift totalizer); a SMALL single-fill (≤ ~4 digits) whose amount ≈ liters × price → debt_meter.
 
 Return JSON only:
 { "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|tank_dip|label_only|not_relevant", "confidence": 0-100, "notes": "..." }`
@@ -22,6 +24,7 @@ Return JSON only:
 export const ELECTRONIC_PROMPT = `Read this electronic gas-station meter (Montech red LED on black, or LungBor LCD on a blue keypad panel).
 Read the displayed number EXACTLY as shown on THIS meter. KEEP leading zeros, keep the decimal point in the correct position, and output the digits as ONE continuous number with NO spaces. Do NOT copy the example below — it only shows the JSON shape.
 LungBor (blue panel): the running total is the ONE large number on the top "SALE/LITER" row — read that whole number with its decimal point, no spaces. IGNORE any small lone digit sitting by itself in a LITER/PRICE corner (e.g. a single "1") — that is a mode indicator, not part of the total. Set meter_type "electronic_lungbor".
+3-line green dot-matrix totalizer: some pumps show a green LED display with 3 STACKED lines labeled Đồng/Tiền (money), LÍT (liters), Đơn giá (unit price). The shift reading is the LÍT (liters) line — read THAT whole number (it is a large cumulative total, 5+ digits); IGNORE the money and unit-price lines. Set meter_type "electronic_montech".
 Also read the hard label plate if present — it may show the station ("TRẠM"), the dispenser ("TRU" + number), the fuel type, and the tank ("HẦM").
 If the digits are not clearly legible, set a low reading confidence and say so in notes — never guess.
 
