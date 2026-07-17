@@ -1,9 +1,14 @@
-import { classifyImageType } from '@/lib/ai/extract-meter'
+import { classifyPhoto } from '@/lib/ai/extract-meter'
 import { logger } from '@/lib/logger'
-import { assembleDebtVisit, findOrCreateShift, runShiftExtraction } from '@/lib/photos/ingest'
+import {
+  assembleDebtVisit,
+  findOrCreateShift,
+  ingestTankDip,
+  runShiftExtraction,
+} from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
-import { classifyZaloMessage } from '@/lib/zalo/classify'
+import { classifyZaloMessage, routePhoto } from '@/lib/zalo/classify'
 import { downloadZaloAttachment, sendZaloMessage } from '@/lib/zalo/client'
 
 export type ZaloImageMessage = {
@@ -117,17 +122,27 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
     return
   }
 
-  const kind = classifyZaloMessage(msg.caption)
+  // Caption is a hint; the per-photo image content is the real decider (below).
+  const captionKind = classifyZaloMessage(msg.caption)
   let received = 0
 
   for (let i = 0; i < msg.imageUrls.length; i++) {
     const url = msg.imageUrls[i]!
     try {
       const buffer = await downloadZaloAttachment(url)
-      const path = `${station.code}/${kind}/${msg.messageId}-${i}.jpg`
+
+      // Classify once, then route by what the AI sees — a vehicle plate or a
+      // transaction display is a debt fill, a cumulative totalizer is a shift
+      // reading, a HẦM tank-dip is inventory — falling back to the caption when the
+      // image is ambiguous. The router result is reused by the extractors below so
+      // we never pay for a second classification.
+      const router = await classifyPhoto(buffer).catch(() => null)
+      const route = router ? routePhoto(router.image_type, captionKind) : captionKind
+
+      const path = `${station.code}/${route}/${msg.messageId}-${i}.jpg`
       await uploadPhoto(path, buffer)
 
-      const shift = kind === 'shift' ? await findOrCreateShift(station.id, msg.timestamp) : null
+      const shift = route === 'shift' ? await findOrCreateShift(station.id, msg.timestamp) : null
 
       const photo = await prisma.shiftPhoto.create({
         data: {
@@ -145,22 +160,29 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         },
       })
 
-      // Awaited (not fire-and-forget) so the AI processing completes within the
-      // webhook's after() window on serverless — otherwise the function freezes first.
-      if (kind === 'shift' && shift) {
-        await runShiftExtraction(photo.id, buffer, { id: shift.id, stationId: station.id }).catch(
-          (error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed')
-        )
-      } else if (kind === 'debt') {
-        const cls = await classifyImageType(buffer).catch(() => 'debt_meter')
+      // Awaited (not fire-and-forget) so processing completes within the webhook's
+      // after() window on serverless — otherwise the function freezes first.
+      if (route === 'shift' && shift) {
+        await runShiftExtraction(
+          photo.id,
+          buffer,
+          { id: shift.id, stationId: station.id },
+          undefined,
+          router ?? undefined
+        ).catch((error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed'))
+      } else if (route === 'debt') {
         await assembleDebtVisit({
           photoId: photo.id,
           station: { id: station.id },
           timestamp: msg.timestamp,
-          type: cls === 'vehicle' ? 'vehicle' : 'debt_meter',
+          type: router?.image_type === 'vehicle' ? 'vehicle' : 'debt_meter',
           buffer,
         }).catch((error) =>
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
+        )
+      } else if (route === 'inventory') {
+        await ingestTankDip(photo.id, buffer).catch((error) =>
+          logger.error({ error, photoId: photo.id }, 'Tank-dip ingest failed')
         )
       }
       received++
@@ -173,8 +195,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
   // because the OA send-message API (v3.0/oa/message/cs) requires a paid OA tier
   // package — it returns error -224 otherwise. Enable once the OA is upgraded.
   if (received > 0 && process.env.ZALO_AUTO_REPLY === 'true') {
-    const label = kind === 'debt' ? 'lượt xe / công nợ' : 'chốt ca'
-    const text = `✅ Trường Thịnh đã nhận ${received} ảnh ${label}. Hệ thống đang xử lý, kế toán sẽ kiểm tra và duyệt. Cảm ơn!`
+    const text = `✅ Trường Thịnh đã nhận ${received} ảnh. Hệ thống đang xử lý, kế toán sẽ kiểm tra và duyệt. Cảm ơn!`
     await sendZaloMessage(msg.senderId, text).catch((error) =>
       logger.error({ error }, 'Zalo confirm reply failed')
     )
