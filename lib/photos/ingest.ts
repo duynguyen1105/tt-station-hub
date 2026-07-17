@@ -256,6 +256,15 @@ function debtReview(meter: ExtractVisitResult): { reviewStatus: string; anomalie
   return { reviewStatus, anomalies }
 }
 
+const KNOWN_FUEL_TYPES = new Set(['DO', 'E0', 'DC', 'XANG_A95', 'URE'])
+
+/** Accepts the AI-read fuel label only if it is one of the known fuel codes, else null. */
+function normalizeFuelType(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const code = raw.trim().toUpperCase()
+  return KNOWN_FUEL_TYPES.has(code) ? code : null
+}
+
 /**
  * Per-trip debt counterpart to assembleShiftReading: reads the photo (meter ->
  * liters + unit price + computed amount; or vehicle -> plate), then upserts a
@@ -290,9 +299,12 @@ export async function assembleDebtVisit(params: {
       },
     })
     const { reviewStatus, anomalies } = debtReview(meter)
-    // Default the visit's fuel type from the pump-read price via the station's retail
-    // prices (best-effort: null on no/ambiguous match — the accountant sets it in review).
     const unitPriceRead = parseNumericString(meter.unitPrice)
+    // Prefer the fuel type read off the printed pump label ("TRỤ 1 – DO"): it is the
+    // ground truth and, unlike a price, is unaffected by contract/debt pricing. Fall
+    // back to inferring from the pump price via the station's Vùng retail prices, and
+    // finally to null (the accountant sets it in review).
+    const labelFuel = normalizeFuelType(meter.fuelType)
     // Retail prices are keyed by the station's Vùng (retail zone), not by station.
     const stationRow = await prisma.station.findUnique({
       where: { id: station.id },
@@ -310,7 +322,8 @@ export async function assembleDebtVisit(params: {
       litersRead: parseNumericString(meter.liters),
       unitPriceRead,
       fuelType:
-        unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null,
+        labelFuel ??
+        (unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null),
       displayedAmount: parseNumericString(meter.displayedAmount),
       computedAmount: meter.computedAmount,
       amountMatchesDisplay: meter.amountMatchesDisplay,
