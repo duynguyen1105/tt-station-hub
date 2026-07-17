@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyZaloMessage } from '@/lib/zalo/classify'
+import { classifyZaloMessage, routePhoto } from '@/lib/zalo/classify'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
 import { parseZaloEvent } from '@/lib/zalo/webhook-handler'
 
@@ -10,6 +10,30 @@ describe('classifyZaloMessage', () => {
     expect(classifyZaloMessage('Trụ 1 ca sáng')).toBe('shift')
     expect(classifyZaloMessage('Xe Tiến Oanh')).toBe('debt')
     expect(classifyZaloMessage('cong no khach le')).toBe('debt')
+  })
+})
+
+describe('routePhoto', () => {
+  it('routes by image content regardless of caption', () => {
+    // A vehicle plate or a transaction display is always a debt fill.
+    expect(routePhoto('vehicle', 'shift')).toBe('debt')
+    expect(routePhoto('debt_meter', 'shift')).toBe('debt')
+    // A HẦM tank-dip is inventory.
+    expect(routePhoto('tank_dip', 'shift')).toBe('inventory')
+    expect(routePhoto('tank_dip', 'debt')).toBe('inventory')
+    // A cumulative totalizer is a shift reading.
+    expect(routePhoto('electronic_meter', 'shift')).toBe('shift')
+    expect(routePhoto('mechanical_meter', 'shift')).toBe('shift')
+  })
+
+  it('lets a debt caption override a meter-looking photo', () => {
+    expect(routePhoto('electronic_meter', 'debt')).toBe('debt')
+  })
+
+  it('falls back to the caption when the image is ambiguous', () => {
+    expect(routePhoto('label_only', 'shift')).toBe('shift')
+    expect(routePhoto('label_only', 'debt')).toBe('debt')
+    expect(routePhoto('not_relevant', 'shift')).toBe('shift')
   })
 })
 

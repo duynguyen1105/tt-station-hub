@@ -16,6 +16,9 @@ type ExtractMeterInput = {
   imageBuffer?: Buffer | Uint8Array
   // Identifies which sample fixture to return when AI_MOCK is enabled.
   mockKey?: string
+  // Pre-computed router result — lets the webhook classify once (for routing) and
+  // reuse it here instead of paying for a second router call.
+  router?: RouterResult
 }
 
 function normalizeElectronic(result: ElectronicResult, router: RouterResult): ExtractMeterResult {
@@ -83,12 +86,13 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
 
   const image = await prepareImageForAI(input.imageBuffer)
 
-  const routerText = await callClaudeVision({
-    prompt: ROUTER_PROMPT,
-    images: [image],
-    maxTokens: 300,
-  })
-  const router = routerSchema.parse(parseJsonFromText(routerText))
+  const router =
+    input.router ??
+    routerSchema.parse(
+      parseJsonFromText(
+        await callClaudeVision({ prompt: ROUTER_PROMPT, images: [image], maxTokens: 300 })
+      )
+    )
 
   if (router.image_type === 'electronic_meter') {
     const text = await callClaudeVision({ prompt: ELECTRONIC_PROMPT, images: [image] })
@@ -105,17 +109,22 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
 }
 
 /**
- * Router-only classification — used to route a per-trip debt photo to the meter
- * reader vs the plate reader. Returns the router's image_type.
+ * Router-only classification returning the full result — used to route an incoming
+ * photo (shift vs debt vs inventory) before extraction, then reused by extractMeter.
  */
-export async function classifyImageType(
-  imageBuffer: Buffer | Uint8Array
-): Promise<RouterResult['image_type']> {
+export async function classifyPhoto(imageBuffer: Buffer | Uint8Array): Promise<RouterResult> {
   if (isAiMockEnabled()) {
     await mockDelay()
-    return 'debt_meter'
+    return { image_type: 'debt_meter', confidence: 80, notes: 'mock' }
   }
   const image = await prepareImageForAI(imageBuffer)
   const text = await callClaudeVision({ prompt: ROUTER_PROMPT, images: [image], maxTokens: 300 })
-  return routerSchema.parse(parseJsonFromText(text)).image_type
+  return routerSchema.parse(parseJsonFromText(text))
+}
+
+/** Router-only classification returning just the image_type. */
+export async function classifyImageType(
+  imageBuffer: Buffer | Uint8Array
+): Promise<RouterResult['image_type']> {
+  return (await classifyPhoto(imageBuffer)).image_type
 }

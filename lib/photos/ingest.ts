@@ -14,6 +14,7 @@ import {
   type ExtractPlateResult,
   type ExtractTankDipResult,
   type ExtractVisitResult,
+  type RouterResult,
 } from '@/lib/ai/types'
 import { Prisma, Vung } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
@@ -216,9 +217,10 @@ export async function runShiftExtraction(
   photoId: string,
   buffer: Buffer,
   shift: ShiftRef,
-  override?: ManualOverride
+  override?: ManualOverride,
+  router?: RouterResult
 ): Promise<ExtractMeterResult> {
-  const result = await extractMeter({ imageBuffer: buffer })
+  const result = await extractMeter({ imageBuffer: buffer, router })
   await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
@@ -385,7 +387,10 @@ export async function assembleDebtVisit(params: {
 }
 
 /** Reads a tank-dip (barem) photo and records it on the photo for inventory. */
-async function ingestTankDip(photoId: string, buffer: Buffer): Promise<ExtractTankDipResult> {
+export async function ingestTankDip(
+  photoId: string,
+  buffer: Buffer
+): Promise<ExtractTankDipResult> {
   const result = await extractTankDip({ imageBuffer: buffer })
   await prisma.shiftPhoto.update({
     where: { id: photoId },
