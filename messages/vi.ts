@@ -270,6 +270,27 @@ export const vi = {
     empty: 'Chưa có công nợ.',
   },
 
+  debtReview: {
+    title: 'Duyệt công nợ',
+    subtitle: 'Đối chiếu ảnh với số AI đọc, gán khách rồi duyệt để ghi nợ.',
+    empty: 'Không có lượt xe nào chờ duyệt. 🎉',
+    vehiclePhoto: 'Ảnh xe / biển số',
+    meterPhoto: 'Ảnh cây xăng',
+    noPhoto: 'Không có ảnh',
+    displayedAmount: 'Số hiển thị',
+    amountMatch: 'Khớp',
+    amountMismatch: 'Lệch',
+    confidence: 'Tin cậy',
+    assignCustomer: 'Chọn khách hàng',
+    searchCustomer: 'Tìm khách…',
+    noCustomerFound: 'Không tìm thấy khách',
+    unassigned: 'Chưa gán khách',
+    autoMatched: 'Tự nhận diện',
+    needCustomer: 'Chọn khách hàng trước khi duyệt.',
+    rejectConfirmTitle: 'Từ chối lượt xe này?',
+    rejectConfirmBody: 'Lượt xe sẽ bị bỏ và không ghi nợ.',
+  },
+
   overview: {
     title: 'Trang tổng thể',
     pendingReviews: 'Cần duyệt',
