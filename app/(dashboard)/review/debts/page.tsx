@@ -37,7 +37,8 @@ export default async function ReviewDebtsPage() {
   await Promise.all(
     photos.map(async (p) => {
       if (!p.storagePath) return
-      const url = await getSignedUrl(p.storagePath).catch(() => null)
+      // 8h TTL so an enlarge click still works while the reviewer keeps the page open.
+      const url = await getSignedUrl(p.storagePath, 60 * 60 * 8).catch(() => null)
       if (url) urlById.set(p.id, url)
     })
   )
