@@ -131,12 +131,18 @@ async function assembleShiftReading(
     const elecPhoto = slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
     const mechPhoto = slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
 
+    // Snapshot the opening from the dispenser's last-reading cache the first time
+    // this reading is assembled; a re-ingested photo (or an opening the accountant
+    // has already entered) keeps the value it already has.
+    const openElec = num(existing?.openingElectronicReading) ?? num(dispenser.lastElectronicReading)
+    const openMech = num(existing?.openingMechanicalReading) ?? num(dispenser.lastMechanicalReading)
+
     const review = deriveReviewState(
       {
         electronicReading: elecReading,
         mechanicalReading: mechReading,
-        lastElectronicReading: num(dispenser.lastElectronicReading),
-        lastMechanicalReading: num(dispenser.lastMechanicalReading),
+        openingElectronicReading: openElec,
+        openingMechanicalReading: openMech,
         electronicConfidence: elecConf,
         mechanicalConfidence: mechConf,
         hasElectronicMeter: dispenser.hasElectronicMeter,
@@ -148,6 +154,8 @@ async function assembleShiftReading(
     )
 
     const data = {
+      openingElectronicReading: openElec,
+      openingMechanicalReading: openMech,
       electronicReading: elecReading,
       mechanicalReading: mechReading,
       electronicPhotoId: elecPhoto,

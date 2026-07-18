@@ -6,8 +6,8 @@ import { deriveReviewState } from '@/lib/matching/review-state'
 const base: ReadingForAnomaly = {
   electronicReading: 1100,
   mechanicalReading: 1100,
-  lastElectronicReading: 1000,
-  lastMechanicalReading: 1000,
+  openingElectronicReading: 1000,
+  openingMechanicalReading: 1000,
   electronicConfidence: 98,
   mechanicalConfidence: 90,
   hasElectronicMeter: true,
