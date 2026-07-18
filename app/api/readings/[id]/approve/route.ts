@@ -1,7 +1,9 @@
-import { notFound, ok, unauthorized } from '@/lib/api/response'
+import { badRequest, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { hasMissingOpening } from '@/lib/matching/anomaly-detection'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -10,6 +12,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const reading = await prisma.shiftReading.findUnique({ where: { id } })
   if (!reading) return notFound()
+
+  // A meter with a closing reading but no opening books zero liters. Hard-block
+  // approval until the accountant enters it — the number is on the pump and in
+  // the paper book, so there is no legitimate confirm-anyway path.
+  if (hasMissingOpening(reading)) return badRequest(vi.errors.missingOpening)
 
   const updated = await prisma.shiftReading.update({
     where: { id },
