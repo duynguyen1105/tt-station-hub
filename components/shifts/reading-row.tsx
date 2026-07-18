@@ -26,7 +26,9 @@ export type ReadingRowData = {
   stationName?: string | null
   dispenserName: string
   fuelType: string
+  openingElectronicReading: string | null
   electronicReading: string | null
+  openingMechanicalReading: string | null
   mechanicalReading: string | null
   electronicConfidence: number | null
   mechanicalConfidence: number | null
@@ -34,20 +36,29 @@ export type ReadingRowData = {
   anomalyReasons: string[]
 }
 
-async function postAction(url: string, body?: unknown): Promise<boolean> {
+type ActionResult = { ok: boolean; error?: string }
+
+async function postAction(url: string, body?: unknown): Promise<ActionResult> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   })
-  return res.ok
+  if (res.ok) return { ok: true }
+  const error = await res
+    .json()
+    .then((data) => (data as { error?: string }).error)
+    .catch(() => undefined)
+  return { ok: false, error }
 }
 
 export function ReadingRow({ data }: { data: ReadingRowData }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
+  const [openingElectronic, setOpeningElectronic] = useState(data.openingElectronicReading ?? '')
   const [electronic, setElectronic] = useState(data.electronicReading ?? '')
+  const [openingMechanical, setOpeningMechanical] = useState(data.openingMechanicalReading ?? '')
   const [mechanical, setMechanical] = useState(data.mechanicalReading ?? '')
 
   const info = data.reviewStatus ? reviewStatusInfo(data.reviewStatus) : null
@@ -56,25 +67,27 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
   async function act(action: 'approve' | 'reject') {
     if (!data.readingId) return
     setBusy(true)
-    const ok = await postAction(`/api/readings/${data.readingId}/${action}`)
+    const result = await postAction(`/api/readings/${data.readingId}/${action}`)
     setBusy(false)
-    if (ok) router.refresh()
-    else toast.error(vi.errors.generic)
+    if (result.ok) router.refresh()
+    else toast.error(result.error ?? vi.errors.generic)
   }
 
   async function saveCorrection() {
     if (!data.readingId) return
     setBusy(true)
-    const ok = await postAction(`/api/readings/${data.readingId}/correct`, {
+    const result = await postAction(`/api/readings/${data.readingId}/correct`, {
+      openingElectronicReading: openingElectronic || null,
       electronicReading: electronic || null,
+      openingMechanicalReading: openingMechanical || null,
       mechanicalReading: mechanical || null,
     })
     setBusy(false)
-    if (ok) {
+    if (result.ok) {
       setOpen(false)
       router.refresh()
     } else {
-      toast.error(vi.errors.generic)
+      toast.error(result.error ?? vi.errors.generic)
     }
   }
 
@@ -85,12 +98,14 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
         <div className="font-medium">{data.dispenserName}</div>
         <div className="text-muted-foreground text-xs">{fuelTypeLabel(data.fuelType)}</div>
       </td>
+      <td className="p-2 font-mono">{data.openingElectronicReading ?? '—'}</td>
       <td className="p-2 font-mono">
         {data.electronicReading ?? '—'}
         {data.electronicConfidence !== null && (
           <span className="text-muted-foreground ml-1 text-xs">({data.electronicConfidence}%)</span>
         )}
       </td>
+      <td className="p-2 font-mono">{data.openingMechanicalReading ?? '—'}</td>
       <td className="p-2 font-mono">
         {data.mechanicalReading ?? '—'}
         {data.mechanicalConfidence !== null && (
@@ -129,7 +144,20 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <Field>
-                  <FieldLabel htmlFor="electronic">{vi.correction.electronicLabel}</FieldLabel>
+                  <FieldLabel htmlFor="opening-electronic">
+                    {vi.correction.openingElectronicLabel}
+                  </FieldLabel>
+                  <Input
+                    id="opening-electronic"
+                    value={openingElectronic}
+                    inputMode="decimal"
+                    onChange={(e) => setOpeningElectronic(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="electronic">
+                    {vi.correction.closingElectronicLabel}
+                  </FieldLabel>
                   <Input
                     id="electronic"
                     value={electronic}
@@ -138,7 +166,20 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="mechanical">{vi.correction.mechanicalLabel}</FieldLabel>
+                  <FieldLabel htmlFor="opening-mechanical">
+                    {vi.correction.openingMechanicalLabel}
+                  </FieldLabel>
+                  <Input
+                    id="opening-mechanical"
+                    value={openingMechanical}
+                    inputMode="decimal"
+                    onChange={(e) => setOpeningMechanical(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="mechanical">
+                    {vi.correction.closingMechanicalLabel}
+                  </FieldLabel>
                   <Input
                     id="mechanical"
                     value={mechanical}

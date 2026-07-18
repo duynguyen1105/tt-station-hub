@@ -45,4 +45,13 @@ describe('detectAnomalies', () => {
     const result = detectAnomalies({ ...base, hasMechanicalPhoto: false })
     expect(result.reasons).toContain(ANOMALY_REASONS.missingPhoto)
   })
+  it('flags a closing reading with no opening, then clears and recomputes liters once it is entered', () => {
+    const missing = detectAnomalies({ ...base, openingElectronicReading: null })
+    expect(missing.reasons).toContain(ANOMALY_REASONS.missingOpening)
+    expect(missing.electronicDelta).toBeNull()
+    // Entering the opening clears the flag and the delta (liters) recomputes.
+    const fixed = detectAnomalies({ ...base, openingElectronicReading: 1000 })
+    expect(fixed.reasons).not.toContain(ANOMALY_REASONS.missingOpening)
+    expect(fixed.electronicDelta).toBe(100)
+  })
 })

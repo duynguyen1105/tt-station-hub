@@ -35,7 +35,9 @@ export default async function ShiftDetailPage({
       readingId: r?.id ?? null,
       dispenserName: d.displayName,
       fuelType: d.fuelType,
+      openingElectronicReading: r?.openingElectronicReading?.toString() ?? null,
       electronicReading: r?.electronicReading?.toString() ?? null,
+      openingMechanicalReading: r?.openingMechanicalReading?.toString() ?? null,
       mechanicalReading: r?.mechanicalReading?.toString() ?? null,
       electronicConfidence: r?.aiElectronicConfidence ?? null,
       mechanicalConfidence: r?.aiMechanicalConfidence ?? null,
@@ -71,8 +73,10 @@ export default async function ShiftDetailPage({
           <thead>
             <tr className="text-muted-foreground border-b text-left">
               <th className="p-2">{vi.shifts.dispenser}</th>
-              <th className="p-2">{vi.shifts.electronic}</th>
-              <th className="p-2">{vi.shifts.mechanical}</th>
+              <th className="p-2">{vi.shifts.openingElectronic}</th>
+              <th className="p-2">{vi.shifts.closingElectronic}</th>
+              <th className="p-2">{vi.shifts.openingMechanical}</th>
+              <th className="p-2">{vi.shifts.closingMechanical}</th>
               <th className="p-2">{vi.shifts.status}</th>
               <th className="p-2"></th>
             </tr>

@@ -49,6 +49,24 @@ describe('deriveReviewState', () => {
     expect(result.anomalyReasons).toContain(ANOMALY_REASONS.lowConfidence)
   })
 
+  // The whole point of ticket 04: a confidently-read meter with no opening must
+  // still stop for a human, and entering the opening must clear it in one step.
+  it('forces needs_review for a closing reading with no opening, however confident', () => {
+    const result = deriveReviewState({ ...base, openingElectronicReading: null })
+    expect(result.reviewStatus).toBe('needs_review')
+    expect(result.isAnomaly).toBe(true)
+    expect(result.anomalyReasons).toContain(ANOMALY_REASONS.missingOpening)
+  })
+
+  it('clears the missing-opening flag once the opening is entered', () => {
+    const flagged = deriveReviewState({ ...base, openingElectronicReading: null })
+    expect(flagged.anomalyReasons).toContain(ANOMALY_REASONS.missingOpening)
+    // Entering the opening (the clean base fixture) recomputes to no anomaly.
+    const fixed = deriveReviewState(base)
+    expect(fixed.anomalyReasons).not.toContain(ANOMALY_REASONS.missingOpening)
+    expect(fixed.isAnomaly).toBe(false)
+  })
+
   it('defaults to needs_review when no slot can be classified', () => {
     const result = deriveReviewState({
       ...base,

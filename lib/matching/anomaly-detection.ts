@@ -7,6 +7,7 @@ export const ANOMALY_REASONS = {
   metersDiverge: 'meters_diverge',
   lowConfidence: 'low_confidence',
   missingPhoto: 'missing_photo',
+  missingOpening: 'missing_opening',
 } as const
 
 export type AnomalyReason = (typeof ANOMALY_REASONS)[keyof typeof ANOMALY_REASONS]
@@ -45,6 +46,24 @@ export type AnomalyResult = {
   reasons: AnomalyReason[]
   electronicDelta: number | null
   mechanicalDelta: number | null
+}
+
+/**
+ * A meter has a closing reading but no opening to measure it from — a first ca,
+ * a replaced meter, or a missed ca. The single source both the anomaly rule and
+ * the approval block read, so the two can never disagree. Values are checked for
+ * presence only, so a Prisma Decimal row satisfies it as readily as plain numbers.
+ */
+export function hasMissingOpening(reading: {
+  electronicReading: unknown
+  openingElectronicReading: unknown
+  mechanicalReading: unknown
+  openingMechanicalReading: unknown
+}): boolean {
+  return (
+    (reading.electronicReading != null && reading.openingElectronicReading == null) ||
+    (reading.mechanicalReading != null && reading.openingMechanicalReading == null)
+  )
 }
 
 export function detectAnomalies(
@@ -100,6 +119,12 @@ export function detectAnomalies(
   }
   if (reading.hasMechanicalMeter && !reading.hasMechanicalPhoto) {
     reasons.add(ANOMALY_REASONS.missingPhoto)
+  }
+
+  // Rule 6: a meter has a closing reading but no opening to measure from. Left
+  // silent, it would book zero liters; flagged, it stops for the accountant.
+  if (hasMissingOpening(reading)) {
+    reasons.add(ANOMALY_REASONS.missingOpening)
   }
 
   const reasonList = [...reasons]

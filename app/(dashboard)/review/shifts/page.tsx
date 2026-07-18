@@ -37,8 +37,10 @@ export default async function ReviewShiftsPage() {
             <tr className="text-muted-foreground border-b text-left">
               <th className="p-2">{vi.review.station}</th>
               <th className="p-2">{vi.shifts.dispenser}</th>
-              <th className="p-2">{vi.shifts.electronic}</th>
-              <th className="p-2">{vi.shifts.mechanical}</th>
+              <th className="p-2">{vi.shifts.openingElectronic}</th>
+              <th className="p-2">{vi.shifts.closingElectronic}</th>
+              <th className="p-2">{vi.shifts.openingMechanical}</th>
+              <th className="p-2">{vi.shifts.closingMechanical}</th>
               <th className="p-2">{vi.shifts.status}</th>
               <th className="p-2"></th>
             </tr>
@@ -53,7 +55,9 @@ export default async function ReviewShiftsPage() {
                 stationName: station?.name ?? '—',
                 dispenserName: dispenser?.displayName ?? '—',
                 fuelType: dispenser?.fuelType ?? '',
+                openingElectronicReading: reading.openingElectronicReading?.toString() ?? null,
                 electronicReading: reading.electronicReading?.toString() ?? null,
+                openingMechanicalReading: reading.openingMechanicalReading?.toString() ?? null,
                 mechanicalReading: reading.mechanicalReading?.toString() ?? null,
                 electronicConfidence: reading.aiElectronicConfidence ?? null,
                 mechanicalConfidence: reading.aiMechanicalConfidence ?? null,
