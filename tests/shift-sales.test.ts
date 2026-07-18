@@ -29,7 +29,57 @@ describe('computeShiftSales', () => {
       { dispenserId: 'd3', openingElectronicReading: null, electronicReading: 300 }, // no opening -> no advance
     ]
     const { advances } = computeShiftSales(readings, dispensers)
-    expect(advances).toEqual([{ dispenserId: 'd1', newReading: 1200 }])
+    expect(advances).toEqual([
+      { dispenserId: 'd1', newElectronicReading: 1200, newMechanicalReading: null },
+    ])
+  })
+
+  it('advances the mechanical cache on a positive mechanical delta', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        openingElectronicReading: 1000,
+        electronicReading: 1200, // +200 -> electronic advances
+        openingMechanicalReading: 900,
+        mechanicalReading: 1080, // +180 -> mechanical advances
+      },
+    ]
+    const { advances } = computeShiftSales(readings, dispensers)
+    expect(advances).toEqual([
+      { dispenserId: 'd1', newElectronicReading: 1200, newMechanicalReading: 1080 },
+    ])
+  })
+
+  it('advances each meter independently — a decreased mechanical reading leaves its cache untouched', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        openingElectronicReading: 1000,
+        electronicReading: 1200, // +200 -> electronic advances
+        openingMechanicalReading: 900,
+        mechanicalReading: 850, // decrease -> mechanical does not advance
+      },
+    ]
+    const { advances } = computeShiftSales(readings, dispensers)
+    expect(advances).toEqual([
+      { dispenserId: 'd1', newElectronicReading: 1200, newMechanicalReading: null },
+    ])
+  })
+
+  it('advances the mechanical cache even when the electronic meter did not advance', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        openingElectronicReading: 1000,
+        electronicReading: 900, // decrease -> electronic does not advance
+        openingMechanicalReading: 900,
+        mechanicalReading: 1080, // +180 -> mechanical advances
+      },
+    ]
+    const { advances } = computeShiftSales(readings, dispensers)
+    expect(advances).toEqual([
+      { dispenserId: 'd1', newElectronicReading: null, newMechanicalReading: 1080 },
+    ])
   })
 
   it('books zero liters and does not advance when the opening is null', () => {
