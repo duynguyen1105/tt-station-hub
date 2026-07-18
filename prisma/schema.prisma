@@ -106,8 +106,6 @@ model ShiftReading {
   mechanicalPhotoId         String?   @map("mechanical_photo_id") @db.Uuid
   aiElectronicConfidence    Int?      @map("ai_electronic_confidence")
   aiMechanicalConfidence    Int?      @map("ai_mechanical_confidence")
-  electronicDelta           Decimal?  @map("electronic_delta") @db.Decimal(15, 3)
-  mechanicalDelta           Decimal?  @map("mechanical_delta") @db.Decimal(15, 3)
   isAnomaly                 Boolean   @default(false) @map("is_anomaly")
   anomalyReasons            String[]  @default([]) @map("anomaly_reasons")
   reviewStatus              String    @map("review_status") // 'pending'|'auto_approved'|'needs_review'|'approved'|'rejected'|'corrected'

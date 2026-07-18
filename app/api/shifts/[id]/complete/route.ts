@@ -32,14 +32,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { sales, advances } = computeShiftSales(
     readings.map((r) => ({
       dispenserId: r.dispenserId,
+      openingElectronicReading:
+        r.openingElectronicReading !== null ? Number(r.openingElectronicReading) : null,
       electronicReading: r.electronicReading !== null ? Number(r.electronicReading) : null,
     })),
-    dispensers.map((d) => ({
-      id: d.id,
-      fuelType: d.fuelType,
-      lastElectronicReading:
-        d.lastElectronicReading !== null ? Number(d.lastElectronicReading) : null,
-    }))
+    dispensers.map((d) => ({ id: d.id, fuelType: d.fuelType }))
   )
 
   const updated = await prisma.$transaction(async (db) => {

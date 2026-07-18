@@ -17,9 +17,6 @@ export type ReviewState = {
   isAnomaly: boolean
   anomalyReasons: AnomalyReason[]
   reviewStatus: ConfidenceClass
-  // The rules compute these on the way to the warnings; the ingest persists them.
-  electronicDelta: number | null
-  mechanicalDelta: number | null
 }
 
 /**
@@ -56,7 +53,5 @@ export function deriveReviewState(
     isAnomaly: anomaly.isAnomaly,
     anomalyReasons: anomaly.reasons,
     reviewStatus: anomaly.isAnomaly ? 'needs_review' : worst,
-    electronicDelta: anomaly.electronicDelta,
-    mechanicalDelta: anomaly.mechanicalDelta,
   }
 }

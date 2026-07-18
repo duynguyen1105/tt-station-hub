@@ -49,14 +49,15 @@ const prices = [
   { fuelType: 'URE', effectiveDate: PRICE_DATE, unitPrice: 15000 },
 ]
 
-// Metered: DO 300 (d1: 1000→1300), E0 200 (d2: 500→700).
+// Metered: DO 300 (d1: 1000→1300), E0 200 (d2: 500→700). The opening lives on
+// the reading; the dispenser contributes only its fuel type.
 const dispensers: SaleDispenser[] = [
-  { id: 'd1', fuelType: 'DO', lastElectronicReading: 1000 },
-  { id: 'd2', fuelType: 'E0', lastElectronicReading: 500 },
+  { id: 'd1', fuelType: 'DO' },
+  { id: 'd2', fuelType: 'E0' },
 ]
 const readings: SaleReading[] = [
-  { dispenserId: 'd1', electronicReading: 1300 },
-  { dispenserId: 'd2', electronicReading: 700 },
+  { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1300 },
+  { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 700 },
 ]
 
 const customers: CreditCustomer[] = [
@@ -256,6 +257,23 @@ describe('buildMisaSalesVoucher — cash rows (bán lẻ)', () => {
       unitPrice: 20300,
       amount: 3045000,
     })
+  })
+
+  it('meters each fuel from the reading’s own opening, so a corrected closing changes the quantity', () => {
+    // Correct d1's closing 1300 → 1250: metered DO falls 300 → 250, and the cash
+    // row (250 − 100 credit = 150) tracks it. This is what the deleted export
+    // reconstruction could not do — the quantity follows the reading's opening.
+    const { rows } = buildMisaSalesVoucher(
+      baseInput({
+        readings: [
+          { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1250 },
+          { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 700 },
+        ],
+      })
+    )
+    const doCash = rows.find((r) => r.kind === 'cash' && r.productCode === 'DO')
+    expect(doCash?.quantity).toBe(150) // metered 250 − credit 100
+    expect(doCash?.amount).toBe(3343500) // 150 × 22290
   })
 })
 

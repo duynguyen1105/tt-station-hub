@@ -162,8 +162,6 @@ async function assembleShiftReading(
       mechanicalPhotoId: mechPhoto,
       aiElectronicConfidence: elecConf,
       aiMechanicalConfidence: mechConf,
-      electronicDelta: review.electronicDelta,
-      mechanicalDelta: review.mechanicalDelta,
       isAnomaly: review.isAnomaly,
       anomalyReasons: review.anomalyReasons,
       reviewStatus: review.reviewStatus,
