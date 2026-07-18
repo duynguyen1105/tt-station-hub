@@ -30,8 +30,8 @@ export const DEFAULT_ANOMALY_CONFIG: AnomalyConfig = {
 export type ReadingForAnomaly = {
   electronicReading: number | null
   mechanicalReading: number | null
-  lastElectronicReading: number | null
-  lastMechanicalReading: number | null
+  openingElectronicReading: number | null
+  openingMechanicalReading: number | null
   electronicConfidence: number | null
   mechanicalConfidence: number | null
   hasElectronicMeter: boolean
@@ -54,12 +54,12 @@ export function detectAnomalies(
   const reasons = new Set<AnomalyReason>()
 
   const electronicDelta =
-    reading.electronicReading != null && reading.lastElectronicReading != null
-      ? reading.electronicReading - reading.lastElectronicReading
+    reading.electronicReading != null && reading.openingElectronicReading != null
+      ? reading.electronicReading - reading.openingElectronicReading
       : null
   const mechanicalDelta =
-    reading.mechanicalReading != null && reading.lastMechanicalReading != null
-      ? reading.mechanicalReading - reading.lastMechanicalReading
+    reading.mechanicalReading != null && reading.openingMechanicalReading != null
+      ? reading.mechanicalReading - reading.openingMechanicalReading
       : null
 
   // Rule 1 + 2: reading decreased / delta too large.

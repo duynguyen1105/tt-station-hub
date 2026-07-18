@@ -98,6 +98,8 @@ model ShiftReading {
   id                        String    @id @default(uuid()) @db.Uuid
   shiftId                   String    @map("shift_id") @db.Uuid
   dispenserId               String    @map("dispenser_id") @db.Uuid
+  openingElectronicReading  Decimal?  @map("opening_electronic_reading") @db.Decimal(15, 3) // immutable once set
+  openingMechanicalReading  Decimal?  @map("opening_mechanical_reading") @db.Decimal(15, 3) // immutable once set
   electronicReading         Decimal?  @map("electronic_reading") @db.Decimal(15, 3)
   mechanicalReading         Decimal?  @map("mechanical_reading") @db.Decimal(15, 3)
   electronicPhotoId         String?   @map("electronic_photo_id") @db.Uuid
