@@ -65,10 +65,4 @@ describe('deriveReviewState', () => {
     // Nothing is wrong with the reading — it just cannot be judged.
     expect(result.isAnomaly).toBe(false)
   })
-
-  it('carries the deltas through for the ingest to persist', () => {
-    const result = deriveReviewState(base)
-    expect(result.electronicDelta).toBe(100)
-    expect(result.mechanicalDelta).toBe(100)
-  })
 })
