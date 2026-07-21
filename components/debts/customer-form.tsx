@@ -85,7 +85,11 @@ export function CustomerForm({
       toast.error(vi.errors.generic)
       return
     }
-    const saved = (await res.json().catch(() => null)) as { id?: string; name?: string } | null
+    // API responses wrap the payload as { data } (see lib/api/response ok()).
+    const json = (await res.json().catch(() => null)) as {
+      data?: { id?: string; name?: string }
+    } | null
+    const saved = json?.data ?? null
     setOpen(false)
     if (!customer) {
       toast.success(vi.debtReview.customerCreated)

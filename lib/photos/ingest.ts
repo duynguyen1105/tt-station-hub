@@ -503,6 +503,7 @@ export async function ingestManualPhoto(params: {
         timestamp: Date.now(),
         type: params.debtType ?? 'debt_meter',
         buffer: params.buffer,
+        caption: params.caption,
       })
       debt_result = visit.meter
       plate_result = visit.plate
