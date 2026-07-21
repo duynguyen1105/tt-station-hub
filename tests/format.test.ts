@@ -3,15 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { formatDate, formatDateTime, formatLiters, formatVND } from '@/lib/format'
 
 describe('formatVND', () => {
-  it('groups thousands with commas, no decimals', () => {
-    expect(formatVND(1234567)).toBe('1,234,567')
+  it('groups thousands with commas, no decimals, đ suffix', () => {
+    expect(formatVND(1234567)).toBe('1,234,567 đ')
   })
   it('rounds and handles string input', () => {
-    expect(formatVND('119368.4')).toBe('119,368')
+    expect(formatVND('119368.4')).toBe('119,368 đ')
   })
-  it('returns "0" for empty/invalid', () => {
-    expect(formatVND(null)).toBe('0')
-    expect(formatVND('abc')).toBe('0')
+  it('returns "0 đ" for empty/invalid', () => {
+    expect(formatVND(null)).toBe('0 đ')
+    expect(formatVND('abc')).toBe('0 đ')
   })
 })
 
