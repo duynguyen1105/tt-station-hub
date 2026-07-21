@@ -7,6 +7,7 @@ export const ANOMALY_REASONS = {
   metersDiverge: 'meters_diverge',
   lowConfidence: 'low_confidence',
   missingPhoto: 'missing_photo',
+  missingOpening: 'missing_opening',
 } as const
 
 export type AnomalyReason = (typeof ANOMALY_REASONS)[keyof typeof ANOMALY_REASONS]
@@ -30,8 +31,8 @@ export const DEFAULT_ANOMALY_CONFIG: AnomalyConfig = {
 export type ReadingForAnomaly = {
   electronicReading: number | null
   mechanicalReading: number | null
-  lastElectronicReading: number | null
-  lastMechanicalReading: number | null
+  openingElectronicReading: number | null
+  openingMechanicalReading: number | null
   electronicConfidence: number | null
   mechanicalConfidence: number | null
   hasElectronicMeter: boolean
@@ -47,6 +48,24 @@ export type AnomalyResult = {
   mechanicalDelta: number | null
 }
 
+/**
+ * A meter has a closing reading but no opening to measure it from — a first ca,
+ * a replaced meter, or a missed ca. The single source both the anomaly rule and
+ * the approval block read, so the two can never disagree. Values are checked for
+ * presence only, so a Prisma Decimal row satisfies it as readily as plain numbers.
+ */
+export function hasMissingOpening(reading: {
+  electronicReading: unknown
+  openingElectronicReading: unknown
+  mechanicalReading: unknown
+  openingMechanicalReading: unknown
+}): boolean {
+  return (
+    (reading.electronicReading != null && reading.openingElectronicReading == null) ||
+    (reading.mechanicalReading != null && reading.openingMechanicalReading == null)
+  )
+}
+
 export function detectAnomalies(
   reading: ReadingForAnomaly,
   config: AnomalyConfig = DEFAULT_ANOMALY_CONFIG
@@ -54,12 +73,12 @@ export function detectAnomalies(
   const reasons = new Set<AnomalyReason>()
 
   const electronicDelta =
-    reading.electronicReading != null && reading.lastElectronicReading != null
-      ? reading.electronicReading - reading.lastElectronicReading
+    reading.electronicReading != null && reading.openingElectronicReading != null
+      ? reading.electronicReading - reading.openingElectronicReading
       : null
   const mechanicalDelta =
-    reading.mechanicalReading != null && reading.lastMechanicalReading != null
-      ? reading.mechanicalReading - reading.lastMechanicalReading
+    reading.mechanicalReading != null && reading.openingMechanicalReading != null
+      ? reading.mechanicalReading - reading.openingMechanicalReading
       : null
 
   // Rule 1 + 2: reading decreased / delta too large.
@@ -100,6 +119,12 @@ export function detectAnomalies(
   }
   if (reading.hasMechanicalMeter && !reading.hasMechanicalPhoto) {
     reasons.add(ANOMALY_REASONS.missingPhoto)
+  }
+
+  // Rule 6: a meter has a closing reading but no opening to measure from. Left
+  // silent, it would book zero liters; flagged, it stops for the accountant.
+  if (hasMissingOpening(reading)) {
+    reasons.add(ANOMALY_REASONS.missingOpening)
   }
 
   const reasonList = [...reasons]

@@ -68,6 +68,7 @@ export const vi = {
     generic: 'Đã có lỗi xảy ra. Vui lòng thử lại.',
     unauthorized: 'Bạn không có quyền truy cập.',
     notFound: 'Không tìm thấy dữ liệu.',
+    missingOpening: 'Chưa có chỉ số đầu ca — vui lòng nhập trước khi duyệt.',
   },
 
   fuelType: {
@@ -174,6 +175,7 @@ export const vi = {
     meters_diverge: 'Hai đồng hồ lệch',
     low_confidence: 'Độ tin cậy thấp',
     missing_photo: 'Thiếu ảnh',
+    missing_opening: 'Chưa có chỉ số đầu',
     amount_mismatch: 'Lệch số tiền',
   },
 
@@ -211,6 +213,10 @@ export const vi = {
     status: 'Trạng thái',
     electronic: 'Điện tử',
     mechanical: 'Cơ',
+    openingElectronic: 'Đầu ĐT',
+    closingElectronic: 'Cuối ĐT',
+    openingMechanical: 'Đầu Cơ',
+    closingMechanical: 'Cuối Cơ',
     confidence: 'Độ tin cậy',
     dispenser: 'Trụ',
     complete: 'Chốt ca',
@@ -229,8 +235,10 @@ export const vi = {
 
   correction: {
     title: 'Sửa số đọc',
-    electronicLabel: 'Số điện tử',
-    mechanicalLabel: 'Số cơ',
+    openingElectronicLabel: 'Chỉ số đầu ca — điện tử',
+    closingElectronicLabel: 'Chỉ số cuối ca — điện tử',
+    openingMechanicalLabel: 'Chỉ số đầu ca — cơ',
+    closingMechanicalLabel: 'Chỉ số cuối ca — cơ',
     original: 'Số AI gốc',
   },
 

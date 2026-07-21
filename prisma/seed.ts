@@ -21,6 +21,9 @@ const CUSTOMER_ID = '33333333-3333-3333-3333-333333333301'
 // re-running the seed upserts the same dated rows.
 const PRICE_DATE = new Date('2026-06-25')
 
+// When the dispensers last read. Fixed so the seed stays idempotent across runs.
+const BASELINE_READING_AT = new Date('2026-06-25')
+
 // Fuel → MISA product/warehouse map for DAKNONG_1 (from the sample sales file).
 // productName (Tên hàng) is a starting default — the accountant verifies/replaces it in
 // Settings → MISA → Map nhiên liệu against the official Trường Thịnh product list.
@@ -58,6 +61,12 @@ type DispenserSeed = {
   tankCode: string
   tankCapacityK: number
   displayOrder: number
+  // Last-reading cache = the opening a dispenser's next ca measures from. Without
+  // it, a fresh environment reproduces the silent-zero on every dispenser's first
+  // ca. These baselines are the openings the demo dataset reads back (see
+  // `demo-data.ts`), so keep the two in step, dispenser i ↔ demo sample i.
+  lastElectronicReading: number
+  lastMechanicalReading: number
 }
 
 const DISPENSERS: DispenserSeed[] = [
@@ -68,6 +77,8 @@ const DISPENSERS: DispenserSeed[] = [
     tankCode: 'HAM_3',
     tankCapacityK: 25,
     displayOrder: 1,
+    lastElectronicReading: 30255694,
+    lastMechanicalReading: 455179,
   },
   {
     code: 'TRU_2',
@@ -76,6 +87,8 @@ const DISPENSERS: DispenserSeed[] = [
     tankCode: 'HAM_1',
     tankCapacityK: 15,
     displayOrder: 2,
+    lastElectronicReading: 18885574,
+    lastMechanicalReading: 1041945,
   },
   {
     code: 'TRU_3',
@@ -84,6 +97,8 @@ const DISPENSERS: DispenserSeed[] = [
     tankCode: 'HAM_1',
     tankCapacityK: 15,
     displayOrder: 3,
+    lastElectronicReading: 9831198,
+    lastMechanicalReading: 234424,
   },
   {
     code: 'TRU_4',
@@ -92,6 +107,8 @@ const DISPENSERS: DispenserSeed[] = [
     tankCode: 'HAM_2',
     tankCapacityK: 10,
     displayOrder: 4,
+    lastElectronicReading: 5875897,
+    lastMechanicalReading: 213577,
   },
   {
     code: 'TRU_5',
@@ -100,6 +117,8 @@ const DISPENSERS: DispenserSeed[] = [
     tankCode: 'HAM_2',
     tankCapacityK: 10,
     displayOrder: 5,
+    lastElectronicReading: 10069152,
+    lastMechanicalReading: 9003,
   },
   {
     code: 'TRU_6',
@@ -108,6 +127,8 @@ const DISPENSERS: DispenserSeed[] = [
     tankCode: 'HAM_3',
     tankCapacityK: 25,
     displayOrder: 6,
+    lastElectronicReading: 73853960,
+    lastMechanicalReading: 45055,
   },
 ]
 
@@ -167,6 +188,9 @@ async function main() {
         tankCode: d.tankCode,
         tankCapacityK: d.tankCapacityK,
         displayOrder: d.displayOrder,
+        lastElectronicReading: d.lastElectronicReading,
+        lastMechanicalReading: d.lastMechanicalReading,
+        lastReadingAt: BASELINE_READING_AT,
       },
       create: {
         stationId: station.id,
@@ -176,6 +200,9 @@ async function main() {
         tankCode: d.tankCode,
         tankCapacityK: d.tankCapacityK,
         displayOrder: d.displayOrder,
+        lastElectronicReading: d.lastElectronicReading,
+        lastMechanicalReading: d.lastMechanicalReading,
+        lastReadingAt: BASELINE_READING_AT,
       },
     })
   }

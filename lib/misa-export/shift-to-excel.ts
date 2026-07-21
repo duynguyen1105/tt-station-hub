@@ -58,6 +58,13 @@ export async function misaRowsToXlsxBuffer(rows: MisaSalesRow[]): Promise<Buffer
   worksheet.columns = COL_WIDTHS.map((width) => ({ width }))
   for (const row of matrix) worksheet.addRow(row)
 
+  // Vietnamese-locale number display (dot thousands, comma decimals). Values stay numeric so MISA
+  // still imports them. 1-based column = build-sales-voucher COL index + 1: quantity 27→28
+  // (Số lượng), unitPrice 29→30 (Đơn giá), amount 30→31 (Thành tiền).
+  worksheet.getColumn(28).numFmt = '#,##0.00' // Số lượng — 2 decimals
+  worksheet.getColumn(30).numFmt = '#,##0' // Đơn giá — whole number
+  worksheet.getColumn(31).numFmt = '#,##0' // Thành tiền — whole number
+
   const headerRow = worksheet.getRow(1)
   // No explicit height (and no wrapText) so the header row matches the data rows' default height.
   headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
