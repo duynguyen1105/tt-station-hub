@@ -56,6 +56,11 @@ export function CustomerForm({
       toast.error(vi.debtReview.customerName + '?')
       return
     }
+    // Customer codes are assigned by Trường Thịnh and required (MISA export needs them).
+    if (!misaCode.trim()) {
+      toast.error(vi.debtReview.customerCodeRequired)
+      return
+    }
     setBusy(true)
     const body = {
       name: name.trim(),
@@ -118,7 +123,7 @@ export function CustomerForm({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="cust-misa">{vi.debts.misaCode}</FieldLabel>
+              <FieldLabel htmlFor="cust-misa">{vi.debtReview.customerCode} *</FieldLabel>
               <Input
                 id="cust-misa"
                 value={misaCode}
@@ -126,6 +131,7 @@ export function CustomerForm({
               />
             </Field>
           </div>
+          <p className="text-muted-foreground -mt-2 text-xs">{vi.debtReview.customerCodeHint}</p>
           <Field>
             <FieldLabel htmlFor="cust-plates">{vi.debtReview.knownPlates}</FieldLabel>
             <Input

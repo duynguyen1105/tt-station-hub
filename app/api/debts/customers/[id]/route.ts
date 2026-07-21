@@ -9,7 +9,14 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
 
 const updateSchema = z.object({
-  misaCode: z.string().trim().min(1).nullable().optional(),
+  // Required by Trường Thịnh — can be changed but not cleared; "bl" is reserved
+  // for retail (cash) sales in the MISA export.
+  misaCode: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((c) => c.toLowerCase() !== 'bl', 'Mã "bl" dành riêng cho bán lẻ.')
+    .optional(),
   name: z.string().trim().min(1).optional(),
   phone: z.string().trim().nullable().optional(),
   knownPlates: z.array(z.string().trim().min(1)).optional(),

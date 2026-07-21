@@ -12,7 +12,13 @@ const createSchema = z.object({
   name: z.string().trim().min(1),
   stationId: z.string().uuid().nullable().optional(),
   phone: z.string().trim().nullable().optional(),
-  misaCode: z.string().trim().nullable().optional(),
+  // Customer code is assigned by Trường Thịnh and required; "bl" is reserved for
+  // retail (cash) sales in the MISA export and must not be a debt customer.
+  misaCode: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((c) => c.toLowerCase() !== 'bl', 'Mã "bl" dành riêng cho bán lẻ.'),
   knownPlates: z.array(z.string().trim().min(1)).optional(),
 })
 
@@ -31,7 +37,7 @@ export async function POST(req: NextRequest) {
       name,
       stationId: stationId ?? null,
       phone: phone || null,
-      misaCode: misaCode || null,
+      misaCode,
       knownPlates: (knownPlates ?? []).map((p) => p.toUpperCase()),
     },
   })

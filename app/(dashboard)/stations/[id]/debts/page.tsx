@@ -1,6 +1,6 @@
 import { CustomerForm } from '@/components/debts/customer-form'
-import { CustomerMisaForm } from '@/components/debts/customer-misa-form'
 import { PaymentForm } from '@/components/debts/payment-form'
+import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/auth/session'
 import { formatVND } from '@/lib/format'
@@ -56,7 +56,11 @@ export default async function StationDebtsPage({ params }: { params: Promise<{ i
               <td className="p-2 font-mono text-xs">
                 {customer.knownPlates.length ? customer.knownPlates.join(', ') : '—'}
               </td>
-              <td className="p-2 font-mono">{customer.misaCode ?? '—'}</td>
+              <td className="p-2 font-mono">
+                {customer.misaCode ?? (
+                  <StatusBadge label={vi.debtReview.missingCode} tone="danger" />
+                )}
+              </td>
               <td className="p-2 text-right font-mono">
                 {formatVND(Number(customer.currentBalance))}
               </td>
@@ -74,11 +78,6 @@ export default async function StationDebtsPage({ params }: { params: Promise<{ i
                       {vi.common.edit}
                     </Button>
                   }
-                />
-                <CustomerMisaForm
-                  customerId={customer.id}
-                  customerName={customer.name}
-                  misaCode={customer.misaCode}
                 />
                 <PaymentForm customerId={customer.id} customerName={customer.name} />
               </td>
