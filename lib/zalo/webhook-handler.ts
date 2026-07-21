@@ -177,6 +177,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           timestamp: msg.timestamp,
           type: router?.image_type === 'vehicle' ? 'vehicle' : 'debt_meter',
           buffer,
+          caption: msg.caption,
         }).catch((error) =>
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
         )

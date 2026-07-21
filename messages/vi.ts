@@ -289,6 +289,14 @@ export const vi = {
     needCustomer: 'Chọn khách hàng trước khi duyệt.',
     rejectConfirmTitle: 'Từ chối lượt xe này?',
     rejectConfirmBody: 'Lượt xe sẽ bị bỏ và không ghi nợ.',
+    senderNote: 'Ghi chú của nhân viên',
+    addCustomer: 'Thêm khách mới',
+    customerName: 'Tên khách hàng',
+    customerPhone: 'Số điện thoại',
+    knownPlates: 'Biển số xe (cách nhau bằng dấu phẩy)',
+    knownPlatesHint: 'VD: 50E-753.17, 51C-123.45 — dùng để tự nhận diện khách từ ảnh',
+    customerCreated: 'Đã thêm khách hàng.',
+    editCustomer: 'Sửa thông tin khách',
   },
 
   overview: {

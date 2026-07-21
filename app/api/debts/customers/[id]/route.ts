@@ -9,7 +9,10 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
 
 const updateSchema = z.object({
-  misaCode: z.string().trim().min(1).nullable(),
+  misaCode: z.string().trim().min(1).nullable().optional(),
+  name: z.string().trim().min(1).optional(),
+  phone: z.string().trim().nullable().optional(),
+  knownPlates: z.array(z.string().trim().min(1)).optional(),
 })
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,9 +27,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const customer = await prisma.debtCustomer.findUnique({ where: { id } })
   if (!customer) return notFound()
 
+  const { misaCode, name, phone, knownPlates } = parsed.data
   const updated = await prisma.debtCustomer.update({
     where: { id },
-    data: { misaCode: parsed.data.misaCode },
+    data: {
+      ...(misaCode !== undefined ? { misaCode } : {}),
+      ...(name !== undefined ? { name } : {}),
+      ...(phone !== undefined ? { phone: phone || null } : {}),
+      ...(knownPlates !== undefined
+        ? { knownPlates: knownPlates.map((p) => p.toUpperCase()) }
+        : {}),
+    },
   })
 
   await writeAudit({
