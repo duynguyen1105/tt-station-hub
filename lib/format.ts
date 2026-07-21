@@ -14,13 +14,13 @@ function toNumber(value: Numeric): number | null {
 }
 
 /**
- * Money in VND, grouped with commas and no decimals: 1234567 -> "1,234,567".
+ * Money in VND, grouped with commas, no decimals, đ suffix: 1234567 -> "1,234,567 đ".
  * Display only; never use a formatted string for arithmetic.
  */
 export function formatVND(value: Numeric): string {
   const num = toNumber(value)
-  if (num === null) return '0'
-  return Math.round(num).toLocaleString('en-US')
+  if (num === null) return '0 đ'
+  return `${Math.round(num).toLocaleString('en-US')} đ`
 }
 
 /**

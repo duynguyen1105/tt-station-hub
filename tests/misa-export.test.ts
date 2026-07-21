@@ -459,6 +459,21 @@ describe('misaRowsToXlsxBuffer — template styling', () => {
     expect(ws!.getCell('A1').dataValidation?.promptTitle).toBe('MISA SME.NET')
   })
 
+  it('formats the numeric columns for the Vietnamese-locale view', async () => {
+    const { rows } = buildMisaSalesVoucher(baseInput())
+    expect(rows.length).toBeGreaterThan(0)
+    const wb = new ExcelJS.Workbook()
+    const bytes = await misaRowsToXlsxBuffer(rows)
+    await wb.xlsx.load(bytes as unknown as Parameters<typeof wb.xlsx.load>[0])
+    const ws = wb.getWorksheet(MISA_SHEET_NAME)
+
+    // Grouped display; values stay numeric so MISA still imports them.
+    expect(ws!.getCell('AB2').numFmt).toBe('#,##0.00') // Số lượng (col 28)
+    expect(ws!.getCell('AD2').numFmt).toBe('#,##0') // Đơn giá (col 30)
+    expect(ws!.getCell('AE2').numFmt).toBe('#,##0') // Thành tiền (col 31)
+    expect(typeof ws!.getCell('AE2').value).toBe('number')
+  })
+
   it('produces a byte-identical file on re-export (deterministic)', async () => {
     const { rows } = buildMisaSalesVoucher(baseInput())
     const a = await misaRowsToXlsxBuffer(rows)
