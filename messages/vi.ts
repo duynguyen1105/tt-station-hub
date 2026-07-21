@@ -297,6 +297,10 @@ export const vi = {
     knownPlatesHint: 'VD: 50E-753.17, 51C-123.45 — dùng để tự nhận diện khách từ ảnh',
     customerCreated: 'Đã thêm khách hàng.',
     editCustomer: 'Sửa thông tin khách',
+    customerCode: 'Mã khách hàng',
+    customerCodeHint: 'Mã do Trường Thịnh quy định — bắt buộc để xuất MISA (bán lẻ dùng mã "bl").',
+    customerCodeRequired: 'Nhập mã khách hàng (Trường Thịnh quy định).',
+    missingCode: 'Thiếu mã',
   },
 
   overview: {
