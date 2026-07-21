@@ -59,8 +59,10 @@ export default async function ReviewDebtsPage() {
               key={v.id}
               data={{
                 visitId: v.id,
+                stationId: v.stationId,
                 reviewStatus: v.reviewStatus,
                 plate: v.plateConfirmed ?? v.plateRead,
+                zaloCaption: v.zaloCaption,
                 liters: v.litersRead !== null ? v.litersRead.toString() : null,
                 unitPrice: v.unitPriceRead !== null ? v.unitPriceRead.toString() : null,
                 computedAmount: v.computedAmount !== null ? Number(v.computedAmount) : null,

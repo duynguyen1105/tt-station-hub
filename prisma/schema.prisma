@@ -231,6 +231,9 @@ model DebtVehicleVisit {
   // Vehicle plate
   plateRead            String?   @map("plate_read") // AI-read plate
   plateConfirmed       String?   @map("plate_confirmed") // accountant-confirmed plate
+  // The Zalo message text sent with the photos (e.g. "công nợ anh Ba can 30L") —
+  // shown to the reviewer so walk-in/can sales can be assigned without opening Zalo.
+  zaloCaption          String?   @map("zalo_caption")
   // Photos
   vehiclePhotoId       String?   @map("vehicle_photo_id") @db.Uuid
   meterPhotoId         String?   @map("meter_photo_id") @db.Uuid

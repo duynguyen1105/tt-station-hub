@@ -7,6 +7,7 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { CustomerForm } from '@/components/debts/customer-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import {
   AlertDialog,
@@ -54,8 +55,10 @@ import { vi } from '@/messages/vi'
 
 export type DebtVisitCardData = {
   visitId: string
+  stationId: string
   reviewStatus: string
   plate: string | null
+  zaloCaption: string | null
   liters: string | null
   unitPrice: string | null
   computedAmount: number | null
@@ -181,6 +184,8 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [customerId, setCustomerId] = useState<string | null>(data.customerId)
+  // Local so a customer created inline (walk-in) appears + selects immediately.
+  const [customers, setCustomers] = useState(data.customers)
   const [openCorrect, setOpenCorrect] = useState(false)
   const [plate, setPlate] = useState(data.plate ?? '')
   const [liters, setLiters] = useState(data.liters ?? '')
@@ -244,6 +249,14 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
           </div>
         </div>
 
+        {/* Sender note (Zalo caption) — key context for walk-in/can sales. */}
+        {data.zaloCaption && (
+          <div className="border-brass/40 bg-brass/10 rounded-lg border px-3 py-2 text-sm">
+            <span className="label-micro block">{vi.debtReview.senderNote}</span>
+            <span className="text-foreground">💬 {data.zaloCaption}</span>
+          </div>
+        )}
+
         {/* Photos */}
         <div className="grid grid-cols-2 gap-2">
           <PhotoThumb url={data.vehiclePhotoUrl} label={vi.debtReview.vehiclePhoto} />
@@ -304,7 +317,27 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
               ✓ {vi.debtReview.autoMatched}
             </p>
           )}
-          <CustomerPicker customers={data.customers} value={customerId} onChange={setCustomerId} />
+          <div className="flex gap-2">
+            <div className="min-w-0 flex-1">
+              <CustomerPicker customers={customers} value={customerId} onChange={setCustomerId} />
+            </div>
+            <CustomerForm
+              stationId={data.stationId}
+              onSaved={(c) => {
+                setCustomers((prev) =>
+                  prev.some((x) => x.id === c.id)
+                    ? prev
+                    : [...prev, c].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+                )
+                setCustomerId(c.id)
+              }}
+              trigger={
+                <Button variant="outline" size="icon" title={vi.debtReview.addCustomer}>
+                  +
+                </Button>
+              }
+            />
+          </div>
         </div>
 
         {/* Actions */}

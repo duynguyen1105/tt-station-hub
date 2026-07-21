@@ -278,12 +278,15 @@ export async function assembleDebtVisit(params: {
   timestamp: number
   type: DebtPhotoType
   buffer: Buffer
+  // Zalo message text sent with the photo — stored on the visit for the reviewer.
+  caption?: string | null
 }): Promise<{
   visitId: string
   meter: ExtractVisitResult | null
   plate: ExtractPlateResult | null
 }> {
   const { photoId, station, timestamp, type, buffer } = params
+  const caption = params.caption?.trim() || null
   const visitDate = new Date(timestamp)
   const windowStart = new Date(timestamp - DEBT_PAIR_WINDOW_MS)
 
@@ -332,6 +335,8 @@ export async function assembleDebtVisit(params: {
       aiRawResponse: meter.raw as Prisma.InputJsonValue,
       anomalyReasons: anomalies,
       reviewStatus,
+      // Keep an existing caption when this photo carries none.
+      ...(caption ? { zaloCaption: caption } : {}),
     }
     // Pair with a recent vehicle-only visit at this station, else open a new one.
     const open = await prisma.debtVehicleVisit.findFirst({
@@ -384,6 +389,7 @@ export async function assembleDebtVisit(params: {
           vehiclePhotoId: photoId,
           plateRead: plate.plate,
           customerId: open.customerId ?? customer?.id ?? null,
+          ...(caption ? { zaloCaption: caption } : {}),
         },
       })
     : await prisma.debtVehicleVisit.create({
@@ -394,6 +400,7 @@ export async function assembleDebtVisit(params: {
           plateRead: plate.plate,
           customerId: customer?.id ?? null,
           reviewStatus: 'needs_review',
+          zaloCaption: caption,
         },
       })
   return { visitId: visit.id, meter: null, plate }
