@@ -1,5 +1,4 @@
 import { ExportPreflightDialog } from '@/components/misa-export/export-preflight-dialog'
-import { StatusBadge } from '@/components/shared/status-badge'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
@@ -17,7 +16,6 @@ export default async function MisaExportPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{vi.nav.misaReport}</h1>
-      <StatusBadge label="Mẫu MISA tạm — chờ template chính thức (§13.1)" tone="warning" />
       {shifts.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.shifts.empty}</p>
       ) : (

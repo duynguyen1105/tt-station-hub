@@ -49,14 +49,15 @@ const prices = [
   { fuelType: 'URE', effectiveDate: PRICE_DATE, unitPrice: 15000 },
 ]
 
-// Metered: DO 300 (d1: 1000→1300), E0 200 (d2: 500→700).
+// Metered: DO 300 (d1: 1000→1300), E0 200 (d2: 500→700). The opening lives on
+// the reading; the dispenser contributes only its fuel type.
 const dispensers: SaleDispenser[] = [
-  { id: 'd1', fuelType: 'DO', lastElectronicReading: 1000 },
-  { id: 'd2', fuelType: 'E0', lastElectronicReading: 500 },
+  { id: 'd1', fuelType: 'DO' },
+  { id: 'd2', fuelType: 'E0' },
 ]
 const readings: SaleReading[] = [
-  { dispenserId: 'd1', electronicReading: 1300 },
-  { dispenserId: 'd2', electronicReading: 700 },
+  { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1300 },
+  { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 700 },
 ]
 
 const customers: CreditCustomer[] = [
@@ -257,6 +258,23 @@ describe('buildMisaSalesVoucher — cash rows (bán lẻ)', () => {
       amount: 3045000,
     })
   })
+
+  it('meters each fuel from the reading’s own opening, so a corrected closing changes the quantity', () => {
+    // Correct d1's closing 1300 → 1250: metered DO falls 300 → 250, and the cash
+    // row (250 − 100 credit = 150) tracks it. This is what the deleted export
+    // reconstruction could not do — the quantity follows the reading's opening.
+    const { rows } = buildMisaSalesVoucher(
+      baseInput({
+        readings: [
+          { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1250 },
+          { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 700 },
+        ],
+      })
+    )
+    const doCash = rows.find((r) => r.kind === 'cash' && r.productCode === 'DO')
+    expect(doCash?.quantity).toBe(150) // metered 250 − credit 100
+    expect(doCash?.amount).toBe(3343500) // 150 × 22290
+  })
 })
 
 describe('buildMisaSalesVoucher — per-fuel summary', () => {
@@ -439,6 +457,21 @@ describe('misaRowsToXlsxBuffer — template styling', () => {
 
     // The "MISA SME.NET" input note is present on a column (data validation prompt).
     expect(ws!.getCell('A1').dataValidation?.promptTitle).toBe('MISA SME.NET')
+  })
+
+  it('formats the numeric columns for the Vietnamese-locale view', async () => {
+    const { rows } = buildMisaSalesVoucher(baseInput())
+    expect(rows.length).toBeGreaterThan(0)
+    const wb = new ExcelJS.Workbook()
+    const bytes = await misaRowsToXlsxBuffer(rows)
+    await wb.xlsx.load(bytes as unknown as Parameters<typeof wb.xlsx.load>[0])
+    const ws = wb.getWorksheet(MISA_SHEET_NAME)
+
+    // Grouped display; values stay numeric so MISA still imports them.
+    expect(ws!.getCell('AB2').numFmt).toBe('#,##0.00') // Số lượng (col 28)
+    expect(ws!.getCell('AD2').numFmt).toBe('#,##0') // Đơn giá (col 30)
+    expect(ws!.getCell('AE2').numFmt).toBe('#,##0') // Thành tiền (col 31)
+    expect(typeof ws!.getCell('AE2').value).toBe('number')
   })
 
   it('produces a byte-identical file on re-export (deterministic)', async () => {

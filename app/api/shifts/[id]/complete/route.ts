@@ -32,14 +32,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { sales, advances } = computeShiftSales(
     readings.map((r) => ({
       dispenserId: r.dispenserId,
+      openingElectronicReading:
+        r.openingElectronicReading !== null ? Number(r.openingElectronicReading) : null,
       electronicReading: r.electronicReading !== null ? Number(r.electronicReading) : null,
+      openingMechanicalReading:
+        r.openingMechanicalReading !== null ? Number(r.openingMechanicalReading) : null,
+      mechanicalReading: r.mechanicalReading !== null ? Number(r.mechanicalReading) : null,
     })),
-    dispensers.map((d) => ({
-      id: d.id,
-      fuelType: d.fuelType,
-      lastElectronicReading:
-        d.lastElectronicReading !== null ? Number(d.lastElectronicReading) : null,
-    }))
+    dispensers.map((d) => ({ id: d.id, fuelType: d.fuelType }))
   )
 
   const updated = await prisma.$transaction(async (db) => {
@@ -74,7 +74,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     for (const advance of advances) {
       await db.dispenser.update({
         where: { id: advance.dispenserId },
-        data: { lastElectronicReading: advance.newReading, lastReadingAt: new Date() },
+        data: {
+          ...(advance.newElectronicReading !== null && {
+            lastElectronicReading: advance.newElectronicReading,
+          }),
+          ...(advance.newMechanicalReading !== null && {
+            lastMechanicalReading: advance.newMechanicalReading,
+          }),
+          lastReadingAt: new Date(),
+        },
       })
     }
 

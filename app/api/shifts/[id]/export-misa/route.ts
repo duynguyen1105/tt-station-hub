@@ -85,24 +85,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       ? await prisma.debtCustomer.findMany({ where: { id: { in: customerIds } } })
       : []
 
-  const dispenserById = new Map(dispenserRows.map((d) => [d.id, d]))
-
-  // computeShiftSales (inside the builder) needs each dispenser's OPENING reading, but on a
-  // completed shift the dispenser's lastElectronicReading has been advanced to the closing
-  // reading. Reconstruct the opening per approved reading as closing − storedDelta.
+  // Each reading carries its own opening, so metered liters are the reading's
+  // closing minus that opening; the dispenser contributes only its fuel type.
   const saleReadings: SaleReading[] = readingRows.map((r) => ({
     dispenserId: r.dispenserId,
+    openingElectronicReading: num(r.openingElectronicReading),
     electronicReading: num(r.electronicReading),
   }))
-  const saleDispensers: SaleDispenser[] = readingRows.map((r) => {
-    const closing = num(r.electronicReading)
-    const delta = num(r.electronicDelta)
-    return {
-      id: r.dispenserId,
-      fuelType: dispenserById.get(r.dispenserId)?.fuelType ?? '',
-      lastElectronicReading: closing !== null && delta !== null ? closing - delta : null,
-    }
-  })
+  const saleDispensers: SaleDispenser[] = dispenserRows.map((d) => ({
+    id: d.id,
+    fuelType: d.fuelType,
+  }))
 
   const stationConfig: StationConfig | null =
     config === null
