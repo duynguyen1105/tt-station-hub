@@ -241,9 +241,10 @@ export const vi = {
   },
 
   correction: {
-    title: 'Sửa số đọc',
     openingTitle: 'Sửa số đầu',
+    closingTitle: 'Sửa số cuối',
     adminOnly: 'Chỉ admin',
+    closingLocked: 'Ca đã chốt — chỉ admin',
     openingElectronicLabel: 'Chỉ số đầu ca — điện tử',
     closingElectronicLabel: 'Chỉ số cuối ca — điện tử',
     openingMechanicalLabel: 'Chỉ số đầu ca — cơ',

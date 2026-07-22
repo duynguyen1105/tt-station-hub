@@ -21,7 +21,7 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type AppRole } from '@/lib/auth/permissions'
-import { type ShiftStatus, canEditOpening } from '@/lib/auth/reading-policy'
+import { type ShiftStatus, canEditClosing, canEditOpening } from '@/lib/auth/reading-policy'
 import { anomalyLabel, fuelTypeLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -77,6 +77,7 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
   const info = data.reviewStatus ? reviewStatusInfo(data.reviewStatus) : null
   const canAct = data.readingId !== null
   const adminOpening = canEditOpening(data.role)
+  const mayEditClosing = canEditClosing(data.role, data.shiftStatus)
 
   async function act(action: 'approve' | 'reject') {
     if (!data.readingId) return
@@ -87,13 +88,11 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
     else toast.error(result.error ?? vi.errors.generic)
   }
 
-  async function saveCorrection() {
+  async function saveClosing() {
     if (!data.readingId) return
     setBusy(true)
-    const result = await postAction(`/api/readings/${data.readingId}/correct`, {
-      openingElectronicReading: openingElectronic || null,
+    const result = await postAction(`/api/readings/${data.readingId}/correct-closing`, {
       electronicReading: electronic || null,
-      openingMechanicalReading: openingMechanical || null,
       mechanicalReading: mechanical || null,
     })
     setBusy(false)
@@ -242,74 +241,93 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
           >
             {vi.common.approve}
           </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline" disabled={!canAct || busy}>
-                {vi.common.correct}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>
-                  {vi.correction.title} — {data.dispenserName}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <Field>
-                  <FieldLabel htmlFor="opening-electronic">
-                    {vi.correction.openingElectronicLabel}
-                  </FieldLabel>
-                  <Input
-                    id="opening-electronic"
-                    value={openingElectronic}
-                    inputMode="decimal"
-                    onChange={(e) => setOpeningElectronic(e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="electronic">
-                    {vi.correction.closingElectronicLabel}
-                  </FieldLabel>
-                  <Input
-                    id="electronic"
-                    value={electronic}
-                    inputMode="decimal"
-                    onChange={(e) => setElectronic(e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="opening-mechanical">
-                    {vi.correction.openingMechanicalLabel}
-                  </FieldLabel>
-                  <Input
-                    id="opening-mechanical"
-                    value={openingMechanical}
-                    inputMode="decimal"
-                    onChange={(e) => setOpeningMechanical(e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="mechanical">
-                    {vi.correction.closingMechanicalLabel}
-                  </FieldLabel>
-                  <Input
-                    id="mechanical"
-                    value={mechanical}
-                    inputMode="decimal"
-                    onChange={(e) => setMechanical(e.target.value)}
-                  />
-                </Field>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
-                  {vi.common.cancel}
-                </Button>
-                <Button onClick={saveCorrection} disabled={busy}>
-                  {vi.common.save}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          {/* Editing the closings is the kế toán's daily action: admin at any
+              status, accountant until chốt, then admin-only. A viewer never
+              sees it; a locked-out accountant sees it disabled with a hint. */}
+          {data.role !== 'viewer' &&
+            (mayEditClosing ? (
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={!canAct || busy}>
+                    {vi.correction.closingTitle}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {vi.correction.closingTitle} — {data.dispenserName}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    {/* Openings are shown read-only for delta context; they are
+                        repaired only through the admin-only "Sửa số đầu" dialog. */}
+                    <Field>
+                      <FieldLabel htmlFor="closing-opening-electronic">
+                        {vi.correction.openingElectronicLabel}
+                      </FieldLabel>
+                      <Input
+                        id="closing-opening-electronic"
+                        value={data.openingElectronicReading ?? ''}
+                        readOnly
+                        disabled
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="electronic">
+                        {vi.correction.closingElectronicLabel}
+                      </FieldLabel>
+                      <Input
+                        id="electronic"
+                        value={electronic}
+                        inputMode="decimal"
+                        onChange={(e) => setElectronic(e.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="closing-opening-mechanical">
+                        {vi.correction.openingMechanicalLabel}
+                      </FieldLabel>
+                      <Input
+                        id="closing-opening-mechanical"
+                        value={data.openingMechanicalReading ?? ''}
+                        readOnly
+                        disabled
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="mechanical">
+                        {vi.correction.closingMechanicalLabel}
+                      </FieldLabel>
+                      <Input
+                        id="mechanical"
+                        value={mechanical}
+                        inputMode="decimal"
+                        onChange={(e) => setMechanical(e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>
+                      {vi.common.cancel}
+                    </Button>
+                    <Button onClick={saveClosing} disabled={busy}>
+                      {vi.common.save}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button size="sm" variant="outline" disabled>
+                      {vi.correction.closingTitle}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{vi.correction.closingLocked}</TooltipContent>
+              </Tooltip>
+            ))}
           <Button
             size="sm"
             variant="ghost"
