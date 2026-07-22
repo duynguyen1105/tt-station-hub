@@ -2,7 +2,7 @@ import { classifyPhoto, extractMeter } from '@/lib/ai/extract-meter'
 import { extractVisitMeter } from '@/lib/ai/extract-visit'
 import type { ExtractMeterResult, ExtractVisitResult, RouterResult } from '@/lib/ai/types'
 import { logger } from '@/lib/logger'
-import { matchStationByLabel } from '@/lib/matching/station-label'
+import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import {
   assembleDebtVisit,
   findOrCreateShift,
@@ -183,11 +183,14 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         'Routed by station label from photo content; sender self-registered'
       )
     } else {
+      // Never drop the photos: park them on the UNKNOWN holding station so they
+      // reach the review queue, where the accountant assigns the real station via
+      // the dropdown. The sender is NOT self-registered to it.
+      station = await getOrCreateUnknownStation()
       logger.warn(
         { groupId: msg.groupId, senderId: msg.senderId },
-        'No station mapping for message — no registered sender/group and no readable station label'
+        'No station identified — photos parked on the UNKNOWN station for manual assignment'
       )
-      return
     }
   }
 

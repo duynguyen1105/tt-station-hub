@@ -317,6 +317,9 @@ export const vi = {
     missingCode: 'Thiếu mã',
     station: 'Trạm',
     stationChanged: 'Đã chuyển lượt xe sang trạm khác.',
+    stationUnknown: 'Chưa xác định trạm',
+    needStation: 'Chọn trạm trước khi duyệt.',
+    selectStation: 'Chọn trạm…',
   },
 
   overview: {
