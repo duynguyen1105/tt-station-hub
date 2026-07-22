@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 
 import { DebtVisitCard } from '@/components/debts/debt-visit-card'
+import { ReviewTabs } from '@/components/review/review-tabs'
 import { requireUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
 import { getSignedUrl } from '@/lib/storage/photo-storage'
@@ -54,6 +55,7 @@ export default async function ReviewDebtsPage() {
         <p className="label-micro">{vi.debtReview.subtitle}</p>
         <h1 className="text-2xl font-semibold tracking-tight">{vi.debtReview.title}</h1>
       </div>
+      <ReviewTabs />
 
       {visits.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.debtReview.empty}</p>
