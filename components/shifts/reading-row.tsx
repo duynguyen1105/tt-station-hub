@@ -21,7 +21,12 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type AppRole } from '@/lib/auth/permissions'
-import { type ShiftStatus, canEditClosing, canEditOpening } from '@/lib/auth/reading-policy'
+import {
+  type ShiftStatus,
+  canEditClosing,
+  canEditOpening,
+  canReviewShift,
+} from '@/lib/auth/reading-policy'
 import { anomalyLabel, fuelTypeLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -78,6 +83,7 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
   const canAct = data.readingId !== null
   const adminOpening = canEditOpening(data.role)
   const mayEditClosing = canEditClosing(data.role, data.shiftStatus)
+  const mayReview = canReviewShift(data.role, data.shiftStatus)
 
   async function act(action: 'approve' | 'reject') {
     if (!data.readingId) return
@@ -233,14 +239,18 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
                 <TooltipContent>{vi.correction.adminOnly}</TooltipContent>
               </Tooltip>
             ))}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canAct || busy}
-            onClick={() => act('approve')}
-          >
-            {vi.common.approve}
-          </Button>
+          {/* Approve / reject follow canReviewShift: admin at any status,
+              accountant until chốt; a viewer never sees them. */}
+          {mayReview && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canAct || busy}
+              onClick={() => act('approve')}
+            >
+              {vi.common.approve}
+            </Button>
+          )}
           {/* Editing the closings is the kế toán's daily action: admin at any
               status, accountant until chốt, then admin-only. A viewer never
               sees it; a locked-out accountant sees it disabled with a hint. */}
@@ -328,14 +338,16 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
                 <TooltipContent>{vi.correction.closingLocked}</TooltipContent>
               </Tooltip>
             ))}
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={!canAct || busy}
-            onClick={() => act('reject')}
-          >
-            {vi.common.reject}
-          </Button>
+          {mayReview && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!canAct || busy}
+              onClick={() => act('reject')}
+            >
+              {vi.common.reject}
+            </Button>
+          )}
         </div>
       </td>
     </tr>
