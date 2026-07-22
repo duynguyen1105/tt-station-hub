@@ -18,7 +18,7 @@ import {
 } from '@/lib/misa-export/build-sales-voucher'
 import { misaRowsToXlsxBuffer } from '@/lib/misa-export/shift-to-excel'
 
-// Fixtures reproduce a DAKNONG_1 day (sale date 27/06/2026) using the seeded values.
+// Fixtures reproduce a DAKNONG1 day (sale date 27/06/2026) using the seeded values.
 const SALE_DATE = new Date('2026-06-27')
 const PRICE_DATE = new Date('2026-06-25')
 

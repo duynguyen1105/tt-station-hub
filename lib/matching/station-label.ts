@@ -5,7 +5,7 @@ export type StationRef = { id: string; code: string }
 /**
  * Normalizes a printed station label for matching: strips Vietnamese diacritics
  * (Đ/đ included), uppercases, and drops everything but letters/digits, so
- * "ĐAKNONG 1", "Đắk Nông 1" and the code "DAKNONG_1" all collapse to "DAKNONG1".
+ * "ĐAKNONG 1", "Đắk Nông 1" and the code "DAKNONG1" all collapse to "DAKNONG1".
  */
 export function normalizeStationLabel(value: string): string {
   return value

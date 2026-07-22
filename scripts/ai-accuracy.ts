@@ -16,7 +16,7 @@ import { PrismaClient } from '../lib/generated/prisma/client'
 // Usage: pnpm tsx scripts/ai-accuracy.ts [photoDir] [stationCode]
 
 const DIR = process.argv[2] ?? join(process.env.HOME ?? '', 'Downloads', '02-06-2026')
-const STATION = process.argv[3] ?? 'DAKNONG_1'
+const STATION = process.argv[3] ?? 'DAKNONG1'
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? '' }),
