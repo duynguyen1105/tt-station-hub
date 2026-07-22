@@ -12,6 +12,7 @@ import {
   type StationConfig,
   buildMisaSalesVoucher,
 } from '@/lib/misa-export/build-sales-voucher'
+import { shiftDayWindow } from '@/lib/misa-export/debts-list'
 import { misaRowsToXlsxBuffer } from '@/lib/misa-export/shift-to-excel'
 import { prisma } from '@/lib/prisma'
 
@@ -44,12 +45,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!shift) return notFound()
 
   const { stationId, shiftDate } = shift
-  // shiftDate is stored as UTC-midnight labelled with the Vietnam (GMT+7) calendar day
-  // (see shiftDateFor in lib/photos/ingest.ts), but visitDate is the raw UTC instant.
-  // Shift the 24h window back 7h so it spans the Vietnam calendar day, not local 07:00→07:00.
-  const VN_OFFSET_MS = 7 * 60 * 60 * 1000
-  const dayStart = new Date(shiftDate.getTime() - VN_OFFSET_MS)
-  const dayEnd = new Date(shiftDate.getTime() + 24 * 60 * 60 * 1000 - VN_OFFSET_MS)
+  // The ca's Vietnam-offset calendar-day window (see lib/misa-export/debts-list):
+  // shiftDate is UTC-midnight labelled with the Vietnam (GMT+7) day, visitDate is the
+  // raw UTC instant, so the helper shifts the 24h window back 7h to span the VN day.
+  const { start: dayStart, end: dayEnd } = shiftDayWindow(shiftDate)
 
   // Prices are keyed by the station's Vùng (retail zone), so resolve the station first.
   const station = await prisma.station.findUnique({ where: { id: stationId } })
