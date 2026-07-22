@@ -4,7 +4,7 @@ import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
-import { type ShiftStatus } from '@/lib/auth/reading-policy'
+import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate, formatLiters } from '@/lib/format'
 import {
@@ -108,10 +108,13 @@ export default async function ShiftDetailPage({
           </h2>
           <StatusBadge label={status.label} tone={status.tone} />
         </div>
-        <ShiftCompleteButton
-          shiftId={shift.id}
-          disabled={shift.status === 'completed' || pendingCount > 0}
-        />
+        {/* Chốt ca follows canReviewShift; a viewer never sees the control. */}
+        {canReviewShift(user.role, shift.status as ShiftStatus) && (
+          <ShiftCompleteButton
+            shiftId={shift.id}
+            disabled={shift.status === 'completed' || pendingCount > 0}
+          />
+        )}
       </div>
 
       {rows.length === 0 ? (

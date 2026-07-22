@@ -1,5 +1,6 @@
-import { badRequest, notFound, ok, unauthorized } from '@/lib/api/response'
+import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
+import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { computeShiftSales } from '@/lib/inventory/shift-sales'
 import { prisma } from '@/lib/prisma'
@@ -11,6 +12,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const shift = await prisma.shift.findUnique({ where: { id } })
   if (!shift) return notFound()
+  if (!canReviewShift(user.role, shift.status as ShiftStatus)) return forbidden()
   if (shift.status === 'completed') return badRequest('Ca này đã được chốt.')
 
   // Block completion while readings still need review.
