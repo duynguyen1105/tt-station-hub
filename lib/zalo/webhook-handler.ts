@@ -1,5 +1,7 @@
-import { classifyPhoto } from '@/lib/ai/extract-meter'
+import { classifyPhoto, extractMeter } from '@/lib/ai/extract-meter'
+import type { ExtractMeterResult, RouterResult } from '@/lib/ai/types'
 import { logger } from '@/lib/logger'
+import { matchStationByLabel } from '@/lib/matching/station-label'
 import {
   assembleDebtVisit,
   findOrCreateShift,
@@ -116,10 +118,58 @@ async function findStationForMessage(msg: ZaloImageMessage) {
  * webhook can reply within Zalo's ~5s window.
  */
 export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<void> {
-  const station = await findStationForMessage(msg)
+  let station = await findStationForMessage(msg)
+
+  // Buffers/extractions produced while identifying the station from photo content —
+  // reused by the main loop so nothing is downloaded or AI-read twice.
+  const preBuffers = new Map<number, Buffer>()
+  const preResults = new Map<number, ExtractMeterResult>()
+
   if (!station) {
-    logger.warn({ groupId: msg.groupId, senderId: msg.senderId }, 'No station mapping for message')
-    return
+    // Unknown sender: try to identify the station from the printed label in the
+    // photos themselves ("ĐAKNONG 1 / TRU 1 – DO"). Shift photos almost always
+    // carry it. A random stranger's photo won't match any label, so this stays safe.
+    for (let i = 0; i < msg.imageUrls.length && !station; i++) {
+      try {
+        const buffer = await downloadZaloAttachment(msg.imageUrls[i]!)
+        preBuffers.set(i, buffer)
+        const result = await extractMeter({ imageBuffer: buffer })
+        preResults.set(i, result)
+        if (result.stationLabel) {
+          station = await matchStationByLabel(result.stationLabel)
+        }
+      } catch (error) {
+        logger.error({ error, index: i }, 'Station-label identification failed for image')
+      }
+    }
+
+    if (station) {
+      // Self-registration: bind this sender to the identified station so their next
+      // messages route instantly (no extra AI pass). Never overwrites an existing row.
+      if (msg.senderId) {
+        await prisma.zaloSender
+          .upsert({
+            where: { zaloUserId: msg.senderId },
+            create: {
+              zaloUserId: msg.senderId,
+              stationId: station.id,
+              displayName: msg.senderName ?? 'Tự đăng ký theo nhãn trạm',
+            },
+            update: {},
+          })
+          .catch((error) => logger.error({ error }, 'Sender self-registration failed'))
+      }
+      logger.info(
+        { senderId: msg.senderId, station: station.code },
+        'Routed by station label from photo content; sender self-registered'
+      )
+    } else {
+      logger.warn(
+        { groupId: msg.groupId, senderId: msg.senderId },
+        'No station mapping for message — no registered sender/group and no readable station label'
+      )
+      return
+    }
   }
 
   // Caption is a hint; the per-photo image content is the real decider (below).
@@ -129,14 +179,17 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
   for (let i = 0; i < msg.imageUrls.length; i++) {
     const url = msg.imageUrls[i]!
     try {
-      const buffer = await downloadZaloAttachment(url)
+      const buffer = preBuffers.get(i) ?? (await downloadZaloAttachment(url))
+      const pre = preResults.get(i)
 
       // Classify once, then route by what the AI sees — a vehicle plate or a
       // transaction display is a debt fill, a cumulative totalizer is a shift
       // reading, a HẦM tank-dip is inventory — falling back to the caption when the
       // image is ambiguous. The router result is reused by the extractors below so
       // we never pay for a second classification.
-      const router = await classifyPhoto(buffer).catch(() => null)
+      const router = pre
+        ? ((pre.raw as { router?: RouterResult })?.router ?? null)
+        : await classifyPhoto(buffer).catch(() => null)
       const route = router ? routePhoto(router.image_type, captionKind) : captionKind
 
       const path = `${station.code}/${route}/${msg.messageId}-${i}.jpg`
@@ -168,7 +221,8 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           buffer,
           { id: shift.id, stationId: station.id },
           undefined,
-          router ?? undefined
+          router ?? undefined,
+          pre
         ).catch((error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed'))
       } else if (route === 'debt') {
         await assembleDebtVisit({
