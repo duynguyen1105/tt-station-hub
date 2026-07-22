@@ -198,6 +198,10 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
 
   const info = reviewStatusInfo(data.reviewStatus)
   const mismatch = data.amountMatchesDisplay === false
+  // Visits whose station could not be identified are parked on the (inactive)
+  // UNKNOWN station — it is not in the active list, so the picker shows a
+  // placeholder and approval is blocked until a real station is chosen.
+  const stationKnown = data.stations.some((s) => s.id === stationId)
 
   // Moving the visit to another station persists immediately — it changes which
   // station's ledger/shift the charge belongs to, so it must not wait for Duyệt.
@@ -217,6 +221,10 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   }
 
   async function approve() {
+    if (!stationKnown) {
+      toast.error(vi.debtReview.needStation)
+      return
+    }
     if (!customerId) {
       toast.error(vi.debtReview.needCustomer)
       return
@@ -273,9 +281,13 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
         {/* Station — AI-detected from the pump plate; reviewer can override. */}
         <div className="flex items-center gap-2">
           <span className="label-micro shrink-0">{vi.debtReview.station}</span>
-          <Select value={stationId} onValueChange={changeStation} disabled={busy}>
+          <Select
+            value={stationKnown ? stationId : undefined}
+            onValueChange={changeStation}
+            disabled={busy}
+          >
             <SelectTrigger className="h-8 flex-1">
-              <SelectValue placeholder={vi.debtReview.station} />
+              <SelectValue placeholder={vi.debtReview.selectStation} />
             </SelectTrigger>
             <SelectContent>
               {data.stations.map((s) => (
@@ -285,6 +297,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
               ))}
             </SelectContent>
           </Select>
+          {!stationKnown && <StatusBadge label={vi.debtReview.stationUnknown} tone="danger" />}
         </div>
 
         {/* Sender note (Zalo caption) — key context for walk-in/can sales. */}

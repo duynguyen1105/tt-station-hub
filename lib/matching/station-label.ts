@@ -60,3 +60,18 @@ export async function matchStationByLabel(label: string): Promise<StationRef | n
   const hit = pickStationByLabel(label, stations)
   return hit ? { id: hit.id, code: hit.code } : null
 }
+
+// Reserved holding station for photos whose station could not be determined —
+// inactive so it never shows in pickers/overviews; the reviewer re-assigns the
+// visit to a real station via the dropdown on the review card.
+export const UNKNOWN_STATION_CODE = 'UNKNOWN'
+
+export async function getOrCreateUnknownStation(): Promise<StationRef> {
+  const station = await prisma.station.upsert({
+    where: { code: UNKNOWN_STATION_CODE },
+    create: { code: UNKNOWN_STATION_CODE, name: 'Chưa xác định trạm', isActive: false },
+    update: {},
+    select: { id: true, code: true },
+  })
+  return station
+}
