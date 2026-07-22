@@ -5,8 +5,8 @@ import { normalizeStationLabel, pickStationByLabel } from '@/lib/matching/statio
 const STATIONS = [
   { id: '1', code: 'DAKNONG1', name: 'Đắk Nông 1' },
   { id: '2', code: 'DAKNONG2', name: 'Đắk Nông 2' },
-  { id: '6', code: 'LAMDONG1', name: 'Lâm Đồng 1' },
-  { id: '13', code: 'NGANHA1', name: 'Ngân Hà 01' },
+  { id: '6', code: 'LAMDONG01', name: 'Lâm Đồng 1' },
+  { id: '13', code: 'NGANHA01', name: 'Ngân Hà 01' },
   { id: '8', code: 'NGUYENVUONG', name: 'Nguyên Vượng' },
 ]
 
@@ -25,8 +25,8 @@ describe('pickStationByLabel', () => {
   })
 
   it('matches zero-padded label variants', () => {
-    expect(pickStationByLabel('LAMDONG 01', STATIONS)?.code).toBe('LAMDONG1')
-    expect(pickStationByLabel('NGANHA 01', STATIONS)?.code).toBe('NGANHA1')
+    expect(pickStationByLabel('LAMDONG 01', STATIONS)?.code).toBe('LAMDONG01')
+    expect(pickStationByLabel('NGANHA 01', STATIONS)?.code).toBe('NGANHA01')
   })
 
   it('matches by station name and labels with extra words', () => {
@@ -37,8 +37,8 @@ describe('pickStationByLabel', () => {
   it('matches labels written without spaces (labeling standard v1.1)', () => {
     expect(pickStationByLabel('DAKNONG1', STATIONS)?.code).toBe('DAKNONG1')
     expect(pickStationByLabel('NGUYENVUONG', STATIONS)?.code).toBe('NGUYENVUONG')
-    expect(pickStationByLabel('LAMDONG1', STATIONS)?.code).toBe('LAMDONG1')
-    expect(pickStationByLabel('NGANHA1', STATIONS)?.code).toBe('NGANHA1')
+    expect(pickStationByLabel('LAMDONG01', STATIONS)?.code).toBe('LAMDONG01')
+    expect(pickStationByLabel('NGANHA01', STATIONS)?.code).toBe('NGANHA01')
   })
 
   it('returns null for labels that match nothing', () => {
