@@ -192,10 +192,34 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         : await classifyPhoto(buffer).catch(() => null)
       const route = router ? routePhoto(router.image_type, captionKind) : captionKind
 
-      const path = `${station.code}/${route}/${msg.messageId}-${i}.jpg`
+      // For shift photos the meter is extracted anyway, so read it now and let the
+      // PRINTED STATION LABEL override the sender-based station when they disagree
+      // (e.g. a tester registered to one station sending another station's photo).
+      // Debt/inventory photos rarely carry a label and keep the sender's station.
+      let target = station
+      let extracted: ExtractMeterResult | undefined = pre
+      if (route === 'shift') {
+        extracted =
+          pre ??
+          (await extractMeter({ imageBuffer: buffer, router: router ?? undefined }).catch(
+            () => undefined
+          ))
+        if (extracted?.stationLabel) {
+          const byLabel = await matchStationByLabel(extracted.stationLabel)
+          if (byLabel && byLabel.id !== station.id) {
+            logger.info(
+              { from: station.code, to: byLabel.code, label: extracted.stationLabel },
+              'Photo station label overrides sender station'
+            )
+            target = byLabel
+          }
+        }
+      }
+
+      const path = `${target.code}/${route}/${msg.messageId}-${i}.jpg`
       await uploadPhoto(path, buffer)
 
-      const shift = route === 'shift' ? await findOrCreateShift(station.id, msg.timestamp) : null
+      const shift = route === 'shift' ? await findOrCreateShift(target.id, msg.timestamp) : null
 
       const photo = await prisma.shiftPhoto.create({
         data: {
@@ -219,10 +243,10 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         await runShiftExtraction(
           photo.id,
           buffer,
-          { id: shift.id, stationId: station.id },
+          { id: shift.id, stationId: target.id },
           undefined,
           router ?? undefined,
-          pre
+          extracted
         ).catch((error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed'))
       } else if (route === 'debt') {
         await assembleDebtVisit({
