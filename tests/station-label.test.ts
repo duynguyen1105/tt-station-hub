@@ -34,6 +34,13 @@ describe('pickStationByLabel', () => {
     expect(pickStationByLabel('TRẠM ĐAKNONG 1', STATIONS)?.code).toBe('DAKNONG_1')
   })
 
+  it('matches labels written without spaces (labeling standard v1.1)', () => {
+    expect(pickStationByLabel('DAKNONG1', STATIONS)?.code).toBe('DAKNONG_1')
+    expect(pickStationByLabel('NGUYENVUONG', STATIONS)?.code).toBe('NGUYEN_VUONG')
+    expect(pickStationByLabel('LAMDONG1', STATIONS)?.code).toBe('LAMDONG_1')
+    expect(pickStationByLabel('NGANHA1', STATIONS)?.code).toBe('NGANHA_1')
+  })
+
   it('returns null for labels that match nothing', () => {
     expect(pickStationByLabel('PHUC TIEN', STATIONS)).toBeNull()
     expect(pickStationByLabel('', STATIONS)).toBeNull()
