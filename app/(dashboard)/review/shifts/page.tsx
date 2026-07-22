@@ -1,3 +1,4 @@
+import { ReviewTabs } from '@/components/review/review-tabs'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { requireUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
@@ -36,6 +37,7 @@ export default async function ReviewShiftsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{vi.review.shiftsTitle}</h1>
+      <ReviewTabs />
       {readings.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.review.empty}</p>
       ) : (
