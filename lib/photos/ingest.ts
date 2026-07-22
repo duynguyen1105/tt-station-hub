@@ -16,6 +16,7 @@ import { logger } from '@/lib/logger'
 import { DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
+import { matchStationByLabel } from '@/lib/matching/station-label'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
@@ -297,9 +298,23 @@ export async function assembleDebtVisit(params: {
     // back to inferring from the pump price via the station's Vùng retail prices, and
     // finally to null (the accountant sets it in review).
     const labelFuel = normalizeFuelType(meter.fuelType)
+    // The pump plate often names the STATION too ("ĐAKNONG 1 / TRỤ 1 – DO") — let it
+    // override the sender's station, mirroring shift photos. The reviewer can still
+    // change the station manually on the review card.
+    let target = station
+    if (meter.stationLabel) {
+      const byLabel = await matchStationByLabel(meter.stationLabel)
+      if (byLabel && byLabel.id !== station.id) {
+        logger.info(
+          { from: station.id, to: byLabel.code, label: meter.stationLabel },
+          'Debt visit station label overrides sender station'
+        )
+        target = { id: byLabel.id }
+      }
+    }
     // Retail prices are keyed by the station's Vùng (retail zone), not by station.
     const stationRow = await prisma.station.findUnique({
-      where: { id: station.id },
+      where: { id: target.id },
       select: { vung: true },
     })
     const priceRows = await prisma.misaRetailPrice.findMany({
@@ -330,7 +345,7 @@ export async function assembleDebtVisit(params: {
     // Pair with a recent vehicle-only visit at this station, else open a new one.
     const open = await prisma.debtVehicleVisit.findFirst({
       where: {
-        stationId: station.id,
+        stationId: target.id,
         meterPhotoId: null,
         vehiclePhotoId: { not: null },
         visitDate: { gte: windowStart },
@@ -340,7 +355,7 @@ export async function assembleDebtVisit(params: {
     const visit = open
       ? await prisma.debtVehicleVisit.update({ where: { id: open.id }, data: meterData })
       : await prisma.debtVehicleVisit.create({
-          data: { stationId: station.id, visitDate, ...meterData },
+          data: { stationId: target.id, visitDate, ...meterData },
         })
     return { visitId: visit.id, meter, plate: null }
   }

@@ -8,13 +8,18 @@ import { vi } from '@/messages/vi'
 
 export default async function ReviewDebtsPage() {
   await requireUser()
-  const [visits, customers] = await Promise.all([
+  const [visits, customers, stations] = await Promise.all([
     prisma.debtVehicleVisit.findMany({
       where: { reviewStatus: { in: ['pending', 'needs_review'] } },
       orderBy: { visitDate: 'desc' },
       take: 100,
     }),
     prisma.debtCustomer.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    }),
+    prisma.station.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
@@ -77,6 +82,7 @@ export default async function ReviewDebtsPage() {
                 vehiclePhotoUrl: v.vehiclePhotoId ? (urlById.get(v.vehiclePhotoId) ?? null) : null,
                 meterPhotoUrl: v.meterPhotoId ? (urlById.get(v.meterPhotoId) ?? null) : null,
                 customers,
+                stations,
               }}
             />
           ))}

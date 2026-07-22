@@ -15,6 +15,9 @@ const correctSchema = z.object({
   unitPriceRead: z.number().nullable().optional(),
   customerId: z.string().uuid().nullable().optional(),
   fuelType: z.enum(['DO', 'E0', 'DC', 'XANG_A95', 'URE']).nullable().optional(),
+  // Reviewer can re-assign the visit when the AI could not (or wrongly) determine
+  // the station from the pump plate.
+  stationId: z.string().uuid().optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,6 +52,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (parsed.data.fuelType !== undefined) data.fuelType = parsed.data.fuelType
   if (parsed.data.litersRead !== undefined) data.litersRead = parsed.data.litersRead
   if (parsed.data.unitPriceRead !== undefined) data.unitPriceRead = parsed.data.unitPriceRead
+  if (parsed.data.stationId !== undefined) {
+    const station = await prisma.station.findFirst({
+      where: { id: parsed.data.stationId, isActive: true },
+      select: { id: true },
+    })
+    if (!station) return badRequest('Trạm không hợp lệ.')
+    data.stationId = station.id
+  }
 
   const updated = await prisma.debtVehicleVisit.update({ where: { id }, data })
   await writeAudit({
