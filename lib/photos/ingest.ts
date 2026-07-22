@@ -270,6 +270,9 @@ export async function assembleDebtVisit(params: {
   buffer: Buffer
   // Zalo message text sent with the photo — stored on the visit for the reviewer.
   caption?: string | null
+  // A meter result already extracted upstream (station identification) — reused
+  // here to avoid a second AI pass.
+  precomputedMeter?: ExtractVisitResult
 }): Promise<{
   visitId: string
   meter: ExtractVisitResult | null
@@ -281,7 +284,7 @@ export async function assembleDebtVisit(params: {
   const windowStart = new Date(timestamp - DEBT_PAIR_WINDOW_MS)
 
   if (type === 'debt_meter') {
-    const meter = await extractVisitMeter({ imageBuffer: buffer })
+    const meter = params.precomputedMeter ?? (await extractVisitMeter({ imageBuffer: buffer }))
     await prisma.shiftPhoto.update({
       where: { id: photoId },
       data: {

@@ -1,5 +1,6 @@
 import { classifyPhoto, extractMeter } from '@/lib/ai/extract-meter'
-import type { ExtractMeterResult, RouterResult } from '@/lib/ai/types'
+import { extractVisitMeter } from '@/lib/ai/extract-visit'
+import type { ExtractMeterResult, ExtractVisitResult, RouterResult } from '@/lib/ai/types'
 import { logger } from '@/lib/logger'
 import { matchStationByLabel } from '@/lib/matching/station-label'
 import {
@@ -123,21 +124,39 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
   // Buffers/extractions produced while identifying the station from photo content —
   // reused by the main loop so nothing is downloaded or AI-read twice.
   const preBuffers = new Map<number, Buffer>()
+  const preRouters = new Map<number, RouterResult>()
   const preResults = new Map<number, ExtractMeterResult>()
+  const preVisitResults = new Map<number, ExtractVisitResult>()
 
   if (!station) {
     // Unknown sender: try to identify the station from the printed label in the
-    // photos themselves ("ĐAKNONG 1 / TRU 1 – DO"). Shift photos almost always
-    // carry it. A random stranger's photo won't match any label, so this stays safe.
+    // photos themselves ("ĐAKNONG 1 / TRU 1 – DO"). Both shift totalizers AND debt
+    // pump displays carry it, so classify first and read with the matching
+    // extractor. A random stranger's photo won't match any label, so this stays safe.
     for (let i = 0; i < msg.imageUrls.length && !station; i++) {
       try {
         const buffer = await downloadZaloAttachment(msg.imageUrls[i]!)
         preBuffers.set(i, buffer)
-        const result = await extractMeter({ imageBuffer: buffer })
-        preResults.set(i, result)
-        if (result.stationLabel) {
-          station = await matchStationByLabel(result.stationLabel)
+        const router = await classifyPhoto(buffer).catch(() => null)
+        if (!router) continue
+        preRouters.set(i, router)
+        if (router.image_type === 'debt_meter') {
+          const visitMeter = await extractVisitMeter({ imageBuffer: buffer })
+          preVisitResults.set(i, visitMeter)
+          if (visitMeter.stationLabel) {
+            station = await matchStationByLabel(visitMeter.stationLabel)
+          }
+        } else if (
+          router.image_type === 'electronic_meter' ||
+          router.image_type === 'mechanical_meter'
+        ) {
+          const result = await extractMeter({ imageBuffer: buffer, router })
+          preResults.set(i, result)
+          if (result.stationLabel) {
+            station = await matchStationByLabel(result.stationLabel)
+          }
         }
+        // vehicle / tank_dip / unclear: no readable station label — skip.
       } catch (error) {
         logger.error({ error, index: i }, 'Station-label identification failed for image')
       }
@@ -187,9 +206,11 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       // reading, a HẦM tank-dip is inventory — falling back to the caption when the
       // image is ambiguous. The router result is reused by the extractors below so
       // we never pay for a second classification.
-      const router = pre
-        ? ((pre.raw as { router?: RouterResult })?.router ?? null)
-        : await classifyPhoto(buffer).catch(() => null)
+      const router =
+        preRouters.get(i) ??
+        (pre
+          ? ((pre.raw as { router?: RouterResult })?.router ?? null)
+          : await classifyPhoto(buffer).catch(() => null))
       const route = router ? routePhoto(router.image_type, captionKind) : captionKind
 
       // For shift photos the meter is extracted anyway, so read it now and let the
@@ -256,6 +277,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           type: router?.image_type === 'vehicle' ? 'vehicle' : 'debt_meter',
           buffer,
           caption: msg.caption,
+          precomputedMeter: preVisitResults.get(i),
         }).catch((error) =>
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
         )
