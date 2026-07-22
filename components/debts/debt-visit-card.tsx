@@ -73,6 +73,9 @@ export type DebtVisitCardData = {
   vehiclePhotoUrl: string | null
   meterPhotoUrl: string | null
   customers: { id: string; name: string }[]
+  // Active stations for the manual station picker (AI routes by the pump plate;
+  // the reviewer can override when it couldn't tell or got it wrong).
+  stations: { id: string; name: string }[]
 }
 
 const UNASSIGNED = '__none__'
@@ -191,9 +194,27 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   const [liters, setLiters] = useState(data.liters ?? '')
   const [unitPrice, setUnitPrice] = useState(data.unitPrice ?? '')
   const [fuelType, setFuelType] = useState(data.fuelType || UNASSIGNED)
+  const [stationId, setStationId] = useState(data.stationId)
 
   const info = reviewStatusInfo(data.reviewStatus)
   const mismatch = data.amountMatchesDisplay === false
+
+  // Moving the visit to another station persists immediately — it changes which
+  // station's ledger/shift the charge belongs to, so it must not wait for Duyệt.
+  async function changeStation(next: string) {
+    const prev = stationId
+    setStationId(next)
+    setBusy(true)
+    const res = await post(`/api/debts/visits/${data.visitId}/correct`, { stationId: next })
+    setBusy(false)
+    if (res.ok) {
+      toast.success(vi.debtReview.stationChanged)
+      router.refresh()
+    } else {
+      setStationId(prev)
+      toast.error(vi.errors.generic)
+    }
+  }
 
   async function approve() {
     if (!customerId) {
@@ -247,6 +268,23 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
             <StatusBadge label={info.label} tone={info.tone} />
             <p className="text-muted-foreground text-xs">{data.visitTime}</p>
           </div>
+        </div>
+
+        {/* Station — AI-detected from the pump plate; reviewer can override. */}
+        <div className="flex items-center gap-2">
+          <span className="label-micro shrink-0">{vi.debtReview.station}</span>
+          <Select value={stationId} onValueChange={changeStation} disabled={busy}>
+            <SelectTrigger className="h-8 flex-1">
+              <SelectValue placeholder={vi.debtReview.station} />
+            </SelectTrigger>
+            <SelectContent>
+              {data.stations.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Sender note (Zalo caption) — key context for walk-in/can sales. */}

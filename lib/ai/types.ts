@@ -71,8 +71,9 @@ export const debtMeterSchema = z.object({
   displayed_amount: z.string().nullable(),
   liters: z.string().nullable(),
   unit_price: z.string().nullable(),
-  // Read from the printed pump label ("TRỤ 1 – DO") when visible — more reliable
-  // than inferring fuel from a (possibly contract) price.
+  // Read from the printed pump label ("ĐAKNONG 1 / TRỤ 1 – DO") when visible — the
+  // station label routes the visit, the fuel beats inferring from a contract price.
+  station_label: z.string().nullable().optional(),
   dispenser_label: z.string().nullable().optional(),
   fuel_type: z.string().nullable().optional(),
   confidence: z.object({
@@ -97,6 +98,7 @@ export type ExtractVisitResult = {
   displayedAmount: string | null
   liters: string | null
   unitPrice: string | null
+  stationLabel: string | null
   dispenserLabel: string | null
   fuelType: string | null
   computedAmount: number | null

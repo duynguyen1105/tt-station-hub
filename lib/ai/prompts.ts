@@ -66,9 +66,9 @@ CRITICAL: the display has a limited number of digit cells. When the amount is la
 
 Read liters carefully and watch the decimal point. Report exactly what is shown and describe the format in notes.
 
-Also read the printed pump label that is usually near the display, e.g. "TRỤ 1 – DO" or "TRU 3 - E0". Return the pump as dispenser_label ("TRỤ 1") and map the fuel word to a code:
+Also read the printed pump label that is usually near the display, e.g. "ĐAKNONG 1 / TRỤ 1 – DO". Return the station name as station_label ("ĐAKNONG 1"), the pump as dispenser_label ("TRỤ 1"), and map the fuel word to a code:
 - "DO" → "DO"; "E0" → "E0"; "DC" → "DC"; "XĂNG"/"A95"/"95" → "XANG_A95"; "URE" → "URE".
-Set both to null if no such label is visible or the fuel is ambiguous.
+Set any of them to null if not visible or ambiguous.
 
 Return JSON only:
 {
@@ -76,6 +76,7 @@ Return JSON only:
   "displayed_amount": "1193680",
   "liters": "4.3",
   "unit_price": "27760",
+  "station_label": "ĐAKNONG 1" | null,
   "dispenser_label": "TRỤ 1" | null,
   "fuel_type": "DO" | "E0" | "DC" | "XANG_A95" | "URE" | null,
   "confidence": { "liters": 0-100, "unit_price": 0-100, "amount": 0-100 },

@@ -315,6 +315,8 @@ export const vi = {
     customerCodeHint: 'Mã do Trường Thịnh quy định — bắt buộc để xuất MISA (bán lẻ dùng mã "bl").',
     customerCodeRequired: 'Nhập mã khách hàng (Trường Thịnh quy định).',
     missingCode: 'Thiếu mã',
+    station: 'Trạm',
+    stationChanged: 'Đã chuyển lượt xe sang trạm khác.',
   },
 
   overview: {
