@@ -4,6 +4,7 @@ import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
+import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate, formatLiters } from '@/lib/format'
 import {
@@ -21,7 +22,7 @@ export default async function ShiftDetailPage({
 }: {
   params: Promise<{ id: string; shiftId: string }>
 }) {
-  await requireUser()
+  const user = await requireUser()
   const { shiftId } = await params
 
   const shift = await prisma.shift.findUnique({ where: { id: shiftId } })
@@ -88,6 +89,8 @@ export default async function ShiftDetailPage({
         : null,
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
+      role: user.role,
+      shiftStatus: shift.status as ShiftStatus,
     }
   })
 

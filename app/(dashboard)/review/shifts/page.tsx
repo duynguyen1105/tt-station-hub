@@ -1,12 +1,13 @@
 import { ReviewTabs } from '@/components/review/review-tabs'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
+import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
 export default async function ReviewShiftsPage() {
-  await requireUser()
+  const user = await requireUser()
 
   const readings = await prisma.shiftReading.findMany({
     where: { reviewStatus: { in: ['pending', 'needs_review'] } },
@@ -78,6 +79,8 @@ export default async function ReviewShiftsPage() {
                   : null,
                 reviewStatus: reading.reviewStatus,
                 anomalyReasons: reading.anomalyReasons,
+                role: user.role,
+                shiftStatus: (shift?.status ?? 'pending_review') as ShiftStatus,
               }
               return <ReadingRow key={reading.id} data={data} />
             })}
