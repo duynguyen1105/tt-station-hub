@@ -4,8 +4,13 @@ import { PrismaClient } from '@/lib/generated/prisma/client'
 
 // Reuse a single client across hot reloads in development to avoid exhausting
 // database connections. Prisma 7 uses the Query Compiler + a driver adapter.
+// prismaCtor remembers WHICH generated PrismaClient class built the cached
+// instance: after `prisma generate` (schema change) hot reload imports a new
+// class identity, and reusing the old instance would query dropped/renamed
+// columns ("column does not exist" until the dev server was restarted).
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
+  prismaCtor: typeof PrismaClient | undefined
 }
 
 /**
@@ -33,8 +38,18 @@ function createPrismaClient(): PrismaClient {
   return new PrismaClient({ adapter })
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+const cachedIsFresh =
+  globalForPrisma.prisma !== undefined && globalForPrisma.prismaCtor === PrismaClient
+
+// A stale cached client (built from a previous generated client) leaks its pool
+// until GC — close it eagerly before replacing it.
+if (globalForPrisma.prisma && !cachedIsFresh) {
+  void globalForPrisma.prisma.$disconnect().catch(() => {})
+}
+
+export const prisma = cachedIsFresh ? globalForPrisma.prisma! : createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
+  globalForPrisma.prismaCtor = PrismaClient
 }
