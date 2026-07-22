@@ -9,13 +9,13 @@
 
 ```
 ┌─────────────────────────┐
-│      DAKNONG 1          │   ← dòng 1: TÊN TRẠM (theo bảng mục 4)
+│      DAKNONG1           │   ← dòng 1: TÊN TRẠM (theo bảng mục 4)
 │      TRU 1 - DO         │   ← dòng 2: TRU + số  -  MÃ NHIÊN LIỆU
 │      HAM 3 - 25K        │   ← dòng 3 (tùy chọn): HẦM chứa + sức chứa (nghìn lít)
 └─────────────────────────┘
 ```
 
-- **Dòng 1 — Trạm**: viết đúng theo bảng mục 4. Có dấu hay không dấu đều đọc được
+- **Dòng 1 — Trạm**: **mã viết liền, không khoảng cách** (DAKNONG1, NGUYENVUONG…) theo bảng mục 4. Có dấu hay không dấu đều đọc được
   ("ĐAKNONG 1" = "DAKNONG 1"), nhưng nên in **không dấu** cho đồng nhất.
 - **Dòng 2 — Trụ + nhiên liệu**: `TRU <số> - <mã>`. Số trụ **không thêm số 0** (TRU 1,
   không phải TRU 01). Mỗi trụ một số, duy nhất trong trạm.
@@ -45,17 +45,17 @@
 
 ## 4. Tên trạm chuẩn trên nhãn (khớp hệ thống)
 
-| #   | Nhãn in     | #   | Nhãn in        |
-| --- | ----------- | --- | -------------- |
-| 1   | `DAKNONG 1` | 8   | `NGUYEN VUONG` |
-| 2   | `DAKNONG 2` | 9   | `TAN HOA`      |
-| 3   | `DAKNONG 3` | 10  | `PHUC TIEN`    |
-| 4   | `DAKNONG 4` | 11  | `HTG DONGNAI`  |
-| 5   | `DAKNONG 5` | 12  | `CXGNH`        |
-| 6   | `LAMDONG 1` | 13  | `NGANHA 1`     |
-| 7   | `LAMDONG 2` |     |                |
+| #   | Nhãn in    | #   | Nhãn in       |
+| --- | ---------- | --- | ------------- |
+| 1   | `DAKNONG1` | 8   | `NGUYENVUONG` |
+| 2   | `DAKNONG2` | 9   | `TANHOA`      |
+| 3   | `DAKNONG3` | 10  | `PHUCTIEN`    |
+| 4   | `DAKNONG4` | 11  | `HTGDONGNAI`  |
+| 5   | `DAKNONG5` | 12  | `CXGNH`       |
+| 6   | `LAMDONG1` | 13  | `NGANHA1`     |
+| 7   | `LAMDONG2` |     |               |
 
-(Hệ thống chấp nhận biến thể có dấu / "LAMDONG 01" v.v., nhưng in đúng cột trên để đồng nhất.)
+(Mã viết liền, không khoảng cách. Hệ thống vẫn chấp nhận biến thể có dấu/có cách — "ĐẮK NÔNG 1", "LAMDONG 01" — nhưng in đúng cột trên để đồng nhất.)
 
 ## 5. Yêu cầu in ấn
 
