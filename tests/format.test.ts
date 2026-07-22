@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest'
 
+import { parseNumericString } from '@/lib/ai/extract-visit'
 import { formatDate, formatDateTime, formatLiters, formatVND } from '@/lib/format'
+
+// Company rule (Trường Thịnh): the DECIMAL separator is always "." — "," is only
+// ever a thousands separator. Numbers must stay calculation-friendly (Excel/MISA).
+// Locking it here so a future locale switch (e.g. vi-VN, which flips the two)
+// fails loudly instead of silently corrupting arithmetic.
+describe('number separator convention (decimal is always ".")', () => {
+  it('display formatting keeps "." as the decimal separator', () => {
+    expect(formatLiters(34.5)).toBe('34.50')
+    expect(formatLiters(1234567.891)).toBe('1,234,567.89')
+  })
+
+  it('parsing treats "," as thousands and "." as decimal', () => {
+    expect(parseNumericString('27,760')).toBe(27760)
+    expect(parseNumericString('4.3')).toBe(4.3)
+    expect(parseNumericString('1,234.50')).toBe(1234.5)
+  })
+})
 
 describe('formatVND', () => {
   it('groups thousands with commas, no decimals, đ suffix', () => {
