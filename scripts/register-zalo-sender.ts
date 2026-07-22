@@ -10,7 +10,7 @@ import { PrismaClient } from '../lib/generated/prisma/client'
 // Usage:
 //   pnpm tsx scripts/register-zalo-sender.ts <zaloUserId> <stationCode> ["Display Name"]
 // Example:
-//   pnpm tsx scripts/register-zalo-sender.ts 5476962738664437863 DAKNONG_1 "Anh Tiến"
+//   pnpm tsx scripts/register-zalo-sender.ts 5476962738664437863 DAKNONG1 "Anh Tiến"
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? '' })
 const prisma = new PrismaClient({ adapter })

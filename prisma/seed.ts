@@ -24,7 +24,7 @@ const PRICE_DATE = new Date('2026-06-25')
 // When the dispensers last read. Fixed so the seed stays idempotent across runs.
 const BASELINE_READING_AT = new Date('2026-06-25')
 
-// Fuel → MISA product/warehouse map for DAKNONG_1 (from the sample sales file).
+// Fuel → MISA product/warehouse map for DAKNONG1 (from the sample sales file).
 // productName (Tên hàng) is a starting default — the accountant verifies/replaces it in
 // Settings → MISA → Map nhiên liệu against the official Trường Thịnh product list.
 type FuelMapSeed = {
@@ -46,7 +46,7 @@ const FUEL_MAP: FuelMapSeed[] = [
   },
 ]
 
-// Current retail prices (VND) per fuel. No A95 — not sold at DAKNONG_1.
+// Current retail prices (VND) per fuel. No A95 — not sold at DAKNONG1.
 const RETAIL_PRICES: Record<string, number> = {
   DO: 22290,
   E0: 20300,
@@ -159,7 +159,7 @@ async function main() {
 
   // Station ĐAKNONG 1.
   const station = await prisma.station.upsert({
-    where: { code: 'DAKNONG_1' },
+    where: { code: 'DAKNONG1' },
     update: {
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
@@ -169,7 +169,7 @@ async function main() {
     },
     create: {
       id: STATION_ID,
-      code: 'DAKNONG_1',
+      code: 'DAKNONG1',
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
       vung: vungForProvince('Đắk Nông'),
@@ -278,7 +278,7 @@ async function main() {
     })
   }
 
-  console.log('Seed completed: station DAKNONG_1 with %d dispensers.', DISPENSERS.length)
+  console.log('Seed completed: station DAKNONG1 with %d dispensers.', DISPENSERS.length)
 }
 
 main()

@@ -38,7 +38,7 @@ async function waitForUrl(url: string, attempts = 20): Promise<boolean> {
 }
 
 async function main() {
-  const [, , imagePath, stationCode = 'DAKNONG_1', ...captionParts] = process.argv
+  const [, , imagePath, stationCode = 'DAKNONG1', ...captionParts] = process.argv
   if (!imagePath || !existsSync(imagePath)) {
     console.error(
       'Usage: pnpm tsx scripts/simulate-zalo-photo.ts <imagePath> [stationCode] [caption]'
