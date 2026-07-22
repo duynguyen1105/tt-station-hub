@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +33,10 @@ export type ReadingRowData = {
   mechanicalReading: string | null
   electronicConfidence: number | null
   mechanicalConfidence: number | null
+  // Signed URLs of the source photos — shown next to the readings so the reviewer
+  // can check the original image without digging through Zalo.
+  electronicPhotoUrl?: string | null
+  mechanicalPhotoUrl?: string | null
   reviewStatus: string | null
   anomalyReasons: string[]
 }
@@ -100,17 +105,37 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
       </td>
       <td className="p-2 font-mono">{data.openingElectronicReading ?? '—'}</td>
       <td className="p-2 font-mono">
-        {data.electronicReading ?? '—'}
-        {data.electronicConfidence !== null && (
-          <span className="text-muted-foreground ml-1 text-xs">({data.electronicConfidence}%)</span>
-        )}
+        <span className="inline-flex items-center gap-2">
+          <PhotoView
+            url={data.electronicPhotoUrl ?? null}
+            label={vi.correction.closingElectronicLabel}
+          />
+          <span>
+            {data.electronicReading ?? '—'}
+            {data.electronicConfidence !== null && (
+              <span className="text-muted-foreground ml-1 text-xs">
+                ({data.electronicConfidence}%)
+              </span>
+            )}
+          </span>
+        </span>
       </td>
       <td className="p-2 font-mono">{data.openingMechanicalReading ?? '—'}</td>
       <td className="p-2 font-mono">
-        {data.mechanicalReading ?? '—'}
-        {data.mechanicalConfidence !== null && (
-          <span className="text-muted-foreground ml-1 text-xs">({data.mechanicalConfidence}%)</span>
-        )}
+        <span className="inline-flex items-center gap-2">
+          <PhotoView
+            url={data.mechanicalPhotoUrl ?? null}
+            label={vi.correction.closingMechanicalLabel}
+          />
+          <span>
+            {data.mechanicalReading ?? '—'}
+            {data.mechanicalConfidence !== null && (
+              <span className="text-muted-foreground ml-1 text-xs">
+                ({data.mechanicalConfidence}%)
+              </span>
+            )}
+          </span>
+        </span>
       </td>
       <td className="space-y-1 p-2">
         {info && <StatusBadge label={info.label} tone={info.tone} />}

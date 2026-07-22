@@ -11,6 +11,7 @@ import {
   debtVisitSelection,
 } from '@/lib/misa-export/debts-list'
 import { prisma } from '@/lib/prisma'
+import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -56,6 +57,12 @@ export default async function ShiftDetailPage({
     customersById
   )
 
+  // Source photos, signed so the reviewer can check the original image inline.
+  const photoUrlById = await signedUrlsForPhotoIds(
+    prisma,
+    readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId])
+  )
+
   const readingByDispenser = new Map(readings.map((r) => [r.dispenserId, r]))
   const rows: ReadingRowData[] = dispensers.map((d) => {
     const r = readingByDispenser.get(d.id)
@@ -69,6 +76,12 @@ export default async function ShiftDetailPage({
       mechanicalReading: r?.mechanicalReading?.toString() ?? null,
       electronicConfidence: r?.aiElectronicConfidence ?? null,
       mechanicalConfidence: r?.aiMechanicalConfidence ?? null,
+      electronicPhotoUrl: r?.electronicPhotoId
+        ? (photoUrlById.get(r.electronicPhotoId) ?? null)
+        : null,
+      mechanicalPhotoUrl: r?.mechanicalPhotoId
+        ? (photoUrlById.get(r.mechanicalPhotoId) ?? null)
+        : null,
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
     }
