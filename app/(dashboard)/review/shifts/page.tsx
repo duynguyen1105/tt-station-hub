@@ -1,6 +1,7 @@
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { requireUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
+import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
 export default async function ReviewShiftsPage() {
@@ -25,6 +26,12 @@ export default async function ReviewShiftsPage() {
   const shiftById = new Map(shifts.map((s) => [s.id, s]))
   const dispenserById = new Map(dispensers.map((d) => [d.id, d]))
   const stationById = new Map(stations.map((s) => [s.id, s]))
+
+  // Source photos, signed so the reviewer can check the original image inline.
+  const photoUrlById = await signedUrlsForPhotoIds(
+    prisma,
+    readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId])
+  )
 
   return (
     <div className="space-y-4">
@@ -61,6 +68,12 @@ export default async function ReviewShiftsPage() {
                 mechanicalReading: reading.mechanicalReading?.toString() ?? null,
                 electronicConfidence: reading.aiElectronicConfidence ?? null,
                 mechanicalConfidence: reading.aiMechanicalConfidence ?? null,
+                electronicPhotoUrl: reading.electronicPhotoId
+                  ? (photoUrlById.get(reading.electronicPhotoId) ?? null)
+                  : null,
+                mechanicalPhotoUrl: reading.mechanicalPhotoId
+                  ? (photoUrlById.get(reading.mechanicalPhotoId) ?? null)
+                  : null,
                 reviewStatus: reading.reviewStatus,
                 anomalyReasons: reading.anomalyReasons,
               }
