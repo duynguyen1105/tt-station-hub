@@ -204,9 +204,12 @@ export async function runShiftExtraction(
   buffer: Buffer,
   shift: ShiftRef,
   override?: ManualOverride,
-  router?: RouterResult
+  router?: RouterResult,
+  // A result already extracted upstream (e.g. while identifying the station from
+  // the photo's printed label) — reused here to avoid a second AI pass.
+  precomputed?: ExtractMeterResult
 ): Promise<ExtractMeterResult> {
-  const result = await extractMeter({ imageBuffer: buffer, router })
+  const result = precomputed ?? (await extractMeter({ imageBuffer: buffer, router }))
   await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
