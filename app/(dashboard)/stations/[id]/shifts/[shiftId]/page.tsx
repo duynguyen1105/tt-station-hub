@@ -4,7 +4,12 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
 import { requireUser } from '@/lib/auth/session'
-import { formatDate } from '@/lib/format'
+import { formatDate, formatLiters } from '@/lib/format'
+import {
+  type DebtCustomerInput,
+  buildDebtsList,
+  debtVisitSelection,
+} from '@/lib/misa-export/debts-list'
 import { prisma } from '@/lib/prisma'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -20,13 +25,36 @@ export default async function ShiftDetailPage({
   const shift = await prisma.shift.findUnique({ where: { id: shiftId } })
   if (!shift) notFound()
 
-  const [readings, dispensers] = await Promise.all([
+  const [readings, dispensers, visits] = await Promise.all([
     prisma.shiftReading.findMany({ where: { shiftId } }),
     prisma.dispenser.findMany({
       where: { stationId: shift.stationId, isActive: true },
       orderBy: { displayOrder: 'asc' },
     }),
+    prisma.debtVehicleVisit.findMany(debtVisitSelection(shift.stationId, shift.shiftDate)),
   ])
+
+  const customerIds = [
+    ...new Set(visits.map((v) => v.customerId).filter((cid): cid is string => cid !== null)),
+  ]
+  const customerRows =
+    customerIds.length > 0
+      ? await prisma.debtCustomer.findMany({ where: { id: { in: customerIds } } })
+      : []
+  const customersById = new Map<string, DebtCustomerInput>(
+    customerRows.map((c) => [c.id, { name: c.name, misaCode: c.misaCode }])
+  )
+  const debtRows = buildDebtsList(
+    visits.map((v) => ({
+      customerId: v.customerId,
+      visitDate: v.visitDate,
+      fuelType: v.fuelType,
+      litersRead: v.litersRead === null ? null : v.litersRead.toNumber(),
+      plateRead: v.plateRead,
+      plateConfirmed: v.plateConfirmed,
+    })),
+    customersById
+  )
 
   const readingByDispenser = new Map(readings.map((r) => [r.dispenserId, r]))
   const rows: ReadingRowData[] = dispensers.map((d) => {
@@ -88,6 +116,40 @@ export default async function ShiftDetailPage({
           </tbody>
         </table>
       )}
+
+      <section className="space-y-2">
+        <h3 className="text-base font-semibold">{vi.shifts.debtsSectionTitle}</h3>
+        {debtRows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{vi.shifts.debtsEmpty}</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground border-b text-left">
+                <th className="p-2">{vi.shifts.debtId}</th>
+                <th className="p-2">{vi.shifts.debtCustomer}</th>
+                <th className="p-2">{vi.shifts.debtFuel}</th>
+                <th className="p-2 text-right">{vi.shifts.debtLiters}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {debtRows.map((row, index) => (
+                <tr key={index} className="border-b">
+                  <td className="p-2 font-mono">
+                    {row.idIsMissing ? (
+                      <StatusBadge label={vi.debtReview.missingCode} tone="danger" />
+                    ) : (
+                      row.id
+                    )}
+                  </td>
+                  <td className="p-2">{row.customerName}</td>
+                  <td className="p-2">{row.fuelLabel}</td>
+                  <td className="p-2 text-right font-mono">{formatLiters(row.liters)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   )
 }

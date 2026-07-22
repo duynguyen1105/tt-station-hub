@@ -12,14 +12,13 @@ import {
   type StationConfig,
   buildMisaSalesVoucher,
 } from '@/lib/misa-export/build-sales-voucher'
-import { shiftDayWindow } from '@/lib/misa-export/debts-list'
+import { debtVisitSelection } from '@/lib/misa-export/debts-list'
 import { misaRowsToXlsxBuffer } from '@/lib/misa-export/shift-to-excel'
 import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
 
 const APPROVED_READING_STATUSES = ['approved', 'auto_approved', 'corrected']
-const APPROVED_VISIT_STATUSES = ['approved', 'corrected']
 
 const num = (d: { toNumber: () => number } | null): number | null =>
   d === null ? null : d.toNumber()
@@ -45,10 +44,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!shift) return notFound()
 
   const { stationId, shiftDate } = shift
-  // The ca's Vietnam-offset calendar-day window (see lib/misa-export/debts-list):
-  // shiftDate is UTC-midnight labelled with the Vietnam (GMT+7) day, visitDate is the
-  // raw UTC instant, so the helper shifts the 24h window back 7h to span the VN day.
-  const { start: dayStart, end: dayEnd } = shiftDayWindow(shiftDate)
 
   // Prices are keyed by the station's Vùng (retail zone), so resolve the station first.
   const station = await prisma.station.findUnique({ where: { id: stationId } })
@@ -66,14 +61,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       orderBy: { dispenserId: 'asc' },
     }),
     prisma.dispenser.findMany({ where: { stationId } }),
-    prisma.debtVehicleVisit.findMany({
-      where: {
-        stationId,
-        reviewStatus: { in: APPROVED_VISIT_STATUSES },
-        visitDate: { gte: dayStart, lt: dayEnd },
-      },
-      orderBy: [{ visitDate: 'asc' }, { id: 'asc' }],
-    }),
+    prisma.debtVehicleVisit.findMany(debtVisitSelection(stationId, shiftDate)),
   ])
 
   const customerIds = [

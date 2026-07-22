@@ -224,6 +224,12 @@ export const vi = {
     empty: 'Chưa có ca nào.',
     noReadings: 'Chưa có số liệu cho ca này.',
     viewDetail: 'Xem / Duyệt',
+    debtsSectionTitle: 'Bán nợ trong ca',
+    debtsEmpty: 'Không có công nợ trong ca này',
+    debtId: 'Mã KH / Biển số',
+    debtCustomer: 'Khách hàng',
+    debtFuel: 'Nhiên liệu',
+    debtLiters: 'Số lít',
   },
 
   review: {
