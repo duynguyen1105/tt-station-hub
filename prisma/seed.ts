@@ -15,6 +15,7 @@ const prisma = new PrismaClient({ adapter })
 const STATION_ID = '11111111-1111-1111-1111-111111111111'
 const ADMIN_ID = '22222222-2222-2222-2222-222222222201'
 const ACCOUNTANT_ID = '22222222-2222-2222-2222-222222222202'
+const VIEWER_ID = '22222222-2222-2222-2222-222222222203'
 const CUSTOMER_ID = '33333333-3333-3333-3333-333333333301'
 
 // Latest retail-price effective date from the accountant's GBL sheet. Fixed so
@@ -154,6 +155,17 @@ async function main() {
       email: 'vi@truongthinh.local',
       fullName: 'Kế toán Vi',
       role: 'accountant',
+    },
+  })
+
+  await prisma.profile.upsert({
+    where: { email: 'viewer@truongthinh.local' },
+    update: { fullName: 'Người xem', role: 'viewer', isActive: true },
+    create: {
+      id: VIEWER_ID,
+      email: 'viewer@truongthinh.local',
+      fullName: 'Người xem',
+      role: 'viewer',
     },
   })
 
