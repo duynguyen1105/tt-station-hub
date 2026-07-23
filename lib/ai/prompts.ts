@@ -90,12 +90,13 @@ Return JSON only:
 { "plate": "51B-12345" | "unclear", "confidence": 0-100, "notes": "..." }`
 
 export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
-Read the printed label: the tank ("HẦM" + number), the fuel type (DO / E0 / DC / XĂNG / URE), and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
+Read the printed label: the STATION name usually printed on the first line ("DAKNONG1", "PHUCTIEN"...), the tank ("HẦM" + number), the fuel type (DO / E0 / DC / XĂNG / URE), and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
 Read the measurement value EXACTLY as written/shown (it may be hand-written or a coloured overlay; keep it verbatim, including dots — its unit and conversion to liters are applied later from a barem table).
 
 Return JSON only (example values are placeholders, replace with what you actually see):
 {
   "is_tank_dip": true,
+  "station_label": "<station name on the plate>" | null,
   "tank_label": "<HẦM + number>" | null,
   "tank_number": "<number>" | null,
   "fuel_type": "DO" | "E0" | "DC" | "XANG_A95" | "URE" | null,

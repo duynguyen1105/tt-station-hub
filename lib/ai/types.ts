@@ -119,6 +119,7 @@ export type ExtractPlateResult = {
 // === Tank dip (inventory / barem §12.6) ===
 export const tankDipSchema = z.object({
   is_tank_dip: z.boolean(),
+  station_label: z.string().nullable().optional(), // "DAKNONG1" printed above the tank label
   tank_label: z.string().nullable(), // "HẦM 3"
   tank_number: z.string().nullable(), // "3"
   fuel_type: z.string().nullable(), // "DO" | "E0" | "DC" | "XANG_A95" | "URE"
@@ -131,6 +132,7 @@ export const tankDipSchema = z.object({
 export type TankDipRaw = z.infer<typeof tankDipSchema>
 
 export type ExtractTankDipResult = {
+  stationLabel: string | null
   tankLabel: string | null
   tankNumber: string | null
   fuelType: string | null

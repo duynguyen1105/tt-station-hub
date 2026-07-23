@@ -447,9 +447,11 @@ export async function assembleDebtVisit(params: {
 /** Reads a tank-dip (barem) photo and records it on the photo for inventory. */
 export async function ingestTankDip(
   photoId: string,
-  buffer: Buffer
+  buffer: Buffer,
+  // A result already extracted upstream (station identification) — reused here.
+  precomputed?: ExtractTankDipResult
 ): Promise<ExtractTankDipResult> {
-  const result = await extractTankDip({ imageBuffer: buffer })
+  const result = precomputed ?? (await extractTankDip({ imageBuffer: buffer }))
   await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {

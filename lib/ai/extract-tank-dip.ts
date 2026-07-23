@@ -15,6 +15,7 @@ export async function extractTankDip(input: {
   if (isAiMockEnabled()) {
     await mockDelay()
     return {
+      stationLabel: null,
       tankLabel: 'HẦM 3',
       tankNumber: '3',
       fuelType: 'DO',
@@ -35,6 +36,7 @@ export async function extractTankDip(input: {
   const parsed = tankDipSchema.parse(parseJsonFromText(text))
 
   return {
+    stationLabel: parsed.station_label ?? null,
     tankLabel: parsed.tank_label,
     tankNumber: parsed.tank_number,
     fuelType: parsed.fuel_type,
