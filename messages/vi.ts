@@ -79,9 +79,9 @@ export const vi = {
     URE: 'URE (Adblue)',
   },
 
-  vung: {
-    VUNG_1: 'Vùng 1',
-    VUNG_2: 'Vùng 2',
+  fuelArea: {
+    FUEL_AREA_1: 'Vùng 1',
+    FUEL_AREA_2: 'Vùng 2',
   },
 
   misaSettings: {
@@ -115,8 +115,8 @@ export const vi = {
     editConfig: 'Chỉnh sửa cấu hình',
     editFuelMap: 'Chỉnh sửa map nhiên liệu',
     noConfig: 'Chưa có cấu hình MISA chung.',
-    vungLabel: 'Vùng',
-    vungNote: 'Vùng quyết định bảng giá bán lẻ áp dụng cho trạm khi xuất MISA.',
+    fuelAreaLabel: 'Vùng',
+    fuelAreaNote: 'Vùng quyết định bảng giá bán lẻ áp dụng cho trạm khi xuất MISA.',
     saved: 'Đã lưu',
   },
 
@@ -250,6 +250,7 @@ export const vi = {
     openingMechanicalLabel: 'Chỉ số đầu ca — cơ',
     closingMechanicalLabel: 'Chỉ số cuối ca — cơ',
     original: 'Số AI gốc',
+    saved: 'Đã cập nhật chỉ số',
   },
 
   inventory: {

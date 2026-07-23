@@ -6,11 +6,11 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
-import { Vung } from '@/lib/generated/prisma/client'
+import { FuelArea } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
 const updateSchema = z.object({
-  vung: z.nativeEnum(Vung),
+  fuelArea: z.nativeEnum(FuelArea),
 })
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const updated = await prisma.station.update({
     where: { id },
-    data: { vung: parsed.data.vung },
+    data: { fuelArea: parsed.data.fuelArea },
   })
 
   await writeAudit({
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     action: 'station.update',
     entity: 'station',
     entityId: id,
-    metadata: { from: station.vung, to: parsed.data.vung },
+    metadata: { from: station.fuelArea, to: parsed.data.fuelArea },
   })
   return ok(updated)
 }

@@ -27,10 +27,10 @@ model Profile {
 }
 
 // === STATIONS & DISPENSERS ===
-// Vùng = retail price zone (Vietnam's fixed two-tier national scheme).
-enum Vung {
-  VUNG_1
-  VUNG_2
+// Fuel area = retail price zone (Vietnam's fixed two-tier national "Vùng" scheme).
+enum FuelArea {
+  FUEL_AREA_1
+  FUEL_AREA_2
 }
 
 model Station {
@@ -38,7 +38,7 @@ model Station {
   code                 String   @unique // "DAKNONG_1"
   name                 String // "Trạm Đăk Nông 1"
   branch               String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
-  vung                 Vung     @default(VUNG_1) // retail price zone
+  fuelArea             FuelArea @default(FUEL_AREA_1) @map("fuel_area") // retail price zone
   address              String?
   zaloGroupId          String?  @map("zalo_group_id") // shift-photo Zalo group
   zaloDebtGroupId      String?  @map("zalo_debt_group_id") // debt group (if separated)
@@ -299,13 +299,13 @@ model MisaFuelMap {
 
 model MisaRetailPrice {
   id            String   @id @default(uuid()) @db.Uuid
-  vung          Vung // retail price zone (prices are set per Vùng, not per station)
+  fuelArea      FuelArea @map("fuel_area") // retail price zone (prices are set per fuel area, not per station)
   fuelType      String   @map("fuel_type")
   effectiveDate DateTime @map("effective_date") @db.Date
   unitPrice     Decimal  @map("unit_price") @db.Decimal(15, 0)
   createdAt     DateTime @default(now()) @map("created_at")
 
-  @@unique([vung, fuelType, effectiveDate])
+  @@unique([fuelArea, fuelType, effectiveDate])
   @@map("misa_retail_prices")
 }
 

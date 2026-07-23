@@ -45,7 +45,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const { stationId, shiftDate } = shift
 
-  // Prices are keyed by the station's Vùng (retail zone), so resolve the station first.
+  // Prices are keyed by the station's fuel area (retail zone), so resolve the station first.
   const station = await prisma.station.findUnique({ where: { id: stationId } })
   if (!station) return notFound()
 
@@ -53,7 +53,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } }),
     prisma.misaFuelMap.findMany({ where: { stationId } }),
     prisma.misaRetailPrice.findMany({
-      where: { vung: station.vung },
+      where: { fuelArea: station.fuelArea },
       orderBy: { effectiveDate: 'asc' },
     }),
     prisma.shiftReading.findMany({
