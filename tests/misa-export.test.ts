@@ -132,7 +132,7 @@ describe('buildMisaSalesVoucher — credit rows (bán nợ)', () => {
     expect(doRow).toMatchObject({
       paymentMethod: 0,
       customerCode: 'QD',
-      salesperson: '75317', // plate digits from 50E-75317
+      salesperson: '50E-75317', // full plate, verbatim (NV bán hàng)
       productCode: 'DO',
       productName: 'Dầu DO', // Tên hàng from the fuel map
       debitAccount: '131',
@@ -148,11 +148,34 @@ describe('buildMisaSalesVoucher — credit rows (bán nợ)', () => {
     const e0Row = credit.find((r) => r.productCode === 'XA E0')
     expect(e0Row).toMatchObject({
       customerCode: 'NGỌC HỒNG',
-      salesperson: '76402',
+      salesperson: '50H-76402',
       quantity: 50,
       unitPrice: 20300,
       amount: 1015000,
     })
+  })
+
+  it('fills NV bán hàng with the MISA code for a walk-in (no-plate) credit visit', () => {
+    const { rows, errors } = buildMisaSalesVoucher(
+      baseInput({
+        creditVisits: [
+          {
+            id: 'v1',
+            customerId: 'c1',
+            fuelType: 'DO',
+            litersRead: 100,
+            unitPriceRead: 22290,
+            computedAmount: 2229000,
+            plate: null, // walk-in: mang can / no plate
+          },
+        ],
+      })
+    )
+    expect(errors).toEqual([])
+    const doRow = rows.find((r) => r.kind === 'credit' && r.productCode === 'DO')
+    // No plate → NV bán hàng repeats the customer's MISA code (like Mã khách hàng).
+    expect(doRow?.customerCode).toBe('QD')
+    expect(doRow?.salesperson).toBe('QD')
   })
 
   it('prices credit rows from the config retail price, not the pump-read price', () => {
