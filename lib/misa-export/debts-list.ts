@@ -50,6 +50,10 @@ export type DebtVisitInput = {
   litersRead: number | null
   plateRead: string | null
   plateConfirmed: string | null
+  // Signed URLs of the visit's photos — shown on the page so the reviewer can
+  // check the pair without leaving the shift. Optional: the MISA route omits them.
+  vehiclePhotoUrl?: string | null
+  meterPhotoUrl?: string | null
 }
 
 /** The customer fields the list needs, keyed by id in `customersById`. */
@@ -65,6 +69,8 @@ export type DebtListRow = {
   customerName: string
   fuelLabel: string
   liters: number | null
+  vehiclePhotoUrl: string | null
+  meterPhotoUrl: string | null
 }
 
 /**
@@ -91,6 +97,8 @@ export function buildDebtsList(
         customerName: customer?.name ?? '',
         fuelLabel: v.fuelType ? fuelTypeLabel(v.fuelType) : '',
         liters: v.litersRead,
+        vehiclePhotoUrl: v.vehiclePhotoUrl ?? null,
+        meterPhotoUrl: v.meterPhotoUrl ?? null,
       }
     })
 }

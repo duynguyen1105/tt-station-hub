@@ -230,6 +230,7 @@ export const vi = {
     debtCustomer: 'Khách hàng',
     debtFuel: 'Nhiên liệu',
     debtLiters: 'Số lít',
+    debtPhotos: 'Ảnh',
   },
 
   review: {
