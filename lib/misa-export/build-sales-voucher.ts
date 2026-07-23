@@ -77,7 +77,7 @@ const COL = {
   voucherDate: 8, // Ngày chứng từ (*)
   invoiceDate: 13, // Ngày hóa đơn
   customerCode: 14, // Mã khách hàng
-  salesperson: 20, // NV bán hàng — plate digits (credit) / blank (cash)
+  salesperson: 20, // NV bán hàng — full plate or MISA code (credit) / blank (cash)
   productCode: 21, // Mã hàng (*)
   productName: 22, // Tên hàng
   debitAccount: 24, // TK Tiền/Chi phí/Nợ (*)
@@ -150,7 +150,7 @@ export type MisaSalesRow = {
   voucherDate: string // dd/MM/yyyy — Ngày chứng từ (*)
   invoiceDate: string // dd/MM/yyyy — Ngày hóa đơn
   customerCode: string
-  salesperson: string // plate digits (credit) / '' (cash)
+  salesperson: string // full plate or MISA code (credit) / '' (cash)
   productCode: string
   productName: string // Tên hàng
   debitAccount: string
@@ -204,13 +204,6 @@ function formatDate(d: Date): string {
   const day = String(d.getUTCDate()).padStart(2, '0')
   const month = String(d.getUTCMonth() + 1).padStart(2, '0')
   return `${day}/${month}/${d.getUTCFullYear()}`
-}
-
-/** Plate digits for "NV bán hàng": the tail after the last '-' (e.g. 50E-75317 → 75317). */
-function plateDigits(plate: string | null): string {
-  if (!plate) return ''
-  const tail = plate.split('-').pop() ?? plate
-  return tail.trim()
 }
 
 /** Latest retail price with effectiveDate ≤ saleDate for a fuel, or null. */
@@ -353,7 +346,10 @@ export function buildMisaSalesVoucher(input: MisaBuildInput): MisaBuildResult {
       voucherDate: voucherDateStr,
       invoiceDate: invoiceDateStr,
       customerCode: customer.misaCode,
-      salesperson: plateDigits(visit.plate),
+      // NV bán hàng mirrors the shift page's "Mã KH / Biển số" (buildDebtsList's
+      // column-1 id): the full plate for a truck visit, else the customer's MISA
+      // code for a walk-in. `visit.plate` is already plateConfirmed ?? plateRead.
+      salesperson: visit.plate ?? customer.misaCode,
       productCode: map.productCode,
       productName: map.productName,
       debitAccount: stationConfig.creditDebitAccount,
