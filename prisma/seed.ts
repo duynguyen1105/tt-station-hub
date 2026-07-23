@@ -2,7 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import 'dotenv/config'
 
 import { PrismaClient } from '../lib/generated/prisma/client'
-import { vungForProvince } from '../lib/misa-export/station-mapping/province-vung'
+import { fuelAreaForProvince } from '../lib/misa-export/province-fuel-area'
 
 // Standalone seed script (run via `tsx prisma/seed.ts`). Self-contained so it
 // does not depend on the `@/` path alias. Seeds station ĐAKNONG 1 from the
@@ -175,7 +175,7 @@ async function main() {
     update: {
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
-      vung: vungForProvince('Đắk Nông'),
+      fuelArea: fuelAreaForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
@@ -184,7 +184,7 @@ async function main() {
       code: 'DAKNONG1',
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
-      vung: vungForProvince('Đắk Nông'),
+      fuelArea: fuelAreaForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
@@ -275,18 +275,18 @@ async function main() {
     })
   }
 
-  // Current retail prices (dated rows), keyed by the station's Vùng.
+  // Current retail prices (dated rows), keyed by the station's fuel area.
   for (const [fuelType, unitPrice] of Object.entries(RETAIL_PRICES)) {
     await prisma.misaRetailPrice.upsert({
       where: {
-        vung_fuelType_effectiveDate: {
-          vung: station.vung,
+        fuelArea_fuelType_effectiveDate: {
+          fuelArea: station.fuelArea,
           fuelType,
           effectiveDate: PRICE_DATE,
         },
       },
       update: { unitPrice },
-      create: { vung: station.vung, fuelType, effectiveDate: PRICE_DATE, unitPrice },
+      create: { fuelArea: station.fuelArea, fuelType, effectiveDate: PRICE_DATE, unitPrice },
     })
   }
 

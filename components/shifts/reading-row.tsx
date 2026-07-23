@@ -1,23 +1,15 @@
 'use client'
 
+import { LockIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type AppRole } from '@/lib/auth/permissions'
@@ -69,21 +61,137 @@ async function postAction(url: string, body?: unknown): Promise<ActionResult> {
   return { ok: false, error }
 }
 
+/**
+ * One meter-reading value cell. When `canEdit`, clicking the number turns it into
+ * an inline input that saves on Enter/blur and reverts on Escape. When editing is
+ * denied but `lockHint` is set (a kế toán on an opening or a chốt-locked closing),
+ * a lock icon + tooltip explains why; a viewer just sees the plain value.
+ */
+function EditableReading({
+  value,
+  canEdit,
+  lockHint,
+  onSave,
+  busy,
+  leading,
+  confidence,
+}: {
+  value: string | null
+  canEdit: boolean
+  lockHint?: string
+  onSave: (next: string) => Promise<boolean>
+  busy: boolean
+  leading?: ReactNode
+  confidence?: number | null
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  // The just-typed value, shown immediately so the user doesn't wait for the
+  // server round-trip + router.refresh. Reverted if the save fails, and dropped
+  // the moment the fresh `value` prop arrives (adjust-state-during-render).
+  const [optimistic, setOptimistic] = useState<string | null>(null)
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
+    setOptimistic(null)
+  }
+  const shown = optimistic ?? value
+
+  function begin() {
+    setDraft(shown ?? '')
+    setEditing(true)
+  }
+
+  async function commit() {
+    setEditing(false)
+    const next = draft
+    if (next === (shown ?? '')) return
+    setOptimistic(next)
+    const ok = await onSave(next)
+    if (!ok) setOptimistic(null)
+  }
+
+  const confidenceSuffix =
+    confidence !== null && confidence !== undefined ? (
+      <span className="text-muted-foreground ml-1 text-xs">({confidence}%)</span>
+    ) : null
+
+  let body: ReactNode
+  if (editing) {
+    body = (
+      <Input
+        className="h-7 w-24"
+        value={draft}
+        inputMode="decimal"
+        autoFocus
+        disabled={busy}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            void commit()
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            setEditing(false)
+          }
+        }}
+      />
+    )
+  } else if (canEdit) {
+    body = (
+      <button
+        type="button"
+        onClick={begin}
+        disabled={busy}
+        className="hover:border-input hover:bg-accent cursor-pointer rounded-md border border-transparent px-1.5 py-0.5 transition-colors"
+      >
+        {shown ?? '—'}
+        {confidenceSuffix}
+      </button>
+    )
+  } else if (lockHint) {
+    body = (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="text-muted-foreground inline-flex items-center gap-1">
+            <LockIcon className="size-3" />
+            {shown ?? '—'}
+            {confidenceSuffix}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{lockHint}</TooltipContent>
+      </Tooltip>
+    )
+  } else {
+    body = (
+      <span>
+        {shown ?? '—'}
+        {confidenceSuffix}
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {leading}
+      {body}
+    </span>
+  )
+}
+
 export function ReadingRow({ data }: { data: ReadingRowData }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [openingOpen, setOpeningOpen] = useState(false)
-  const [openingElectronic, setOpeningElectronic] = useState(data.openingElectronicReading ?? '')
-  const [electronic, setElectronic] = useState(data.electronicReading ?? '')
-  const [openingMechanical, setOpeningMechanical] = useState(data.openingMechanicalReading ?? '')
-  const [mechanical, setMechanical] = useState(data.mechanicalReading ?? '')
 
   const info = data.reviewStatus ? reviewStatusInfo(data.reviewStatus) : null
   const canAct = data.readingId !== null
   const adminOpening = canEditOpening(data.role)
   const mayEditClosing = canEditClosing(data.role, data.shiftStatus)
   const mayReview = canReviewShift(data.role, data.shiftStatus)
+  // A viewer sees plain read-only values with no lock hints; the lock cue is for
+  // a kế toán who edits closings in the same row but is barred from openings.
+  const showLocks = data.role !== 'viewer'
 
   async function act(action: 'approve' | 'reject') {
     if (!data.readingId) return
@@ -94,36 +202,24 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
     else toast.error(result.error ?? vi.errors.generic)
   }
 
-  async function saveClosing() {
-    if (!data.readingId) return
+  async function saveField(
+    endpoint: 'correct-opening' | 'correct-closing',
+    field: string,
+    value: string
+  ): Promise<boolean> {
+    if (!data.readingId) return false
     setBusy(true)
-    const result = await postAction(`/api/readings/${data.readingId}/correct-closing`, {
-      electronicReading: electronic || null,
-      mechanicalReading: mechanical || null,
+    const result = await postAction(`/api/readings/${data.readingId}/${endpoint}`, {
+      [field]: value || null,
     })
     setBusy(false)
     if (result.ok) {
-      setOpen(false)
       router.refresh()
-    } else {
-      toast.error(result.error ?? vi.errors.generic)
+      toast.success(vi.correction.saved)
+      return true
     }
-  }
-
-  async function saveOpening() {
-    if (!data.readingId) return
-    setBusy(true)
-    const result = await postAction(`/api/readings/${data.readingId}/correct-opening`, {
-      openingElectronicReading: openingElectronic || null,
-      openingMechanicalReading: openingMechanical || null,
-    })
-    setBusy(false)
-    if (result.ok) {
-      setOpeningOpen(false)
-      router.refresh()
-    } else {
-      toast.error(result.error ?? vi.errors.generic)
-    }
+    toast.error(result.error ?? vi.errors.generic)
+    return false
   }
 
   return (
@@ -133,39 +229,55 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
         <div className="font-medium">{data.dispenserName}</div>
         <div className="text-muted-foreground text-xs">{fuelTypeLabel(data.fuelType)}</div>
       </td>
-      <td className="p-2 font-mono">{data.openingElectronicReading ?? '—'}</td>
       <td className="p-2 font-mono">
-        <span className="inline-flex items-center gap-2">
-          <PhotoView
-            url={data.electronicPhotoUrl ?? null}
-            label={vi.correction.closingElectronicLabel}
-          />
-          <span>
-            {data.electronicReading ?? '—'}
-            {data.electronicConfidence !== null && (
-              <span className="text-muted-foreground ml-1 text-xs">
-                ({data.electronicConfidence}%)
-              </span>
-            )}
-          </span>
-        </span>
+        <EditableReading
+          value={data.openingElectronicReading}
+          canEdit={adminOpening && canAct}
+          lockHint={showLocks ? vi.correction.adminOnly : undefined}
+          busy={busy}
+          onSave={(next) => saveField('correct-opening', 'openingElectronicReading', next)}
+        />
       </td>
-      <td className="p-2 font-mono">{data.openingMechanicalReading ?? '—'}</td>
       <td className="p-2 font-mono">
-        <span className="inline-flex items-center gap-2">
-          <PhotoView
-            url={data.mechanicalPhotoUrl ?? null}
-            label={vi.correction.closingMechanicalLabel}
-          />
-          <span>
-            {data.mechanicalReading ?? '—'}
-            {data.mechanicalConfidence !== null && (
-              <span className="text-muted-foreground ml-1 text-xs">
-                ({data.mechanicalConfidence}%)
-              </span>
-            )}
-          </span>
-        </span>
+        <EditableReading
+          value={data.electronicReading}
+          canEdit={mayEditClosing && canAct}
+          lockHint={showLocks ? vi.correction.closingLocked : undefined}
+          confidence={data.electronicConfidence}
+          busy={busy}
+          leading={
+            <PhotoView
+              url={data.electronicPhotoUrl ?? null}
+              label={vi.correction.closingElectronicLabel}
+            />
+          }
+          onSave={(next) => saveField('correct-closing', 'electronicReading', next)}
+        />
+      </td>
+      <td className="p-2 font-mono">
+        <EditableReading
+          value={data.openingMechanicalReading}
+          canEdit={adminOpening && canAct}
+          lockHint={showLocks ? vi.correction.adminOnly : undefined}
+          busy={busy}
+          onSave={(next) => saveField('correct-opening', 'openingMechanicalReading', next)}
+        />
+      </td>
+      <td className="p-2 font-mono">
+        <EditableReading
+          value={data.mechanicalReading}
+          canEdit={mayEditClosing && canAct}
+          lockHint={showLocks ? vi.correction.closingLocked : undefined}
+          confidence={data.mechanicalConfidence}
+          busy={busy}
+          leading={
+            <PhotoView
+              url={data.mechanicalPhotoUrl ?? null}
+              label={vi.correction.closingMechanicalLabel}
+            />
+          }
+          onSave={(next) => saveField('correct-closing', 'mechanicalReading', next)}
+        />
       </td>
       <td className="space-y-1 p-2">
         {info && <StatusBadge label={info.label} tone={info.tone} />}
@@ -177,68 +289,6 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
       </td>
       <td className="p-2 text-right whitespace-nowrap">
         <div className="inline-flex gap-1">
-          {/* Repairing an opening is admin-only at any status. A kế toán sees the
-              button disabled with a "Chỉ admin" hint; a viewer never sees it. */}
-          {data.role !== 'viewer' &&
-            (adminOpening ? (
-              <Dialog open={openingOpen} onOpenChange={setOpeningOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={!canAct || busy}>
-                    {vi.correction.openingTitle}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {vi.correction.openingTitle} — {data.dispenserName}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    <Field>
-                      <FieldLabel htmlFor="repair-opening-electronic">
-                        {vi.correction.openingElectronicLabel}
-                      </FieldLabel>
-                      <Input
-                        id="repair-opening-electronic"
-                        value={openingElectronic}
-                        inputMode="decimal"
-                        onChange={(e) => setOpeningElectronic(e.target.value)}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="repair-opening-mechanical">
-                        {vi.correction.openingMechanicalLabel}
-                      </FieldLabel>
-                      <Input
-                        id="repair-opening-mechanical"
-                        value={openingMechanical}
-                        inputMode="decimal"
-                        onChange={(e) => setOpeningMechanical(e.target.value)}
-                      />
-                    </Field>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpeningOpen(false)}>
-                      {vi.common.cancel}
-                    </Button>
-                    <Button onClick={saveOpening} disabled={busy}>
-                      {vi.common.save}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0}>
-                    <Button size="sm" variant="outline" disabled>
-                      {vi.correction.openingTitle}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{vi.correction.adminOnly}</TooltipContent>
-              </Tooltip>
-            ))}
           {/* Approve / reject follow canReviewShift: admin at any status,
               accountant until chốt; a viewer never sees them. */}
           {mayReview && (
@@ -251,93 +301,6 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
               {vi.common.approve}
             </Button>
           )}
-          {/* Editing the closings is the kế toán's daily action: admin at any
-              status, accountant until chốt, then admin-only. A viewer never
-              sees it; a locked-out accountant sees it disabled with a hint. */}
-          {data.role !== 'viewer' &&
-            (mayEditClosing ? (
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={!canAct || busy}>
-                    {vi.correction.closingTitle}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>
-                      {vi.correction.closingTitle} — {data.dispenserName}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    {/* Openings are shown read-only for delta context; they are
-                        repaired only through the admin-only "Sửa số đầu" dialog. */}
-                    <Field>
-                      <FieldLabel htmlFor="closing-opening-electronic">
-                        {vi.correction.openingElectronicLabel}
-                      </FieldLabel>
-                      <Input
-                        id="closing-opening-electronic"
-                        value={data.openingElectronicReading ?? ''}
-                        readOnly
-                        disabled
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="electronic">
-                        {vi.correction.closingElectronicLabel}
-                      </FieldLabel>
-                      <Input
-                        id="electronic"
-                        value={electronic}
-                        inputMode="decimal"
-                        onChange={(e) => setElectronic(e.target.value)}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="closing-opening-mechanical">
-                        {vi.correction.openingMechanicalLabel}
-                      </FieldLabel>
-                      <Input
-                        id="closing-opening-mechanical"
-                        value={data.openingMechanicalReading ?? ''}
-                        readOnly
-                        disabled
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="mechanical">
-                        {vi.correction.closingMechanicalLabel}
-                      </FieldLabel>
-                      <Input
-                        id="mechanical"
-                        value={mechanical}
-                        inputMode="decimal"
-                        onChange={(e) => setMechanical(e.target.value)}
-                      />
-                    </Field>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>
-                      {vi.common.cancel}
-                    </Button>
-                    <Button onClick={saveClosing} disabled={busy}>
-                      {vi.common.save}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0}>
-                    <Button size="sm" variant="outline" disabled>
-                      {vi.correction.closingTitle}
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{vi.correction.closingLocked}</TooltipContent>
-              </Tooltip>
-            ))}
           {mayReview && (
             <Button
               size="sm"

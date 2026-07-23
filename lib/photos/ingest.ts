@@ -11,7 +11,7 @@ import {
   type ExtractVisitResult,
   type RouterResult,
 } from '@/lib/ai/types'
-import { Prisma, Vung } from '@/lib/generated/prisma/client'
+import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
 import { DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
@@ -329,7 +329,7 @@ export async function assembleDebtVisit(params: {
     const unitPriceRead = parseNumericString(meter.unitPrice)
     // Prefer the fuel type read off the printed pump label ("TRỤ 1 – DO"): it is the
     // ground truth and, unlike a price, is unaffected by contract/debt pricing. Fall
-    // back to inferring from the pump price via the station's Vùng retail prices, and
+    // back to inferring from the pump price via the station's fuel area retail prices, and
     // finally to null (the accountant sets it in review).
     const labelFuel = normalizeFuelType(meter.fuelType)
     // The pump plate often names the STATION too ("ĐAKNONG 1 / TRỤ 1 – DO") — let it
@@ -346,13 +346,13 @@ export async function assembleDebtVisit(params: {
         target = { id: byLabel.id }
       }
     }
-    // Retail prices are keyed by the station's Vùng (retail zone), not by station.
+    // Retail prices are keyed by the station's fuel area (retail zone), not by station.
     const stationRow = await prisma.station.findUnique({
       where: { id: target.id },
-      select: { vung: true },
+      select: { fuelArea: true },
     })
     const priceRows = await prisma.misaRetailPrice.findMany({
-      where: { vung: stationRow?.vung ?? Vung.VUNG_1 },
+      where: { fuelArea: stationRow?.fuelArea ?? FuelArea.FUEL_AREA_1 },
     })
     const prices = priceRows.map((p) => ({
       fuelType: p.fuelType,

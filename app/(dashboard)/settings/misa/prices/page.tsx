@@ -1,8 +1,8 @@
+import { FuelAreaSelect } from '@/components/misa-export/fuel-area-select'
 import { RetailPriceForm } from '@/components/misa-export/retail-price-form'
-import { VungSelect } from '@/components/misa-export/vung-select'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatVND } from '@/lib/format'
-import { Vung } from '@/lib/generated/prisma/client'
+import { FuelArea } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -10,13 +10,14 @@ import { vi } from '@/messages/vi'
 export default async function MisaPricesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vung?: string }>
+  searchParams: Promise<{ fuelArea?: string }>
 }) {
-  const { vung: vungParam } = await searchParams
-  const vung = vungParam === Vung.VUNG_2 ? Vung.VUNG_2 : Vung.VUNG_1
+  const { fuelArea: fuelAreaParam } = await searchParams
+  const fuelArea =
+    fuelAreaParam === FuelArea.FUEL_AREA_2 ? FuelArea.FUEL_AREA_2 : FuelArea.FUEL_AREA_1
 
   const prices = await prisma.misaRetailPrice.findMany({
-    where: { vung },
+    where: { fuelArea },
     orderBy: [{ fuelType: 'asc' }, { effectiveDate: 'desc' }],
   })
 
@@ -27,8 +28,8 @@ export default async function MisaPricesPage({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <VungSelect value={vung} />
-        <RetailPriceForm vung={vung} />
+        <FuelAreaSelect value={fuelArea} />
+        <RetailPriceForm fuelArea={fuelArea} />
       </div>
 
       {prices.length === 0 ? (
