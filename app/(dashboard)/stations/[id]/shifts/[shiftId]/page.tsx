@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 
+import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
@@ -42,6 +43,13 @@ export default async function ShiftDetailPage({
     customerIds.length > 0
       ? await prisma.debtCustomer.findMany({ where: { id: { in: customerIds } } })
       : []
+  // Source photos, signed so the reviewer can check the original image inline —
+  // both the shift readings' meter photos and the debt visits' photo pairs.
+  const photoUrlById = await signedUrlsForPhotoIds(prisma, [
+    ...readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId]),
+    ...visits.flatMap((v) => [v.vehiclePhotoId, v.meterPhotoId]),
+  ])
+
   const customersById = new Map<string, DebtCustomerInput>(
     customerRows.map((c) => [c.id, { name: c.name, misaCode: c.misaCode }])
   )
@@ -53,14 +61,10 @@ export default async function ShiftDetailPage({
       litersRead: v.litersRead === null ? null : v.litersRead.toNumber(),
       plateRead: v.plateRead,
       plateConfirmed: v.plateConfirmed,
+      vehiclePhotoUrl: v.vehiclePhotoId ? (photoUrlById.get(v.vehiclePhotoId) ?? null) : null,
+      meterPhotoUrl: v.meterPhotoId ? (photoUrlById.get(v.meterPhotoId) ?? null) : null,
     })),
     customersById
-  )
-
-  // Source photos, signed so the reviewer can check the original image inline.
-  const photoUrlById = await signedUrlsForPhotoIds(
-    prisma,
-    readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId])
   )
 
   const readingByDispenser = new Map(readings.map((r) => [r.dispenserId, r]))
@@ -139,6 +143,7 @@ export default async function ShiftDetailPage({
             <thead>
               <tr className="text-muted-foreground border-b text-left">
                 <th className="p-2">{vi.shifts.debtId}</th>
+                <th className="p-2">{vi.shifts.debtPhotos}</th>
                 <th className="p-2">{vi.shifts.debtCustomer}</th>
                 <th className="p-2">{vi.shifts.debtFuel}</th>
                 <th className="p-2 text-right">{vi.shifts.debtLiters}</th>
@@ -153,6 +158,12 @@ export default async function ShiftDetailPage({
                     ) : (
                       row.id
                     )}
+                  </td>
+                  <td className="p-2">
+                    <span className="inline-flex gap-1">
+                      <PhotoView url={row.vehiclePhotoUrl} label={vi.debtReview.vehiclePhoto} />
+                      <PhotoView url={row.meterPhotoUrl} label={vi.debtReview.meterPhoto} />
+                    </span>
                   </td>
                   <td className="p-2">{row.customerName}</td>
                   <td className="p-2">{row.fuelLabel}</td>
