@@ -119,69 +119,100 @@ async function assembleShiftReading(
   const dispenser = dispenserId ? dispensers.find((d) => d.id === dispenserId) : undefined
 
   if (dispenser && slot) {
-    const existing = await prisma.shiftReading.findUnique({
-      where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
-    })
-    const reading = parseNumericString(result.reading)
-    const conf = result.readingConfidence
+    // Read-compute-upsert must be atomic: with many photos arriving at once, the
+    // electronic and mechanical photo of the SAME dispenser can be processed by two
+    // parallel webhook invocations — a plain read-then-upsert loses one slot (the
+    // later write overwrites from a stale snapshot). Serializable + retry makes the
+    // loser re-read the winner's slot instead of clobbering it.
+    let row: { id: string } | undefined
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        row = await prisma.$transaction(
+          async (tx) => {
+            const existing = await tx.shiftReading.findUnique({
+              where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
+            })
+            const reading = parseNumericString(result.reading)
+            const conf = result.readingConfidence
 
-    const elecReading = slot === 'electronic' ? reading : num(existing?.electronicReading)
-    const mechReading = slot === 'mechanical' ? reading : num(existing?.mechanicalReading)
-    const elecConf = slot === 'electronic' ? conf : (existing?.aiElectronicConfidence ?? null)
-    const mechConf = slot === 'mechanical' ? conf : (existing?.aiMechanicalConfidence ?? null)
-    const elecPhoto = slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
-    const mechPhoto = slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
+            const elecReading = slot === 'electronic' ? reading : num(existing?.electronicReading)
+            const mechReading = slot === 'mechanical' ? reading : num(existing?.mechanicalReading)
+            const elecConf =
+              slot === 'electronic' ? conf : (existing?.aiElectronicConfidence ?? null)
+            const mechConf =
+              slot === 'mechanical' ? conf : (existing?.aiMechanicalConfidence ?? null)
+            const elecPhoto =
+              slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
+            const mechPhoto =
+              slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
 
-    // Snapshot the opening from the dispenser's last-reading cache the first time
-    // this reading is assembled; a re-ingested photo (or an opening the accountant
-    // has already entered) keeps the value it already has.
-    const openElec = num(existing?.openingElectronicReading) ?? num(dispenser.lastElectronicReading)
-    const openMech = num(existing?.openingMechanicalReading) ?? num(dispenser.lastMechanicalReading)
+            // Snapshot the opening from the dispenser's last-reading cache the first
+            // time this reading is assembled; a re-ingested photo (or an opening the
+            // accountant has already entered) keeps the value it already has.
+            const openElec =
+              num(existing?.openingElectronicReading) ?? num(dispenser.lastElectronicReading)
+            const openMech =
+              num(existing?.openingMechanicalReading) ?? num(dispenser.lastMechanicalReading)
 
-    const review = deriveReviewState(
-      {
-        electronicReading: elecReading,
-        mechanicalReading: mechReading,
-        openingElectronicReading: openElec,
-        openingMechanicalReading: openMech,
-        electronicConfidence: elecConf,
-        mechanicalConfidence: mechConf,
-        hasElectronicMeter: dispenser.hasElectronicMeter,
-        hasMechanicalMeter: dispenser.hasMechanicalMeter,
-        hasElectronicPhoto: elecPhoto != null,
-        hasMechanicalPhoto: mechPhoto != null,
-      },
-      DEFAULT_ANOMALY_CONFIG
-    )
+            const review = deriveReviewState(
+              {
+                electronicReading: elecReading,
+                mechanicalReading: mechReading,
+                openingElectronicReading: openElec,
+                openingMechanicalReading: openMech,
+                electronicConfidence: elecConf,
+                mechanicalConfidence: mechConf,
+                hasElectronicMeter: dispenser.hasElectronicMeter,
+                hasMechanicalMeter: dispenser.hasMechanicalMeter,
+                hasElectronicPhoto: elecPhoto != null,
+                hasMechanicalPhoto: mechPhoto != null,
+              },
+              DEFAULT_ANOMALY_CONFIG
+            )
 
-    const data = {
-      openingElectronicReading: openElec,
-      openingMechanicalReading: openMech,
-      electronicReading: elecReading,
-      mechanicalReading: mechReading,
-      electronicPhotoId: elecPhoto,
-      mechanicalPhotoId: mechPhoto,
-      aiElectronicConfidence: elecConf,
-      aiMechanicalConfidence: mechConf,
-      isAnomaly: review.isAnomaly,
-      anomalyReasons: review.anomalyReasons,
-      reviewStatus: review.reviewStatus,
-      // Preserve the first AI value so a later correction can show the original.
-      originalElectronicReading:
-        num(existing?.originalElectronicReading) ?? (slot === 'electronic' ? reading : null),
-      originalMechanicalReading:
-        num(existing?.originalMechanicalReading) ?? (slot === 'mechanical' ? reading : null),
+            const data = {
+              openingElectronicReading: openElec,
+              openingMechanicalReading: openMech,
+              electronicReading: elecReading,
+              mechanicalReading: mechReading,
+              electronicPhotoId: elecPhoto,
+              mechanicalPhotoId: mechPhoto,
+              aiElectronicConfidence: elecConf,
+              aiMechanicalConfidence: mechConf,
+              isAnomaly: review.isAnomaly,
+              anomalyReasons: review.anomalyReasons,
+              reviewStatus: review.reviewStatus,
+              // Preserve the first AI value so a later correction can show the original.
+              originalElectronicReading:
+                num(existing?.originalElectronicReading) ??
+                (slot === 'electronic' ? reading : null),
+              originalMechanicalReading:
+                num(existing?.originalMechanicalReading) ??
+                (slot === 'mechanical' ? reading : null),
+            }
+
+            return tx.shiftReading.upsert({
+              where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
+              create: { shiftId: shift.id, dispenserId: dispenser.id, ...data },
+              update: data,
+            })
+          },
+          { isolationLevel: 'Serializable' }
+        )
+        break
+      } catch (error) {
+        // P2034 = serialization conflict, P2002 = concurrent create — retry fresh.
+        const code = (error as { code?: string }).code
+        if ((code === 'P2034' || code === 'P2002') && attempt < 3) continue
+        throw error
+      }
     }
-
-    const row = await prisma.shiftReading.upsert({
-      where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
-      create: { shiftId: shift.id, dispenserId: dispenser.id, ...data },
-      update: data,
-    })
-    await prisma.shiftPhoto.update({
-      where: { id: photoId },
-      data: { matchStatus: 'matched', matchedReadingId: row.id },
-    })
+    if (row) {
+      await prisma.shiftPhoto.update({
+        where: { id: photoId },
+        data: { matchStatus: 'matched', matchedReadingId: row.id },
+      })
+    }
   }
 
   // Advance the shift out of "collecting photos" now that AI has processed a photo.

@@ -15,10 +15,17 @@ export type MatchResult = {
   status: 'matched' | 'ambiguous' | 'unmatched'
 }
 
-/** Normalizes a dispenser label: "TRU 1" / "tru-1" -> "TRU_1". */
+/**
+ * Normalizes a dispenser label: "TRU 1" / "tru-1" / "TRỤ 1" -> "TRU_1".
+ * Vietnamese diacritics are stripped (the official plates print "TRỤ") so the
+ * label always compares against the ASCII dispenser codes.
+ */
 export function normalizeLabel(raw: string | null | undefined): string | null {
   if (!raw) return null
   const normalized = raw
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[đĐ]/g, 'd')
     .trim()
     .toUpperCase()
     .replace(/[\s-]+/g, '_')

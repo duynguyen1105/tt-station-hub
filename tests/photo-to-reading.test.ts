@@ -20,6 +20,12 @@ describe('normalizeLabel', () => {
 })
 
 describe('dispenserKey', () => {
+  it("strips Vietnamese diacritics — official plates print 'TRỤ'", () => {
+    expect(dispenserKey('TRỤ 2')).toBe('TRU_2')
+    expect(dispenserKey('TRỤ 2 - XA')).toBe('TRU_2')
+    expect(dispenserKey('Trụ 10')).toBe('TRU_10')
+  })
+
   it('extracts TRU_<n>, ignoring fuel/tank suffixes and leading zeros', () => {
     expect(dispenserKey('TRU 4 - DC')).toBe('TRU_4')
     expect(dispenserKey('TRU 04')).toBe('TRU_4')
