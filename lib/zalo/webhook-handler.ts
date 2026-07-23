@@ -1,6 +1,12 @@
 import { classifyPhoto, extractMeter } from '@/lib/ai/extract-meter'
+import { extractTankDip } from '@/lib/ai/extract-tank-dip'
 import { extractVisitMeter } from '@/lib/ai/extract-visit'
-import type { ExtractMeterResult, ExtractVisitResult, RouterResult } from '@/lib/ai/types'
+import type {
+  ExtractMeterResult,
+  ExtractTankDipResult,
+  ExtractVisitResult,
+  RouterResult,
+} from '@/lib/ai/types'
 import { logger } from '@/lib/logger'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import {
@@ -127,6 +133,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
   const preRouters = new Map<number, RouterResult>()
   const preResults = new Map<number, ExtractMeterResult>()
   const preVisitResults = new Map<number, ExtractVisitResult>()
+  const preTankResults = new Map<number, ExtractTankDipResult>()
 
   if (!station) {
     // Unknown sender: try to identify the station from the printed label in the
@@ -155,8 +162,16 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           if (result.stationLabel) {
             station = await matchStationByLabel(result.stationLabel)
           }
+        } else if (router.image_type === 'tank_dip') {
+          // The official tank plates print the station on the first line
+          // ("DAKNONG1 / HẦM 1 / DO -15K"), so dip photos route themselves too.
+          const dip = await extractTankDip({ imageBuffer: buffer })
+          preTankResults.set(i, dip)
+          if (dip.stationLabel) {
+            station = await matchStationByLabel(dip.stationLabel)
+          }
         }
-        // vehicle / tank_dip / unclear: no readable station label — skip.
+        // vehicle / unclear: no readable station label — skip.
       } catch (error) {
         logger.error({ error, index: i }, 'Station-label identification failed for image')
       }
@@ -285,7 +300,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
         )
       } else if (route === 'inventory') {
-        await ingestTankDip(photo.id, buffer).catch((error) =>
+        await ingestTankDip(photo.id, buffer, preTankResults.get(i)).catch((error) =>
           logger.error({ error, photoId: photo.id }, 'Tank-dip ingest failed')
         )
       }
