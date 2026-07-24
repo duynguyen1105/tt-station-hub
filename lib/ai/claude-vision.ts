@@ -49,7 +49,12 @@ export async function callClaudeVision(params: {
   system?: string
   maxTokens?: number
 }): Promise<string> {
-  const { prompt, images, system, maxTokens = 1024 } = params
+  // 2048 tokens leaves room for the JSON even when the model prefixes it with a
+  // long unrequested analysis (observed on the 3-line green totalizer photos).
+  const { prompt, images, maxTokens = 2048 } = params
+  const system =
+    params.system ??
+    'Respond with a single JSON object only. Start your reply with "{" — no prose, no preamble.'
 
   const imageBlocks = images.map((image) => ({
     type: 'image' as const,
@@ -66,7 +71,7 @@ export async function callClaudeVision(params: {
       const message = await getClient().messages.create({
         model: VISION_MODEL,
         max_tokens: maxTokens,
-        ...(system ? { system } : {}),
+        system,
         messages: [
           {
             role: 'user',
@@ -79,7 +84,12 @@ export async function callClaudeVision(params: {
       for (const block of message.content) {
         if (block.type === 'text') textParts.push(block.text)
       }
-      return textParts.join('\n').trim()
+      const text = textParts.join('\n').trim()
+      // The model occasionally opens with a prose analysis and runs out of
+      // tokens before any JSON appears. A JSON-less reply is useless to every
+      // caller, so treat it like a transient failure and retry.
+      if (!text.includes('{')) throw new Error('Model reply contained no JSON object')
+      return text
     } catch (error) {
       lastError = error
       if (!isRetryable(error) || attempt === MAX_ATTEMPTS) break
