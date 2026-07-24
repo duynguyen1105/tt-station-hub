@@ -62,7 +62,12 @@ export function matchPhotoToDispenser(
   if (!code) return { dispenserId: null, slot, status: 'unmatched' }
 
   const matches = dispensers.filter((d) => dispenserKey(d.code) === code)
-  if (matches.length === 1) return { dispenserId: matches[0]!.id, slot, status: 'matched' }
+  if (matches.length === 1) {
+    // A known dispenser but no usable meter type (e.g. a display brand the
+    // extractor was never taught): the reading has no slot to land in, so
+    // reporting 'matched' would hide the photo as if it were fully processed.
+    return { dispenserId: matches[0]!.id, slot, status: slot ? 'matched' : 'ambiguous' }
+  }
   if (matches.length > 1) return { dispenserId: null, slot, status: 'ambiguous' }
   return { dispenserId: null, slot, status: 'unmatched' }
 }
