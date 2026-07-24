@@ -11,7 +11,7 @@ Decide in this priority order:
 1. "mechanical_meter": a mechanical rolling-digit counter is visible ANYWHERE in the frame — a small dark rectangular window with 6-7 white number wheels, often near the bottom of the pump, frequently rusty/dirty/dark/small/partly-obscured, and often with hand-painted marks like "D1" beside it. Even a tiny, dim, or partly-readable counter counts — if you can see digit wheels at all, choose this (NOT label_only).
 2. "electronic_meter": an electronic SHIFT-CLOSING totalizer showing the cumulative running total — EITHER a single-number display (Montech red LED, or LungBor black-and-white LCD), OR a green dot-matrix display with 3 stacked lines labeled Đồng/Tiền, LÍT, Đơn giá whose LÍT line is a LARGE cumulative number (5+ digits, e.g. 1843352).
 3. "debt_meter": an electronic pump screen with 3 lines (amount / liters / unit price) for ONE per-trip credit sale — here the liters line is a SMALL single-fill amount (e.g. 34.0) and amount ≈ liters × unit price.
-4. "vehicle": a vehicle is the subject (per-trip credit sale).
+4. "vehicle": a vehicle, its license plate, OR a fuel container (jerry can / plastic drum being filled or standing at the pump) is the subject — evidence photo of a per-trip credit sale.
 5. "tank_dip": a tank-dipping / barem photo — a printed tank label "HẦM <n>" (with a fuel type and a capacity like "DO - 25K"), typically with a measuring ruler / dip-stick and a written measurement, and NO pump meter in the frame.
 6. "label_only": a hard label plate is present but NO meter counter, display, or tank dip is visible at all.
 7. "not_relevant": unrelated to a fuel station.
@@ -84,7 +84,7 @@ Return JSON only:
 }
 The system computes amount = liters × unit_price and ignores displayed_amount.`
 
-export const VEHICLE_PROMPT = `Read the license plate of the vehicle in this photo (a truck or car at a fuel station, possibly shot at night with headlight glare). If it cannot be read clearly, return "unclear" with a low confidence.
+export const VEHICLE_PROMPT = `Read the license plate of the vehicle in this photo (a truck or car at a fuel station, possibly shot at night with headlight glare). The photo may instead show a fuel container (jerry can / drum) with no plate — in that case return "unclear" (do NOT invent a plate).
 
 Return JSON only:
 { "plate": "51B-12345" | "unclear", "confidence": 0-100, "notes": "..." }`
