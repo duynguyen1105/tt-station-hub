@@ -19,6 +19,7 @@ import {
   canEditOpening,
   canReviewShift,
 } from '@/lib/auth/reading-policy'
+import { type ReadingPhoto } from '@/lib/photos/reading-photos'
 import { anomalyLabel, fuelTypeLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -33,10 +34,11 @@ export type ReadingRowData = {
   mechanicalReading: string | null
   electronicConfidence: number | null
   mechanicalConfidence: number | null
-  // Signed URLs of the source photos — shown next to the readings so the reviewer
-  // can check the original image without digging through Zalo.
-  electronicPhotoUrl?: string | null
-  mechanicalPhotoUrl?: string | null
+  // ALL matched source photos per meter (staff cross-check by shooting the same
+  // totalizer twice) — shown next to the readings so the reviewer can compare
+  // every original image without digging through Zalo. The chosen photo is first.
+  electronicPhotos?: ReadingPhoto[]
+  mechanicalPhotos?: ReadingPhoto[]
   reviewStatus: string | null
   anomalyReasons: string[]
   // The current user's role and the ca's status drive which edit actions the row
@@ -180,6 +182,28 @@ function EditableReading({
   )
 }
 
+/**
+ * Every matched photo of one meter slot, side by side. With a cross-check pair
+ * the dialog title carries each photo's own AI-read number so the reviewer can
+ * compare the two originals directly.
+ */
+function SlotPhotos({ photos, label }: { photos: ReadingPhoto[] | undefined; label: string }) {
+  if (!photos || photos.length === 0) return null
+  return (
+    <span className="inline-flex gap-1">
+      {photos.map((photo, index) => (
+        <PhotoView
+          key={index}
+          url={photo.url}
+          label={
+            photo.reading !== null ? `${label} — ${vi.correction.aiRead}: ${photo.reading}` : label
+          }
+        />
+      ))}
+    </span>
+  )
+}
+
 export function ReadingRow({ data }: { data: ReadingRowData }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -246,8 +270,8 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
           confidence={data.electronicConfidence}
           busy={busy}
           leading={
-            <PhotoView
-              url={data.electronicPhotoUrl ?? null}
+            <SlotPhotos
+              photos={data.electronicPhotos}
               label={vi.correction.closingElectronicLabel}
             />
           }
@@ -271,8 +295,8 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
           confidence={data.mechanicalConfidence}
           busy={busy}
           leading={
-            <PhotoView
-              url={data.mechanicalPhotoUrl ?? null}
+            <SlotPhotos
+              photos={data.mechanicalPhotos}
               label={vi.correction.closingMechanicalLabel}
             />
           }

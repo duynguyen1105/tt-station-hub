@@ -2,6 +2,7 @@ import { ReviewTabs } from '@/components/review/review-tabs'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
+import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
@@ -29,11 +30,17 @@ export default async function ReviewShiftsPage() {
   const dispenserById = new Map(dispensers.map((d) => [d.id, d]))
   const stationById = new Map(stations.map((s) => [s.id, s]))
 
-  // Source photos, signed so the reviewer can check the original image inline.
-  const photoUrlById = await signedUrlsForPhotoIds(
-    prisma,
-    readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId])
-  )
+  // ALL photos matched to these readings (a cross-check pair shoots the same
+  // meter twice), signed so the reviewer can compare every original inline.
+  const matchedPhotos = await prisma.shiftPhoto.findMany({
+    where: { matchedReadingId: { in: readings.map((r) => r.id) } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, matchedReadingId: true, meterType: true, extractedReading: true },
+  })
+  const photoUrlById = await signedUrlsForPhotoIds(prisma, [
+    ...matchedPhotos.map((p) => p.id),
+    ...readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId]),
+  ])
 
   return (
     <div className="space-y-4">
@@ -60,6 +67,7 @@ export default async function ReviewShiftsPage() {
               const shift = shiftById.get(reading.shiftId)
               const station = shift ? stationById.get(shift.stationId) : undefined
               const dispenser = dispenserById.get(reading.dispenserId)
+              const slotPhotos = readingPhotosForSlots(reading, matchedPhotos, photoUrlById)
               const data: ReadingRowData = {
                 readingId: reading.id,
                 stationName: station?.name ?? '—',
@@ -71,12 +79,8 @@ export default async function ReviewShiftsPage() {
                 mechanicalReading: reading.mechanicalReading?.toString() ?? null,
                 electronicConfidence: reading.aiElectronicConfidence ?? null,
                 mechanicalConfidence: reading.aiMechanicalConfidence ?? null,
-                electronicPhotoUrl: reading.electronicPhotoId
-                  ? (photoUrlById.get(reading.electronicPhotoId) ?? null)
-                  : null,
-                mechanicalPhotoUrl: reading.mechanicalPhotoId
-                  ? (photoUrlById.get(reading.mechanicalPhotoId) ?? null)
-                  : null,
+                electronicPhotos: slotPhotos.electronic,
+                mechanicalPhotos: slotPhotos.mechanical,
                 reviewStatus: reading.reviewStatus,
                 anomalyReasons: reading.anomalyReasons,
                 role: user.role,

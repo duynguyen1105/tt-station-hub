@@ -12,6 +12,7 @@ import {
   buildDebtsList,
   debtVisitSelection,
 } from '@/lib/misa-export/debts-list'
+import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
@@ -45,8 +46,15 @@ export default async function ShiftDetailPage({
       ? await prisma.debtCustomer.findMany({ where: { id: { in: customerIds } } })
       : []
   // Source photos, signed so the reviewer can check the original image inline —
-  // both the shift readings' meter photos and the debt visits' photo pairs.
+  // ALL photos matched to the shift readings (a cross-check pair shoots the same
+  // meter twice) plus the debt visits' photo pairs.
+  const matchedPhotos = await prisma.shiftPhoto.findMany({
+    where: { matchedReadingId: { in: readings.map((r) => r.id) } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, matchedReadingId: true, meterType: true, extractedReading: true },
+  })
   const photoUrlById = await signedUrlsForPhotoIds(prisma, [
+    ...matchedPhotos.map((p) => p.id),
     ...readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId]),
     ...visits.flatMap((v) => [v.vehiclePhotoId, v.meterPhotoId]),
   ])
@@ -71,6 +79,7 @@ export default async function ShiftDetailPage({
   const readingByDispenser = new Map(readings.map((r) => [r.dispenserId, r]))
   const rows: ReadingRowData[] = dispensers.map((d) => {
     const r = readingByDispenser.get(d.id)
+    const slotPhotos = r ? readingPhotosForSlots(r, matchedPhotos, photoUrlById) : null
     return {
       readingId: r?.id ?? null,
       dispenserName: d.displayName,
@@ -81,12 +90,8 @@ export default async function ShiftDetailPage({
       mechanicalReading: r?.mechanicalReading?.toString() ?? null,
       electronicConfidence: r?.aiElectronicConfidence ?? null,
       mechanicalConfidence: r?.aiMechanicalConfidence ?? null,
-      electronicPhotoUrl: r?.electronicPhotoId
-        ? (photoUrlById.get(r.electronicPhotoId) ?? null)
-        : null,
-      mechanicalPhotoUrl: r?.mechanicalPhotoId
-        ? (photoUrlById.get(r.mechanicalPhotoId) ?? null)
-        : null,
+      electronicPhotos: slotPhotos?.electronic,
+      mechanicalPhotos: slotPhotos?.mechanical,
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
       role: user.role,

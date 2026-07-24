@@ -13,7 +13,8 @@ import {
 } from '@/lib/ai/types'
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
-import { DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
+import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
+import { resolveDuplicateSlot } from '@/lib/matching/duplicate-check'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
@@ -48,14 +49,14 @@ export function shiftDateFor(timestamp: number): Date {
 // One shift per calendar day (GMT+7): stations close their shift around 15:00,
 // so every photo sent during a day — including late sends in the evening —
 // belongs to that day's single shift and is never split across time windows.
-export function shiftTypeFor(_timestamp: number): 'full_day' {
+export function shiftTypeFor(): 'full_day' {
   return 'full_day'
 }
 
 /** Finds the open shift for a station+window, or creates a fresh one. */
 export async function findOrCreateShift(stationId: string, timestamp: number) {
   const shiftDate = shiftDateFor(timestamp)
-  const shiftType = shiftTypeFor(timestamp)
+  const shiftType = shiftTypeFor()
   const key = { stationId, shiftDate, shiftType }
 
   const existing = await prisma.shift.findUnique({
@@ -139,16 +140,36 @@ async function assembleShiftReading(
             const reading = parseNumericString(result.reading)
             const conf = result.readingConfidence
 
-            const elecReading = slot === 'electronic' ? reading : num(existing?.electronicReading)
-            const mechReading = slot === 'mechanical' ? reading : num(existing?.mechanicalReading)
+            // Staff shoot the same totalizer twice on purpose to cross-check.
+            // Agreeing duplicates confirm the read; diverging ones keep the
+            // higher-confidence value and force review (mismatch flag below).
+            const resolved = resolveDuplicateSlot(
+              slot === 'electronic'
+                ? {
+                    value: num(existing?.electronicReading),
+                    conf: existing?.aiElectronicConfidence ?? null,
+                    photoId: existing?.electronicPhotoId ?? null,
+                  }
+                : {
+                    value: num(existing?.mechanicalReading),
+                    conf: existing?.aiMechanicalConfidence ?? null,
+                    photoId: existing?.mechanicalPhotoId ?? null,
+                  },
+              { value: reading, conf, photoId }
+            )
+
+            const elecReading =
+              slot === 'electronic' ? resolved.value : num(existing?.electronicReading)
+            const mechReading =
+              slot === 'mechanical' ? resolved.value : num(existing?.mechanicalReading)
             const elecConf =
-              slot === 'electronic' ? conf : (existing?.aiElectronicConfidence ?? null)
+              slot === 'electronic' ? resolved.conf : (existing?.aiElectronicConfidence ?? null)
             const mechConf =
-              slot === 'mechanical' ? conf : (existing?.aiMechanicalConfidence ?? null)
+              slot === 'mechanical' ? resolved.conf : (existing?.aiMechanicalConfidence ?? null)
             const elecPhoto =
-              slot === 'electronic' ? photoId : (existing?.electronicPhotoId ?? null)
+              slot === 'electronic' ? resolved.photoId : (existing?.electronicPhotoId ?? null)
             const mechPhoto =
-              slot === 'mechanical' ? photoId : (existing?.mechanicalPhotoId ?? null)
+              slot === 'mechanical' ? resolved.photoId : (existing?.mechanicalPhotoId ?? null)
 
             // Snapshot the opening from the dispenser's last-reading cache the first
             // time this reading is assembled; a re-ingested photo (or an opening the
@@ -158,7 +179,7 @@ async function assembleShiftReading(
             const openMech =
               num(existing?.openingMechanicalReading) ?? num(dispenser.lastMechanicalReading)
 
-            const review = deriveReviewState(
+            const derived = deriveReviewState(
               {
                 electronicReading: elecReading,
                 mechanicalReading: mechReading,
@@ -173,6 +194,18 @@ async function assembleShiftReading(
               },
               DEFAULT_ANOMALY_CONFIG
             )
+            // A diverging duplicate can never auto-approve: the accountant must
+            // compare both photos before signing the number off.
+            const review = resolved.mismatch
+              ? {
+                  isAnomaly: true,
+                  anomalyReasons: [
+                    ...derived.anomalyReasons,
+                    ANOMALY_REASONS.duplicatePhotoMismatch,
+                  ],
+                  reviewStatus: 'needs_review',
+                }
+              : derived
 
             const data = {
               openingElectronicReading: openElec,

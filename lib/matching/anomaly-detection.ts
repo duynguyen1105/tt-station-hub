@@ -8,6 +8,8 @@ export const ANOMALY_REASONS = {
   lowConfidence: 'low_confidence',
   missingPhoto: 'missing_photo',
   missingOpening: 'missing_opening',
+  // Two photos of the same meter (intentional cross-check) read differently.
+  duplicatePhotoMismatch: 'duplicate_photo_mismatch',
 } as const
 
 export type AnomalyReason = (typeof ANOMALY_REASONS)[keyof typeof ANOMALY_REASONS]
