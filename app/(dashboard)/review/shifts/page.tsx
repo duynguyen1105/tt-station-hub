@@ -2,6 +2,7 @@ import { ReviewTabs } from '@/components/review/review-tabs'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
+import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
@@ -9,6 +10,10 @@ import { vi } from '@/messages/vi'
 
 export default async function ReviewShiftsPage() {
   const user = await requireUser()
+
+  // Lazy rescue of misclassified shift photos stuck as unpaired debt visits —
+  // exactly the moment a reviewer would notice one missing.
+  await sweepStrayDebtMeters().catch(() => 0)
 
   const readings = await prisma.shiftReading.findMany({
     where: { reviewStatus: { in: ['pending', 'needs_review'] } },

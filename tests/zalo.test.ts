@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyZaloMessage, routePhoto } from '@/lib/zalo/classify'
+import { classifyZaloMessage, explicitCaptionKind, routePhoto } from '@/lib/zalo/classify'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
 import { parseZaloEvent } from '@/lib/zalo/webhook-handler'
 
@@ -85,5 +85,26 @@ describe('Zalo signature', () => {
         signatureHeader: `mac=${sig}`,
       })
     ).toBe(false)
+  })
+})
+
+describe('explicitCaptionKind', () => {
+  it('declares debt for công nợ / xe captions', () => {
+    expect(explicitCaptionKind('công nợ anh Ba')).toBe('debt')
+    expect(explicitCaptionKind('cong no')).toBe('debt')
+    expect(explicitCaptionKind('Xe 51B-12345')).toBe('debt')
+  })
+  it('declares shift for chốt ca captions (with or without diacritics)', () => {
+    expect(explicitCaptionKind('chốt ca')).toBe('shift')
+    expect(explicitCaptionKind('Chot ca ngay 24/7')).toBe('shift')
+  })
+  it('declares inventory for tồn kho / kiểm kê captions', () => {
+    expect(explicitCaptionKind('tồn kho hầm 1')).toBe('inventory')
+    expect(explicitCaptionKind('kiem ke')).toBe('inventory')
+  })
+  it('returns null when nothing explicit is declared', () => {
+    expect(explicitCaptionKind(null)).toBeNull()
+    expect(explicitCaptionKind('')).toBeNull()
+    expect(explicitCaptionKind('gửi hình nhé')).toBeNull()
   })
 })
