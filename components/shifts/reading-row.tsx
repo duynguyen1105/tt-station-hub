@@ -190,7 +190,7 @@ function EditableReading({
 function SlotPhotos({ photos, label }: { photos: ReadingPhoto[] | undefined; label: string }) {
   if (!photos || photos.length === 0) return null
   return (
-    <span className="inline-flex gap-1">
+    <span className="inline-flex min-w-25 justify-end gap-1">
       {photos.map((photo, index) => (
         <PhotoView
           key={index}
