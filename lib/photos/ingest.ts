@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger'
 import { DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
-import { matchStationByLabel } from '@/lib/matching/station-label'
+import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
@@ -392,21 +392,46 @@ export async function assembleDebtVisit(params: {
       // Keep an existing caption when this photo carries none.
       ...(caption ? { zaloCaption: caption } : {}),
     }
-    // Pair with a recent vehicle-only visit at this station, else open a new one.
-    const open = await prisma.debtVehicleVisit.findFirst({
-      where: {
-        stationId: target.id,
-        meterPhotoId: null,
-        vehiclePhotoId: { not: null },
-        visitDate: { gte: windowStart },
-      },
-      orderBy: { visitDate: 'desc' },
-    })
-    const visit = open
-      ? await prisma.debtVehicleVisit.update({ where: { id: open.id }, data: meterData })
-      : await prisma.debtVehicleVisit.create({
-          data: { stationId: target.id, visitDate, ...meterData },
+    // Pair with a recent vehicle-only visit, else open a new one. The whole
+    // find-or-create runs under a global debt-pairing advisory lock: Zalo delivers
+    // the vehicle and pump photo of ONE fill as parallel webhooks, and without the
+    // lock both sides see "no open visit" and create two visits instead of one.
+    // Debt volume is low, so one global queue is plenty.
+    const unknownStation = await getOrCreateUnknownStation()
+    const visit = await prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
+        let open = await tx.debtVehicleVisit.findFirst({
+          where: {
+            stationId: target.id,
+            meterPhotoId: null,
+            vehiclePhotoId: { not: null },
+            visitDate: { gte: windowStart },
+          },
+          orderBy: { visitDate: 'desc' },
         })
+        // Adopt a vehicle-only visit parked on UNKNOWN (a plate photo carries no
+        // station label) now that the pump photo has resolved the real station.
+        if (!open && target.id !== unknownStation.id) {
+          open = await tx.debtVehicleVisit.findFirst({
+            where: {
+              stationId: unknownStation.id,
+              meterPhotoId: null,
+              vehiclePhotoId: { not: null },
+              visitDate: { gte: windowStart },
+            },
+            orderBy: { visitDate: 'desc' },
+          })
+        }
+        return open
+          ? tx.debtVehicleVisit.update({
+              where: { id: open.id },
+              data: { stationId: target.id, ...meterData },
+            })
+          : tx.debtVehicleVisit.create({ data: { stationId: target.id, visitDate, ...meterData } })
+      },
+      { timeout: 15000 }
+    )
     return { visitId: visit.id, meter, plate: null }
   }
 
@@ -427,36 +452,58 @@ export async function assembleDebtVisit(params: {
         select: { id: true },
       })
     : null
-  const open = await prisma.debtVehicleVisit.findFirst({
-    where: {
-      stationId: station.id,
-      vehiclePhotoId: null,
-      meterPhotoId: { not: null },
-      visitDate: { gte: windowStart },
-    },
-    orderBy: { visitDate: 'desc' },
-  })
-  const visit = open
-    ? await prisma.debtVehicleVisit.update({
-        where: { id: open.id },
-        data: {
-          vehiclePhotoId: photoId,
-          plateRead: plate.plate,
-          customerId: open.customerId ?? customer?.id ?? null,
-          ...(caption ? { zaloCaption: caption } : {}),
-        },
-      })
-    : await prisma.debtVehicleVisit.create({
-        data: {
+  // Same global pairing lock as the meter branch (see comment there), plus the
+  // mirror adoption: if the pump photo landed first but could not resolve a
+  // station, its meter-only visit sits on UNKNOWN — claim it into this station.
+  const unknownStation = await getOrCreateUnknownStation()
+  const visit = await prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
+      let open = await tx.debtVehicleVisit.findFirst({
+        where: {
           stationId: station.id,
-          visitDate,
-          vehiclePhotoId: photoId,
-          plateRead: plate.plate,
-          customerId: customer?.id ?? null,
-          reviewStatus: 'needs_review',
-          zaloCaption: caption,
+          vehiclePhotoId: null,
+          meterPhotoId: { not: null },
+          visitDate: { gte: windowStart },
         },
+        orderBy: { visitDate: 'desc' },
       })
+      if (!open && station.id !== unknownStation.id) {
+        open = await tx.debtVehicleVisit.findFirst({
+          where: {
+            stationId: unknownStation.id,
+            vehiclePhotoId: null,
+            meterPhotoId: { not: null },
+            visitDate: { gte: windowStart },
+          },
+          orderBy: { visitDate: 'desc' },
+        })
+      }
+      return open
+        ? tx.debtVehicleVisit.update({
+            where: { id: open.id },
+            data: {
+              stationId: station.id === unknownStation.id ? open.stationId : station.id,
+              vehiclePhotoId: photoId,
+              plateRead: plate.plate,
+              customerId: open.customerId ?? customer?.id ?? null,
+              ...(caption ? { zaloCaption: caption } : {}),
+            },
+          })
+        : tx.debtVehicleVisit.create({
+            data: {
+              stationId: station.id,
+              visitDate,
+              vehiclePhotoId: photoId,
+              plateRead: plate.plate,
+              customerId: customer?.id ?? null,
+              reviewStatus: 'needs_review',
+              zaloCaption: caption,
+            },
+          })
+    },
+    { timeout: 15000 }
+  )
   return { visitId: visit.id, meter: null, plate }
 }
 
