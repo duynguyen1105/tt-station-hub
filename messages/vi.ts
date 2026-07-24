@@ -177,6 +177,7 @@ export const vi = {
     missing_photo: 'Thiếu ảnh',
     missing_opening: 'Chưa có chỉ số đầu',
     amount_mismatch: 'Lệch số tiền',
+    duplicate_photo_mismatch: 'Hai ảnh cùng đồng hồ lệch nhau',
   },
 
   docStatus: { valid: 'Còn hạn', expiring_soon: 'Sắp hết hạn', expired: 'Hết hạn' },
@@ -251,6 +252,7 @@ export const vi = {
     closingMechanicalLabel: 'Chỉ số cuối ca — cơ',
     original: 'Số AI gốc',
     saved: 'Đã cập nhật chỉ số',
+    aiRead: 'AI đọc',
   },
 
   inventory: {
