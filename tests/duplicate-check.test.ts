@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveDuplicateSlot } from '@/lib/matching/duplicate-check'
+import { meterTypeRank, resolveDuplicateSlot } from '@/lib/matching/duplicate-check'
 
 describe('resolveDuplicateSlot', () => {
   const prior = { value: 128547, conf: 90, photoId: 'photo-1' }
@@ -94,5 +94,29 @@ describe('resolveDuplicateSlot', () => {
   it('ties go to the newer photo', () => {
     const result = resolveDuplicateSlot(prior, { value: 128574, conf: 90, photoId: 'photo-2' })
     expect(result).toEqual({ value: 128574, conf: 90, photoId: 'photo-2', mismatch: true })
+  })
+
+  it('display rank beats confidence on a diverging pair (Montech over green3)', () => {
+    // The real DakNong2 Trụ 2 case: the green 3-line display read garbage
+    // (64936) at HIGHER confidence than the Montech's stable 17143447.
+    const result = resolveDuplicateSlot(
+      { value: 17143447, conf: 72, photoId: 'montech', rank: 2 },
+      { value: 64936, conf: 82, photoId: 'green', rank: 1 }
+    )
+    expect(result).toEqual({ value: 17143447, conf: 72, photoId: 'montech', mismatch: true })
+  })
+
+  it('a trustworthy newer photo takes a slot held by a green3 read', () => {
+    const result = resolveDuplicateSlot(
+      { value: 64936, conf: 82, photoId: 'green', rank: 1 },
+      { value: 17143447, conf: 72, photoId: 'montech', rank: 2 }
+    )
+    expect(result).toEqual({ value: 17143447, conf: 72, photoId: 'montech', mismatch: true })
+  })
+
+  it('meterTypeRank puts only green3 below the other displays', () => {
+    expect(meterTypeRank('electronic_green3')).toBeLessThan(meterTypeRank('electronic_montech'))
+    expect(meterTypeRank('electronic_lungbor')).toBe(meterTypeRank('electronic_montech'))
+    expect(meterTypeRank(null)).toBe(meterTypeRank('electronic_montech'))
   })
 })

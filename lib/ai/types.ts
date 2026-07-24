@@ -22,7 +22,7 @@ const confidencePair = z.object({
 })
 
 export const electronicSchema = z.object({
-  meter_type: z.enum(['electronic_montech', 'electronic_lungbor', 'unclear']),
+  meter_type: z.enum(['electronic_montech', 'electronic_lungbor', 'electronic_green3', 'unclear']),
   reading: z.string().nullable(),
   station_label: z.string().nullable().optional(),
   dispenser_label: z.string().nullable().optional(),
@@ -47,6 +47,9 @@ export type MechanicalResult = z.infer<typeof mechanicalSchema>
 export type MeterType =
   | 'electronic_montech'
   | 'electronic_lungbor'
+  // 3-line green dot-matrix totalizer — legible far less reliably than the
+  // red-LED Montech, so it ranks below Montech when cross-check reads diverge.
+  | 'electronic_green3'
   | 'mechanical'
   | 'unclear'
   | 'not_a_meter'

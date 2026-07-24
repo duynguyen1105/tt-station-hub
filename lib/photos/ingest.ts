@@ -14,7 +14,7 @@ import {
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
-import { resolveDuplicateSlot } from '@/lib/matching/duplicate-check'
+import { meterTypeRank, resolveDuplicateSlot } from '@/lib/matching/duplicate-check'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
@@ -142,8 +142,9 @@ async function assembleShiftReading(
 
             // Staff shoot the same totalizer twice on purpose to cross-check.
             // Agreeing duplicates confirm the read; diverging ones keep the
-            // higher-confidence value and force review (mismatch flag below).
-            const resolved = resolveDuplicateSlot(
+            // value of the more reliable display (Montech > green 3-line),
+            // then higher confidence, and force review (mismatch flag below).
+            const priorSlot =
               slot === 'electronic'
                 ? {
                     value: num(existing?.electronicReading),
@@ -154,8 +155,16 @@ async function assembleShiftReading(
                     value: num(existing?.mechanicalReading),
                     conf: existing?.aiMechanicalConfidence ?? null,
                     photoId: existing?.mechanicalPhotoId ?? null,
-                  },
-              { value: reading, conf, photoId }
+                  }
+            const priorPhoto = priorSlot.photoId
+              ? await tx.shiftPhoto.findUnique({
+                  where: { id: priorSlot.photoId },
+                  select: { meterType: true },
+                })
+              : null
+            const resolved = resolveDuplicateSlot(
+              { ...priorSlot, rank: meterTypeRank(priorPhoto?.meterType) },
+              { value: reading, conf, photoId, rank: meterTypeRank(result.meterType) }
             )
 
             const elecReading =

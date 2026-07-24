@@ -25,13 +25,13 @@ export const ELECTRONIC_PROMPT = `Read this electronic gas-station meter (Montec
 Read the displayed number EXACTLY as shown on THIS meter. KEEP leading zeros, keep the decimal point in the correct position, and output the digits as ONE continuous number with NO spaces. Do NOT copy the example below — it only shows the JSON shape.
 Montech (red LED): the display MAY have a decimal point — a TINY lit dot at the BASE of the digits (e.g. 187883.80). Inspect the gaps between digit cells for that dot. Output a decimal point ONLY where you can clearly SEE the dot lit — NEVER insert one by guessing where decimals "should" be. If no dot is visible or the area is glared/blurry, output the digits as a plain number with NO dot and say so in notes: a missed dot is reconciled downstream, but an invented dot corrupts the reading.
 LungBor (blue panel): the running total is the ONE large number on the top "SALE/LITER" row — read that whole number with its decimal point, no spaces. IGNORE any small lone digit sitting by itself in a LITER/PRICE corner (e.g. a single "1") — that is a mode indicator, not part of the total. Set meter_type "electronic_lungbor".
-3-line green dot-matrix totalizer: some pumps show a green LED display with 3 STACKED lines labeled Đồng/Tiền (money), LÍT (liters), Đơn giá (unit price). The shift reading is ONLY the LÍT (liters) line — locate its label first, then read the digits of THAT LINE ALONE, left to right. NEVER merge digits from the Đồng/Tiền or Đơn giá lines into the number: before answering, verify every digit you output sits on the same row as the LÍT label. IGNORE the money and unit-price lines completely. Dot-matrix digits blur easily — if any digit is uncertain, lower the reading confidence and say which digit in notes. Set meter_type "electronic_montech".
+3-line green dot-matrix totalizer: some pumps show a green LED display with 3 STACKED lines labeled Đồng/Tiền (money), LÍT (liters), Đơn giá (unit price). The shift reading is ONLY the LÍT (liters) line — locate its label first, then read the digits of THAT LINE ALONE, left to right. NEVER merge digits from the Đồng/Tiền or Đơn giá lines into the number: before answering, verify every digit you output sits on the same row as the LÍT label. IGNORE the money and unit-price lines completely. Dot-matrix digits blur easily — if any digit is uncertain, lower the reading confidence and say which digit in notes. Set meter_type "electronic_green3".
 Also read the hard label plate if present — it may show the station ("TRẠM"), the dispenser ("TRU" + number), the fuel type, and the tank ("HẦM").
 If the digits are not clearly legible, set a low reading confidence and say so in notes — never guess.
 
 Return JSON only (example values are placeholders, replace with what you actually see):
 {
-  "meter_type": "electronic_montech" | "electronic_lungbor" | "unclear",
+  "meter_type": "electronic_montech" | "electronic_lungbor" | "electronic_green3" | "unclear",
   "reading": "<digits exactly as shown>",
   "station_label": "<station name on the plate>" | null,
   "dispenser_label": "<TRU + number on the plate>" | null,

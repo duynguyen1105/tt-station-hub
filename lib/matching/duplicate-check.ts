@@ -8,6 +8,15 @@ export type SlotRead = {
   value: number | null
   conf: number | null
   photoId: string | null
+  // Display trustworthiness (higher wins a diverging pair): the red-LED
+  // Montech / LungBor LCD read far more reliably than the green 3-line
+  // dot-matrix, whose digits blur into different garbage on every read — the
+  // AI's self-reported confidence does not capture that, so rank beats conf.
+  rank?: number
+}
+
+export function meterTypeRank(meterType: string | null | undefined): number {
+  return meterType === 'electronic_green3' ? 1 : 2
 }
 
 export type ResolvedSlot = SlotRead & { mismatch: boolean }
@@ -73,8 +82,19 @@ export function resolveDuplicateSlot(prior: SlotRead, next: SlotRead): ResolvedS
       mismatch: false,
     }
   }
-  // Genuinely diverging reads: provisionally trust the higher-confidence photo,
-  // but flag the row so the accountant must compare both photos before approving.
-  const winner = (next.conf ?? 0) >= (prior.conf ?? 0) ? next : prior
+  // Genuinely diverging reads: provisionally trust the more reliable DISPLAY
+  // first (Montech beats the blurry green 3-line regardless of self-reported
+  // confidence), then the higher confidence. Flag the row either way so the
+  // accountant must compare both photos before approving.
+  const priorRank = prior.rank ?? 0
+  const nextRank = next.rank ?? 0
+  const winner =
+    nextRank !== priorRank
+      ? nextRank > priorRank
+        ? next
+        : prior
+      : (next.conf ?? 0) >= (prior.conf ?? 0)
+        ? next
+        : prior
   return { value: winner.value, conf: winner.conf, photoId: winner.photoId, mismatch: true }
 }
