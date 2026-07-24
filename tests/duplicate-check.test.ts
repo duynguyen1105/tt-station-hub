@@ -36,9 +36,53 @@ describe('resolveDuplicateSlot', () => {
     expect(result).toEqual({ value: 128547, conf: 97, photoId: 'photo-1', mismatch: false })
   })
 
+  it('reconciles a missed decimal dot (2 decimals) instead of flagging', () => {
+    // The real DakNong2 Trụ 1 case: the Montech shows 187883.80 but its tiny
+    // dot was lost (18788380), while the 3-line display reads 187883.
+    const result = resolveDuplicateSlot(
+      { value: 187883, conf: 90, photoId: 'photo-1' },
+      { value: 18788380, conf: 92, photoId: 'photo-2' }
+    )
+    expect(result).toEqual({ value: 187883.8, conf: 92, photoId: 'photo-1', mismatch: false })
+  })
+
+  it('reconciles a missed decimal dot in either order', () => {
+    const result = resolveDuplicateSlot(
+      { value: 18788380, conf: 92, photoId: 'photo-1' },
+      { value: 187883, conf: 90, photoId: 'photo-2' }
+    )
+    expect(result).toEqual({ value: 187883.8, conf: 92, photoId: 'photo-1', mismatch: false })
+  })
+
+  it('reconciles a missed dot against a correctly-read decimal value', () => {
+    const result = resolveDuplicateSlot(
+      { value: 187883.8, conf: 95, photoId: 'photo-1' },
+      { value: 18788380, conf: 90, photoId: 'photo-2' }
+    )
+    expect(result).toEqual({ value: 187883.8, conf: 95, photoId: 'photo-1', mismatch: false })
+  })
+
+  it('reconciles a 3-decimal missed dot', () => {
+    const result = resolveDuplicateSlot(
+      { value: 187883, conf: 90, photoId: 'photo-1' },
+      { value: 187883800, conf: 88, photoId: 'photo-2' }
+    )
+    expect(result).toEqual({ value: 187883.8, conf: 90, photoId: 'photo-1', mismatch: false })
+  })
+
+  it('confirms reads sharing the integer part, keeping the decimal-precise one', () => {
+    // The 3-line LÍT row truncates to 187883 while the Montech reads 187883.80.
+    const result = resolveDuplicateSlot(
+      { value: 187883.8, conf: 88, photoId: 'photo-1' },
+      { value: 187883, conf: 95, photoId: 'photo-2' }
+    )
+    expect(result).toEqual({ value: 187883.8, conf: 95, photoId: 'photo-1', mismatch: false })
+  })
+
   it('flags a diverging pair and keeps the higher-confidence value', () => {
-    // The real DakNong2 case: the same totalizer read as two different numbers.
-    const result = resolveDuplicateSlot(prior, { value: 18788380, conf: 70, photoId: 'photo-2' })
+    // The real DakNong2 Trụ 2 case: 17143447 vs 1714979 fits neither the
+    // missed-dot ×100/×1000 shape nor a shared integer part — a true misread.
+    const result = resolveDuplicateSlot(prior, { value: 1714979, conf: 70, photoId: 'photo-2' })
     expect(result).toEqual({ value: 128547, conf: 90, photoId: 'photo-1', mismatch: true })
   })
 
