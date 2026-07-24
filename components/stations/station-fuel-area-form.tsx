@@ -13,22 +13,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { type Vung } from '@/lib/generated/prisma/client'
+import { type FuelArea } from '@/lib/generated/prisma/client'
 import { vi } from '@/messages/vi'
 
-const vungOptions = Object.entries(vi.vung) as [Vung, string][]
+const fuelAreaOptions = Object.entries(vi.fuelArea) as [FuelArea, string][]
 
-export function StationVungForm({ stationId, vung }: { stationId: string; vung: Vung }) {
+export function StationFuelAreaForm({
+  stationId,
+  fuelArea,
+}: {
+  stationId: string
+  fuelArea: FuelArea
+}) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
 
-  async function save(next: Vung) {
-    if (next === vung) return
+  async function save(next: FuelArea) {
+    if (next === fuelArea) return
     setBusy(true)
     const res = await fetch(`/api/stations/${stationId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vung: next }),
+      body: JSON.stringify({ fuelArea: next }),
     })
     setBusy(false)
     if (res.ok) {
@@ -41,12 +47,12 @@ export function StationVungForm({ stationId, vung }: { stationId: string; vung: 
   }
 
   return (
-    <Select value={vung} onValueChange={(v) => save(v as Vung)} disabled={busy}>
+    <Select value={fuelArea} onValueChange={(v) => save(v as FuelArea)} disabled={busy}>
       <SelectTrigger className="w-48">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {vungOptions.map(([v, label]) => (
+        {fuelAreaOptions.map(([v, label]) => (
           <SelectItem key={v} value={v}>
             {label}
           </SelectItem>

@@ -2,7 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import 'dotenv/config'
 
 import { PrismaClient } from '../lib/generated/prisma/client'
-import { vungForProvince } from '../lib/misa-export/station-mapping/province-vung'
+import { fuelAreaForProvince } from '../lib/misa-export/province-fuel-area'
 
 // Standalone seed script (run via `tsx prisma/seed.ts`). Self-contained so it
 // does not depend on the `@/` path alias. Seeds station ĐAKNONG 1 from the
@@ -15,6 +15,7 @@ const prisma = new PrismaClient({ adapter })
 const STATION_ID = '11111111-1111-1111-1111-111111111111'
 const ADMIN_ID = '22222222-2222-2222-2222-222222222201'
 const ACCOUNTANT_ID = '22222222-2222-2222-2222-222222222202'
+const VIEWER_ID = '22222222-2222-2222-2222-222222222203'
 const CUSTOMER_ID = '33333333-3333-3333-3333-333333333301'
 
 // Latest retail-price effective date from the accountant's GBL sheet. Fixed so
@@ -157,13 +158,24 @@ async function main() {
     },
   })
 
+  await prisma.profile.upsert({
+    where: { email: 'viewer@truongthinh.local' },
+    update: { fullName: 'Người xem', role: 'viewer', isActive: true },
+    create: {
+      id: VIEWER_ID,
+      email: 'viewer@truongthinh.local',
+      fullName: 'Người xem',
+      role: 'viewer',
+    },
+  })
+
   // Station ĐAKNONG 1.
   const station = await prisma.station.upsert({
     where: { code: 'DAKNONG1' },
     update: {
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
-      vung: vungForProvince('Đắk Nông'),
+      fuelArea: fuelAreaForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
@@ -172,7 +184,7 @@ async function main() {
       code: 'DAKNONG1',
       name: 'Trạm Đăk Nông 1',
       branch: 'Đắk Nông',
-      vung: vungForProvince('Đắk Nông'),
+      fuelArea: fuelAreaForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
       assignedAccountantId: ACCOUNTANT_ID,
     },
@@ -263,18 +275,18 @@ async function main() {
     })
   }
 
-  // Current retail prices (dated rows), keyed by the station's Vùng.
+  // Current retail prices (dated rows), keyed by the station's fuel area.
   for (const [fuelType, unitPrice] of Object.entries(RETAIL_PRICES)) {
     await prisma.misaRetailPrice.upsert({
       where: {
-        vung_fuelType_effectiveDate: {
-          vung: station.vung,
+        fuelArea_fuelType_effectiveDate: {
+          fuelArea: station.fuelArea,
           fuelType,
           effectiveDate: PRICE_DATE,
         },
       },
       update: { unitPrice },
-      create: { vung: station.vung, fuelType, effectiveDate: PRICE_DATE, unitPrice },
+      create: { fuelArea: station.fuelArea, fuelType, effectiveDate: PRICE_DATE, unitPrice },
     })
   }
 
