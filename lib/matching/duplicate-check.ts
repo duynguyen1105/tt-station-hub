@@ -12,6 +12,26 @@ export type SlotRead = {
 
 export type ResolvedSlot = SlotRead & { mismatch: boolean }
 
+function bestConf(a: number | null, b: number | null): number | null {
+  if (a === null) return b
+  if (b === null) return a
+  return Math.max(a, b)
+}
+
+// A Montech totalizer prints its decimals after a tiny dot the AI easily
+// misses: 187883.80 comes back as 18788380. Two reads therefore also agree
+// when one equals the other with the dot dropped — i.e. the integer read is
+// the decimal read scaled by 100 (2 decimals) or 1000 (3 decimals). Returns
+// the decimal-corrected value, or null when the pair isn't such a match.
+function missedDotValue(a: number, b: number): number | null {
+  const [small, big] = a <= b ? [a, b] : [b, a]
+  if (!Number.isInteger(big) || Math.trunc(small) <= 0) return null
+  for (const factor of [100, 1000]) {
+    if (Math.floor(big / factor) === Math.trunc(small)) return big / factor
+  }
+  return null
+}
+
 export function resolveDuplicateSlot(prior: SlotRead, next: SlotRead): ResolvedSlot {
   // No usable prior read (empty slot, re-ingest of the same photo, or the prior
   // photo was unreadable): the new photo simply takes the slot.
@@ -24,16 +44,37 @@ export function resolveDuplicateSlot(prior: SlotRead, next: SlotRead): ResolvedS
   }
   // Cross-check passed: keep the confirmed value with the best confidence.
   if (next.value === prior.value) {
-    const conf =
-      next.conf === null
-        ? prior.conf
-        : prior.conf === null
-          ? next.conf
-          : Math.max(next.conf, prior.conf)
-    return { value: prior.value, conf, photoId: prior.photoId, mismatch: false }
+    return {
+      value: prior.value,
+      conf: bestConf(prior.conf, next.conf),
+      photoId: prior.photoId,
+      mismatch: false,
+    }
   }
-  // Diverging reads: provisionally trust the higher-confidence photo, but flag
-  // the row so the accountant must compare both photos before approving.
+  // Same integer part: one display shows decimals the other truncates (the
+  // 3-line LÍT row prints 187883 while the Montech shows 187883.80). Keep the
+  // decimal-precise read.
+  if (Math.trunc(next.value) === Math.trunc(prior.value)) {
+    return {
+      value: !Number.isInteger(prior.value) ? prior.value : next.value,
+      conf: bestConf(prior.conf, next.conf),
+      photoId: prior.photoId,
+      mismatch: false,
+    }
+  }
+  // Missed decimal dot: 18788380 vs 187883 is the SAME read (187883.80) with
+  // the tiny Montech dot lost — reconcile to the corrected decimal value.
+  const corrected = missedDotValue(prior.value, next.value)
+  if (corrected !== null) {
+    return {
+      value: corrected,
+      conf: bestConf(prior.conf, next.conf),
+      photoId: prior.photoId,
+      mismatch: false,
+    }
+  }
+  // Genuinely diverging reads: provisionally trust the higher-confidence photo,
+  // but flag the row so the accountant must compare both photos before approving.
   const winner = (next.conf ?? 0) >= (prior.conf ?? 0) ? next : prior
   return { value: winner.value, conf: winner.conf, photoId: winner.photoId, mismatch: true }
 }
