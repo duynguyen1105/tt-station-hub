@@ -132,7 +132,9 @@ async function assembleShiftReading(
       try {
         row = await prisma.$transaction(
           async (tx) => {
-            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${shift.id}:${dispenser.id}`}, 0))`
+            // Wrapped in a subquery because pg_advisory_xact_lock returns void,
+            // which Prisma's raw deserializer rejects — the outer SELECT yields int.
+            await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`${shift.id}:${dispenser.id}`}, 0)) AS l) AS t`
             const existing = await tx.shiftReading.findUnique({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
             })
