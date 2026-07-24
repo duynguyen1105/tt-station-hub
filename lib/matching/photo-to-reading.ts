@@ -36,13 +36,15 @@ export function normalizeLabel(raw: string | null | undefined): string | null {
 /**
  * Canonical key for matching a dispenser: extracts "TRU_<n>" from a label,
  * ignoring fuel/tank suffixes and leading zeros ("TRU 4 - DC" -> "TRU_4",
- * "TRU 04" -> "TRU_4"). Falls back to the fully-normalized label when there is
- * no TRU+number pattern, so non-standard codes still compare consistently.
+ * "TRU 04" -> "TRU_4"). The separator is optional because the AI sometimes
+ * transcribes the plate without the space ("TRU4" / "TRỤ4"). Falls back to the
+ * fully-normalized label when there is no TRU+number pattern, so non-standard
+ * codes still compare consistently.
  */
 export function dispenserKey(raw: string | null | undefined): string | null {
   const normalized = normalizeLabel(raw)
   if (!normalized) return null
-  const match = normalized.match(/TRU_0*(\d+)/)
+  const match = normalized.match(/TRU_?0*(\d+)/)
   return match ? `TRU_${match[1]}` : normalized
 }
 
