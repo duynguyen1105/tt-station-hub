@@ -21,6 +21,10 @@ import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { classifyZaloMessage, explicitCaptionKind, routePhoto } from '@/lib/zalo/classify'
 import { downloadZaloAttachment, sendZaloMessage } from '@/lib/zalo/client'
 
+// How far back a label-less photo looks for its sender's other labeled photos
+// (one Zalo burst spreads over seconds; different stations arrive minutes apart).
+const BATCH_CONTEXT_WINDOW_MS = 5 * 60 * 1000
+
 export type ZaloImageMessage = {
   messageId: string
   senderId: string
@@ -260,6 +264,30 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
               'Photo station label overrides sender station'
             )
             target = byLabel
+          }
+        } else {
+          // No station label (e.g. the plate's first line was cropped out of
+          // frame). The sender may be touring several stations back-to-back, so
+          // their registered station can be one batch stale — prefer the label
+          // the SAME sender's other photos carried in the last few minutes.
+          const recent = await prisma.shiftPhoto.findFirst({
+            where: {
+              zaloSenderUserId: msg.senderId,
+              extractedStationCode: { not: null },
+              zaloReceivedAt: { gte: new Date(msg.timestamp - BATCH_CONTEXT_WINDOW_MS) },
+            },
+            orderBy: { zaloReceivedAt: 'desc' },
+            select: { extractedStationCode: true },
+          })
+          if (recent?.extractedStationCode) {
+            const byBatch = await matchStationByLabel(recent.extractedStationCode)
+            if (byBatch && byBatch.id !== station.id) {
+              logger.info(
+                { from: station.code, to: byBatch.code, label: recent.extractedStationCode },
+                'Label-less photo follows the station of the sender-batch context'
+              )
+              target = byBatch
+            }
           }
         }
       }
