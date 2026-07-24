@@ -29,6 +29,9 @@ describe('dispenserKey', () => {
   it('extracts TRU_<n>, ignoring fuel/tank suffixes and leading zeros', () => {
     expect(dispenserKey('TRU 4 - DC')).toBe('TRU_4')
     expect(dispenserKey('TRU 04')).toBe('TRU_4')
+    // The AI sometimes transcribes the plate without the space (Phúc Tiến TRU4).
+    expect(dispenserKey('TRU4')).toBe('TRU_4')
+    expect(dispenserKey('TRỤ4 - DC')).toBe('TRU_4')
     expect(dispenserKey('TRU_2')).toBe('TRU_2')
     expect(dispenserKey(null)).toBeNull()
   })
