@@ -21,25 +21,10 @@ type ExtractMeterInput = {
   router?: RouterResult
 }
 
-// The Montech red-LED totalizer ALWAYS renders its last 2 digits as decimals
-// behind a tiny dot the AI frequently cannot see (187883.80 comes back as
-// "18788380") — confirmed hardware behavior across the Trường Thịnh stations.
-// A dotless integer read of 7+ digits is therefore the decimal value with its
-// dot dropped: restore it. Shorter reads are left untouched (a genuine
-// dot-read may simply have few integer digits), as is any read that already
-// carries a dot.
-export function restoreMontechDot(reading: string | null): string | null {
-  if (reading === null || !/^\d{7,}$/.test(reading)) return reading
-  return `${reading.slice(0, -2)}.${reading.slice(-2)}`
-}
-
 function normalizeElectronic(result: ElectronicResult, router: RouterResult): ExtractMeterResult {
   return {
     meterType: result.meter_type,
-    reading:
-      result.meter_type === 'electronic_montech'
-        ? restoreMontechDot(result.reading)
-        : result.reading,
+    reading: result.reading,
     stationLabel: result.station_label ?? null,
     dispenserLabel: result.dispenser_label ?? null,
     fuelType: result.fuel_type ?? null,
