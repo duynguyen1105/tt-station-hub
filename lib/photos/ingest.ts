@@ -31,14 +31,12 @@ export type ManualOverride = { dispenserId?: string | null; slot?: MeterSlot | n
 // A per-trip debt photo is either the pump meter (liters + unit price) or the vehicle plate.
 export type DebtPhotoType = 'debt_meter' | 'vehicle'
 
-// Shift windows by Vietnam (GMT+7) hour. TODO(§12.5): confirm real ca times.
 function vietnamParts(timestamp: number) {
   const shifted = new Date(timestamp + 7 * 60 * 60 * 1000)
   return {
     year: shifted.getUTCFullYear(),
     month: shifted.getUTCMonth(),
     day: shifted.getUTCDate(),
-    hour: shifted.getUTCHours(),
   }
 }
 
@@ -47,11 +45,11 @@ export function shiftDateFor(timestamp: number): Date {
   return new Date(Date.UTC(p.year, p.month, p.day))
 }
 
-export function shiftTypeFor(timestamp: number): 'morning' | 'afternoon' | 'night' {
-  const { hour } = vietnamParts(timestamp)
-  if (hour < 12) return 'morning'
-  if (hour < 18) return 'afternoon'
-  return 'night'
+// One shift per calendar day (GMT+7): stations close their shift around 15:00,
+// so every photo sent during a day — including late sends in the evening —
+// belongs to that day's single shift and is never split across time windows.
+export function shiftTypeFor(_timestamp: number): 'full_day' {
+  return 'full_day'
 }
 
 /** Finds the open shift for a station+window, or creates a fresh one. */
