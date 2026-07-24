@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 
 import { MisaFuelMapForm } from '@/components/misa-export/fuel-map-form'
-import { StationVungForm } from '@/components/stations/station-vung-form'
+import { StationFuelAreaForm } from '@/components/stations/station-fuel-area-form'
 import { requireUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
 import { fuelTypeLabel } from '@/lib/ui/status'
@@ -23,10 +23,10 @@ export default async function StationMisaPage({ params }: { params: Promise<{ id
     <div className="space-y-8">
       <section className="space-y-2">
         <div>
-          <h2 className="text-sm font-medium">{vi.misaSettings.vungLabel}</h2>
-          <p className="text-muted-foreground text-sm">{vi.misaSettings.vungNote}</p>
+          <h2 className="text-sm font-medium">{vi.misaSettings.fuelAreaLabel}</h2>
+          <p className="text-muted-foreground text-sm">{vi.misaSettings.fuelAreaNote}</p>
         </div>
-        <StationVungForm stationId={id} vung={station.vung} />
+        <StationFuelAreaForm stationId={id} fuelArea={station.fuelArea} />
       </section>
 
       <section className="space-y-2">

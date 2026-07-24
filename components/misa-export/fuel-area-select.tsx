@@ -9,22 +9,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { type Vung } from '@/lib/generated/prisma/client'
+import { type FuelArea } from '@/lib/generated/prisma/client'
 import { vi } from '@/messages/vi'
 
-const vungOptions = Object.entries(vi.vung) as [Vung, string][]
+const fuelAreaOptions = Object.entries(vi.fuelArea) as [FuelArea, string][]
 
-export function VungSelect({ value }: { value: Vung }) {
+export function FuelAreaSelect({ value }: { value: FuelArea }) {
   const router = useRouter()
   const pathname = usePathname()
 
   return (
-    <Select value={value} onValueChange={(v) => router.push(`${pathname}?vung=${v}`)}>
+    <Select value={value} onValueChange={(v) => router.push(`${pathname}?fuelArea=${v}`)}>
       <SelectTrigger className="w-64">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {vungOptions.map(([v, label]) => (
+        {fuelAreaOptions.map(([v, label]) => (
           <SelectItem key={v} value={v}>
             {label}
           </SelectItem>

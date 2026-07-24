@@ -23,7 +23,7 @@ export default async function StationLayout({
       <header>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold">{station.name}</h1>
-          <Badge variant="secondary">{vi.vung[station.vung]}</Badge>
+          <Badge variant="secondary">{vi.fuelArea[station.fuelArea]}</Badge>
         </div>
         <p className="text-muted-foreground text-sm">
           {[station.branch, station.address].filter(Boolean).join(' · ') || station.code}

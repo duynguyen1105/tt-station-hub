@@ -17,6 +17,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
+    "db:auth-users": "tsx scripts/create-auth-users.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
