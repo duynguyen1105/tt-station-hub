@@ -120,15 +120,19 @@ async function assembleShiftReading(
 
   if (dispenser && slot) {
     // Read-compute-upsert must be atomic: with many photos arriving at once, the
-    // electronic and mechanical photo of the SAME dispenser can be processed by two
-    // parallel webhook invocations — a plain read-then-upsert loses one slot (the
-    // later write overwrites from a stale snapshot). Serializable + retry makes the
-    // loser re-read the winner's slot instead of clobbering it.
+    // electronic and mechanical photo of the SAME dispenser are processed by
+    // parallel webhook invocations writing the same row. A transaction-scoped
+    // advisory lock keyed by (shift, dispenser) makes concurrent writers QUEUE
+    // behind each other (instead of Serializable's abort-and-retry roulette, which
+    // dropped slots under a 12-photo burst). The lock releases at commit/rollback
+    // and is pooler-safe (one connection per transaction). Retries with jittered
+    // backoff remain as a belt-and-braces for transient failures.
     let row: { id: string } | undefined
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 5; attempt++) {
       try {
         row = await prisma.$transaction(
           async (tx) => {
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${shift.id}:${dispenser.id}`}, 0))`
             const existing = await tx.shiftReading.findUnique({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
             })
@@ -197,13 +201,23 @@ async function assembleShiftReading(
               update: data,
             })
           },
-          { isolationLevel: 'Serializable' }
+          // A burst can queue several writers on one dispenser's lock — give the
+          // queue room to drain instead of timing out the transaction.
+          { timeout: 15000 }
         )
         break
       } catch (error) {
-        // P2034 = serialization conflict, P2002 = concurrent create — retry fresh.
         const code = (error as { code?: string }).code
-        if ((code === 'P2034' || code === 'P2002') && attempt < 3) continue
+        if ((code === 'P2034' || code === 'P2002') && attempt < 5) {
+          // Jittered backoff so retriers don't re-collide in lockstep.
+          await new Promise((r) => setTimeout(r, 100 * attempt + Math.floor(Math.random() * 150)))
+          continue
+        }
+        // Surface the drop honestly: the photo stays visible as unmatched instead
+        // of a misleading 'matched' with no reading attached.
+        await prisma.shiftPhoto
+          .update({ where: { id: photoId }, data: { matchStatus: 'unmatched' } })
+          .catch(() => {})
         throw error
       }
     }
