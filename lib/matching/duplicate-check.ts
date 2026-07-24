@@ -19,6 +19,28 @@ export function meterTypeRank(meterType: string | null | undefined): number {
   return meterType === 'electronic_green3' ? 1 : 2
 }
 
+// SOME (not all) Montech totalizers render their last 2 digits as decimals
+// behind a tiny dot the AI often cannot see, so 187883.80 comes back as
+// "18788380". Whether a given display has decimals is unknown per pump, so a
+// dotless 7+ digit read is only reinterpreted as /100 when the opening reading
+// PROVES the raw value impossible (negative or absurd delta) while the /100
+// value is plausible. A decimal-less Montech is never touched — its raw delta
+// is the plausible one. Returns the corrected value, or null to keep the raw.
+export function dotlessMontechCorrection(
+  value: number | null,
+  opening: number | null,
+  maxDeltaLiters: number
+): number | null {
+  if (value === null || opening === null) return null
+  if (!Number.isInteger(value) || value < 1_000_000) return null
+  const rawDelta = value - opening
+  const scaled = value / 100
+  const scaledDelta = scaled - opening
+  const rawPlausible = rawDelta >= 0 && rawDelta <= maxDeltaLiters
+  const scaledPlausible = scaledDelta >= 0 && scaledDelta <= maxDeltaLiters
+  return !rawPlausible && scaledPlausible ? scaled : null
+}
+
 export type ResolvedSlot = SlotRead & { mismatch: boolean }
 
 function bestConf(a: number | null, b: number | null): number | null {
@@ -39,6 +61,29 @@ function missedDotValue(a: number, b: number): number | null {
     if (Math.floor(big / factor) === Math.trunc(small)) return big / factor
   }
   return null
+}
+
+// The green 3-line LÍT row shows the INTEGER liters while the Montech prints
+// the same value with 2-3 decimal digits. When every green digit — allowing
+// the LAST 2 to disagree (rounding / dot-matrix misreads) — matches the
+// Montech's leading digits, the green certifies where the integer part ends:
+// the remaining 2-3 Montech digits are the decimals. 17143447 anchored by
+// green 171474 → 171434.47 (first 4 digits agree, green's tail was misread).
+function greenAnchoredValue(montech: number | null, green: number | null): number | null {
+  if (montech === null || green === null) return null
+  if (!Number.isInteger(montech) || !Number.isInteger(green) || green <= 0) return null
+  const m = String(montech)
+  const g = String(green)
+  const leftover = m.length - g.length
+  if (leftover < 2 || leftover > 3) return null
+  const anchor = g.length - 2
+  // The anchor (all green digits except the tolerated tail) must be long
+  // enough to be meaningful and must match the Montech exactly.
+  if (anchor < 3) return null
+  for (let i = 0; i < anchor; i++) {
+    if (m[i] !== g[i]) return null
+  }
+  return montech / 10 ** leftover
 }
 
 export function resolveDuplicateSlot(prior: SlotRead, next: SlotRead): ResolvedSlot {
@@ -80,6 +125,19 @@ export function resolveDuplicateSlot(prior: SlotRead, next: SlotRead): ResolvedS
       conf: bestConf(prior.conf, next.conf),
       photoId: prior.photoId,
       mismatch: false,
+    }
+  }
+  // Green-anchored decimals: the trusted display's read is dotless but the
+  // green partner's digits match its leading digits — the green certifies the
+  // integer part, the leftover trusted digits are decimals.
+  const priorIsTrusted = (prior.rank ?? 0) > (next.rank ?? 0)
+  const nextIsTrusted = (next.rank ?? 0) > (prior.rank ?? 0)
+  if (priorIsTrusted || nextIsTrusted) {
+    const trusted = priorIsTrusted ? prior : next
+    const green = priorIsTrusted ? next : prior
+    const anchored = greenAnchoredValue(trusted.value, green.value)
+    if (anchored !== null) {
+      return { value: anchored, conf: trusted.conf, photoId: trusted.photoId, mismatch: false }
     }
   }
   // Genuinely diverging reads: provisionally trust the more reliable DISPLAY

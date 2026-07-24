@@ -14,7 +14,11 @@ import {
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
-import { meterTypeRank, resolveDuplicateSlot } from '@/lib/matching/duplicate-check'
+import {
+  dotlessMontechCorrection,
+  meterTypeRank,
+  resolveDuplicateSlot,
+} from '@/lib/matching/duplicate-check'
 import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
@@ -188,9 +192,24 @@ async function assembleShiftReading(
             const openMech =
               num(existing?.openingMechanicalReading) ?? num(dispenser.lastMechanicalReading)
 
+            // A dotless Montech read may have lost its decimal dot — but only
+            // reinterpret /100 when the opening proves the raw value impossible
+            // (see dotlessMontechCorrection; not every Montech has decimals).
+            const winnerType =
+              resolved.photoId === photoId ? result.meterType : priorPhoto?.meterType
+            let elecFinal = elecReading
+            if (slot === 'electronic' && winnerType === 'electronic_montech') {
+              elecFinal =
+                dotlessMontechCorrection(
+                  elecReading,
+                  openElec,
+                  DEFAULT_ANOMALY_CONFIG.maxDeltaLiters
+                ) ?? elecReading
+            }
+
             const derived = deriveReviewState(
               {
-                electronicReading: elecReading,
+                electronicReading: elecFinal,
                 mechanicalReading: mechReading,
                 openingElectronicReading: openElec,
                 openingMechanicalReading: openMech,
@@ -219,7 +238,7 @@ async function assembleShiftReading(
             const data = {
               openingElectronicReading: openElec,
               openingMechanicalReading: openMech,
-              electronicReading: elecReading,
+              electronicReading: elecFinal,
               mechanicalReading: mechReading,
               electronicPhotoId: elecPhoto,
               mechanicalPhotoId: mechPhoto,

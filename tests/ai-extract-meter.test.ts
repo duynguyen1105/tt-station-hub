@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { parseJsonFromText } from '@/lib/ai/claude-vision'
 import { classifyElectronic, classifyMechanical } from '@/lib/ai/confidence'
-import { extractMeter, restoreMontechDot } from '@/lib/ai/extract-meter'
+import { extractMeter } from '@/lib/ai/extract-meter'
 import { lookupMockExtraction } from '@/lib/ai/mock'
 import { electronicSchema, mechanicalSchema, routerSchema } from '@/lib/ai/types'
 import expected from '@/test-fixtures/expected-extractions.json'
@@ -16,21 +16,6 @@ describe('parseJsonFromText', () => {
   it('parses raw JSON with surrounding prose', () => {
     const text = 'noise {"reading":"00123"} trailing'
     expect(parseJsonFromText<{ reading: string }>(text).reading).toBe('00123')
-  })
-})
-
-describe('restoreMontechDot', () => {
-  it('restores the dropped 2-decimal dot on a 7+ digit dotless read', () => {
-    expect(restoreMontechDot('18788380')).toBe('187883.80')
-    expect(restoreMontechDot('12854792')).toBe('128547.92')
-    expect(restoreMontechDot('1560659')).toBe('15606.59')
-  })
-  it('leaves a read that already has a dot untouched', () => {
-    expect(restoreMontechDot('187883.80')).toBe('187883.80')
-  })
-  it('leaves short reads and null untouched', () => {
-    expect(restoreMontechDot('187883')).toBe('187883')
-    expect(restoreMontechDot(null)).toBeNull()
   })
 })
 
