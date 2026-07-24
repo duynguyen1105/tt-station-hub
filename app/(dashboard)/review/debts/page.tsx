@@ -3,12 +3,17 @@ import dayjs from 'dayjs'
 import { DebtVisitCard } from '@/components/debts/debt-visit-card'
 import { ReviewTabs } from '@/components/review/review-tabs'
 import { requireUser } from '@/lib/auth/session'
+import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { prisma } from '@/lib/prisma'
 import { getSignedUrl } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
 export default async function ReviewDebtsPage() {
   await requireUser()
+
+  // Lazy rescue of misclassified shift photos stuck as unpaired debt visits.
+  await sweepStrayDebtMeters().catch(() => 0)
+
   const [visits, customers, stations] = await Promise.all([
     prisma.debtVehicleVisit.findMany({
       where: { reviewStatus: { in: ['pending', 'needs_review'] } },

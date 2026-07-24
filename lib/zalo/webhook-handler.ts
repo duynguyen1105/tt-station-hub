@@ -7,6 +7,7 @@ import type {
   ExtractVisitResult,
   RouterResult,
 } from '@/lib/ai/types'
+import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { logger } from '@/lib/logger'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import {
@@ -17,7 +18,7 @@ import {
 } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
-import { classifyZaloMessage, routePhoto } from '@/lib/zalo/classify'
+import { classifyZaloMessage, explicitCaptionKind, routePhoto } from '@/lib/zalo/classify'
 import { downloadZaloAttachment, sendZaloMessage } from '@/lib/zalo/client'
 
 export type ZaloImageMessage = {
@@ -209,7 +210,11 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
     }
   }
 
-  // Caption is a hint; the per-photo image content is the real decider (below).
+  // An EXPLICIT caption ("chốt ca" / "công nợ" / "tồn kho") is authoritative for
+  // every photo in the message — the sender declared the intent, so the image
+  // classifier cannot override it. Without one, the caption is only a hint and
+  // the per-photo image content decides (below).
+  const explicitKind = explicitCaptionKind(msg.caption)
   const captionKind = classifyZaloMessage(msg.caption)
   let received = 0
 
@@ -229,7 +234,8 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         (pre
           ? ((pre.raw as { router?: RouterResult })?.router ?? null)
           : await classifyPhoto(buffer).catch(() => null))
-      const route = router ? routePhoto(router.image_type, captionKind) : captionKind
+      const route =
+        explicitKind ?? (router ? routePhoto(router.image_type, captionKind) : captionKind)
 
       // For shift photos the meter is extracted anyway, so read it now and let the
       // PRINTED STATION LABEL override the sender-based station when they disagree
@@ -309,6 +315,13 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       logger.error({ error, url }, 'Failed to process Zalo image')
     }
   }
+
+  // Rescue pass: a meter-only debt visit still unpaired after 1 minute was a
+  // misclassified shift photo (real debt fills always arrive as a pair) —
+  // reroute it into the shift pipeline. Runs here because there is no cron.
+  await sweepStrayDebtMeters().catch((error) =>
+    logger.error({ error }, 'Stray debt-meter sweep failed')
+  )
 
   // Best-effort receipt confirmation back to the sender. Gated behind ZALO_AUTO_REPLY
   // because the OA send-message API (v3.0/oa/message/cs) requires a paid OA tier
