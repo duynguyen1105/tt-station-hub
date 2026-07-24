@@ -104,7 +104,28 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
     return normalizeMechanical(mechanicalSchema.parse(parseJsonFromText(text)), router)
   }
 
-  // Not a shift-closing meter (debt meter, vehicle, label only, or unrelated).
+  // The router gave up ('unclear') or saw only the plate ('label_only') — a
+  // recurring blind spot when the label dominates the frame and the counter is
+  // small or cropped. DECIDING is harder than READING: each reader is told
+  // exactly what to look for and self-reports 'unclear' when the meter truly
+  // isn't there. So before giving up, offer the photo to the mechanical reader
+  // and then the electronic one, accepting the first confident reading.
+  if (router.image_type === 'unclear' || router.image_type === 'label_only') {
+    const mech = await callClaudeVision({ prompt: MECHANICAL_PROMPT, images: [image] })
+      .then((text) => mechanicalSchema.parse(parseJsonFromText(text)))
+      .catch(() => null)
+    if (mech && mech.meter_type === 'mechanical' && mech.reading) {
+      return normalizeMechanical(mech, router)
+    }
+    const elec = await callClaudeVision({ prompt: ELECTRONIC_PROMPT, images: [image] })
+      .then((text) => electronicSchema.parse(parseJsonFromText(text)))
+      .catch(() => null)
+    if (elec && elec.meter_type !== 'unclear' && elec.reading) {
+      return normalizeElectronic(elec, router)
+    }
+  }
+
+  // Not a shift-closing meter (debt meter, vehicle, or unrelated).
   return emptyResult(router.image_type === 'not_relevant' ? 'not_a_meter' : 'unclear', router)
 }
 

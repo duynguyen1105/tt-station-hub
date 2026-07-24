@@ -156,7 +156,11 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           }
         } else if (
           router.image_type === 'electronic_meter' ||
-          router.image_type === 'mechanical_meter'
+          router.image_type === 'mechanical_meter' ||
+          // Router blind spots ('unclear'/'label_only') still often carry a
+          // readable label — extractMeter's reader fallback handles them.
+          router.image_type === 'unclear' ||
+          router.image_type === 'label_only'
         ) {
           const result = await extractMeter({ imageBuffer: buffer, router })
           preResults.set(i, result)
