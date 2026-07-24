@@ -99,6 +99,11 @@ export default async function ShiftDetailPage({
     }
   })
 
+  // Reserve each closing column's photo slot by its widest row so the readings
+  // align; an all-single-photo column reserves nothing (no placeholder gap).
+  const electronicSlots = Math.max(1, ...rows.map((r) => r.electronicPhotos?.length ?? 0))
+  const mechanicalSlots = Math.max(1, ...rows.map((r) => r.mechanicalPhotos?.length ?? 0))
+
   const status = shiftStatusInfo(shift.status)
   const pendingCount = readings.filter(
     (r) => r.reviewStatus === 'pending' || r.reviewStatus === 'needs_review'
@@ -139,7 +144,12 @@ export default async function ShiftDetailPage({
           </thead>
           <tbody>
             {rows.map((row, index) => (
-              <ReadingRow key={row.readingId ?? index} data={row} />
+              <ReadingRow
+                key={row.readingId ?? index}
+                data={row}
+                electronicSlots={electronicSlots}
+                mechanicalSlots={mechanicalSlots}
+              />
             ))}
           </tbody>
         </table>

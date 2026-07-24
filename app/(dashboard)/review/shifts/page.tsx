@@ -42,6 +42,20 @@ export default async function ReviewShiftsPage() {
     ...readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId]),
   ])
 
+  const photosByReading = new Map(
+    readings.map((r) => [r.id, readingPhotosForSlots(r, matchedPhotos, photoUrlById)])
+  )
+  // Reserve each closing column's photo slot by its widest row so the readings
+  // align; an all-single-photo column reserves nothing (no placeholder gap).
+  const electronicSlots = Math.max(
+    1,
+    ...readings.map((r) => photosByReading.get(r.id)?.electronic?.length ?? 0)
+  )
+  const mechanicalSlots = Math.max(
+    1,
+    ...readings.map((r) => photosByReading.get(r.id)?.mechanical?.length ?? 0)
+  )
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{vi.review.shiftsTitle}</h1>
@@ -67,7 +81,7 @@ export default async function ReviewShiftsPage() {
               const shift = shiftById.get(reading.shiftId)
               const station = shift ? stationById.get(shift.stationId) : undefined
               const dispenser = dispenserById.get(reading.dispenserId)
-              const slotPhotos = readingPhotosForSlots(reading, matchedPhotos, photoUrlById)
+              const slotPhotos = photosByReading.get(reading.id)!
               const data: ReadingRowData = {
                 readingId: reading.id,
                 stationName: station?.name ?? '—',
@@ -86,7 +100,14 @@ export default async function ReviewShiftsPage() {
                 role: user.role,
                 shiftStatus: (shift?.status ?? 'pending_review') as ShiftStatus,
               }
-              return <ReadingRow key={reading.id} data={data} />
+              return (
+                <ReadingRow
+                  key={reading.id}
+                  data={data}
+                  electronicSlots={electronicSlots}
+                  mechanicalSlots={mechanicalSlots}
+                />
+              )
             })}
           </tbody>
         </table>

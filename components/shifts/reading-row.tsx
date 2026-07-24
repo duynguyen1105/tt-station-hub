@@ -187,10 +187,23 @@ function EditableReading({
  * the dialog title carries each photo's own AI-read number so the reviewer can
  * compare the two originals directly.
  */
-function SlotPhotos({ photos, label }: { photos: ReadingPhoto[] | undefined; label: string }) {
+function SlotPhotos({
+  photos,
+  label,
+  slots,
+}: {
+  photos: ReadingPhoto[] | undefined
+  label: string
+  slots: number
+}) {
   if (!photos || photos.length === 0) return null
   return (
-    <span className="inline-flex min-w-25 justify-end gap-1">
+    <span
+      className="inline-flex justify-end gap-1"
+      // Reserve width for the column's widest slot (thumbnail w-12 = 3rem,
+      // gap-1 = 0.25rem) so readings align; single-photo columns reserve nothing.
+      style={slots > 1 ? { minWidth: `${slots * 3 + (slots - 1) * 0.25}rem` } : undefined}
+    >
       {photos.map((photo, index) => (
         <PhotoView
           key={index}
@@ -204,7 +217,15 @@ function SlotPhotos({ photos, label }: { photos: ReadingPhoto[] | undefined; lab
   )
 }
 
-export function ReadingRow({ data }: { data: ReadingRowData }) {
+export function ReadingRow({
+  data,
+  electronicSlots,
+  mechanicalSlots,
+}: {
+  data: ReadingRowData
+  electronicSlots: number
+  mechanicalSlots: number
+}) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
 
@@ -273,6 +294,7 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
             <SlotPhotos
               photos={data.electronicPhotos}
               label={vi.correction.closingElectronicLabel}
+              slots={electronicSlots}
             />
           }
           onSave={(next) => saveField('correct-closing', 'electronicReading', next)}
@@ -298,6 +320,7 @@ export function ReadingRow({ data }: { data: ReadingRowData }) {
             <SlotPhotos
               photos={data.mechanicalPhotos}
               label={vi.correction.closingMechanicalLabel}
+              slots={mechanicalSlots}
             />
           }
           onSave={(next) => saveField('correct-closing', 'mechanicalReading', next)}
