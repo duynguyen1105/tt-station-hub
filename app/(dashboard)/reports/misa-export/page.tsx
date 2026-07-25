@@ -7,11 +7,15 @@ import { vi } from '@/messages/vi'
 
 export default async function MisaExportPage() {
   await requireUser()
-  const shifts = await prisma.shift.findMany({
-    where: { status: 'completed' },
-    orderBy: { completedAt: 'desc' },
-    take: 50,
-  })
+  const [shifts, stations] = await Promise.all([
+    prisma.shift.findMany({
+      where: { status: 'completed' },
+      orderBy: { completedAt: 'desc' },
+      take: 50,
+    }),
+    prisma.station.findMany({ select: { id: true, name: true } }),
+  ])
+  const stationNameById = new Map(stations.map((s) => [s.id, s.name]))
 
   return (
     <div className="space-y-4">
@@ -22,6 +26,7 @@ export default async function MisaExportPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-muted-foreground border-b text-left">
+              <th className="p-2">{vi.shifts.station}</th>
               <th className="p-2">{vi.shifts.date}</th>
               <th className="p-2">{vi.shifts.shiftType}</th>
               <th className="p-2"></th>
@@ -30,6 +35,7 @@ export default async function MisaExportPage() {
           <tbody>
             {shifts.map((shift) => (
               <tr key={shift.id} className="border-b">
+                <td className="p-2">{stationNameById.get(shift.stationId) ?? '—'}</td>
                 <td className="p-2">{formatDate(shift.shiftDate)}</td>
                 <td className="p-2">{shiftTypeLabel(shift.shiftType)}</td>
                 <td className="p-2 text-right">

@@ -208,6 +208,7 @@ export const vi = {
 
   shifts: {
     title: 'Chốt ca',
+    station: 'Trạm',
     date: 'Ngày',
     shiftType: 'Ca',
     employee: 'Nhân viên',
