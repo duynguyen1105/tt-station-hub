@@ -4,6 +4,7 @@ import {
   dispenserKey,
   matchPhotoToDispenser,
   normalizeLabel,
+  pickDispenserByFuel,
 } from '@/lib/matching/photo-to-reading'
 
 const dispensers = [
@@ -71,5 +72,32 @@ describe('matchPhotoToDispenser', () => {
       matchPhotoToDispenser({ extractedDispenserCode: null, meterType: 'mechanical' }, dispensers)
         .status
     ).toBe('unmatched')
+  })
+})
+
+describe('pickDispenserByFuel', () => {
+  const ure1 = { id: 'ure-1', fuelType: 'URE', lastElectronicReading: 14500 }
+  const ure2 = { id: 'ure-2', fuelType: 'URE', lastElectronicReading: 7700 }
+  const doPump = { id: 'do-1', fuelType: 'DO', lastElectronicReading: 90000 }
+
+  it('matches a unique same-fuel pump directly', () => {
+    expect(pickDispenserByFuel([ure1, doPump], 'URE', 14598.91, new Set())).toBe('ure-1')
+  })
+
+  it('tells twin pumps apart by the nearest last total', () => {
+    // DakNong1's two URE meters: 14598.910 belongs beside 14500, not 7700.
+    expect(pickDispenserByFuel([ure1, ure2, doPump], 'URE', 14598.91, new Set())).toBe('ure-1')
+    expect(pickDispenserByFuel([ure1, ure2, doPump], 'URE', 7761.98, new Set())).toBe('ure-2')
+  })
+
+  it('falls back to the first free slot when history is incomplete', () => {
+    const fresh1 = { ...ure1, lastElectronicReading: null }
+    const fresh2 = { ...ure2, lastElectronicReading: null }
+    expect(pickDispenserByFuel([fresh1, fresh2], 'URE', 14598.91, new Set())).toBe('ure-1')
+    expect(pickDispenserByFuel([fresh1, fresh2], 'URE', 7761.98, new Set(['ure-1']))).toBe('ure-2')
+  })
+
+  it('returns null when the station has no pump of that fuel', () => {
+    expect(pickDispenserByFuel([doPump], 'URE', 100, new Set())).toBeNull()
   })
 })

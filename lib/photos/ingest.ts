@@ -20,7 +20,11 @@ import {
   meterTypeRank,
   resolveDuplicateSlot,
 } from '@/lib/matching/duplicate-check'
-import { type MeterSlot, matchPhotoToDispenser } from '@/lib/matching/photo-to-reading'
+import {
+  type MeterSlot,
+  matchPhotoToDispenser,
+  pickDispenserByFuel,
+} from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
@@ -114,10 +118,38 @@ async function assembleShiftReading(
 
   // A manual override (chosen pump/meter) wins over the AI-label match — this is
   // how label-less photos (e.g. a Lungbor LCD with no plate) still land correctly.
-  const dispenserId =
-    override?.dispenserId ?? (match.status === 'matched' ? match.dispenserId : null)
+  let dispenserId = override?.dispenserId ?? (match.status === 'matched' ? match.dispenserId : null)
   const slot = override?.slot ?? match.slot
-  const matchStatus = override?.dispenserId ? 'matched' : match.status
+  let matchStatus = override?.dispenserId ? 'matched' : match.status
+
+  // Fuel fallback: some pumps carry only a fuel sticker ("URE" at DakNong1 —
+  // no station or TRỤ line at all). When the photo has NO dispenser label but a
+  // known fuel, match by fuel: a unique pump takes it directly; several pumps
+  // are told apart by whichever last totalizer reading is nearest (totals only
+  // creep upward), or by the first slot still free this shift on day one.
+  if (!dispenserId && !override?.dispenserId && !result.dispenserLabel && result.fuelType && slot) {
+    const readings = await prisma.shiftReading.findMany({ where: { shiftId: shift.id } })
+    const occupied = new Set(
+      readings
+        .filter((r) => (slot === 'electronic' ? r.electronicPhotoId : r.mechanicalPhotoId))
+        .map((r) => r.dispenserId)
+    )
+    const picked = pickDispenserByFuel(
+      dispensers.map((d) => ({
+        id: d.id,
+        fuelType: d.fuelType,
+        lastElectronicReading: num(d.lastElectronicReading),
+      })),
+      result.fuelType,
+      parseNumericString(result.reading),
+      occupied
+    )
+    if (picked) {
+      dispenserId = picked
+      matchStatus = 'matched'
+    }
+  }
+
   await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus } })
 
   const dispenser = dispenserId ? dispensers.find((d) => d.id === dispenserId) : undefined

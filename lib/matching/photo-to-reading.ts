@@ -55,6 +55,40 @@ function slotForMeterType(meterType: string | null): MeterSlot | null {
   return null
 }
 
+/**
+ * Fuel-based fallback for photos with NO dispenser label (e.g. DakNong1's URE
+ * pumps are stickered just "URE"). A unique same-fuel pump matches directly;
+ * among several, the one whose last electronic total is nearest wins (a
+ * totalizer only creeps upward, so consecutive days stay close); with no
+ * history yet, the first pump whose slot is still free this shift takes it.
+ */
+export function pickDispenserByFuel(
+  dispensers: { id: string; fuelType: string; lastElectronicReading: number | null }[],
+  fuelType: string,
+  reading: number | null,
+  occupiedIds: Set<string>
+): string | null {
+  const wanted = fuelType.trim().toUpperCase()
+  const candidates = dispensers.filter((d) => d.fuelType.trim().toUpperCase() === wanted)
+  if (candidates.length === 0) return null
+  if (candidates.length === 1) return candidates[0]!.id
+
+  if (reading !== null && candidates.every((d) => d.lastElectronicReading !== null)) {
+    let best = candidates[0]!
+    for (const d of candidates) {
+      if (
+        Math.abs(reading - d.lastElectronicReading!) <
+        Math.abs(reading - best.lastElectronicReading!)
+      ) {
+        best = d
+      }
+    }
+    return best.id
+  }
+
+  return candidates.find((d) => !occupiedIds.has(d.id))?.id ?? null
+}
+
 export function matchPhotoToDispenser(
   photo: PhotoForMatch,
   dispensers: DispenserRef[]
