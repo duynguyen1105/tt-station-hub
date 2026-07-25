@@ -11,6 +11,7 @@ import {
   type ExtractVisitResult,
   type RouterResult,
 } from '@/lib/ai/types'
+import { plateListContains } from '@/lib/debts/plate'
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { reserveDipExceedsTolerance } from '@/lib/inventory/tank-dip-rule'
 import { logger } from '@/lib/logger'
@@ -538,12 +539,16 @@ export async function assembleDebtVisit(params: {
       aiRawResponse: { plate: plate.plate, confidence: plate.confidence } as Prisma.InputJsonValue,
     },
   })
-  const customer = plate.plate
-    ? await prisma.debtCustomer.findFirst({
-        where: { stationId: station.id, knownPlates: { has: plate.plate }, isActive: true },
-        select: { id: true },
-      })
-    : null
+  // Plate formats vary between the AI read and human entry ("50E-751.91" vs
+  // "50E75191"), so matching compares normalized forms instead of exact strings.
+  let customer: { id: string } | null = null
+  if (plate.plate) {
+    const candidates = await prisma.debtCustomer.findMany({
+      where: { stationId: station.id, isActive: true },
+      select: { id: true, knownPlates: true },
+    })
+    customer = candidates.find((c) => plateListContains(c.knownPlates, plate.plate)) ?? null
+  }
   // Same global pairing lock as the meter branch (see comment there), plus the
   // mirror adoption: if the pump photo landed first but could not resolve a
   // station, its meter-only visit sits on UNKNOWN — claim it into this station.
