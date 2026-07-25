@@ -337,7 +337,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
         )
       } else if (route === 'inventory') {
-        await ingestTankDip(photo.id, buffer, preTankResults.get(i)).catch((error) =>
+        await ingestTankDip(photo.id, buffer, preTankResults.get(i), station).catch((error) =>
           logger.error({ error, photoId: photo.id }, 'Tank-dip ingest failed')
         )
       }

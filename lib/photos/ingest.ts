@@ -12,6 +12,7 @@ import {
   type RouterResult,
 } from '@/lib/ai/types'
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
+import { reserveDipExceedsTolerance } from '@/lib/inventory/tank-dip-rule'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import {
@@ -566,15 +567,21 @@ export async function assembleDebtVisit(params: {
   return { visitId: visit.id, meter: null, plate }
 }
 
-/** Reads a tank-dip (barem) photo and records it on the photo for inventory. */
+/**
+ * Reads a tank-dip (barem) photo, records it on the photo, and appends a
+ * per-tank dip history record. A RESERVE tank (one no active dispenser draws
+ * from — derived, not configured) must hold still between dips, so a change
+ * beyond tolerance is flagged 'reserve_stock_changed' for review.
+ */
 export async function ingestTankDip(
   photoId: string,
   buffer: Buffer,
   // A result already extracted upstream (station identification) — reused here.
-  precomputed?: ExtractTankDipResult
+  precomputed?: ExtractTankDipResult,
+  station?: { id: string } | null
 ): Promise<ExtractTankDipResult> {
   const result = precomputed ?? (await extractTankDip({ imageBuffer: buffer }))
-  await prisma.shiftPhoto.update({
+  const photo = await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
       aiProcessedAt: new Date(),
@@ -584,6 +591,45 @@ export async function ingestTankDip(
       aiRawResponse: result.raw as Prisma.InputJsonValue,
     },
   })
+
+  const tankNumber = result.tankNumber ?? result.tankLabel?.match(/(\d+)/)?.[1] ?? null
+  const dip = parseNumericString(result.dipValue)
+  if (!station || !tankNumber || dip === null) return result
+
+  const tankCode = `HAM_${Number.parseInt(tankNumber, 10)}`
+  const attachedDispensers = await prisma.dispenser.count({
+    where: { stationId: station.id, tankCode, isActive: true },
+  })
+  const isReserve = attachedDispensers === 0
+  const previous = await prisma.tankDipRecord.findFirst({
+    where: { stationId: station.id, tankCode },
+    orderBy: { measuredAt: 'desc' },
+  })
+  const delta = previous ? dip - Number(previous.dipValue) : null
+  const isAnomaly =
+    isReserve && previous !== null && reserveDipExceedsTolerance(Number(previous.dipValue), dip)
+
+  await prisma.tankDipRecord.create({
+    data: {
+      stationId: station.id,
+      tankCode,
+      fuelType: result.fuelType,
+      capacityK: result.capacityK,
+      dipValue: dip,
+      isReserve,
+      deltaFromPrevious: delta,
+      isAnomaly,
+      anomalyReason: isAnomaly ? 'reserve_stock_changed' : null,
+      photoId,
+      measuredAt: photo.zaloReceivedAt ?? photo.createdAt,
+    },
+  })
+  if (isAnomaly) {
+    logger.warn(
+      { stationId: station.id, tankCode, dip, previous: previous?.dipValue?.toString(), delta },
+      'Reserve tank dip moved beyond tolerance'
+    )
+  }
   return result
 }
 
@@ -657,7 +703,7 @@ export async function ingestManualPhoto(params: {
         params.override
       )
     } else if (kind === 'inventory') {
-      tank_result = await ingestTankDip(photo.id, params.buffer)
+      tank_result = await ingestTankDip(photo.id, params.buffer, undefined, params.station)
     } else {
       const visit = await assembleDebtVisit({
         photoId: photo.id,

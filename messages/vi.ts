@@ -264,6 +264,14 @@ export const vi = {
     threshold: 'Ngưỡng',
     low: 'Tồn thấp',
     empty: 'Chưa có dữ liệu tồn kho.',
+    tankDips: 'Đo hầm (barem)',
+    tank: 'Hầm',
+    dipValue: 'Số đo',
+    dipDelta: 'So với lần trước',
+    measuredAt: 'Đo lúc',
+    reserve: 'Hầm dự phòng',
+    reserveChanged: 'Hầm dự phòng bị chênh lệch bất thường',
+    noDips: 'Chưa có lần đo hầm nào.',
   },
 
   documents: {
