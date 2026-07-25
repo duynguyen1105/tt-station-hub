@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { plateListContains } from '@/lib/debts/plate'
 import { prisma } from '@/lib/prisma'
 
 const approveSchema = z.object({ customerId: z.string().uuid().optional() })
@@ -45,6 +46,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       where: { id: customerId },
       data: { currentBalance: { increment: amount } },
     })
+    // Learn the plate: approving the visit confirms this vehicle belongs to
+    // the customer, so an unseen plate joins their known list and the next
+    // visit of the same truck auto-assigns.
+    const plate = visit.plateConfirmed ?? visit.plateRead
+    if (plate && plate.trim().toLowerCase() !== 'unclear') {
+      const customer = await db.debtCustomer.findUnique({
+        where: { id: customerId },
+        select: { knownPlates: true },
+      })
+      if (customer && !plateListContains(customer.knownPlates, plate)) {
+        await db.debtCustomer.update({
+          where: { id: customerId },
+          data: { knownPlates: { push: plate.toUpperCase() } },
+        })
+      }
+    }
     return v
   })
 
