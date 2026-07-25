@@ -231,6 +231,8 @@ export function ReadingRow({
 
   const info = data.reviewStatus ? reviewStatusInfo(data.reviewStatus) : null
   const canAct = data.readingId !== null
+  const alreadyApproved = data.reviewStatus === 'approved' || data.reviewStatus === 'auto_approved'
+  const alreadyRejected = data.reviewStatus === 'rejected'
   const adminOpening = canEditOpening(data.role)
   const mayEditClosing = canEditClosing(data.role, data.shiftStatus)
   const mayReview = canReviewShift(data.role, data.shiftStatus)
@@ -337,12 +339,15 @@ export function ReadingRow({
       <td className="p-2 text-right whitespace-nowrap">
         <div className="inline-flex gap-1">
           {/* Approve / reject follow canReviewShift: admin at any status,
-              accountant until chốt; a viewer never sees them. */}
+              accountant until chốt; a viewer never sees them. Each is also off
+              once the row already holds that state — approved (or auto-approved)
+              for approve, rejected for reject — so neither re-issues a no-op.
+              They stay independent: an approved row can still be rejected. */}
           {mayReview && (
             <Button
               size="sm"
               variant="outline"
-              disabled={!canAct || busy}
+              disabled={!canAct || busy || alreadyApproved}
               onClick={() => act('approve')}
             >
               {vi.common.approve}
@@ -352,7 +357,7 @@ export function ReadingRow({
             <Button
               size="sm"
               variant="ghost"
-              disabled={!canAct || busy}
+              disabled={!canAct || busy || alreadyRejected}
               onClick={() => act('reject')}
             >
               {vi.common.reject}
