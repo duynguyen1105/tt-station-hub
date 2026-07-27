@@ -10,6 +10,7 @@ import type {
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { logger } from '@/lib/logger'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
+import { submitterKey } from '@/lib/matching/submitter'
 import {
   assembleDebtVisit,
   findOrCreateShift,
@@ -332,6 +333,9 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           type: router?.image_type === 'vehicle' ? 'vehicle' : 'debt_meter',
           buffer,
           caption: msg.caption,
+          // Fixed before any AI reads anything, so both halves of one fill agree
+          // on it even when they disagree about the station.
+          submittedBy: submitterKey('zalo', msg.senderId),
           precomputedMeter: preVisitResults.get(i),
         }).catch((error) =>
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')

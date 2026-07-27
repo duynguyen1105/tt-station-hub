@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
     buffer,
     contentType: file.type,
     caption,
+    userId: user.id,
     kind,
     override,
     debtType,
