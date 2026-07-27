@@ -28,6 +28,7 @@ import {
 } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
+import { submitterKey } from '@/lib/matching/submitter'
 import { resolveVisitStation } from '@/lib/matching/visit-station'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
@@ -397,11 +398,48 @@ function normalizeFuelType(raw: string | null | undefined): string | null {
 }
 
 /**
+ * The pairing key, stated once for both assembly branches: this submitter's open
+ * half of a fill, inside the window, still missing the kind of photo that has just
+ * arrived. Stated once so the two branches can never drift into two different
+ * definitions of a pair.
+ *
+ * The station is deliberately NOT part of the key — the two halves of one fill
+ * resolve it independently and can disagree, which is exactly what used to split
+ * them. See docs/adr/0001-pair-debt-photos-by-submitter.md.
+ *
+ * A photo with no identifiable submitter has no key and so pairs with nothing: an
+ * absent submitter must never match another absent submitter.
+ *
+ * One indexed query (idx_visits_submitter). It runs holding the global pairing lock
+ * every debt photo queues behind, so a scan here stalls all debt intake, not one visit.
+ */
+async function findOpenHalf(
+  tx: Prisma.TransactionClient,
+  arriving: DebtPhotoType,
+  submittedBy: string | null,
+  windowStart: Date
+) {
+  if (!submittedBy) return null
+  const missing =
+    arriving === 'debt_meter'
+      ? { meterPhotoId: null, vehiclePhotoId: { not: null } }
+      : { vehiclePhotoId: null, meterPhotoId: { not: null } }
+  return tx.debtVehicleVisit.findFirst({
+    where: { submittedBy, ...missing, visitDate: { gte: windowStart } },
+    orderBy: { visitDate: 'desc' },
+  })
+}
+
+/**
  * Per-trip debt counterpart to assembleShiftReading: reads the photo (meter ->
  * liters + unit price + computed amount; or vehicle -> plate), then upserts a
  * `debt_vehicle_visit`, pairing a meter photo with a recent vehicle photo (or
- * vice-versa) at the same station within a 5-min window (build plan §4.2). A
+ * vice-versa) from the SAME SUBMITTER within a 5-min window (build plan §4.2). A
  * vehicle plate is cross-checked against known customer plates to auto-assign.
+ *
+ * The pairing key is the submitter, never the station: the two halves of one fill
+ * resolve their station independently and can disagree, but they always agree on
+ * who sent them. See docs/adr/0001-pair-debt-photos-by-submitter.md.
  */
 export async function assembleDebtVisit(params: {
   photoId: string
@@ -409,6 +447,10 @@ export async function assembleDebtVisit(params: {
   timestamp: number
   type: DebtPhotoType
   buffer: Buffer
+  // The pairing key: who handed this photo in, namespaced by intake door
+  // (see lib/matching/submitter.ts). Null when no submitter is identifiable, in
+  // which case the photo opens its own visit rather than joining a stranger's.
+  submittedBy: string | null
   // Zalo message text sent with the photo — stored on the visit for the reviewer.
   caption?: string | null
   // A meter result already extracted upstream (station identification) — reused
@@ -419,7 +461,7 @@ export async function assembleDebtVisit(params: {
   meter: ExtractVisitResult | null
   plate: ExtractPlateResult | null
 }> {
-  const { photoId, station, timestamp, type, buffer } = params
+  const { photoId, station, timestamp, type, buffer, submittedBy } = params
   const caption = params.caption?.trim() || null
   const visitDate = new Date(timestamp)
   const windowStart = new Date(timestamp - DEBT_PAIR_WINDOW_MS)
@@ -490,37 +532,16 @@ export async function assembleDebtVisit(params: {
       // Keep an existing caption when this photo carries none.
       ...(caption ? { zaloCaption: caption } : {}),
     }
-    // Pair with a recent vehicle-only visit, else open a new one. The whole
-    // find-or-create runs under a global debt-pairing advisory lock: Zalo delivers
-    // the vehicle and pump photo of ONE fill as parallel webhooks, and without the
-    // lock both sides see "no open visit" and create two visits instead of one.
-    // Debt volume is low, so one global queue is plenty.
+    // Pair with this submitter's recent vehicle-only visit, else open a new one.
+    // The whole find-or-create runs under a global debt-pairing advisory lock: Zalo
+    // delivers the vehicle and pump photo of ONE fill as parallel webhooks, and
+    // without the lock both sides see "no open visit" and create two visits instead
+    // of one. Debt volume is low, so one global queue is plenty.
     const unknownStation = await getOrCreateUnknownStation()
     const visit = await prisma.$transaction(
       async (tx) => {
         await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
-        let open = await tx.debtVehicleVisit.findFirst({
-          where: {
-            stationId: target.id,
-            meterPhotoId: null,
-            vehiclePhotoId: { not: null },
-            visitDate: { gte: windowStart },
-          },
-          orderBy: { visitDate: 'desc' },
-        })
-        // Adopt a vehicle-only visit parked on UNKNOWN (a plate photo carries no
-        // station label) now that the pump photo has resolved the real station.
-        if (!open && target.id !== unknownStation.id) {
-          open = await tx.debtVehicleVisit.findFirst({
-            where: {
-              stationId: unknownStation.id,
-              meterPhotoId: null,
-              vehiclePhotoId: { not: null },
-              visitDate: { gte: windowStart },
-            },
-            orderBy: { visitDate: 'desc' },
-          })
-        }
+        const open = await findOpenHalf(tx, 'debt_meter', submittedBy, windowStart)
         return open
           ? tx.debtVehicleVisit.update({
               where: { id: open.id },
@@ -534,7 +555,9 @@ export async function assembleDebtVisit(params: {
                 ...meterData,
               },
             })
-          : tx.debtVehicleVisit.create({ data: { stationId: target.id, visitDate, ...meterData } })
+          : tx.debtVehicleVisit.create({
+              data: { stationId: target.id, visitDate, submittedBy, ...meterData },
+            })
       },
       { timeout: 15000 }
     )
@@ -562,33 +585,14 @@ export async function assembleDebtVisit(params: {
     })
     customer = candidates.find((c) => plateListContains(c.knownPlates, plate.plate)) ?? null
   }
-  // Same global pairing lock as the meter branch (see comment there), plus the
-  // mirror adoption: if the pump photo landed first but could not resolve a
-  // station, its meter-only visit sits on UNKNOWN — claim it into this station.
+  // Same global pairing lock and same key as the meter branch (see the comment
+  // there). A pump photo that landed first is found wherever its plate put it —
+  // including a station this sender has never been registered to.
   const unknownStation = await getOrCreateUnknownStation()
   const visit = await prisma.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
-      let open = await tx.debtVehicleVisit.findFirst({
-        where: {
-          stationId: station.id,
-          vehiclePhotoId: null,
-          meterPhotoId: { not: null },
-          visitDate: { gte: windowStart },
-        },
-        orderBy: { visitDate: 'desc' },
-      })
-      if (!open && station.id !== unknownStation.id) {
-        open = await tx.debtVehicleVisit.findFirst({
-          where: {
-            stationId: unknownStation.id,
-            vehiclePhotoId: null,
-            meterPhotoId: { not: null },
-            visitDate: { gte: windowStart },
-          },
-          orderBy: { visitDate: 'desc' },
-        })
-      }
+      const open = await findOpenHalf(tx, 'vehicle', submittedBy, windowStart)
       return open
         ? tx.debtVehicleVisit.update({
             where: { id: open.id },
@@ -612,6 +616,7 @@ export async function assembleDebtVisit(params: {
             data: {
               stationId: station.id,
               visitDate,
+              submittedBy,
               vehiclePhotoId: photoId,
               plateRead: plate.plate,
               customerId: customer?.id ?? null,
@@ -724,6 +729,9 @@ export async function ingestManualPhoto(params: {
   buffer: Buffer
   contentType: string
   caption: string | null
+  // The signed-in uploader — the submitter for this door, and so the key that
+  // pairs the two halves of a debt fill uploaded by hand.
+  userId: string
   kind?: ManualPhotoKind
   override?: ManualOverride
   debtType?: DebtPhotoType
@@ -770,6 +778,7 @@ export async function ingestManualPhoto(params: {
         type: params.debtType ?? 'debt_meter',
         buffer: params.buffer,
         caption: params.caption,
+        submittedBy: submitterKey('app', params.userId),
       })
       debt_result = visit.meter
       plate_result = visit.plate

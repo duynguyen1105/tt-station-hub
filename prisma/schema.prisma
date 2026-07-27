@@ -245,6 +245,10 @@ model DebtVehicleVisit {
   customerId           String?   @map("customer_id") @db.Uuid // assigned after identifying customer
   stationId            String    @map("station_id") @db.Uuid
   visitDate            DateTime  @map("visit_date")
+  // Who handed the photos in, namespaced by intake door ("zalo:<id>" / "app:<id>").
+  // This — with visitDate — is what makes two photos one visit; null on rows written
+  // before the submitter key existed and on photos with no identifiable submitter.
+  submittedBy          String?   @map("submitted_by")
   fuelType             String?   @map("fuel_type") // defaulted by price→product inference; editable in review
   // AI reads from the meter photo
   litersRead           Decimal?  @map("liters_read") @db.Decimal(15, 4) // liters read by AI
@@ -272,6 +276,9 @@ model DebtVehicleVisit {
 
   @@index([customerId, visitDate(sort: Desc)], map: "idx_visits_customer")
   @@index([reviewStatus], map: "idx_visits_review")
+  // The pairing lookup runs inside the global debt-pairing advisory lock that every
+  // debt photo queues behind, so it must never degrade into a scan.
+  @@index([submittedBy, visitDate(sort: Desc)], map: "idx_visits_submitter")
   @@map("debt_vehicle_visits")
 }
 
