@@ -19,7 +19,15 @@ const eslintConfig = defineConfig([
       'react-hooks/exhaustive-deps': 'warn',
     },
   },
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'lib/generated/**']),
+  // `.agents/**` is gitignored, vendored agent tooling — not this repo's source.
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
+    'lib/generated/**',
+    '.agents/**',
+  ]),
 ])
 
 export default eslintConfig
