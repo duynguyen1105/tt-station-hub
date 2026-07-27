@@ -28,6 +28,7 @@ import {
 } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
+import { resolveVisitStation } from '@/lib/matching/visit-station'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
@@ -445,13 +446,17 @@ export async function assembleDebtVisit(params: {
     // override the sender's station, mirroring shift photos. The reviewer can still
     // change the station manually on the review card.
     let target = station
+    let stationFromPumpPlate = false
     if (meter.stationLabel) {
       const byLabel = await matchStationByLabel(meter.stationLabel)
-      if (byLabel && byLabel.id !== station.id) {
-        logger.info(
-          { from: station.id, to: byLabel.code, label: meter.stationLabel },
-          'Debt visit station label overrides sender station'
-        )
+      if (byLabel) {
+        stationFromPumpPlate = true
+        if (byLabel.id !== station.id) {
+          logger.info(
+            { from: station.id, to: byLabel.code, label: meter.stationLabel },
+            'Debt visit station label overrides sender station'
+          )
+        }
         target = { id: byLabel.id }
       }
     }
@@ -519,7 +524,15 @@ export async function assembleDebtVisit(params: {
         return open
           ? tx.debtVehicleVisit.update({
               where: { id: open.id },
-              data: { stationId: target.id, ...meterData },
+              data: {
+                stationId: resolveVisitStation({
+                  visitStationId: open.stationId,
+                  photoStationId: target.id,
+                  stationFromPumpPlate,
+                  unknownStationId: unknownStation.id,
+                }),
+                ...meterData,
+              },
             })
           : tx.debtVehicleVisit.create({ data: { stationId: target.id, visitDate, ...meterData } })
       },
@@ -580,7 +593,15 @@ export async function assembleDebtVisit(params: {
         ? tx.debtVehicleVisit.update({
             where: { id: open.id },
             data: {
-              stationId: station.id === unknownStation.id ? open.stationId : station.id,
+              // A vehicle photo has no pump plate to read a station off, so it only
+              // ever carries an inherited guess and never overwrites what the visit
+              // already concluded.
+              stationId: resolveVisitStation({
+                visitStationId: open.stationId,
+                photoStationId: station.id,
+                stationFromPumpPlate: false,
+                unknownStationId: unknownStation.id,
+              }),
               vehiclePhotoId: photoId,
               plateRead: plate.plate,
               customerId: open.customerId ?? customer?.id ?? null,
