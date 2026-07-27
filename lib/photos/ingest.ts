@@ -29,6 +29,7 @@ import {
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import { submitterKey } from '@/lib/matching/submitter'
+import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
 import { resolveVisitStation } from '@/lib/matching/visit-station'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
@@ -369,8 +370,6 @@ export async function runShiftExtraction(
   await assembleShiftReading(photoId, shift, result, override)
   return result
 }
-
-const DEBT_PAIR_WINDOW_MS = 5 * 60 * 1000
 
 /** Debt review status from the weakest of liters/unit-price confidence + the §5.6 amount check. */
 function debtReview(meter: ExtractVisitResult): { reviewStatus: string; anomalies: string[] } {

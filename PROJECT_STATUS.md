@@ -154,6 +154,19 @@ Anomaly thresholds (max delta, meter divergence) use sensible defaults in
 
 ## 5. Remaining work (not blocked)
 
+- **Owed, must be run once — the split-debt repair**
+  (`scripts/repair-split-debt-visits.ts`). The debts that pairing split before the
+  fix are still two half-records each in the database. Rehearse with
+  `pnpm tsx scripts/repair-split-debt-visits.ts`, then write with `--apply`. Run
+  it **after the pairing fix is deployed and before the review area is opened
+  again**, or it races the thing it repairs. It merges the pairs whose halves both
+  survive — a recovered pair a reviewer had rejected returns to the queue as
+  `needs_review`, since rejecting it was a verdict on an unapprovable half-record —
+  and reports the vehicle-photo-only visits whose pump photo the sweep already
+  consumed; those are a human's judgement call, deliberately not undone.
+  After it runs, the count of debt visits holding exactly one photo per day should
+  fall to roughly zero; if it does not, pairing is still splitting or lone photos
+  are arriving for a reason nobody has identified.
 - **Frozen, owed — the stray debt-meter sweep** (`lib/debts/stray-sweep.ts`).
   `SWEEP_FROZEN = true` disables it entirely. It deleted meter-only debt visits
   after 60s and re-filed the photo as a shift reading, assuming a lone pump photo
