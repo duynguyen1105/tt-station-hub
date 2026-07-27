@@ -154,6 +154,16 @@ Anomaly thresholds (max delta, meter divergence) use sensible defaults in
 
 ## 5. Remaining work (not blocked)
 
+- **Frozen, owed — the stray debt-meter sweep** (`lib/debts/stray-sweep.ts`).
+  `SWEEP_FROZEN = true` disables it entirely. It deleted meter-only debt visits
+  after 60s and re-filed the photo as a shift reading, assuming a lone pump photo
+  was a misread totalizer — but debt pairs split whenever the fill was
+  photographed away from the submitter's registered station, so it was mostly
+  deleting real debts and corrupting shift figures. **Leaving it frozen
+  indefinitely is not a resolution**: genuinely misclassified totalizers now pile
+  up in the debt queue. Once pairing is fixed (`issues/debt-pair-splitting/`),
+  decide whether to restore it, lengthen its timeout, make it seek a second
+  opinion before rerouting, or replace it with a review flag.
 - **UI polish** (see §7): settings management screens (currently placeholders),
   in-app photo viewer (signed-URL) in the shift detail, document edit/delete.
 - **A few CRUD routes** following the existing pattern: dispensers, debt customers,

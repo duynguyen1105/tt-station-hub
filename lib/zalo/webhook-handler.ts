@@ -350,6 +350,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
   // Rescue pass: a meter-only debt visit still unpaired after 1 minute was a
   // misclassified shift photo (real debt fills always arrive as a pair) —
   // reroute it into the shift pipeline. Runs here because there is no cron.
+  // Currently a no-op: the sweep is frozen (see SWEEP_FROZEN in lib/debts/stray-sweep.ts).
   await sweepStrayDebtMeters().catch((error) =>
     logger.error({ error }, 'Stray debt-meter sweep failed')
   )
