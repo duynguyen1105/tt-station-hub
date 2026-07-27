@@ -9,13 +9,26 @@ import { getSignedUrl } from '@/lib/storage/photo-storage'
 // the router misread as a debt screen.
 const STRAY_DEBT_METER_MAX_AGE_MS = 60 * 1000
 
+// FROZEN — the premise above does not hold today. Debt pairs split whenever the
+// fill was photographed away from the submitter's registered station, so most
+// meter-only visits are the money half of a genuine debt fill, not a misread
+// shift screen: sweeping them deletes the debt and files the amount owed as a
+// shift reading. Frozen here rather than at the call sites so all three trigger
+// points are covered (both review page renders + the end of each Zalo webhook).
+// Flip to false to thaw — but not before the sweep's premise is redesigned;
+// see issues/debt-pair-splitting/spec.md and "Frozen, owed" in PROJECT_STATUS.md.
+// Typed `boolean` so the literal `true` does not mark the sweep body unreachable.
+const SWEEP_FROZEN: boolean = true
+
 /**
  * Reroutes stale meter-only debt visits into the shift-closing pipeline.
+ * **Currently frozen** (see `SWEEP_FROZEN`): returns 0 without touching anything.
  * Called opportunistically (end of each webhook, review page loads) — there is
  * no cron on this deployment. UNKNOWN-station visits are left alone: the debt
  * review card is where their manual station dropdown lives.
  */
 export async function sweepStrayDebtMeters(): Promise<number> {
+  if (SWEEP_FROZEN) return 0
   const cutoff = new Date(Date.now() - STRAY_DEBT_METER_MAX_AGE_MS)
   const stale = await prisma.debtVehicleVisit.findMany({
     where: {

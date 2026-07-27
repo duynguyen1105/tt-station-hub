@@ -12,6 +12,7 @@ export default async function ReviewDebtsPage() {
   await requireUser()
 
   // Lazy rescue of misclassified shift photos stuck as unpaired debt visits.
+  // Currently a no-op: the sweep is frozen (see SWEEP_FROZEN in lib/debts/stray-sweep.ts).
   await sweepStrayDebtMeters().catch(() => 0)
 
   const [visits, customers, stations] = await Promise.all([
