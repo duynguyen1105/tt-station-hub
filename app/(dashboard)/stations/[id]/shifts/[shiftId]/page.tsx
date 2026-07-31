@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 
+import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
@@ -17,6 +18,26 @@ import { prisma } from '@/lib/prisma'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
+
+function buildTankOptionsFromDispensers(
+  dispensers: {
+    tankCode: string | null
+    fuelType: string
+    tankCapacityK: number | null
+  }[]
+): TankOption[] {
+  const options = new Map<string, TankOption>()
+  for (const d of dispensers) {
+    if (!d.tankCode || options.has(d.tankCode)) continue
+    const cap = d.tankCapacityK ? ` (${d.tankCapacityK}K)` : ''
+    options.set(d.tankCode, {
+      code: d.tankCode,
+      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${d.fuelType}${cap}`,
+      fuelType: d.fuelType,
+    })
+  }
+  return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
+}
 
 export default async function ShiftDetailPage({
   params,
@@ -118,13 +139,23 @@ export default async function ShiftDetailPage({
           </h2>
           <StatusBadge label={status.label} tone={status.tone} />
         </div>
-        {/* Chốt ca follows canReviewShift; a viewer never sees the control. */}
-        {canReviewShift(user.role, shift.status as ShiftStatus) && (
-          <ShiftCompleteButton
-            shiftId={shift.id}
-            disabled={shift.status === 'completed' || pendingCount > 0}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {/* Nhập hàng lives beside the shift controls: deliveries happen the
+              same day the shift is closed, so this is where staff already are. */}
+          {user.role !== 'viewer' && (
+            <FuelImportForm
+              stationId={shift.stationId}
+              tanks={buildTankOptionsFromDispensers(dispensers)}
+            />
+          )}
+          {/* Chốt ca follows canReviewShift; a viewer never sees the control. */}
+          {canReviewShift(user.role, shift.status as ShiftStatus) && (
+            <ShiftCompleteButton
+              shiftId={shift.id}
+              disabled={shift.status === 'completed' || pendingCount > 0}
+            />
+          )}
+        </div>
       </div>
 
       {rows.length === 0 ? (
