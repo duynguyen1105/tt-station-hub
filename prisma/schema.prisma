@@ -209,6 +209,48 @@ model TankDipRecord {
   @@map("tank_dip_records")
 }
 
+// === FUEL IMPORTS (nhập hàng) ===
+// One tanker delivery into one tank. Fuel volume varies with temperature, so
+// both the observed liters and the invoice's 15°C-normalized liters are kept
+// (reconciliation currently uses litersActual; the V15-vs-actual choice is
+// pending Trường Thịnh's accounting preference). Cancelling never deletes —
+// it stamps canceledAt and writes a compensating inventory movement.
+model FuelImport {
+  id           String    @id @default(uuid()) @db.Uuid
+  stationId    String    @map("station_id") @db.Uuid
+  tankCode     String    @map("tank_code") // normalized, e.g. "HAM_2"
+  fuelType     String    @map("fuel_type")
+  litersActual Decimal   @map("liters_actual") @db.Decimal(15, 3)
+  litersV15    Decimal?  @map("liters_v15") @db.Decimal(15, 3)
+  temperatureC Decimal?  @map("temperature_c") @db.Decimal(5, 2)
+  supplier     String?
+  invoiceNo    String?   @map("invoice_no")
+  truckPlate   String?   @map("truck_plate")
+  note         String?
+  importedAt   DateTime  @map("imported_at")
+  createdBy    String?   @map("created_by") @db.Uuid
+  canceledAt   DateTime? @map("canceled_at")
+  canceledBy   String?   @map("canceled_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([stationId, importedAt(sort: Desc)], map: "idx_fuel_imports_station")
+  @@map("fuel_imports")
+}
+
+// Attached delivery documents (invoice, weigh slip, seal photos) — stored in
+// the same Supabase bucket as meter photos, under <STATION>/imports/.
+model FuelImportDocument {
+  id          String   @id @default(uuid()) @db.Uuid
+  importId    String   @map("import_id") @db.Uuid
+  storagePath String   @map("storage_path")
+  fileName    String?  @map("file_name")
+  contentType String?  @map("content_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([importId], map: "idx_import_docs_import")
+  @@map("fuel_import_documents")
+}
+
 model InventoryMovement {
   id           String   @id @default(uuid()) @db.Uuid
   stationId    String   @map("station_id") @db.Uuid
