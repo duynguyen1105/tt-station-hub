@@ -37,15 +37,25 @@ export async function GET(req: NextRequest) {
   const [stations, docs, profiles] = await Promise.all([
     prisma.station.findMany({ select: { id: true, code: true, name: true } }),
     prisma.fuelImportDocument.findMany({
-      where: { importId: { in: imports.map((i) => i.id) } },
-      select: { importId: true },
+      where: {
+        OR: [
+          { importId: { in: imports.map((i) => i.id) } },
+          { receiptId: { in: imports.map((i) => i.receiptId).filter((r): r is string => !!r) } },
+        ],
+      },
+      select: { importId: true, receiptId: true },
     }),
     prisma.profile.findMany({ select: { id: true, fullName: true } }),
   ])
   const stationById = new Map(stations.map((s) => [s.id, s]))
   const nameById = new Map(profiles.map((p) => [p.id, p.fullName]))
   const docCount = new Map<string, number>()
-  for (const doc of docs) docCount.set(doc.importId, (docCount.get(doc.importId) ?? 0) + 1)
+  const receiptDocCount = new Map<string, number>()
+  for (const doc of docs) {
+    if (doc.importId) docCount.set(doc.importId, (docCount.get(doc.importId) ?? 0) + 1)
+    else if (doc.receiptId)
+      receiptDocCount.set(doc.receiptId, (receiptDocCount.get(doc.receiptId) ?? 0) + 1)
+  }
 
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('Nhập hàng')
@@ -83,7 +93,9 @@ export async function GET(req: NextRequest) {
       truck: row.truckPlate ?? '',
       creator: (row.createdBy && nameById.get(row.createdBy)) || '',
       note: row.note ?? '',
-      docs: docCount.get(row.id) ?? 0,
+      docs:
+        (docCount.get(row.id) ?? 0) +
+        (row.receiptId ? (receiptDocCount.get(row.receiptId) ?? 0) : 0),
       status: row.canceledAt ? 'Đã hủy' : '',
     })
   }
