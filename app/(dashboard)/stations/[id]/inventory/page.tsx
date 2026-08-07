@@ -109,19 +109,39 @@ export default async function StationInventoryPage({
   )
 
   // Signed links for each import's documents so the reviewer can open the
-  // original invoice/weigh-slip photos straight from the list.
+  // originals straight from the list: docs attached to the import itself plus
+  // docs attached to its parent biên bản (receipt) — the biên bản pages (BB)
+  // and the related session photos (HA) uploaded in the wizard's last step.
+  const receiptIds = [...new Set(imports.map((i) => i.receiptId).filter((r): r is string => !!r))]
   const docs = await prisma.fuelImportDocument.findMany({
-    where: { importId: { in: imports.map((i) => i.id) } },
+    where: {
+      OR: [{ importId: { in: imports.map((i) => i.id) } }, { receiptId: { in: receiptIds } }],
+    },
     orderBy: { createdAt: 'asc' },
   })
   const docLinks = new Map<string, { url: string; name: string }[]>()
+  const receiptLinks = new Map<string, { url: string; name: string }[]>()
   for (const doc of docs) {
     const url = await getSignedUrl(doc.storagePath).catch(() => null)
     if (!url) continue
-    const list = docLinks.get(doc.importId) ?? []
-    list.push({ url, name: doc.fileName ?? `CT${list.length + 1}` })
-    docLinks.set(doc.importId, list)
+    if (doc.importId) {
+      const list = docLinks.get(doc.importId) ?? []
+      list.push({ url, name: doc.fileName ?? `CT${list.length + 1}` })
+      docLinks.set(doc.importId, list)
+    } else if (doc.receiptId) {
+      const list = receiptLinks.get(doc.receiptId) ?? []
+      const prefix = doc.kind === 'bien_ban' ? 'BB' : 'HA'
+      list.push({
+        url,
+        name: `${prefix}${list.filter((l) => l.name.startsWith(prefix)).length + 1}`,
+      })
+      receiptLinks.set(doc.receiptId, list)
+    }
   }
+  const linksForImport = (row: (typeof imports)[number]) => [
+    ...(docLinks.get(row.id) ?? []),
+    ...(row.receiptId ? (receiptLinks.get(row.receiptId) ?? []) : []),
+  ]
 
   const canEdit = user.role !== 'viewer'
   const fuelForTank = new Map(tanks.map((t) => [t.code, t.fuelType]))
@@ -263,7 +283,7 @@ export default async function StationInventoryPage({
                   </td>
                   <td className="p-2">{row.invoiceNo ?? '—'}</td>
                   <td className="space-x-2 p-2">
-                    {(docLinks.get(row.id) ?? []).map((doc, index) => (
+                    {linksForImport(row).map((doc, index) => (
                       <a
                         key={index}
                         href={doc.url}

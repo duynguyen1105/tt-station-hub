@@ -108,3 +108,31 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "confidence": 0-100,
   "notes": "describe what the measurement looks like"
 }`
+
+export const BIEN_BAN_PROMPT = `You are reading photo(s) of a Vietnamese fuel-delivery handover report: "BIÊN BẢN GIAO NHẬN XĂNG DẦU". It is a mostly-printed A4 form filled in by hand (sometimes hard handwriting). Layouts vary slightly between stations (labels may sit in a header table or on numbered lines; column order changes), but the sections are always:
+1. Header: company + station name, date (Ngày ... tháng ... năm), NHÂN VIÊN TRẠM (station staff), BÊN VẬN CHUYỂN (driver), PHƯƠNG TIỆN SỐ (tanker plate, e.g. "60H-20450").
+2. Product table "Tên hàng": one COLUMN per product (RON 95, E5 RON 92, DO 0.05S, DO 0.001S...). Rows: "Kho xuất hàng" (source depot, e.g. "SG Petro"), "Số lượng nhập" (liters), "Số phiếu xuất kho tương ứng" (export slip number — keep leading zeros, as a string), "Số niêm chì tương ứng và tình trạng" (seal numbers/condition, verbatim string). Only include columns that have at least one filled cell.
+3. Section a — tanker compartments (Ngăn 1..Ngăn 5 / Xe Bồn): per row "Số lượng (lít)", "Vị trí lưỡi gà" (valve position, e.g. "-2", "+0,5" — keep as string), "Số lít bơm bù lưỡi gà", "Nhiệt độ thực tế hàng trên xe" (°C). Only include compartments with any value.
+4. Section b — vehicle check: "Tình trạng hàng hóa quan sát bằng mắt thường (nước, cặn)" — free text (e.g. "Bình thường").
+5. Section c — station tanks (HẦM): per row a tank label like "HẦM 1 25K" / "HẦM 2 DC", then TRƯỚC NHẬP (before) and SAU NHẬP (after) groups, each with up to: Nhiệt độ (°C), Chiều cao (mm), Số lượng sổ sách (book liters), Số lượng barem (barem liters). Empty cells are null. Be careful to keep before/after on the correct side.
+6. Section d — pumps (Trụ): per row optional pump label (TRỤ 1...), TRƯỚC NHẬP and SAU NHẬP totals: "Total điện tử" (electronic, may have decimals like 82118,87) and "Total cơ" (mechanical, integer). Column order may be Cơ before Điện on some forms — map by the column header, not position.
+7. Section e — Ghi chú (notes) and signatures (ignore signatures).
+
+NUMBER FORMAT (critical): handwriting uses Vietnamese separators. A dot or comma followed by exactly 3 digits is a THOUSANDS separator ("6.000" = 6000 liters, "109,622" = 109622). A comma followed by 1-2 digits is a DECIMAL ("34,5" = 34.5, "141008,78" = 141008.78). Output plain JSON numbers with "." as decimal point and NO thousand separators. If a digit is truly unreadable, use null for that cell — never guess.
+Ignore any timestamp/location watermark overlay on the photo.
+
+Return JSON only:
+{
+  "station_name": "<station name printed in the header>" | null,
+  "receipt_date": "YYYY-MM-DD" | null,
+  "staff_name": "<nhân viên trạm>" | null,
+  "driver_name": "<bên vận chuyển>" | null,
+  "truck_plate": "<phương tiện số>" | null,
+  "products": [{"product_label": "RON 95", "warehouse": "SG Petro" | null, "quantity_liters": 6000 | null, "export_slip_no": "0029151" | null, "seal_no": "F821022 - F821019" | null}],
+  "compartments": [{"compartment_no": 4, "liters": 6000 | null, "valve_position": "-2" | null, "compensation_liters": null, "temperature_c": 38 | null}],
+  "vehicle_check": "<section b free text>" | null,
+  "tanks": [{"tank_label": "HẦM 2 12K", "before": {"temperature_c": null, "height_mm": 645 | null, "book_liters": null, "barem_liters": null}, "after": {"temperature_c": null, "height_mm": 1410 | null, "book_liters": null, "barem_liters": null}}],
+  "pumps": [{"pump_label": "TRỤ 1" | null, "before": {"electronic": 109622 | null, "mechanical": 494071 | null}, "after": {"electronic": 109622 | null, "mechanical": 494071 | null}}],
+  "note": "<section e>" | null,
+  "confidence": 0-100
+}`
