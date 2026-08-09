@@ -1,9 +1,23 @@
 import dayjs from 'dayjs'
 import 'dayjs/locale/vi'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
+import timezone from 'dayjs/plugin/timezone'
+import utc from 'dayjs/plugin/utc'
 
 dayjs.extend(customParseFormat)
+dayjs.extend(utc)
+dayjs.extend(timezone)
 dayjs.locale('vi')
+
+// All dates in the app are Vietnam wall-clock times. Server components render
+// on Vercel in UTC, so formatting without pinning the zone shifted every
+// datetime by -7h (an import at 01/08 06:54 displayed as 31/07).
+const VN_TZ = 'Asia/Ho_Chi_Minh'
+
+/** A dayjs instance pinned to Vietnam time — use for any custom display format. */
+export function vnTime(value: Date | string | number): dayjs.Dayjs {
+  return dayjs(value).tz(VN_TZ)
+}
 
 type Numeric = number | string | null | undefined
 
@@ -40,7 +54,7 @@ export function formatLiters(value: Numeric): string {
  */
 export function formatDateTime(value: Date | string | number | null | undefined): string {
   if (!value) return ''
-  const d = dayjs(value)
+  const d = vnTime(value)
   return d.isValid() ? d.format('DD/MM/YYYY HH:mm') : ''
 }
 
@@ -49,6 +63,6 @@ export function formatDateTime(value: Date | string | number | null | undefined)
  */
 export function formatDate(value: Date | string | number | null | undefined): string {
   if (!value) return ''
-  const d = dayjs(value)
+  const d = vnTime(value)
   return d.isValid() ? d.format('DD/MM/YYYY') : ''
 }
