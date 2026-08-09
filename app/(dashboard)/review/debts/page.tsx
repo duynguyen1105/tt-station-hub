@@ -1,9 +1,8 @@
-import dayjs from 'dayjs'
-
 import { DebtVisitCard } from '@/components/debts/debt-visit-card'
 import { ReviewTabs } from '@/components/review/review-tabs'
 import { requireUser } from '@/lib/auth/session'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
+import { vnTime } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { getSignedUrl } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
@@ -86,7 +85,7 @@ export default async function ReviewDebtsPage() {
                 autoMatched: v.customerId !== null,
                 anomalyReasons: v.anomalyReasons,
                 aiConfidence: v.aiConfidence,
-                visitTime: dayjs(v.visitDate).format('HH:mm · DD/MM'),
+                visitTime: vnTime(v.visitDate).format('HH:mm · DD/MM'),
                 vehiclePhotoUrl: v.vehiclePhotoId ? (urlById.get(v.vehiclePhotoId) ?? null) : null,
                 meterPhotoUrl: v.meterPhotoId ? (urlById.get(v.meterPhotoId) ?? null) : null,
                 customers,

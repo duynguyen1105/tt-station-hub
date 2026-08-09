@@ -451,7 +451,10 @@ export function FuelImportForm({ stationId, tanks }: { stationId: string; tanks:
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
+          // min-w-0: DialogContent is a grid, so without this the wide tank/pump
+          // tables would stretch the whole dialog into one horizontal scroller
+          // instead of scrolling inside their own overflow-x-auto wrappers.
+          <div className="min-w-0 space-y-4">
             <p className="text-muted-foreground text-sm">{vi.imports.checkExtracted}</p>
 
             {/* Header: who handed over to whom, which tanker, when */}
