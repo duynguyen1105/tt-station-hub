@@ -50,6 +50,10 @@ export type BaremRefusal = 'below-minimum' | 'above-maximum' | 'missing-point' |
 
 export type BaremLookup = { ok: true; liters: number } | { ok: false; reason: BaremRefusal }
 
+/** One answer from a batch lookup: the pair asked about, and either its litres
+ *  or the reason there are none. */
+export type BaremLookupResult = { tankCode: string; heightMm: number } & BaremLookup
+
 export type BaremIntake =
   | { fill: true; liters: number }
   | { fill: false; reason: 'no-change' }

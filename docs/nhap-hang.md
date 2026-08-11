@@ -46,7 +46,9 @@ Việt Nam "6.000" / "34,5") và tự điền vào form. Nếu không muốn dù
 - **b. Kiểm tra phương tiện:** tình trạng hàng hóa (nước, cặn).
 - **c. Kiểm tra hầm:** trước/sau nhập (nhiệt độ, chiều cao mm, SL sổ sách, SL
   barem) + cột **"Nhập vào hầm (lít)"** — chính số này được cộng vào tồn kho,
-  mỗi hầm có nhận hàng sinh một phiếu nhập riêng.
+  mỗi hầm có nhận hàng sinh một phiếu nhập riêng. **SL barem và Nhập vào hầm
+  do app tự tra từ Barem của Trường Thịnh**, xem mục *Barem: từ chiều cao ra số
+  lít* bên dưới.
 - **d. Trụ bơm:** total điện tử + cơ trước/sau, kèm cột **chênh lệch tự tính**
   — phải bằng 0 (không bán trong lúc nhập); khác 0 hiện đỏ để soát lại ngay.
 - **e. Ghi chú.**
@@ -60,6 +62,34 @@ soát về sau**. Có thể bấm "Để sau" nếu chưa có hình.
 
 Trong bảng "Nhập hàng gần đây", chứng từ hiện theo nhãn: `BB…` = trang biên
 bản, `HA…` = hình liên quan, `CT…` = chứng từ gắn trực tiếp phiếu (kiểu cũ).
+
+### Barem: từ chiều cao ra số lít (cập nhật 11/08/2026)
+
+Mục (c) không còn lấy số của AI đọc từ chữ viết tay nữa. Với **mỗi chiều cao (mm)**
+trong bảng, app tra **Barem** của chính hầm đó — bảng chuẩn do Trường Thịnh phát
+hành, đã nạp vào database bằng lệnh `pnpm barem:import`:
+
+- **SL barem trước/sau** = số lít Barem ghi cho chiều cao đó (khớp **đúng
+  milimét**, không nội suy). Số AI đọc được trên giấy vẫn giữ nguyên trong
+  `raw_extract`; nếu **lệch ≥ 1 lít** so với Barem thì hiện **đỏ** ngay dưới ô
+  ("Giấy ghi …") để soát lại — chép sai số trong sổ trạm là chuyện có thật.
+- **Nhập vào hầm (lít) = SL barem sau − SL barem trước** — tức số lít **hầm thực
+  nhận**, không phải số nhà cung cấp khai. Số lượng trên phiếu giao của mặt hàng
+  tương ứng hiện **bên cạnh để đối chiếu** ("Phiếu giao …"), giao thiếu là thấy
+  ngay.
+- **Mức hầm không tăng thì không điền gì.** Bằng 0 (hầm không nhận hàng) để trống,
+  không báo lỗi. **Giảm** thì để trống ô và hiện số chênh **màu đỏ** — hầm tụt
+  trong khi chênh lệch trụ bơm (mục d) bằng 0 là bất thường, phải dừng lại xem.
+- **Chiều cao Barem không trả lời được** thì ô để trống kèm lý do tiếng Việt trên
+  dòng: *"Ngoài phạm vi barem"*, *"Không có barem cho chiều cao này"*, *"Chưa có
+  barem cho hầm này"* (trạm chưa nạp Barem cũng rơi vào trường hợp cuối). Biên bản
+  **vẫn lưu được** — kế toán tự gõ số lít.
+- **Sửa chiều cao thì cả dòng tra lại**: hai ô SL barem và ô Nhập vào hầm.
+- Mọi số app điền đều **gõ đè được**. Cái kế toán xác nhận mới là cái được lưu và
+  cộng vào tồn kho; hầm không có số nhập thì không sinh phiếu. Xóa trắng ô thì
+  app điền lại số của Barem — muốn hầm **không** sinh phiếu thì gõ `0`.
+- Số đã lưu là **bản chụp tại thời điểm xác nhận**: nạp lại Barem sau này **không**
+  sửa biên bản cũ.
 
 ### Hủy phiếu
 
@@ -125,6 +155,7 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 | Route                                  | Method | Chức năng                                                       |
 | -------------------------------------- | ------ | --------------------------------------------------------------- |
 | `/api/imports/extract`                 | POST   | AI đọc hình biên bản (`photos`) → JSON điền form (chưa lưu gì)  |
+| `/api/barem/lookup`                    | POST   | Tra một lô (mã hầm, chiều cao mm) → số lít hoặc lý do từ chối   |
 | `/api/imports/receipts`                | POST   | Xác nhận biên bản: lưu receipt + phiếu theo hầm + hình biên bản |
 | `/api/imports/receipts/[id]/documents` | POST   | Bước 3: lưu trữ toàn bộ hình liên quan ca nhập (`photos`)       |
 | `/api/imports`                         | POST   | (Kiểu cũ) tạo phiếu đơn lẻ — vẫn hoạt động                      |
@@ -139,6 +170,10 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
   — đọc đúng cả cột Cơ/Điện đảo thứ tự và số thập phân kiểu `82118,87`).
 - `lib/imports/bien-ban.ts` — types dùng chung + `parseVnNumber` ("6.000"→6000,
   "34,5"→34.5, "141.008,78"→141008.78) + `tankCodeFromLabel` ("HẦM 2 12K"→`HAM_2`).
+- `lib/inventory/barem.ts` — đọc trang tính Barem, tra chiều cao → số lít, quy tắc
+  tính số nhập; `lib/inventory/barem-form.ts` — mục (c) hiển thị gì: ô nào điền số
+  nào, khi nào hiện số trên giấy màu đỏ, lấy số lượng phiếu giao nào để đối chiếu.
+  `scripts/import-barem.ts` (`pnpm barem:import`) nạp Barem + in báo cáo lỗi nguồn.
 - `components/inventory/import-cancel-button.tsx` — nút hủy.
 - `lib/inventory/tank-ledger.ts` — `computeTankFlows`: gom nhập/bán theo hầm
   (bán = delta điện tử của các trụ map vào hầm qua `dispenser.tank_code`;
@@ -146,12 +181,17 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 - Trang: `app/(dashboard)/stations/[id]/inventory/page.tsx` (form + bảng phiếu +
   cột cân đối), `.../shifts/[shiftId]/page.tsx` (nút Nhập hàng).
 - Tests: `tests/tank-ledger.test.ts`, `tests/bien-ban.test.ts` (parse số VN + map nhãn hầm,
-  toàn bộ số liệu lấy từ 2 biên bản thật).
+  toàn bộ số liệu lấy từ 2 biên bản thật), `tests/barem.test.ts` (parse trang tính
+  thật + tra cứu), `tests/barem-form.test.ts` (quy tắc điền mục c).
 
 ## 5. Chưa làm / chờ Trường Thịnh
 
-1. **Bảng barem từng hầm (cm → lít)** — khi có mới so được _số lít_ tồn ước tính với
-   đo que thực tế và bật cảnh báo chênh lệch (hiện số đo que vẫn là số thô).
+1. **Đo que (tank dip) → lít.** Barem đã có và nhập hàng đã dùng (mục *Barem: từ
+   chiều cao ra số lít*), nhưng số đo que vẫn là số thô: chiều cao ở đó do AI đọc
+   từ ảnh que, **định dạng chưa chốt** ("01....500", "05....235") — Trường Thịnh
+   sẽ chụp lại. Quy đổi một con số chưa đọc chắc chắn sẽ đưa tồn thực sai vào sổ,
+   nên tạm dừng ở đây; xong việc đó mới so được tồn ước tính với tồn thực và bật
+   cảnh báo chênh lệch.
 2. **Chốt hệ quy chiếu cân đối: lít thực tế hay V15?** — hiện tồn kho cộng theo
    **lít thực tế**; nếu kế toán muốn theo V15 thì đổi một chỗ trong API tạo phiếu.
 3. Ngưỡng chênh lệch chấp nhận (hao hụt tự nhiên/bay hơi) cho cảnh báo ở mục 1.
