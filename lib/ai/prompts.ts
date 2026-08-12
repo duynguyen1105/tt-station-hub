@@ -109,30 +109,41 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "notes": "describe what the measurement looks like"
 }`
 
-export const BIEN_BAN_PROMPT = `You are reading photo(s) of a Vietnamese fuel-delivery handover report: "BIÊN BẢN GIAO NHẬN XĂNG DẦU". It is a mostly-printed A4 form filled in by hand (sometimes hard handwriting). Layouts vary slightly between stations (labels may sit in a header table or on numbered lines; column order changes), but the sections are always:
-1. Header: company + station name, date (Ngày ... tháng ... năm), NHÂN VIÊN TRẠM (station staff), BÊN VẬN CHUYỂN (driver), PHƯƠNG TIỆN SỐ (tanker plate, e.g. "60H-20450").
-2. Product table "Tên hàng": one COLUMN per product (RON 95, E5 RON 92, DO 0.05S, DO 0.001S...). Rows: "Kho xuất hàng" (source depot, e.g. "SG Petro"), "Số lượng nhập" (liters), "Số phiếu xuất kho tương ứng" (export slip number — keep leading zeros, as a string), "Số niêm chì tương ứng và tình trạng" (seal numbers/condition, verbatim string). Only include columns that have at least one filled cell.
+export const BIEN_BAN_PROMPT = `You are reading photo(s) of a Vietnamese fuel-delivery handover report: "BIÊN BẢN GIAO NHẬN XĂNG DẦU". It is a mostly-printed A4 form filled in by hand (sometimes hard handwriting).
+
+TWO LAYOUTS ARE IN CIRCULATION — read whichever is in front of you, and never convert one into the other:
+- STANDARD form (pre-printed per station, in use now): the goods table has exactly four columns "E0 | EA | DO | DC"; "Số niêm chì" is ONE MERGED cell spanning the whole table; the Hầm and Trụ rows are pre-printed with that station's own tanks and pumps and the word "HẦM" never appears in a row label.
+- OLDER station-specific sheets: free-form goods columns ("RON 95", "E5 RON 92", "DO 0.05S", "DO 0.001S"), one seal cell per goods column, and rows labelled "HẦM 1 25K" / "TRỤ 1".
+
+Sections, in this order:
+1. Header: company + station name (often with the station code in brackets, e.g. "(DAKNONG2)"), date (Ngày ... tháng ... năm), NHÂN VIÊN TRẠM (station staff), BÊN VẬN CHUYỂN (driver), PHƯƠNG TIỆN SỐ (tanker plate, e.g. "60H-20450").
+2. Goods table "Tên hàng": one COLUMN per product. Copy each column header VERBATIM into product_label ("E0", "EA", "DO", "DC" on the standard form; "RON 95", "DO 0.05S"... on an old sheet). Return EVERY column that has at least one filled cell, INCLUDING a column whose header is none of E0/EA/DO/DC. Skip a column with no filled cell at all — on the standard form "EA" is normally empty, and an empty column is correct, not an error.
+   Its rows: "Kho xuất hàng" (source depot, e.g. "SG Petro"), "Số lượng nhập" (liters), "Số phiếu xuất kho tương ứng" (export slip number — keep leading zeros, as a string), "Số niêm chì tương ứng và tình trạng niêm chì" (seal number + condition, verbatim string).
+   THE SEAL ROW: on the standard form it is ONE MERGED cell across all four columns — return that text ONCE as the top-level "seal_no" and leave every product's "seal_no" null. On an old sheet each column has its own seal cell — return each in that product's "seal_no" and leave the top-level "seal_no" null.
 3. Section a — tanker compartments (Ngăn 1..Ngăn 5 / Xe Bồn): per row "Số lượng (lít)", "Vị trí lưỡi gà" (valve position, e.g. "-2", "+0,5" — keep as string), "Số lít bơm bù lưỡi gà", "Nhiệt độ thực tế hàng trên xe" (°C). Only include compartments with any value.
 4. Section b — vehicle check: "Tình trạng hàng hóa quan sát bằng mắt thường (nước, cặn)" — free text (e.g. "Bình thường").
-5. Section c — station tanks (HẦM): per row a tank label like "HẦM 1 25K" / "HẦM 2 DC", then TRƯỚC NHẬP (before) and SAU NHẬP (after) groups, each with up to: Nhiệt độ (°C), Chiều cao (mm), Số lượng sổ sách (book liters), Số lượng barem (barem liters). Empty cells are null. Be careful to keep before/after on the correct side.
-6. Section d — pumps (Trụ): per row optional pump label (TRỤ 1...), TRƯỚC NHẬP and SAU NHẬP totals: "Total điện tử" (electronic, may have decimals like 82118,87) and "Total cơ" (mechanical, integer). Column order may be Cơ before Điện on some forms — map by the column header, not position.
-7. Section e — Ghi chú (notes) and signatures (ignore signatures).
+5. Section c — station tanks, table headed "Hầm": one row per pre-printed tank. TRƯỚC NHẬP (before) and SAU NHẬP (after) groups, each with up to: Nhiệt độ (°C), Chiều cao (mm), Số lượng sổ sách (book liters), Số lượng barem (barem liters). On the standard form the before group prints Nhiệt độ FIRST while the after group prints it LAST, after "Số lượng barem" — map every cell by its column header, not by position, and keep before/after on the correct side. Empty cells are null.
+6. Section d — pumps, table headed "Trụ": one row per pre-printed pump, with TRƯỚC NHẬP and SAU NHẬP totals: "Total điện tử" (electronic, may have decimals like 82118,87) and "Total Cơ" (mechanical, integer). Column order may be Cơ before Điện on some forms — map by the column header, not position.
+7. Section e — Ghi chú (worded "sự cố phát sinh khi nhận" on some forms and "khi nhập" on others — the same field either way) and signatures (ignore signatures).
+
+ROW LABELS (critical, sections c and d): copy the printed label VERBATIM, exactly as it stands, with its number, fuel and capacity and their punctuation and spacing. The standard form prints Hầm rows as "1. DO   10K", or "2.E0 - 12K", or with no number at all as "DC - 9K"; Trụ rows as "1- DO", or with no number as "DO". Old sheets print "HẦM 2 12K" and "TRỤ 1". Do NOT normalise, translate, reorder or tidy a label, do NOT add the word HẦM or TRỤ, and NEVER INVENT A NUMBER for a row that prints none — the system finds the tank from the number, fuel and capacity you copy, and a tidied label makes it unfindable. Return one entry per printed row, in printed top-to-bottom order, even when two rows carry the same label. Include a row that has at least one value filled in; a heading may sit before or after its table, so follow the table itself.
 
 NUMBER FORMAT (critical): handwriting uses Vietnamese separators. A dot or comma followed by exactly 3 digits is a THOUSANDS separator ("6.000" = 6000 liters, "109,622" = 109622). A comma followed by 1-2 digits is a DECIMAL ("34,5" = 34.5, "141008,78" = 141008.78). Output plain JSON numbers with "." as decimal point and NO thousand separators. If a digit is truly unreadable, use null for that cell — never guess.
 Ignore any timestamp/location watermark overlay on the photo.
 
-Return JSON only:
+Return JSON only (example values are placeholders, replace with what you actually see):
 {
   "station_name": "<station name printed in the header>" | null,
   "receipt_date": "YYYY-MM-DD" | null,
   "staff_name": "<nhân viên trạm>" | null,
   "driver_name": "<bên vận chuyển>" | null,
   "truck_plate": "<phương tiện số>" | null,
-  "products": [{"product_label": "RON 95", "warehouse": "SG Petro" | null, "quantity_liters": 6000 | null, "export_slip_no": "0029151" | null, "seal_no": "F821022 - F821019" | null}],
+  "seal_no": "<the merged Số niêm chì cell>" | null,
+  "products": [{"product_label": "E0", "warehouse": "SG Petro" | null, "quantity_liters": 6000 | null, "export_slip_no": "0029151" | null, "seal_no": "F821022 - F821019" | null}],
   "compartments": [{"compartment_no": 4, "liters": 6000 | null, "valve_position": "-2" | null, "compensation_liters": null, "temperature_c": 38 | null}],
   "vehicle_check": "<section b free text>" | null,
-  "tanks": [{"tank_label": "HẦM 2 12K", "before": {"temperature_c": null, "height_mm": 645 | null, "book_liters": null, "barem_liters": null}, "after": {"temperature_c": null, "height_mm": 1410 | null, "book_liters": null, "barem_liters": null}}],
-  "pumps": [{"pump_label": "TRỤ 1" | null, "before": {"electronic": 109622 | null, "mechanical": 494071 | null}, "after": {"electronic": 109622 | null, "mechanical": 494071 | null}}],
+  "tanks": [{"tank_label": "<the row label exactly as printed>", "before": {"temperature_c": null, "height_mm": 645 | null, "book_liters": null, "barem_liters": null}, "after": {"temperature_c": null, "height_mm": 1410 | null, "book_liters": null, "barem_liters": null}}],
+  "pumps": [{"pump_label": "<the row label exactly as printed>" | null, "before": {"electronic": 109622 | null, "mechanical": 494071 | null}, "after": {"electronic": 109622 | null, "mechanical": 494071 | null}}],
   "note": "<section e>" | null,
   "confidence": 0-100
 }`
