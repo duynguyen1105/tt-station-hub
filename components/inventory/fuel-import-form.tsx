@@ -25,7 +25,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { type BienBanExtraction, type TankSideCheck, parseVnNumber } from '@/lib/imports/bien-ban'
-import { type BindingRefusal, type TankRosterEntry } from '@/lib/imports/binding-ladder'
+import {
+  type BindingRefusal,
+  type PumpRosterEntry,
+  type TankRosterEntry,
+} from '@/lib/imports/binding-ladder'
+import {
+  type StationPump,
+  movedLiters,
+  pumpName,
+  reviewPumpRows,
+  tankTaints,
+} from '@/lib/imports/pump-rows'
 import { reviewTankRows } from '@/lib/imports/tank-rows'
 import { type BaremLookup, type BaremLookupResult, type BaremRefusal } from '@/lib/inventory/barem'
 import { deliveryNoteLiters, resolveTankBarem, shownCell } from '@/lib/inventory/barem-form'
@@ -78,6 +89,10 @@ type TankRow = {
 }
 type PumpRow = {
   pumpLabel: string
+  /** Empty on a row the binding ladder could not attribute to a Trụ. */
+  pumpCode: string
+  /** The Hầm a difference on this row taints, where the Trạm configured one. */
+  tankCode: string
   before: { electronic: string; mechanical: string }
   after: { electronic: string; mechanical: string }
 }
@@ -98,6 +113,8 @@ const emptyProduct = (): ProductCol => ({
 })
 const emptyPump = (): PumpRow => ({
   pumpLabel: '',
+  pumpCode: '',
+  tankCode: '',
   before: { electronic: '', mechanical: '' },
   after: { electronic: '', mechanical: '' },
 })
@@ -117,11 +134,42 @@ function tankRowsFromStation(tanks: TankOption[]): TankRow[] {
   }))
 }
 
+/**
+ * Section (d)'s rows: the Trạm's own Trụ, with what the biên bản printed bound
+ * onto them. Seeded even before an extraction, so a Trụ nobody read is an empty
+ * row rather than an absent one — (d) is what proves nothing was sold while the
+ * Hầm were being measured, and a missing row proves nothing while looking as
+ * though it does.
+ */
+function formPumpRows(
+  stationPumps: readonly StationPump[],
+  extracted: BienBanExtraction['pumps'],
+  paperPumps: readonly PumpRosterEntry[]
+): PumpRow[] {
+  const rows = reviewPumpRows(stationPumps, extracted, paperPumps).map((row) => ({
+    pumpLabel: row.pumpLabel,
+    pumpCode: row.pumpCode ?? '',
+    tankCode: row.tankCode ?? '',
+    before: {
+      electronic: cellOf(row.checks?.before.electronic),
+      mechanical: cellOf(row.checks?.before.mechanical),
+    },
+    after: {
+      electronic: cellOf(row.checks?.after.electronic),
+      mechanical: cellOf(row.checks?.after.mechanical),
+    },
+  }))
+  // A Trạm neither the database nor the paper knows still needs a row to type in.
+  return rows.length > 0 ? rows : [emptyPump()]
+}
+
 /** Merges the AI extraction into the form rows (station tanks stay first). */
 function applyExtraction(
   extraction: BienBanExtraction,
   stationTanks: TankOption[],
-  paperTanks: readonly TankRosterEntry[]
+  paperTanks: readonly TankRosterEntry[],
+  stationPumps: readonly StationPump[],
+  paperPumps: readonly PumpRosterEntry[]
 ) {
   const products = extraction.products.map((p) => ({
     productLabel: p.productLabel,
@@ -174,11 +222,7 @@ function applyExtraction(
   // own measurement, barem(after) − barem(before), filled once the heights
   // resolve (ADR 0002). The note's quantity is shown beside it as the comparison.
 
-  const pumps = extraction.pumps.map((p) => ({
-    pumpLabel: cellOf(p.pumpLabel),
-    before: { electronic: cellOf(p.before.electronic), mechanical: cellOf(p.before.mechanical) },
-    after: { electronic: cellOf(p.after.electronic), mechanical: cellOf(p.after.mechanical) },
-  }))
+  const pumps = formPumpRows(stationPumps, extraction.pumps, paperPumps)
 
   return { products, compartments, tanks, pumps }
 }
@@ -188,6 +232,24 @@ function pumpDiff(before: string, after: string): number | null {
   const a = parseVnNumber(after)
   if (b === null || a === null) return null
   return Math.round((a - b) * 100) / 100
+}
+
+/** Both of a row's totaliser differences, put to the rule that decides whether
+ *  the Trụ moved at all. */
+function pumpMovedLiters(p: PumpRow): number | null {
+  return movedLiters(
+    pumpDiff(p.before.electronic, p.after.electronic),
+    pumpDiff(p.before.mechanical, p.after.mechanical)
+  )
+}
+
+/** A row carrying no totaliser at all: a Trụ seeded from the roster that the
+ *  biên bản left blank. It belongs in the review — (d) is the Trạm's own Trụ —
+ *  but not in the saved receipt, which records what the paper said. */
+function pumpWasRead(p: PumpRow): boolean {
+  return [p.before.electronic, p.before.mechanical, p.after.electronic, p.after.mechanical].some(
+    (cell) => cell !== ''
+  )
 }
 
 const cellClass = 'h-8 px-1.5 font-mono text-xs'
@@ -252,12 +314,20 @@ export function FuelImportForm({
   stationId,
   tanks,
   paperTanks,
+  stationPumps,
+  paperPumps,
 }: {
   stationId: string
   tanks: TankOption[]
   /** The Hầm this Trạm's own pre-printed biên bản lists — what the binding
    *  ladder falls back on where the database has no Hầm to check against. */
   paperTanks: readonly TankRosterEntry[]
+  /** The Trạm's Trụ, and the Hầm each draws from — section (d)'s rows, and
+   *  what tells (c) which Hầm a moving Trụ contaminates. */
+  stationPumps: readonly StationPump[]
+  /** The Trụ the pre-printed biên bản lists, for a Trạm with no dispensers
+   *  configured. It says no Hầm, so on its word alone a Trụ taints nothing. */
+  paperPumps: readonly PumpRosterEntry[]
 }) {
   const router = useRouter()
   const bienBanRef = useRef<HTMLInputElement>(null)
@@ -285,7 +355,7 @@ export function FuelImportForm({
     }))
   )
   const [tankRows, setTankRows] = useState<TankRow[]>(tankRowsFromStation(tanks))
-  const [pumps, setPumps] = useState<PumpRow[]>([emptyPump()])
+  const [pumps, setPumps] = useState<PumpRow[]>(() => formPumpRows(stationPumps, [], paperPumps))
   // Every (Hầm, mm) this form has already asked about. Heights repeat between
   // rows and across edits, so the answers are kept rather than re-fetched.
   const [baremCache, setBaremCache] = useState<Map<string, BaremLookup>>(() => new Map())
@@ -340,6 +410,21 @@ export function FuelImportForm({
     return () => clearTimeout(timer)
   }, [needed, stationId])
 
+  // A Trụ that moved was drawing fuel out of its Hầm while that Hầm's height
+  // was being measured, so the measured intake on that (c) row is suspect. Said
+  // where the reviewer is looking — and never as a block on confirming.
+  const taints = useMemo(
+    () =>
+      tankTaints(
+        pumps.map((p) => ({
+          pumpCode: p.pumpCode || null,
+          tankCode: p.tankCode || null,
+          movedLiters: pumpMovedLiters(p),
+        }))
+      ),
+    [pumps]
+  )
+
   // Each row paired with what the Barem says about it, and what the delivery
   // note says beside that.
   const resolvedRows = useMemo(() => {
@@ -388,7 +473,7 @@ export function FuelImportForm({
       }))
     )
     setTankRows(tankRowsFromStation(tanks))
-    setPumps([emptyPump()])
+    setPumps(formPumpRows(stationPumps, [], paperPumps))
     setBaremCache(new Map())
     setLookupFailed(false)
     askedRef.current = new Set()
@@ -418,11 +503,11 @@ export function FuelImportForm({
     }
     const { data } = (await res.json()) as { data: BienBanExtraction }
     setRawExtract(data)
-    const filled = applyExtraction(data, tanks, paperTanks)
+    const filled = applyExtraction(data, tanks, paperTanks, stationPumps, paperPumps)
     setProducts(filled.products.length > 0 ? filled.products : [emptyProduct()])
     setCompartments(filled.compartments)
     setTankRows(filled.tanks)
-    setPumps(filled.pumps.length > 0 ? filled.pumps : [emptyPump()])
+    setPumps(filled.pumps)
     setStaffName(data.staffName ?? '')
     setDriverName(data.driverName ?? '')
     setTruckPlate(data.truckPlate ?? '')
@@ -515,26 +600,21 @@ export function FuelImportForm({
             c.temperatureC !== null
         ),
       tanks: tanksPayload,
-      pumps: pumps
-        .filter(
-          (p) =>
-            p.pumpLabel !== '' ||
-            p.before.electronic !== '' ||
-            p.before.mechanical !== '' ||
-            p.after.electronic !== '' ||
-            p.after.mechanical !== ''
-        )
-        .map((p) => ({
-          pumpLabel: p.pumpLabel || null,
-          before: {
-            electronic: parseVnNumber(p.before.electronic),
-            mechanical: parseVnNumber(p.before.mechanical),
-          },
-          after: {
-            electronic: parseVnNumber(p.after.electronic),
-            mechanical: parseVnNumber(p.after.mechanical),
-          },
-        })),
+      // Section (d) shows every Trụ the Trạm has; the receipt records the ones
+      // the biên bản actually gave a reading for. A seeded row nobody filled in
+      // would otherwise be saved under the app's own name for a Trụ, as though
+      // the paper had named it.
+      pumps: pumps.filter(pumpWasRead).map((p) => ({
+        pumpLabel: p.pumpLabel || null,
+        before: {
+          electronic: parseVnNumber(p.before.electronic),
+          mechanical: parseVnNumber(p.before.mechanical),
+        },
+        after: {
+          electronic: parseVnNumber(p.after.electronic),
+          mechanical: parseVnNumber(p.after.mechanical),
+        },
+      })),
       rawExtract,
     }
 
@@ -798,6 +878,8 @@ export function FuelImportForm({
                   <tbody>
                     {resolvedRows.map(({ row: t, barem, deliveryLiters, asking }, i) => {
                       const intakeCell = shownCell(t.importedLiters, barem.intakeLiters)
+                      // The Trụ that were running while this Hầm was measured.
+                      const taint = t.tankCode ? taints.get(t.tankCode) : undefined
                       const updateSide =
                         (side: 'before' | 'after', key: 'temperatureC' | 'bookLiters') =>
                         (e: ChangeEvent<HTMLInputElement>) =>
@@ -930,6 +1012,7 @@ export function FuelImportForm({
                           {(barem.fellLiters !== null ||
                             barem.reasons.length > 0 ||
                             t.refusal !== null ||
+                            taint !== undefined ||
                             asking) && (
                             <tr>
                               <td></td>
@@ -944,6 +1027,19 @@ export function FuelImportForm({
                                 {barem.fellLiters !== null && (
                                   <span className="text-destructive font-medium">
                                     {vi.imports.baremTankFell} {baremLitersText(barem.fellLiters)} L
+                                  </span>
+                                )}
+                                {/* Fuel left this Hầm while it was being measured
+                                    (mục d) — a cue, never a block on lưu. */}
+                                {taint !== undefined && (
+                                  <span className="text-destructive font-medium">
+                                    {taint
+                                      .map(
+                                        (moved) =>
+                                          `${pumpName(moved.pumpCode)} ${vi.imports.pumpMoved} ${baremLitersText(moved.liters)} L`
+                                      )
+                                      .join(', ')}{' '}
+                                    {vi.imports.pumpTaintsTank}
                                   </span>
                                 )}
                                 {barem.reasons.map((reason) => (

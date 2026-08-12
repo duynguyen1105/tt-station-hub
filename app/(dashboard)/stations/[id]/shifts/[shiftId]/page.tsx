@@ -8,6 +8,7 @@ import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
 import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate, formatLiters } from '@/lib/format'
+import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import {
   type DebtCustomerInput,
@@ -83,6 +84,11 @@ export default async function ShiftDetailPage({
     ...visits.flatMap((v) => [v.vehiclePhotoId, v.meterPhotoId]),
   ])
 
+  // What this Trạm's own pre-printed biên bản lists, and section (d)'s rows with
+  // the Hầm each Trụ draws from — what says which (c) row a moving Trụ taints.
+  const paperRoster = station ? rosterForStation(station.code) : undefined
+  const stationPumps = stationPumpsFromDispensers(dispensers)
+
   const customersById = new Map<string, DebtCustomerInput>(
     customerRows.map((c) => [c.id, { name: c.name, misaCode: c.misaCode }])
   )
@@ -149,7 +155,9 @@ export default async function ShiftDetailPage({
             <FuelImportForm
               stationId={shift.stationId}
               tanks={buildTankOptionsFromDispensers(dispensers)}
-              paperTanks={station ? (rosterForStation(station.code)?.tanks ?? []) : []}
+              paperTanks={paperRoster?.tanks ?? []}
+              stationPumps={stationPumps}
+              paperPumps={paperRoster?.pumps ?? []}
             />
           )}
           {/* Chốt ca follows canReviewShift; a viewer never sees the control. */}

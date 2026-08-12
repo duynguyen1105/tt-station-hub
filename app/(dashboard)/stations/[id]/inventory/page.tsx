@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate, formatLiters } from '@/lib/format'
+import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
@@ -148,9 +149,12 @@ export default async function StationInventoryPage({
     ...(row.receiptId ? (receiptLinks.get(row.receiptId) ?? []) : []),
   ]
 
-  // The Hầm this Trạm's own pre-printed biên bản lists — resolved here rather
-  // than in the form, so the 13 rosters stay out of the browser bundle.
-  const paperTanks = station ? (rosterForStation(station.code)?.tanks ?? []) : []
+  // The Hầm and Trụ this Trạm's own pre-printed biên bản lists — resolved here
+  // rather than in the form, so the 13 rosters stay out of the browser bundle.
+  const paperRoster = station ? rosterForStation(station.code) : undefined
+  // Section (d)'s rows, and the Hầm each Trụ draws from — what says which (c)
+  // row a moving Trụ contaminates.
+  const stationPumps = stationPumpsFromDispensers(dispensers)
 
   const canEdit = user.role !== 'viewer'
   const fuelForTank = new Map(tanks.map((t) => [t.code, t.fuelType]))
@@ -160,7 +164,15 @@ export default async function StationInventoryPage({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-muted-foreground text-sm font-medium">{vi.inventory.title}</h2>
         <div className="flex gap-2">
-          {canEdit && <FuelImportForm stationId={id} tanks={tanks} paperTanks={paperTanks} />}
+          {canEdit && (
+            <FuelImportForm
+              stationId={id}
+              tanks={tanks}
+              paperTanks={paperRoster?.tanks ?? []}
+              stationPumps={stationPumps}
+              paperPumps={paperRoster?.pumps ?? []}
+            />
+          )}
           <MovementForm stationId={id} />
         </div>
       </div>
