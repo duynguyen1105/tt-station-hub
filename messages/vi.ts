@@ -350,6 +350,12 @@ export const vi = {
     baremTankFell: 'Mức hầm giảm',
     baremResolving: 'Đang tra barem...',
     baremLookupFailed: 'Không tra được barem lúc này — vui lòng nhập tay',
+    // Why a row on the biên bản could not be bound to a Hầm (ADR 0004). Unbound
+    // is not an error: the biên bản still saves, the row simply gets no Barem
+    // lookup and no phiếu nhập.
+    bindingDuplicateNumber: 'Số hầm trùng trên biên bản',
+    bindingRosterMismatch: 'Nhiên liệu / dung tích không khớp cấu hình hầm',
+    bindingUnidentified: 'Không xác định được hầm',
     deliveryNote: 'Phiếu giao',
     pumpsTitle: 'd. Tình trạng trụ bơm',
     pump: 'Trụ',
