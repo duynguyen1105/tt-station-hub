@@ -15,7 +15,7 @@ pnpm install
 pnpm exec prisma generate     # generates the typed client into lib/generated/prisma
 pnpm type-check               # tsc --noEmit       ✅ passes
 pnpm lint                     # eslint             ✅ passes
-pnpm test                     # vitest (343 tests) ✅ passes
+pnpm test                     # vitest (359 tests) ✅ passes
 pnpm build                    # next build         ✅ passes
 pnpm dev                      # http://localhost:3000
 ```
@@ -93,6 +93,13 @@ station-specific sheets keep working alongside it — not a cutover.
 - Section (d)'s rows are the **trạm's own Trụ**, so a Trụ the AI missed is an
   empty row rather than an absent one; a Trụ that moved during the delivery
   warns on the (c) row of the Hầm it draws from — a cue, never a block.
+- The header names the trạm the form belongs to, so a biên bản photographed on
+  **another trạm's** page is **refused at step 1** — no review form, no receipt,
+  and `/api/imports/receipts` refuses it too (ADR 0006,
+  `lib/imports/station-on-paper.ts`). The one hard block in this flow: elsewhere
+  the app has failed to work something out, here the paper says it belongs
+  somewhere else. It fires only on a confident identification — an old sheet with
+  no printed code changes nothing — and manual entry stays open deliberately.
 - The goods table is the standard **`E0 / EA / DO / DC`**, an empty column books
   nothing, and `Số niêm chì` is **one seal per biên bản** (`seal_no`). `EA` is E5
   — deliberately unmapped, since no trạm stocks it. Receipts saved under the old
@@ -125,12 +132,13 @@ All screens built (no 404s) — see §7.
 - Docs: `docs/local-development.md`, Vietnamese guides (`huong-dan-ke-toan`,
   `huong-dan-nhan-vien-tram`, `huong-dan-zalo-oa`).
 
-### Tests (343, all passing)
+### Tests (359, all passing)
 
 format, AI extraction + fixtures, anti-truncation, anomaly rules, photo matching,
 visit pairing, stock, **shift-sales**, expiry, debt aging, Zalo classify/parse/signature,
 and the **nhập hàng** chain: Barem parse + lookup, section (c) fill rules, the binding
-ladder, the (c)/(d) rows, the printed rosters, and the standard goods table.
+ladder, the (c)/(d) rows, the printed rosters, the standard goods table, and which
+trạm the biên bản header names.
 
 ---
 

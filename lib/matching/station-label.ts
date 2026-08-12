@@ -17,7 +17,7 @@ export function normalizeStationLabel(value: string): string {
 }
 
 /** Also collapse zero-padded numbers ("NGANHA01" -> "NGANHA1") for label variants. */
-function stripZeroPadding(normalized: string): string {
+export function stripZeroPadding(normalized: string): string {
   return normalized.replace(/0+(\d)/g, '$1')
 }
 

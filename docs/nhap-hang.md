@@ -96,6 +96,42 @@ mẫu in sẵn, 13 mẫu (`docs/BB GIAONHANXD/`). Khác tờ cũ ở 4 chỗ:
 Biên bản **đã lưu trước đây giữ nguyên**: niêm chì theo từng cột, cột hàng tự do
 — app không viết lại dữ liệu cũ.
 
+### Biên bản của trạm khác thì không nhập được (cập nhật 12/08/2026)
+
+Biên bản chuẩn in sẵn tên trạm ở đầu tờ, kèm mã trong ngoặc:
+`CỬA HÀNG BÁN LẺ XĂNG DẦU TRƯỜNG THỊNH SỐ 2 (DAKNONG2)`. Trạm đang nhập thì lấy
+theo trang web đang mở, nên chụp nhầm tờ biên bản của trạm khác là app sẽ khớp
+các dòng mục (c) vào **hầm của trạm này** — trạm kế bên cũng bán đúng loại nhiên
+liệu đó với dung tích na ná, nên dòng nào cũng khớp trót lọt và tồn kho của **cả
+hai trạm** cùng sai, không báo gì cả.
+
+Nên sau khi bấm **"Đọc biên bản (AI)"**, app đối chiếu tên trạm in trên giấy với
+trạm đang nhập. Không khớp thì **dừng luôn ở bước 1**, không dựng form rà soát:
+
+```
+⛔ Biên bản này không phải của trạm này
+   Giấy ghi:    Trạm Đăk Nông 2 (DAKNONG2)
+   Đang nhập cho: Trạm Đăk Nông 1 (DAKNONG1)
+   Chọn lại hình biên bản, hoặc mở trang Tồn kho của đúng trạm đó
+   để nhập biên bản này.
+```
+
+Đây là **chỗ duy nhất trong luồng nhập hàng chặn hẳn**, không phải cảnh báo
+(ADR 0006). Các chỗ khác — dòng không khớp hầm, không tra được barem, trụ chạy —
+đều là "app chưa tính ra được", và giấy vẫn lưu. Còn cái này thì chính tờ giấy
+khai nó thuộc trạm khác: nhập ở đây không có cách hiểu nào là đúng, mà mở trang
+Tồn kho của đúng trạm đó rồi nhập lại thì chẳng mất gì.
+
+**Chỉ chặn khi chắc chắn.** Giấy kiểu cũ không in mã trạm, AI đọc không ra đầu
+tờ, hay trạm chưa có trong danh sách nào cả → app **không nói gì**, nhập bình
+thường. Danh sách trạm đem đối chiếu gồm cả **13 mã in trên biên bản chuẩn**
+(`lib/imports/station-rosters.ts`), nên tờ của một trạm chưa cấu hình trong
+database vẫn bị nhận ra là "không phải trạm này".
+
+**Nút "Bỏ qua AI, nhập tay" vẫn dùng được** sau khi bị chặn — cố ý để vậy. Gõ tay
+lại từng ô là đủ mệt để không ai lách bằng đường đó, và nó bảo đảm một lần AI đọc
+sai đầu tờ không bao giờ khóa mất một chuyến hàng đã về thật.
+
 ### Dòng trên giấy thuộc hầm nào (cập nhật 12/08/2026)
 
 Biên bản chuẩn ghi hầm là `1. DO 10K`, `2.E0 - 12K`, LAMDONG02 thì chỉ `DC - 9K`
@@ -229,7 +265,7 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 
 | Route                                  | Method | Chức năng                                                       |
 | -------------------------------------- | ------ | --------------------------------------------------------------- |
-| `/api/imports/extract`                 | POST   | AI đọc hình biên bản (`photos`) → JSON điền form (chưa lưu gì)  |
+| `/api/imports/extract`                 | POST   | AI đọc hình biên bản (`photos` + `stationId`) → JSON điền form + kết quả đối chiếu trạm (chưa lưu gì) |
 | `/api/barem/lookup`                    | POST   | Tra một lô (mã hầm, chiều cao mm) → số lít hoặc lý do từ chối   |
 | `/api/imports/receipts`                | POST   | Xác nhận biên bản: lưu receipt + phiếu theo hầm + hình biên bản |
 | `/api/imports/receipts/[id]/documents` | POST   | Bước 3: lưu trữ toàn bộ hình liên quan ca nhập (`photos`)       |
@@ -255,6 +291,11 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 - `lib/imports/goods-columns.ts` — đầu biên bản chuẩn: 4 cột `E0/EA/DO/DC` in sẵn
   (cột giấy kiểu cũ xếp sau), cột trống thì không lưu thành mặt hàng, và một số
   niêm chì cho cả biên bản (giấy cũ ghi theo cột thì gộp lại).
+- `lib/imports/station-on-paper.ts` — đầu tờ biên bản khai trạm nào: khớp trạm
+  đang nhập, khớp một trạm khác (chặn, ADR 0006), hay không đủ căn cứ. Thuần túy,
+  không đọc database — phần đọc database nằm ở `lib/imports/station-check.ts`,
+  dùng chung cho `/api/imports/extract` và `/api/imports/receipts`. Dùng lại
+  `normalizeStationLabel` của `lib/matching/station-label.ts`.
 - `lib/imports/station-rosters.ts` — danh sách hầm/trụ in sẵn trên 13 mẫu biên bản
   chuẩn (`docs/BB GIAONHANXD/`), chép tay đúng như in: số hầm suy ra theo thứ tự
   dòng có cờ `inferred`, HTGDONGNAI giữ nguyên hai hầm cùng ghi `3.`, và mã lấy
@@ -276,6 +317,7 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
   toàn bộ số liệu lấy từ 2 biên bản thật), `tests/barem.test.ts` (parse trang tính
   thật + tra cứu), `tests/barem-form.test.ts` (quy tắc điền mục c),
   `tests/binding-ladder.test.ts` + `tests/tank-rows.test.ts` (khớp nhãn giấy về hầm),
+  `tests/station-on-paper.test.ts` (đầu tờ khai trạm nào),
   `tests/pump-rows.test.ts` (dòng mục d + cảnh báo trụ chạy),
   `tests/goods-columns.test.ts` (4 cột chuẩn + ô niêm chì gộp).
 

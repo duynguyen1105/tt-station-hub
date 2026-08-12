@@ -6,6 +6,7 @@ import { type ChangeEvent, Fragment, useEffect, useMemo, useRef, useState } from
 
 import { useRouter } from 'next/navigation'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -44,6 +45,7 @@ import {
   reviewPumpRows,
   tankTaints,
 } from '@/lib/imports/pump-rows'
+import { type StationMismatch, type StationOnPaper } from '@/lib/imports/station-on-paper'
 import { reviewTankRows } from '@/lib/imports/tank-rows'
 import { type BaremLookup, type BaremLookupResult, type BaremRefusal } from '@/lib/inventory/barem'
 import { deliveryNoteLiters, resolveTankBarem, shownCell } from '@/lib/inventory/barem-form'
@@ -285,6 +287,12 @@ function bindingText(reason: BindingRefusal): string {
   return vi.imports.bindingUnidentified
 }
 
+/** How the mismatch alert names a Trạm. A Trạm known only from the printed
+ *  rosters has no name, so the code stands alone rather than in brackets. */
+function stationLabel(name: string | null, code: string): string {
+  return name ? `${name} (${code})` : code
+}
+
 /** Litres beside a cell, grouped and without forced decimals — the Barem deals
  *  in whole litres, so `formatLiters`' fixed "12,358.00" would only add noise. */
 function baremLitersText(liters: number): string {
@@ -325,6 +333,10 @@ export function FuelImportForm({
   const [bienBanFiles, setBienBanFiles] = useState<File[]>([])
   const [rawExtract, setRawExtract] = useState<BienBanExtraction | null>(null)
   const [receiptId, setReceiptId] = useState<string | null>(null)
+  // Set when the header names another Trạm (ADR 0006). While it is set the
+  // wizard stays on step 1: nothing of the extraction is applied and no review
+  // form is built, because those rows would be bound against this Trạm's Hầm.
+  const [stationMismatch, setStationMismatch] = useState<StationMismatch | null>(null)
 
   const [importedAt, setImportedAt] = useState('')
   const [staffName, setStaffName] = useState('')
@@ -444,6 +456,7 @@ export function FuelImportForm({
     setStep(1)
     setBienBanFiles([])
     setRawExtract(null)
+    setStationMismatch(null)
     setReceiptId(null)
     setImportedAt('')
     setStaffName('')
@@ -480,8 +493,10 @@ export function FuelImportForm({
       return
     }
     setBienBanFiles(files)
+    setStationMismatch(null)
     const form = new FormData()
     for (const file of files) form.append('photos', file)
+    form.append('stationId', stationId)
     setBusy(true)
     const res = await fetch('/api/imports/extract', { method: 'POST', body: form })
     setBusy(false)
@@ -490,25 +505,37 @@ export function FuelImportForm({
       toast.error(data?.error ?? vi.imports.readFailed)
       return
     }
-    const { data } = (await res.json()) as { data: BienBanExtraction }
-    setRawExtract(data)
-    const filled = applyExtraction(data, tanks, paperTanks, stationPumps, paperPumps)
+    const { data } = (await res.json()) as {
+      data: { extraction: BienBanExtraction; stationCheck: StationOnPaper }
+    }
+    // The paper says it belongs to another Trạm. Stop here rather than pre-fill
+    // a review form whose (c) rows would be bound against this Trạm's Hầm.
+    if (data.stationCheck.verdict === 'mismatch') {
+      setStationMismatch(data.stationCheck)
+      return
+    }
+    const extraction = data.extraction
+    setRawExtract(extraction)
+    const filled = applyExtraction(extraction, tanks, paperTanks, stationPumps, paperPumps)
     setProducts(filled.products)
     setCompartments(filled.compartments)
     setTankRows(filled.tanks)
     setPumps(filled.pumps)
     // One box, however the sheet recorded it: the standard form's merged cell,
     // or an old sheet's per-column seals collapsed into it.
-    setSealNo(bienBanSeal(data))
-    setStaffName(data.staffName ?? '')
-    setDriverName(data.driverName ?? '')
-    setTruckPlate(data.truckPlate ?? '')
-    setVehicleCheck(data.vehicleCheck ?? '')
-    setNote(data.note ?? '')
-    if (data.receiptDate) setImportedAt(`${data.receiptDate}T00:00`)
+    setSealNo(bienBanSeal(extraction))
+    setStaffName(extraction.staffName ?? '')
+    setDriverName(extraction.driverName ?? '')
+    setTruckPlate(extraction.truckPlate ?? '')
+    setVehicleCheck(extraction.vehicleCheck ?? '')
+    setNote(extraction.note ?? '')
+    if (extraction.receiptDate) setImportedAt(`${extraction.receiptDate}T00:00`)
     setStep(2)
   }
 
+  // Deliberately not gated on a refusal (ADR 0006): typing every cell by hand is
+  // friction enough that nobody reaches for it to dodge the check, and it keeps
+  // a misread header from ever trapping a delivery that really happened.
   function manualEntry() {
     setBienBanFiles([...(bienBanRef.current?.files ?? [])])
     setStep(2)
@@ -675,7 +702,34 @@ export function FuelImportForm({
         {step === 1 && (
           <div className="space-y-3">
             <p className="text-muted-foreground text-sm">{vi.imports.uploadBienBanHint}</p>
-            <Input ref={bienBanRef} type="file" multiple accept="image/*" />
+            <Input
+              ref={bienBanRef}
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={() => setStationMismatch(null)}
+            />
+            {stationMismatch && (
+              <Alert variant="destructive">
+                <AlertTitle>{vi.imports.stationMismatchTitle}</AlertTitle>
+                <AlertDescription className="space-y-1">
+                  <div>
+                    {vi.imports.stationMismatchPaper}:{' '}
+                    {stationLabel(stationMismatch.paperName, stationMismatch.paperCode)}
+                  </div>
+                  <div>
+                    {vi.imports.stationMismatchCurrent}:{' '}
+                    {stationLabel(stationMismatch.currentName, stationMismatch.currentCode)}
+                  </div>
+                  {/* The header verbatim. There is no override, so a misread has
+                      to be visible rather than leave the reviewer guessing. */}
+                  <div className="text-muted-foreground pt-1 text-xs">
+                    {vi.imports.stationMismatchRead}: “{stationMismatch.paperLabel}”
+                  </div>
+                  <div>{vi.imports.stationMismatchHint}</div>
+                </AlertDescription>
+              </Alert>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={manualEntry} disabled={busy}>
                 {vi.imports.manualEntry}
