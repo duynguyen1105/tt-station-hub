@@ -63,6 +63,28 @@ soát về sau**. Có thể bấm "Để sau" nếu chưa có hình.
 Trong bảng "Nhập hàng gần đây", chứng từ hiện theo nhãn: `BB…` = trang biên
 bản, `HA…` = hình liên quan, `CT…` = chứng từ gắn trực tiếp phiếu (kiểu cũ).
 
+### Dòng trên giấy thuộc hầm nào (cập nhật 12/08/2026)
+
+Biên bản chuẩn ghi hầm là `1. DO 10K`, `2.E0 - 12K`, LAMDONG02 thì chỉ `DC - 9K`
+— **không còn chữ HẦM**. Mỗi dòng mục (c) được **thang khớp hầm** (ADR 0004,
+`lib/imports/binding-ladder.ts`) gán vào một hầm: theo số in trên dòng, hoặc theo
+nhiên liệu + dung tích khi giấy không đánh số. Danh sách hầm để đối chiếu là
+**database** khi trạm đã cấu hình, và **danh sách in trên giấy**
+(`lib/imports/station-rosters.ts`) khi chưa — hàng về trạm chưa cấu hình vẫn khớp
+được.
+
+- **Khớp được** → đúng dòng của hầm đó: tra Barem, điền SL barem và Nhập vào hầm,
+  xác nhận thì sinh phiếu nhập và tồn kho tăng.
+- **Không khớp được** → dòng vẫn giữ nguyên chiều cao, nhiệt độ, SL sổ sách và
+  hiện lý do tiếng Việt: *"Số hầm trùng trên biên bản"* (hai hầm cùng ghi `3.` như
+  HTGDONGNAI), *"Nhiên liệu / dung tích không khớp cấu hình hầm"*, *"Không xác
+  định được hầm"*. Dòng đó **không tra Barem, không sinh phiếu nhập** — nhưng
+  **biên bản vẫn lưu được**: giấy là chứng từ pháp lý, một dòng chưa quy được về
+  hầm không được chặn cả chuyến hàng.
+
+Nhãn hầm hiển thị đúng như in trên giấy và **không sửa được trong form** — sửa
+nhãn không phải việc của kế toán; sửa chiều cao thì dòng tra lại.
+
 ### Barem: từ chiều cao ra số lít (cập nhật 11/08/2026)
 
 Mục (c) không còn lấy số của AI đọc từ chữ viết tay nữa. Với **mỗi chiều cao (mm)**
@@ -169,7 +191,12 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
   biên bản; đã kiểm chứng trên 2 mẫu thật (Nguyên Vượng viết tay, Phúc Tiến bản in
   — đọc đúng cả cột Cơ/Điện đảo thứ tự và số thập phân kiểu `82118,87`).
 - `lib/imports/bien-ban.ts` — types dùng chung + `parseVnNumber` ("6.000"→6000,
-  "34,5"→34.5, "141.008,78"→141008.78) + `tankCodeFromLabel` ("HẦM 2 12K"→`HAM_2`).
+  "34,5"→34.5, "141.008,78"→141008.78) + `tankCodeFromLabel` ("HẦM 2 12K"→`HAM_2`,
+  nay chỉ còn dùng cho tiêu đề cột trang tính Barem).
+- `lib/imports/binding-ladder.ts` — thang khớp một nhãn trên giấy về hầm/trụ, hoặc
+  ra **lý do** không khớp được (ADR 0004); `lib/imports/tank-rows.ts` — ghép kết
+  quả đó vào các dòng mục (c): hầm của trạm trước, dòng nào không khớp thì giữ
+  nguyên số đo kèm lý do.
 - `lib/imports/station-rosters.ts` — danh sách hầm/trụ in sẵn trên 13 mẫu biên bản
   chuẩn (`docs/BB GIAONHANXD/`), chép tay đúng như in: số hầm suy ra theo thứ tự
   dòng có cờ `inferred`, HTGDONGNAI giữ nguyên hai hầm cùng ghi `3.`, và mã lấy
@@ -189,12 +216,13 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
   cột cân đối), `.../shifts/[shiftId]/page.tsx` (nút Nhập hàng).
 - Tests: `tests/tank-ledger.test.ts`, `tests/bien-ban.test.ts` (parse số VN + map nhãn hầm,
   toàn bộ số liệu lấy từ 2 biên bản thật), `tests/barem.test.ts` (parse trang tính
-  thật + tra cứu), `tests/barem-form.test.ts` (quy tắc điền mục c).
+  thật + tra cứu), `tests/barem-form.test.ts` (quy tắc điền mục c),
+  `tests/binding-ladder.test.ts` + `tests/tank-rows.test.ts` (khớp nhãn giấy về hầm).
 
 ## 5. Chưa làm / chờ Trường Thịnh
 
-1. **Đo que (tank dip) → lít.** Barem đã có và nhập hàng đã dùng (mục *Barem: từ
-   chiều cao ra số lít*), nhưng số đo que vẫn là số thô: chiều cao ở đó do AI đọc
+1. **Đo que (tank dip) → lít.** Barem đã có và nhập hàng đã dùng (mục _Barem: từ
+   chiều cao ra số lít_), nhưng số đo que vẫn là số thô: chiều cao ở đó do AI đọc
    từ ảnh que, **định dạng chưa chốt** ("01....500", "05....235") — Trường Thịnh
    sẽ chụp lại. Quy đổi một con số chưa đọc chắc chắn sẽ đưa tồn thực sai vào sổ,
    nên tạm dừng ở đây; xong việc đó mới so được tồn ước tính với tồn thực và bật

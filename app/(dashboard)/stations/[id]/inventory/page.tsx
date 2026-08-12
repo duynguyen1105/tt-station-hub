@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate, formatLiters } from '@/lib/format'
+import { rosterForStation } from '@/lib/imports/station-rosters'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
@@ -35,6 +36,7 @@ function buildTankOptions(
       code: d.tankCode,
       label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${fuelTypeLabel(d.fuelType)}${cap}`,
       fuelType: d.fuelType,
+      capacityK: d.tankCapacityK,
     })
   }
   for (const t of dipTanks) {
@@ -43,6 +45,8 @@ function buildTankOptions(
       code: t.tankCode,
       label: `${t.tankCode.replace('HAM_', 'Hầm ')}${t.fuelType ? ` — ${fuelTypeLabel(t.fuelType)}` : ''}`,
       fuelType: t.fuelType,
+      // A Hầm seen only through its dips: nothing says how big it is.
+      capacityK: null,
     })
   }
   return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
@@ -56,7 +60,8 @@ export default async function StationInventoryPage({
   const user = await requireUser()
   const { id } = await params
   const today = todayShiftDate()
-  const [balances, dips, dispensers, imports] = await Promise.all([
+  const [station, balances, dips, dispensers, imports] = await Promise.all([
+    prisma.station.findUnique({ where: { id }, select: { code: true } }),
     prisma.inventoryBalance.findMany({
       where: { stationId: id },
       orderBy: { fuelType: 'asc' },
@@ -143,6 +148,10 @@ export default async function StationInventoryPage({
     ...(row.receiptId ? (receiptLinks.get(row.receiptId) ?? []) : []),
   ]
 
+  // The Hầm this Trạm's own pre-printed biên bản lists — resolved here rather
+  // than in the form, so the 13 rosters stay out of the browser bundle.
+  const paperTanks = station ? (rosterForStation(station.code)?.tanks ?? []) : []
+
   const canEdit = user.role !== 'viewer'
   const fuelForTank = new Map(tanks.map((t) => [t.code, t.fuelType]))
 
@@ -151,7 +160,7 @@ export default async function StationInventoryPage({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-muted-foreground text-sm font-medium">{vi.inventory.title}</h2>
         <div className="flex gap-2">
-          {canEdit && <FuelImportForm stationId={id} tanks={tanks} />}
+          {canEdit && <FuelImportForm stationId={id} tanks={tanks} paperTanks={paperTanks} />}
           <MovementForm stationId={id} />
         </div>
       </div>

@@ -8,6 +8,7 @@ import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
 import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { formatDate, formatLiters } from '@/lib/format'
+import { rosterForStation } from '@/lib/imports/station-rosters'
 import {
   type DebtCustomerInput,
   buildDebtsList,
@@ -34,6 +35,7 @@ function buildTankOptionsFromDispensers(
       code: d.tankCode,
       label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${d.fuelType}${cap}`,
       fuelType: d.fuelType,
+      capacityK: d.tankCapacityK,
     })
   }
   return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
@@ -50,7 +52,8 @@ export default async function ShiftDetailPage({
   const shift = await prisma.shift.findUnique({ where: { id: shiftId } })
   if (!shift) notFound()
 
-  const [readings, dispensers, visits] = await Promise.all([
+  const [station, readings, dispensers, visits] = await Promise.all([
+    prisma.station.findUnique({ where: { id: shift.stationId }, select: { code: true } }),
     prisma.shiftReading.findMany({ where: { shiftId } }),
     prisma.dispenser.findMany({
       where: { stationId: shift.stationId, isActive: true },
@@ -146,6 +149,7 @@ export default async function ShiftDetailPage({
             <FuelImportForm
               stationId={shift.stationId}
               tanks={buildTankOptionsFromDispensers(dispensers)}
+              paperTanks={station ? (rosterForStation(station.code)?.tanks ?? []) : []}
             />
           )}
           {/* Chốt ca follows canReviewShift; a viewer never sees the control. */}
