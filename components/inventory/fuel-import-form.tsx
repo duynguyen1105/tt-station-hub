@@ -664,7 +664,7 @@ export function FuelImportForm({
       <DialogTrigger asChild>
         <Button size="sm">{vi.imports.addButton}</Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>
             {vi.imports.bienBanTitle}
