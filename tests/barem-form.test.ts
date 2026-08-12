@@ -106,11 +106,19 @@ describe('resolveTankBarem', () => {
 describe('fuelTypeFromProductLabel', () => {
   it('reads the product columns the biên bản actually carries', () => {
     expect(fuelTypeFromProductLabel('RON 95')).toBe('XANG_A95')
-    expect(fuelTypeFromProductLabel('E5 RON 92')).toBe('E0')
+    expect(fuelTypeFromProductLabel('E0')).toBe('E0')
     expect(fuelTypeFromProductLabel('DO 0,05S-V')).toBe('DO')
     expect(fuelTypeFromProductLabel('Dầu DC')).toBe('DC')
     expect(fuelTypeFromProductLabel('URE')).toBe('URE')
     expect(fuelTypeFromProductLabel('Xăng')).toBe('XANG_A95')
+  })
+
+  it('does not read E5 petrol as E0 — EA is the E5 column, a fuel it does not model', () => {
+    expect(fuelTypeFromProductLabel('E5 RON 92')).toBeNull()
+    expect(fuelTypeFromProductLabel('E5')).toBeNull()
+    expect(fuelTypeFromProductLabel('RON 92')).toBeNull()
+    expect(fuelTypeFromProductLabel('EA')).toBeNull()
+    expect(fuelTypeFromProductLabel('Xăng E5 RON 92')).toBeNull()
   })
 
   it('answers nothing for a column that names no fuel it knows', () => {
@@ -145,6 +153,10 @@ describe('deliveryNoteLiters', () => {
   it('has nothing to compare when no column names that fuel', () => {
     expect(deliveryNoteLiters(products, 'URE')).toBeNull()
     expect(deliveryNoteLiters(products, null)).toBeNull()
+    // An E5 delivery is not the E0 Hầm's, so the E0 row is offered no comparison.
+    expect(
+      deliveryNoteLiters([{ productLabel: 'E5 RON 92', quantityLiters: 6000 }], 'E0')
+    ).toBeNull()
     expect(
       deliveryNoteLiters([{ productLabel: 'Hàng hóa', quantityLiters: 6000 }], 'DO')
     ).toBeNull()
