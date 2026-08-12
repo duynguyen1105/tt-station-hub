@@ -2,17 +2,14 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import 'dotenv/config'
 
 import { PrismaClient } from '../lib/generated/prisma/client'
-import { type BaremSheet, parseBaremSheet } from '../lib/inventory/barem'
+import { type BaremSheet } from '../lib/inventory/barem'
+import { fetchBaremSheet } from '../lib/inventory/barem-fetch'
 import {
   type BaremStationOutcome,
   compareBaremToDispensers,
   formatBaremReport,
 } from '../lib/inventory/barem-report'
-import {
-  BAREM_SHEETS,
-  type BaremSheetBinding,
-  baremSheetCsvUrl,
-} from '../lib/inventory/barem-sheets'
+import { BAREM_SHEETS, type BaremSheetBinding } from '../lib/inventory/barem-sheets'
 
 // Imports Trường Thịnh's Barem spreadsheet into the app's own database, and
 // prints the defect report that goes back to them (ADR 0003).
@@ -46,16 +43,12 @@ type StationNames = { stationCode: string; stationName: string; tab: string }
 type MappedStation = StationNames & { id: string }
 
 async function readSheet(binding: BaremSheetBinding): Promise<BaremSheet> {
-  const response = await fetch(baremSheetCsvUrl(binding.gid))
-  if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`)
-  // An unshared or deleted tab answers 200 with Google's sign-in page.
-  const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.includes('csv')) {
-    throw new Error(`trang tính không trả về CSV (content-type: ${contentType})`)
-  }
+  // The same read the lookup does, so "the sheet could not be read" means one
+  // thing across the app.
+  const read = await fetchBaremSheet(binding)
+  if (!read.ok) throw new Error(read.error)
 
-  const sheet = parseBaremSheet(await response.text())
-  if (sheet.tanks.length === 0) throw new Error('không đọc được Hầm nào trong trang tính')
+  const sheet = read.sheet
   // Every point in all 12 sheets is a whole litre, and barem_points stores an
   // integer. Rounding a fractional value in would make the app a second,
   // different Barem (ADR 0003), so this sheet stops instead and keeps the Barem

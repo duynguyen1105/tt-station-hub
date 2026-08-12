@@ -349,7 +349,9 @@ export const vi = {
     baremOnPaper: 'Giấy ghi',
     baremTankFell: 'Mức hầm giảm',
     baremResolving: 'Đang tra barem...',
-    baremLookupFailed: 'Không tra được barem lúc này — vui lòng nhập tay',
+    // The trang tính is named because the fix belongs to the admin, not to this
+    // Hầm — and nothing here suggests waiting it out (ADR 0005).
+    baremLookupFailed: 'Không đọc được trang tính barem — nhập tay và báo quản trị viên',
     // Why a row on the biên bản could not be bound to a Hầm (ADR 0004). Unbound
     // is not an error: the biên bản still saves, the row simply gets no Barem
     // lookup and no phiếu nhập.

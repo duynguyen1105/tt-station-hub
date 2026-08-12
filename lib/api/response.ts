@@ -25,3 +25,7 @@ export function forbidden() {
 export function notFound() {
   return NextResponse.json({ error: vi.errors.notFound }, { status: 404 })
 }
+
+export function serverError() {
+  return NextResponse.json({ error: vi.errors.generic }, { status: 500 })
+}

@@ -48,7 +48,12 @@ import {
 import { type StationMismatch, type StationOnPaper } from '@/lib/imports/station-on-paper'
 import { reviewTankRows } from '@/lib/imports/tank-rows'
 import { type BaremLookup, type BaremLookupResult, type BaremRefusal } from '@/lib/inventory/barem'
-import { deliveryNoteLiters, resolveTankBarem, shownCell } from '@/lib/inventory/barem-form'
+import {
+  deliveryNoteLiters,
+  resolveTankBarem,
+  savedCell,
+  shownCell,
+} from '@/lib/inventory/barem-form'
 import { vi } from '@/messages/vi'
 
 export type TankOption = {
@@ -554,18 +559,18 @@ export function FuelImportForm({
         tankLabel: t.tankLabel || t.tankCode || '—',
         tankCode: t.tankCode || null,
         fuelType: t.fuelType || null,
-        importedLiters: parseVnNumber(shownCell(t.importedLiters, barem.intakeLiters)),
+        importedLiters: savedCell(t.importedLiters, barem.intakeLiters),
         before: {
           temperatureC: parseVnNumber(t.before.temperatureC),
           heightMm: parseVnNumber(t.before.heightMm),
           bookLiters: parseVnNumber(t.before.bookLiters),
-          baremLiters: parseVnNumber(shownCell(t.before.baremLiters, barem.baremBefore)),
+          baremLiters: savedCell(t.before.baremLiters, barem.baremBefore),
         },
         after: {
           temperatureC: parseVnNumber(t.after.temperatureC),
           heightMm: parseVnNumber(t.after.heightMm),
           bookLiters: parseVnNumber(t.after.bookLiters),
-          baremLiters: parseVnNumber(shownCell(t.after.baremLiters, barem.baremAfter)),
+          baremLiters: savedCell(t.after.baremLiters, barem.baremAfter),
         },
       }
     })

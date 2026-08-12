@@ -2,10 +2,12 @@ import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
 
-import { badRequest, forbidden, ok, unauthorized } from '@/lib/api/response'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api/response'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { type BaremLookupResult, lookupBaremLiters } from '@/lib/inventory/barem'
+import { fetchBaremSheet } from '@/lib/inventory/barem-fetch'
+import { baremSheetFor } from '@/lib/inventory/barem-sheets'
 import { prisma } from '@/lib/prisma'
 
 /** One review form holds a handful of Hầm, before and after — never more. The
@@ -29,10 +31,15 @@ const bodySchema = z.object({
 })
 
 /**
- * Resolves a batch of (Hầm, chiều cao) pairs against a Trạm's stored Barem —
- * the litres, or the reason there are none. A Trạm with no Barem and a Hầm the
- * sheet does not have answer the same way ("unknown-tank"), so the form has one
- * failure path to explain rather than four.
+ * Resolves a batch of (Hầm, chiều cao) pairs against Trường Thịnh's Barem
+ * spreadsheet — the litres, or the reason there are none. The sheet is read
+ * live, on every request and with nothing cached (ADR 0005), so an admin's
+ * correction applies to the very next height typed. One tab covers every Hầm at
+ * the Trạm, so the whole batch costs one fetch.
+ *
+ * A Trạm with no Barem and a Hầm the sheet does not have answer the same way
+ * ("unknown-tank"), so the form has one failure path to explain rather than
+ * four.
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
@@ -43,38 +50,35 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
   const { stationId, heights } = parsed.data
 
-  const tankCodes = [...new Set(heights.map((h) => h.tankCode))]
-  const [tanks, points] = await Promise.all([
-    prisma.baremTank.findMany({
-      where: { stationId, tankCode: { in: tankCodes } },
-      select: { tankCode: true, minHeightMm: true, maxHeightMm: true },
-    }),
-    // Only the points actually asked about: the range check comes from the
-    // tank's own metadata, so nothing else needs to leave the database.
-    prisma.baremPoint.findMany({
-      where: {
-        OR: heights.map((h) => ({ stationId, tankCode: h.tankCode, heightMm: h.heightMm })),
-      },
-      select: { tankCode: true, heightMm: true, liters: true },
-    }),
-  ])
+  const station = await prisma.station.findUnique({
+    where: { id: stationId },
+    select: { code: true },
+  })
+  // An unmapped Trạm answers exactly as an unknown Hầm does — the safe failure
+  // it gave before this endpoint read the sheet — rather than as a sheet that
+  // could not be read.
+  const binding = baremSheetFor(station?.code)
+  if (!binding) return ok(refuseAll(heights))
 
-  const columns = new Map(
-    tanks.map((tank) => [
-      tank.tankCode,
-      {
-        minHeightMm: tank.minHeightMm,
-        maxHeightMm: tank.maxHeightMm,
-        points: new Map<number, number>(),
-      },
-    ])
-  )
-  for (const point of points) columns.get(point.tankCode)?.points.set(point.heightMm, point.liters)
+  const read = await fetchBaremSheet(binding)
+  if (!read.ok) {
+    // Unreadable takes out every Hầm at the Trạm at once, so the endpoint fails
+    // rather than inventing a per-row reason. The form turns this into its
+    // "enter by hand" banner and forgets the batch, so a corrected height asks
+    // again and a transient failure clears itself.
+    console.error(`barem: ${binding.tab} — ${read.error}`)
+    return serverError()
+  }
 
+  const columns = new Map(read.sheet.tanks.map((tank) => [tank.tankCode, tank]))
   const results: BaremLookupResult[] = heights.map((h) => ({
     tankCode: h.tankCode,
     heightMm: h.heightMm,
     ...lookupBaremLiters(columns.get(h.tankCode), h.heightMm),
   }))
   return ok(results)
+}
+
+function refuseAll(heights: { tankCode: string; heightMm: number }[]): BaremLookupResult[] {
+  return heights.map((h) => ({ ...h, ok: false, reason: 'unknown-tank' }))
 }
