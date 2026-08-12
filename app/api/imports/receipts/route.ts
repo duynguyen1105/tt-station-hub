@@ -39,6 +39,12 @@ const payloadSchema = z.object({
   truckPlate: optionalText,
   vehicleCheck: optionalText,
   note: optionalText,
+  // The standard form's merged "Số niêm chì" cell — one seal for the biên bản.
+  // A receipt saved before it existed keeps its per-column seals in products.
+  sealNo: optionalText,
+  // No seal per column: the standard form records one for the whole biên bản
+  // (sealNo above). Receipts stored before it did keep theirs in this JSON, and
+  // are never rewritten.
   products: z
     .array(
       z.object({
@@ -46,7 +52,6 @@ const payloadSchema = z.object({
         warehouse: optionalText,
         quantityLiters: nullableNumber,
         exportSlipNo: optionalText,
-        sealNo: optionalText,
       })
     )
     .default([]),
@@ -141,6 +146,7 @@ export async function POST(req: NextRequest) {
         truckPlate: data.truckPlate,
         vehicleCheck: data.vehicleCheck,
         note: data.note,
+        sealNo: data.sealNo,
         products: data.products,
         compartments: data.compartments,
         tankChecks: data.tanks,
