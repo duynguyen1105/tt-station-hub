@@ -170,6 +170,13 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
   — đọc đúng cả cột Cơ/Điện đảo thứ tự và số thập phân kiểu `82118,87`).
 - `lib/imports/bien-ban.ts` — types dùng chung + `parseVnNumber` ("6.000"→6000,
   "34,5"→34.5, "141.008,78"→141008.78) + `tankCodeFromLabel` ("HẦM 2 12K"→`HAM_2`).
+- `lib/imports/station-rosters.ts` — danh sách hầm/trụ in sẵn trên 13 mẫu biên bản
+  chuẩn (`docs/BB GIAONHANXD/`), chép tay đúng như in: số hầm suy ra theo thứ tự
+  dòng có cờ `inferred`, HTGDONGNAI giữ nguyên hai hầm cùng ghi `3.`, và mã lấy
+  theo giấy chứ không theo tên file (DAKNONG4 → `DAKNONGVK`). Không đọc database.
+  `lib/imports/roster-check.ts` + `scripts/check-rosters.ts` (`pnpm roster:check`)
+  đối chiếu danh sách đó với `dispensers` + hầm chỉ thấy qua số đo, in báo cáo và
+  **không sửa bên nào** (ADR 0003).
 - `lib/inventory/barem.ts` — đọc trang tính Barem, tra chiều cao → số lít, quy tắc
   tính số nhập; `lib/inventory/barem-form.ts` — mục (c) hiển thị gì: ô nào điền số
   nào, khi nào hiện số trên giấy màu đỏ, lấy số lượng phiếu giao nào để đối chiếu.
