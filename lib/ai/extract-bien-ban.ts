@@ -38,6 +38,9 @@ const rawSchema = z.object({
   truck_plate: str,
   vehicle_check: str,
   note: str,
+  // The standard form's merged "Số niêm chì" cell — one seal for the biên bản.
+  // Old sheets leave it null and fill the per-product seal instead.
+  seal_no: str,
   confidence: num,
   products: z
     .array(
@@ -97,7 +100,16 @@ export async function extractBienBan(
     // The full form is dense: 4 sections of tables can exceed the default budget.
     maxTokens: 4096,
   })
-  const raw = rawSchema.parse(parseJsonFromText(text))
+  return normalizeBienBan(parseJsonFromText(text))
+}
+
+/**
+ * Turns one model response into the extraction the review form speaks. Row
+ * labels pass through untouched — resolving `2.E0 - 12K` to a Hầm is the binding
+ * ladder's job, and the fuel and capacity it vetoes with only survive verbatim.
+ */
+export function normalizeBienBan(response: unknown): BienBanExtraction {
+  const raw = rawSchema.parse(response)
 
   return {
     stationName: raw.station_name,
@@ -107,6 +119,7 @@ export async function extractBienBan(
     truckPlate: raw.truck_plate,
     vehicleCheck: raw.vehicle_check,
     note: raw.note,
+    sealNo: raw.seal_no,
     confidence: raw.confidence ?? 0,
     products: raw.products
       .filter((p) => p.product_label !== null)

@@ -1,0 +1,64 @@
+{
+  "station_name": "Nguyên Vượng",
+  "receipt_date": "2025-07-14",
+  "staff_name": null,
+  "driver_name": null,
+  "truck_plate": "60H-20450",
+  "products": [
+    {
+      "product_label": "RON 95",
+      "warehouse": "SG Petro",
+      "quantity_liters": "6.000",
+      "export_slip_no": "0029151",
+      "seal_no": "F821022 - F821019"
+    },
+    {
+      "product_label": "DO 0.05S",
+      "warehouse": "SG Petro",
+      "quantity_liters": "4.000",
+      "export_slip_no": "0029152",
+      "seal_no": "F821020"
+    }
+  ],
+  "compartments": [
+    {
+      "compartment_no": 4,
+      "liters": "6.000",
+      "valve_position": "-2",
+      "compensation_liters": null,
+      "temperature_c": 38
+    }
+  ],
+  "vehicle_check": "Bình thường",
+  "tanks": [
+    {
+      "tank_label": "HẦM 2 12K",
+      "before": {
+        "temperature_c": null,
+        "height_mm": 645,
+        "book_liters": null,
+        "barem_liters": null
+      },
+      "after": {
+        "temperature_c": null,
+        "height_mm": 1410,
+        "book_liters": null,
+        "barem_liters": null
+      }
+    }
+  ],
+  "pumps": [
+    {
+      "pump_label": "TRỤ 1",
+      "before": { "electronic": "109,622", "mechanical": "494,071" },
+      "after": { "electronic": "109,745", "mechanical": "494,194" }
+    },
+    {
+      "pump_label": "TRỤ 2",
+      "before": { "electronic": "226,760", "mechanical": "1.037.500" },
+      "after": { "electronic": "226,884", "mechanical": "1.037.624" }
+    }
+  ],
+  "note": null,
+  "confidence": 88
+}

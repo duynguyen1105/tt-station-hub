@@ -52,6 +52,10 @@ export type BienBanExtraction = {
   truckPlate: string | null
   vehicleCheck: string | null
   note: string | null
+  /** The standard form's "Số niêm chì" is one merged cell across the whole goods
+   *  table — one seal record per biên bản. Null on an old sheet, which prints a
+   *  seal cell per product column instead (`ReceiptProduct.sealNo`). */
+  sealNo: string | null
   products: ReceiptProduct[]
   compartments: ReceiptCompartment[]
   tanks: ReceiptTankCheck[]
@@ -125,6 +129,7 @@ export function emptyExtraction(): BienBanExtraction {
     truckPlate: null,
     vehicleCheck: null,
     note: null,
+    sealNo: null,
     products: [],
     compartments: [],
     tanks: [],

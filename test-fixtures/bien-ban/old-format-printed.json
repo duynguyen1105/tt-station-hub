@@ -1,0 +1,87 @@
+{
+  "station_name": "Phúc Tiến",
+  "receipt_date": "2025-07-21",
+  "staff_name": null,
+  "driver_name": null,
+  "truck_plate": "60H-20450",
+  "products": [
+    {
+      "product_label": "DO 0.05S",
+      "warehouse": "SG Petro",
+      "quantity_liters": "6.000",
+      "export_slip_no": "0029301",
+      "seal_no": "F821101 - F821104"
+    }
+  ],
+  "compartments": [
+    {
+      "compartment_no": 1,
+      "liters": "6.000",
+      "valve_position": "+0,5",
+      "compensation_liters": null,
+      "temperature_c": "34,5"
+    }
+  ],
+  "vehicle_check": "Bình thường",
+  "tanks": [
+    {
+      "tank_label": "HẦM 1 XA",
+      "before": {
+        "temperature_c": "34,5",
+        "height_mm": 645,
+        "book_liters": null,
+        "barem_liters": "141.008,78"
+      },
+      "after": {
+        "temperature_c": "35,5",
+        "height_mm": 1410,
+        "book_liters": null,
+        "barem_liters": "259.799,74"
+      }
+    },
+    {
+      "tank_label": "HẦM 2 DC",
+      "before": {
+        "temperature_c": null,
+        "height_mm": null,
+        "book_liters": null,
+        "barem_liters": null
+      },
+      "after": {
+        "temperature_c": null,
+        "height_mm": null,
+        "book_liters": null,
+        "barem_liters": null
+      }
+    },
+    {
+      "tank_label": "HẦM 3 DO",
+      "before": {
+        "temperature_c": null,
+        "height_mm": null,
+        "book_liters": null,
+        "barem_liters": null
+      },
+      "after": {
+        "temperature_c": null,
+        "height_mm": null,
+        "book_liters": null,
+        "barem_liters": null
+      }
+    }
+  ],
+  "pumps": [
+    {
+      "pump_label": "TRỤ 1",
+      "before": { "electronic": "82118,87", "mechanical": 407455 },
+      "after": { "electronic": "82130,50", "mechanical": 407467 }
+    },
+    {
+      "pump_label": "TRỤ 4",
+      "before": { "electronic": "407455,70", "mechanical": 259799 },
+      "after": { "electronic": "407460,20", "mechanical": 259804 }
+    }
+  ],
+  "note": null,
+  "confidence": 95
+}

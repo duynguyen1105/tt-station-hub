@@ -16,6 +16,29 @@ changes. Chosen for what each one proves:
 
 The defects are in the source document and are **never repaired** (ADR 0003).
 
+## `bien-ban/`
+
+Two model responses in the **old free-form shape** — the one the AI read before
+Trường Thịnh issued the standard biên bản. They pin that shape through
+`normalizeBienBan` (`tests/extract-bien-ban.test.ts`), so teaching the prompt the
+standard form cannot quietly change how an old sheet reads.
+
+- **`old-format-handwritten.json`** — the Nguyên Vượng layout: thousands
+  separators throughout (`6.000`, `109,622`, `1.037.500`), `HẦM n nnK` tank rows,
+  `TRỤ n` pump rows, a seal per goods column.
+- **`old-format-printed.json`** — the Phúc Tiến layout: decimal comma
+  (`82118,87`, `141008,78`, `259.799,74`), fuel-suffix tank labels
+  (`HẦM 1 XA`), a `+0,5` valve position.
+
+Every side and column carries a different number, so a before/after or Điện/Cơ
+swap fails the test instead of passing on equal values.
+
+> The cell formats and label shapes are the ones recorded from the two verified
+> samples (`tests/bien-ban.test.ts`, `docs/nhap-hang.md`). Which row each value
+> sat on is **not** transcribed, and these are not a recording of a live vision
+> run — no photograph of a filled _standard_ form exists yet, so nothing here
+> says anything about extraction accuracy on the new paper.
+
 ## `sample-photos/`
 
 Drop the 13 real ĐAKNONG 1 sample photos here, named by their index
