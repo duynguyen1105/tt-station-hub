@@ -40,17 +40,28 @@ Việt Nam "6.000" / "34,5") và tự điền vào form. Nếu không muốn dù
 **Bước 2 — Rà soát.** Form được dựng **theo đúng bố cục biên bản** để dò từng ô:
 
 - **Đầu phiếu:** ngày giờ nhập, nhân viên trạm, bên vận chuyển (tài xế), xe bồn.
-- **Hàng nhập:** mỗi mặt hàng một cột — kho xuất, số lượng, số phiếu xuất kho,
-  số niêm chì (giống bảng "Tên hàng" trên giấy).
+- **Hàng nhập:** đúng **4 cột in sẵn `E0 · EA · DO · DC`** của biên bản chuẩn —
+  kho xuất, số lượng, số phiếu xuất kho. Cột nào chuyến này không có hàng thì để
+  trống (EA hiện chưa trạm nào bán); **một trong 4 cột chuẩn mà bỏ trống thì
+  không sinh gì cả** — không lưu mặt hàng, không đem đối chiếu với hầm nào (4
+  tiêu đề đó do app in ra nên app tự bỏ được). Giấy kiểu cũ ghi cột khác
+  ("RON 95", "DO 0.05S") thì cột đó hiện **thêm** vào sau 4 cột chuẩn, và
+  **luôn được lưu** — chữ do người rà soát đọc từ giấy thì không tự ý bỏ.
+- **Số niêm chì & tình trạng:** **một ô cho cả biên bản** — đúng như ô gộp trên
+  giấy chuẩn, không còn mỗi cột một ô. Giấy kiểu cũ ghi niêm chì theo từng cột
+  thì các số đó được gộp vào ô này để rà soát.
 - **a. Ngăn xe bồn 1-5:** số lít, vị trí lưỡi gà, lít bơm bù, nhiệt độ trên xe.
 - **b. Kiểm tra phương tiện:** tình trạng hàng hóa (nước, cặn).
 - **c. Kiểm tra hầm:** trước/sau nhập (nhiệt độ, chiều cao mm, SL sổ sách, SL
   barem) + cột **"Nhập vào hầm (lít)"** — chính số này được cộng vào tồn kho,
   mỗi hầm có nhận hàng sinh một phiếu nhập riêng. **SL barem và Nhập vào hầm
   do app tự tra từ Barem của Trường Thịnh**, xem mục *Barem: từ chiều cao ra số
-  lít* bên dưới.
-- **d. Trụ bơm:** total điện tử + cơ trước/sau, kèm cột **chênh lệch tự tính**
-  — phải bằng 0 (không bán trong lúc nhập); khác 0 hiện đỏ để soát lại ngay.
+  lít* bên dưới. Dòng nào thuộc hầm nào: xem *Dòng trên giấy thuộc hầm nào*.
+- **d. Trụ bơm:** **mỗi trụ của trạm một dòng** (kể cả trụ AI đọc không ra —
+  dòng trống vẫn hiện, vì thiếu một dòng là mất luôn bằng chứng trụ đó đứng yên),
+  total điện tử + cơ trước/sau, kèm cột **chênh lệch tự tính** — phải bằng 0
+  (không bán trong lúc nhập); khác 0 hiện đỏ để soát lại ngay, **và báo lên đúng
+  dòng hầm ở mục (c)** mà trụ đó hút, xem *Trụ chạy thì số đo hầm đáng ngờ*.
 - **e. Ghi chú.**
 
 Sửa chỗ AI đọc chưa đúng rồi bấm **"Xác nhận & lưu phiếu"** → biên bản + các
@@ -62,6 +73,28 @@ soát về sau**. Có thể bấm "Để sau" nếu chưa có hình.
 
 Trong bảng "Nhập hàng gần đây", chứng từ hiện theo nhãn: `BB…` = trang biên
 bản, `HA…` = hình liên quan, `CT…` = chứng từ gắn trực tiếp phiếu (kiểu cũ).
+
+### Biên bản chuẩn (cập nhật 12/08/2026)
+
+Trường Thịnh đã phát hành **BIÊN BẢN GIAO NHẬN XĂNG DẦU chuẩn**, mỗi trạm một
+mẫu in sẵn, 13 mẫu (`docs/BB GIAONHANXD/`). Khác tờ cũ ở 4 chỗ:
+
+- **Bảng hàng nhập cố định 4 cột `E0 · EA · DO · DC`** thay vì cột tự do
+  ("RON 95", "E5 RON 92", "DO 0.05S"). `EA` là **xăng E5** — chưa trạm nào bán,
+  cột in sẵn cho sau này, để trống là đúng. App **không** quy `EA`/`E5` về `E0`:
+  hai loại xăng khác nhau, quy nhầm là ghi hàng vào sai hầm.
+- **`Số niêm chì` là một ô gộp** cho cả bảng — một số niêm chì cho cả biên bản.
+- **Danh sách hầm và trụ của chính trạm đó được in sẵn.** Hầm ghi kiểu
+  `1. DO 10K`, `2.E0 - 12K`, LAMDONG02 thì chỉ `DC - 9K`; trụ ghi `1- DO`, hoặc
+  chỉ `DO`. **Chữ HẦM và TRỤ không còn xuất hiện trong nhãn dòng.**
+- Câu ghi chú và vị trí tiêu đề "Tình trạng trụ bơm" mỗi mẫu một khác — chỉ là
+  hình thức, AI không bám vào đó.
+
+**Giấy kiểu cũ vẫn dùng được**: AI vẫn đọc, và thang khớp hầm vẫn nhận dạng
+`HẦM 2 12K`. Trạm còn tồn tờ cũ trong ngăn kéo cứ nhập bình thường.
+
+Biên bản **đã lưu trước đây giữ nguyên**: niêm chì theo từng cột, cột hàng tự do
+— app không viết lại dữ liệu cũ.
 
 ### Dòng trên giấy thuộc hầm nào (cập nhật 12/08/2026)
 
@@ -84,6 +117,24 @@ nhiên liệu + dung tích khi giấy không đánh số. Danh sách hầm để
 
 Nhãn hầm hiển thị đúng như in trên giấy và **không sửa được trong form** — sửa
 nhãn không phải việc của kế toán; sửa chiều cao thì dòng tra lại.
+
+### Trụ chạy thì số đo hầm đáng ngờ (cập nhật 12/08/2026)
+
+Mục (d) có mặt để chứng minh **không bán gì trong lúc nhập**. Vì vậy các dòng của
+mục (d) là **trụ của trạm** (lấy từ `dispensers`, hoặc từ danh sách in trên giấy
+khi trạm chưa cấu hình), không phải chỉ những trụ AI đọc ra: trụ nào AI bỏ sót
+vẫn hiện thành **dòng trống** để nhân viên điền, chứ không biến mất.
+
+`dispensers.tank_code` cho biết mỗi trụ hút từ hầm nào. Nên khi một trụ có chênh
+lệch khác 0, app báo ngay **trên dòng hầm đó ở mục (c)**: *"Trụ 2 chạy 12 L trong
+lúc nhập — số đo hầm này có thể sai"*. Nghĩa là trong lúc đo chiều cao thì xăng
+dầu vẫn đang ra khỏi hầm, nên **số "Nhập vào hầm" của dòng đó không đáng tin**.
+
+Đây là **cảnh báo, không phải khóa**: biên bản vẫn xác nhận và lưu được, vẫn sinh
+phiếu nhập. Giấy là chứng từ pháp lý, người ký mới là người quyết định — app chỉ
+có trách nhiệm nói ra điều nó thấy. Trạm chưa cấu hình trụ trong database thì
+không biết trụ hút hầm nào, nên chỉ hiện chênh lệch đỏ ở mục (d), không gán vào
+hầm nào cả.
 
 ### Barem: từ chiều cao ra số lít (cập nhật 11/08/2026)
 
@@ -158,9 +209,11 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 ### Dữ liệu
 
 - **`fuel_import_receipts`** — mỗi biên bản giao nhận: trạm, ngày, nhân viên,
-  tài xế, xe bồn, và 4 mục a-d dạng JSON đúng như đã rà soát (`products`,
-  `compartments`, `tank_checks`, `pump_checks`) + `raw_extract` (kết quả AI
-  nguyên bản, để sau này đối chiếu "AI đọc gì" vs "người dùng xác nhận gì").
+  tài xế, xe bồn, `seal_no` (ô niêm chì gộp của biên bản chuẩn), và 4 mục a-d
+  dạng JSON đúng như đã rà soát (`products`, `compartments`, `tank_checks`,
+  `pump_checks`) + `raw_extract` (kết quả AI nguyên bản, để sau này đối chiếu
+  "AI đọc gì" vs "người dùng xác nhận gì"). Biên bản lưu trước khi có `seal_no`
+  giữ niêm chì trong `products` từng cột — **không migrate, không viết lại**.
 - **`fuel_imports`** — mỗi phiếu = hàng vào 1 hầm: trạm, mã hầm (`HAM_x`),
   loại nhiên liệu, lít thực tế, lít V15, nhiệt độ, NCC, số hóa đơn, xe bồn, ghi chú,
   ngày giờ, người tạo, dấu hủy (`canceled_at/by`), và `receipt_id` khi phiếu
@@ -196,7 +249,12 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 - `lib/imports/binding-ladder.ts` — thang khớp một nhãn trên giấy về hầm/trụ, hoặc
   ra **lý do** không khớp được (ADR 0004); `lib/imports/tank-rows.ts` — ghép kết
   quả đó vào các dòng mục (c): hầm của trạm trước, dòng nào không khớp thì giữ
-  nguyên số đo kèm lý do.
+  nguyên số đo kèm lý do; `lib/imports/pump-rows.ts` — các dòng mục (d) (trụ của
+  trạm, kể cả trụ AI không đọc ra) và `tankTaints`: trụ nào chạy thì dòng hầm nào
+  ở mục (c) bị nghi ngờ.
+- `lib/imports/goods-columns.ts` — đầu biên bản chuẩn: 4 cột `E0/EA/DO/DC` in sẵn
+  (cột giấy kiểu cũ xếp sau), cột trống thì không lưu thành mặt hàng, và một số
+  niêm chì cho cả biên bản (giấy cũ ghi theo cột thì gộp lại).
 - `lib/imports/station-rosters.ts` — danh sách hầm/trụ in sẵn trên 13 mẫu biên bản
   chuẩn (`docs/BB GIAONHANXD/`), chép tay đúng như in: số hầm suy ra theo thứ tự
   dòng có cờ `inferred`, HTGDONGNAI giữ nguyên hai hầm cùng ghi `3.`, và mã lấy
@@ -217,7 +275,9 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 - Tests: `tests/tank-ledger.test.ts`, `tests/bien-ban.test.ts` (parse số VN + map nhãn hầm,
   toàn bộ số liệu lấy từ 2 biên bản thật), `tests/barem.test.ts` (parse trang tính
   thật + tra cứu), `tests/barem-form.test.ts` (quy tắc điền mục c),
-  `tests/binding-ladder.test.ts` + `tests/tank-rows.test.ts` (khớp nhãn giấy về hầm).
+  `tests/binding-ladder.test.ts` + `tests/tank-rows.test.ts` (khớp nhãn giấy về hầm),
+  `tests/pump-rows.test.ts` (dòng mục d + cảnh báo trụ chạy),
+  `tests/goods-columns.test.ts` (4 cột chuẩn + ô niêm chì gộp).
 
 ## 5. Chưa làm / chờ Trường Thịnh
 
@@ -231,3 +291,9 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
    **lít thực tế**; nếu kế toán muốn theo V15 thì đổi một chỗ trong API tạo phiếu.
 3. Ngưỡng chênh lệch chấp nhận (hao hụt tự nhiên/bay hơi) cho cảnh báo ở mục 1.
 4. AI đọc tự động nội dung hóa đơn — ngoài phạm vi, làm sau nếu cần.
+5. **Lỗi trên chính mẫu biên bản chuẩn** — chép nguyên như in, không tự sửa
+   (ADR 0003), chờ Trường Thịnh trả lời: HTGDONGNAI đánh **hai hầm cùng số `3.`**
+   (dòng thứ hai không khớp được hầm nào, không sinh phiếu nhập — đoán bừa một
+   trong hai hầm còn tệ hơn); LAMDONG02 **không đánh số hầm**, app suy theo thứ
+   tự dòng in và cần xác nhận; file `BBGIAONHANXD_DAKNONG4.docx` mang mã
+   `(DAKNONGVK)` — app lấy mã trên giấy. `pnpm roster:check` in đủ các lỗi này.

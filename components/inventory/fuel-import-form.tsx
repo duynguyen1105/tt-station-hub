@@ -31,6 +31,13 @@ import {
   type TankRosterEntry,
 } from '@/lib/imports/binding-ladder'
 import {
+  type GoodsColumn,
+  bienBanSeal,
+  emptyGoodsColumn,
+  goodsColumnRecorded,
+  goodsColumns,
+} from '@/lib/imports/goods-columns'
+import {
   type StationPump,
   movedLiters,
   pumpName,
@@ -54,13 +61,6 @@ const fuelOptions = Object.entries(vi.fuelType)
 
 // Every cell is a free-text string while editing (mirrors the paper form);
 // numbers are parsed once on confirm.
-type ProductCol = {
-  productLabel: string
-  warehouse: string
-  quantityLiters: string
-  exportSlipNo: string
-  sealNo: string
-}
 type CompartmentRow = {
   liters: string
   valvePosition: string
@@ -103,13 +103,6 @@ const emptySide = (): SideCells => ({
   bookLiters: '',
   baremLiters: '',
   paperBaremLiters: null,
-})
-const emptyProduct = (): ProductCol => ({
-  productLabel: '',
-  warehouse: '',
-  quantityLiters: '',
-  exportSlipNo: '',
-  sealNo: '',
 })
 const emptyPump = (): PumpRow => ({
   pumpLabel: '',
@@ -171,13 +164,7 @@ function applyExtraction(
   stationPumps: readonly StationPump[],
   paperPumps: readonly PumpRosterEntry[]
 ) {
-  const products = extraction.products.map((p) => ({
-    productLabel: p.productLabel,
-    warehouse: cellOf(p.warehouse),
-    quantityLiters: cellOf(p.quantityLiters),
-    exportSlipNo: cellOf(p.exportSlipNo),
-    sealNo: cellOf(p.sealNo),
-  }))
+  const products = goodsColumns(extraction.products)
 
   const compartments: CompartmentRow[] = Array.from({ length: 5 }, () => ({
     liters: '',
@@ -345,7 +332,8 @@ export function FuelImportForm({
   const [truckPlate, setTruckPlate] = useState('')
   const [vehicleCheck, setVehicleCheck] = useState('')
   const [note, setNote] = useState('')
-  const [products, setProducts] = useState<ProductCol[]>([emptyProduct()])
+  const [sealNo, setSealNo] = useState('')
+  const [products, setProducts] = useState<GoodsColumn[]>(() => goodsColumns([]))
   const [compartments, setCompartments] = useState<CompartmentRow[]>(
     Array.from({ length: 5 }, () => ({
       liters: '',
@@ -463,7 +451,8 @@ export function FuelImportForm({
     setTruckPlate('')
     setVehicleCheck('')
     setNote('')
-    setProducts([emptyProduct()])
+    setSealNo('')
+    setProducts(goodsColumns([]))
     setCompartments(
       Array.from({ length: 5 }, () => ({
         liters: '',
@@ -504,10 +493,13 @@ export function FuelImportForm({
     const { data } = (await res.json()) as { data: BienBanExtraction }
     setRawExtract(data)
     const filled = applyExtraction(data, tanks, paperTanks, stationPumps, paperPumps)
-    setProducts(filled.products.length > 0 ? filled.products : [emptyProduct()])
+    setProducts(filled.products)
     setCompartments(filled.compartments)
     setTankRows(filled.tanks)
     setPumps(filled.pumps)
+    // One box, however the sheet recorded it: the standard form's merged cell,
+    // or an old sheet's per-column seals collapsed into it.
+    setSealNo(bienBanSeal(data))
     setStaffName(data.staffName ?? '')
     setDriverName(data.driverName ?? '')
     setTruckPlate(data.truckPlate ?? '')
@@ -575,15 +567,15 @@ export function FuelImportForm({
       truckPlate: truckPlate || null,
       vehicleCheck: vehicleCheck || null,
       note: note || null,
-      products: products
-        .filter((p) => p.productLabel.trim() !== '')
-        .map((p) => ({
-          productLabel: p.productLabel.trim(),
-          warehouse: p.warehouse || null,
-          quantityLiters: parseVnNumber(p.quantityLiters),
-          exportSlipNo: p.exportSlipNo || null,
-          sealNo: p.sealNo || null,
-        })),
+      sealNo: sealNo || null,
+      // A standard column nobody filled in is a pre-printed heading, not a
+      // delivery: EA books nothing and is compared against no Hầm.
+      products: products.filter(goodsColumnRecorded).map((p) => ({
+        productLabel: p.productLabel.trim(),
+        warehouse: p.warehouse || null,
+        quantityLiters: parseVnNumber(p.quantityLiters),
+        exportSlipNo: p.exportSlipNo || null,
+      })),
       compartments: compartments
         .map((c, index) => ({
           compartmentNo: index + 1,
@@ -733,7 +725,7 @@ export function FuelImportForm({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setProducts((prev) => [...prev, emptyProduct()])}
+                  onClick={() => setProducts((prev) => [...prev, emptyGoodsColumn()])}
                 >
                   {vi.imports.addProduct}
                 </Button>
@@ -765,7 +757,6 @@ export function FuelImportForm({
                         ['warehouse', vi.imports.warehouse],
                         ['quantityLiters', vi.imports.productQuantity],
                         ['exportSlipNo', vi.imports.exportSlipNo],
-                        ['sealNo', vi.imports.sealNo],
                       ] as const
                     ).map(([key, label]) => (
                       <tr key={key}>
@@ -787,6 +778,18 @@ export function FuelImportForm({
                         ))}
                       </tr>
                     ))}
+                    {/* One merged cell on the paper, one box here: the seal is
+                        the biên bản's, not a column's. */}
+                    <tr>
+                      <td className="text-muted-foreground w-32 p-1">{vi.imports.sealNo}</td>
+                      <td className="p-1" colSpan={products.length}>
+                        <Input
+                          className={cellClass}
+                          value={sealNo}
+                          onChange={(e) => setSealNo(e.target.value)}
+                        />
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>

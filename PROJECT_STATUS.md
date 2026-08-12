@@ -1,6 +1,6 @@
 # TT Station Hub — Project Status
 
-_Module 5 — Hồ sơ Trạm (Công ty Hóa dầu Trường Thịnh). Last updated: 2026-06-18._
+_Module 5 — Hồ sơ Trạm (Công ty Hóa dầu Trường Thịnh). Last updated: 2026-08-12._
 
 This document tracks **what is built**, **external-service status**, and **what is
 blocked on clarification**. Source code is in English; user-facing UI text is
@@ -15,7 +15,7 @@ pnpm install
 pnpm exec prisma generate     # generates the typed client into lib/generated/prisma
 pnpm type-check               # tsc --noEmit       ✅ passes
 pnpm lint                     # eslint             ✅ passes
-pnpm test                     # vitest (53 tests)  ✅ passes
+pnpm test                     # vitest (343 tests) ✅ passes
 pnpm build                    # next build         ✅ passes
 pnpm dev                      # http://localhost:3000
 ```
@@ -75,6 +75,30 @@ Auth + Storage) + **Prisma 7** (new `prisma-client` generator + pg driver adapte
   `stock-calculator.ts` · `shift-sales.ts` (inventory deduction on shift complete) ·
   `expiry-checker.ts` (status + 60/30/15 reminders) · `aging.ts` (balance, aging, FIFO).
 
+### Nhập hàng — the standard biên bản (13 pre-printed forms)
+
+Trường Thịnh issued a **standard BIÊN BẢN GIAO NHẬN XĂNG DẦU**, one pre-printed
+form per trạm (`docs/BB GIAONHANXD/`). The app now reads that form, and the old
+station-specific sheets keep working alongside it — not a cutover.
+
+- The 13 printed **hầm/trụ rosters are checked in** as reference data
+  (`lib/imports/station-rosters.ts`), transcribed exactly as printed;
+  `pnpm roster:check` compares them against the database and **reports without
+  repairing either side** (ADR 0003).
+- A printed row (`1. DO 10K`, `2.E0 - 12K`, or unnumbered `DC - 9K` — the word
+  HẦM is gone) is resolved to a Hầm by the **binding ladder** (ADR 0004,
+  `lib/imports/binding-ladder.ts`), against the database when the trạm is
+  configured and the paper roster otherwise. An unbound row books nothing, says
+  why in Vietnamese, and **never blocks the biên bản from being saved**.
+- Section (d)'s rows are the **trạm's own Trụ**, so a Trụ the AI missed is an
+  empty row rather than an absent one; a Trụ that moved during the delivery
+  warns on the (c) row of the Hầm it draws from — a cue, never a block.
+- The goods table is the standard **`E0 / EA / DO / DC`**, an empty column books
+  nothing, and `Số niêm chì` is **one seal per biên bản** (`seal_no`). `EA` is E5
+  — deliberately unmapped, since no trạm stocks it. Receipts saved under the old
+  per-column shape are **left exactly as recorded**.
+- Full write-up: [`docs/nhap-hang.md`](docs/nhap-hang.md).
+
 ### Integration
 
 - **Zalo webhook** (`app/api/zalo/webhook/route.ts` + `lib/zalo/*`): signature verify,
@@ -101,10 +125,12 @@ All screens built (no 404s) — see §7.
 - Docs: `docs/local-development.md`, Vietnamese guides (`huong-dan-ke-toan`,
   `huong-dan-nhan-vien-tram`, `huong-dan-zalo-oa`).
 
-### Tests (53, all passing)
+### Tests (343, all passing)
 
 format, AI extraction + fixtures, anti-truncation, anomaly rules, photo matching,
-visit pairing, stock, **shift-sales**, expiry, debt aging, Zalo classify/parse/signature.
+visit pairing, stock, **shift-sales**, expiry, debt aging, Zalo classify/parse/signature,
+and the **nhập hàng** chain: Barem parse + lookup, section (c) fill rules, the binding
+ladder, the (c)/(d) rows, the printed rosters, and the standard goods table.
 
 ---
 
@@ -146,9 +172,29 @@ Until the OA is live (Zalo review can take hours/days), use the manual entry poi
 | §12.5 | Exact shift (ca) time windows                                        | Auto shift assignment            | Assumed morning <12:00 / afternoon <18:00 / night, GMT+7 — TODO marked                                                                         |
 | §12.6 | Tank dip → liters conversion (barem bồn)                             | Physical stock entry             | **Half unblocked.** The Barem arrived and is imported (`pnpm barem:import`); the **nhập hàng** side now resolves every measured height against it — SL barem and "Nhập vào hầm" are computed per Hầm, and the intake is the tank's own measurement rather than the delivery note's claim. The **tank-dip** side still waits: its height comes from an AI reading of a dip-stick photo whose format is unresolved ("01....500", "05....235") — Trường Thịnh will re-photograph. Converting a number that cannot yet be parsed reliably would put a wrong physical stock into the balance, so the dip value stays raw and `lastPhysicalStock` unpopulated. Trường Thịnh also owe an answer on the spreadsheet's own defects (the 1282 mm cliff across 13 tanks) — see the importer's report. |
 | §12.7 | Partially-readable mechanical meter: write `"?"` or force review?    | Edge handling                    | AI writes `"?"`, flagged low-confidence → review                                                                                               |
+| §12.8 | **Defects on the standard biên bản itself** (3 of the 13 forms)      | Which Hầm a printed row is       | Transcribed as printed and reported, never repaired (ADR 0003) — see below                                                                     |
 
 Anomaly thresholds (max delta, meter divergence) use sensible defaults in
 `DEFAULT_ANOMALY_CONFIG`, to be **tuned during the 3-day pilot** with real data.
+
+### §12.8 — outstanding with Trường Thịnh on the pre-printed forms
+
+`pnpm roster:check` names all three against the live database:
+
+- **HTGDONGNAI numbers two different hầm `3.`** (`3. E0 15K` and `3. E0 10K`).
+  The second row binds to nothing and books nothing until the form is corrected
+  — the alternative is guessing which of two E0 tanks received the delivery.
+- **LAMDONG02's hầm and trụ are unnumbered.** The numbers are **inferred from
+  printed row order** (`DC 9K`→HAM_1, `DO 9K`→HAM_2, `E0 25K`→HAM_3) and carry an
+  `inferred` flag; **Trường Thịnh has not confirmed the order**.
+- **`BBGIAONHANXD_DAKNONG4.docx` prints the station code `(DAKNONGVK)`** (Việt
+  Khôi 01). The roster registers under the code on the paper, matching the
+  existing `DAKNONGVK.csv` barem fixture — the file name is the outlier, and
+  which of the two is the trạm's real code is still unanswered.
+
+Only DAKNONG1 has been verified against a real database roster (it matches the
+seed exactly). Run `pnpm roster:check` against production before trusting any
+claim about the other 12.
 
 ---
 

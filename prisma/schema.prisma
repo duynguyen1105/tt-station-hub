@@ -262,6 +262,9 @@ model BaremPoint {
 // user; the per-tank liters that actually move inventory become child
 // FuelImport rows (receiptId). rawExtract keeps the untouched AI output so a
 // later dispute can compare what the AI read vs what the user confirmed.
+// sealNo mirrors the standard form's merged "Số niêm chì" cell — one seal per
+// biên bản. Receipts saved before it existed keep a seal per goods column
+// inside products, and are left exactly as they were recorded.
 model FuelImportReceipt {
   id           String    @id @default(uuid()) @db.Uuid
   stationId    String    @map("station_id") @db.Uuid
@@ -271,7 +274,8 @@ model FuelImportReceipt {
   truckPlate   String?   @map("truck_plate")
   vehicleCheck String?   @map("vehicle_check") // (b) observed condition (nước, cặn)
   note         String?   // (e) ghi chú
-  products     Json?     // per-product columns: warehouse, liters, export slip, seals
+  sealNo       String?   @map("seal_no") // the standard form's one merged "Số niêm chì" cell
+  products     Json?     // per-product columns: warehouse, liters, export slip (seals: pre-2026-08 receipts)
   compartments Json?     // (a) tanker compartments 1-5
   tankChecks   Json?     // (c) per-tank before/after: temp, height mm, book & barem liters
   pumpChecks   Json?     // (d) per-pump before/after totals (electronic + mechanical)
