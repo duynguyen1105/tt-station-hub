@@ -24,7 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { type BienBanExtraction, parseVnNumber, tankCodeFromLabel } from '@/lib/imports/bien-ban'
+import { type BienBanExtraction, type TankSideCheck, parseVnNumber } from '@/lib/imports/bien-ban'
+import { type BindingRefusal, type TankRosterEntry } from '@/lib/imports/binding-ladder'
+import { reviewTankRows } from '@/lib/imports/tank-rows'
 import { type BaremLookup, type BaremLookupResult, type BaremRefusal } from '@/lib/inventory/barem'
 import { deliveryNoteLiters, resolveTankBarem, shownCell } from '@/lib/inventory/barem-form'
 import { vi } from '@/messages/vi'
@@ -33,6 +35,8 @@ export type TankOption = {
   code: string // "HAM_2"
   label: string // "Hầm 2 — Xăng E0 (13K)"
   fuelType: string | null
+  /** Thousands of litres — the binding ladder's veto against a printed capacity. */
+  capacityK: number | null
 }
 
 const fuelOptions = Object.entries(vi.fuelType)
@@ -63,7 +67,10 @@ type SideCells = {
 }
 type TankRow = {
   tankLabel: string
+  /** Empty on a row the binding ladder could not attribute to a Hầm. */
   tankCode: string
+  /** Why this row names no Hầm — it gets no Barem lookup and no phiếu nhập. */
+  refusal: BindingRefusal | null
   fuelType: string
   importedLiters: string
   before: SideCells
@@ -102,6 +109,7 @@ function tankRowsFromStation(tanks: TankOption[]): TankRow[] {
   return tanks.map((t) => ({
     tankLabel: t.code.replace('HAM_', 'Hầm '),
     tankCode: t.code,
+    refusal: null,
     fuelType: t.fuelType ?? '',
     importedLiters: '',
     before: emptySide(),
@@ -110,7 +118,11 @@ function tankRowsFromStation(tanks: TankOption[]): TankRow[] {
 }
 
 /** Merges the AI extraction into the form rows (station tanks stay first). */
-function applyExtraction(extraction: BienBanExtraction, stationTanks: TankOption[]) {
+function applyExtraction(
+  extraction: BienBanExtraction,
+  stationTanks: TankOption[],
+  paperTanks: readonly TankRosterEntry[]
+) {
   const products = extraction.products.map((p) => ({
     productLabel: p.productLabel,
     warehouse: cellOf(p.warehouse),
@@ -134,36 +146,30 @@ function applyExtraction(extraction: BienBanExtraction, stationTanks: TankOption
     row.temperatureC = cellOf(c.temperatureC)
   }
 
-  const tanks = tankRowsFromStation(stationTanks)
-  const byCode = new Map(tanks.map((t) => [t.tankCode, t]))
-  for (const t of extraction.tanks) {
-    const parsedCode = tankCodeFromLabel(t.tankLabel)
-    const existing = parsedCode ? byCode.get(parsedCode.code) : undefined
-    // SL barem is no longer what the AI made of the handwriting: the cell is
-    // filled from the Barem for the height in this row (ADR 0002), and the AI's
-    // reading is kept beside it as the comparison.
-    const sideCells = (side: (typeof t)['before']): SideCells => ({
-      temperatureC: cellOf(side.temperatureC),
-      heightMm: cellOf(side.heightMm),
-      bookLiters: cellOf(side.bookLiters),
-      baremLiters: '',
-      paperBaremLiters: side.baremLiters,
-    })
-    if (existing) {
-      existing.tankLabel = t.tankLabel
-      existing.before = sideCells(t.before)
-      existing.after = sideCells(t.after)
-    } else {
-      tanks.push({
-        tankLabel: t.tankLabel,
-        tankCode: parsedCode?.code ?? '',
-        fuelType: '',
-        importedLiters: '',
-        before: sideCells(t.before),
-        after: sideCells(t.after),
-      })
-    }
-  }
+  // Which Hầm each printed row is — or the reason it names none (ADR 0004).
+  // SL barem is no longer what the AI made of the handwriting: the cell is
+  // filled from the Barem for the height in this row (ADR 0002), and the AI's
+  // reading is kept beside it as the comparison.
+  const sideCells = (side: TankSideCheck): SideCells => ({
+    temperatureC: cellOf(side.temperatureC),
+    heightMm: cellOf(side.heightMm),
+    bookLiters: cellOf(side.bookLiters),
+    baremLiters: '',
+    paperBaremLiters: side.baremLiters,
+  })
+  const tanks: TankRow[] = reviewTankRows(
+    stationTanks.map((t) => ({ tankCode: t.code, fuelType: t.fuelType, capacityK: t.capacityK })),
+    extraction.tanks,
+    paperTanks
+  ).map((row) => ({
+    tankLabel: row.tankLabel,
+    tankCode: row.tankCode ?? '',
+    refusal: row.refusal,
+    fuelType: row.fuelType ?? '',
+    importedLiters: '',
+    before: row.checks ? sideCells(row.checks.before) : emptySide(),
+    after: row.checks ? sideCells(row.checks.after) : emptySide(),
+  }))
   // "Nhập vào hầm" is no longer copied from the delivery note: it is the Hầm's
   // own measurement, barem(after) − barem(before), filled once the heights
   // resolve (ADR 0002). The note's quantity is shown beside it as the comparison.
@@ -204,16 +210,16 @@ function baremRequest(row: TankRow, side: 'before' | 'after'): BaremRequest | nu
   return { tankCode: row.tankCode, heightMm: Math.round(heightMm) }
 }
 
-/** The Barem's answer for one side: null while it is still being asked. A Hầm
- *  with no code is an unknown Hầm — the same failure as a Trạm with no Barem. */
+/** The Barem's answer for one side: null while it is still being asked. A row
+ *  bound to no Hầm asks nothing at all — the ladder's reason is what it shows,
+ *  and a Barem refusal on top of it would only say the same thing twice. */
 function sideLookup(
   row: TankRow,
   side: 'before' | 'after',
   cache: Map<string, BaremLookup>
 ): BaremLookup | null {
   const heightMm = parseVnNumber(row[side].heightMm)
-  if (heightMm === null) return null
-  if (!row.tankCode) return { ok: false, reason: 'unknown-tank' }
+  if (heightMm === null || !row.tankCode) return null
   return cache.get(heightKey(row.tankCode, Math.round(heightMm))) ?? null
 }
 
@@ -221,6 +227,13 @@ function refusalText(reason: BaremRefusal): string {
   if (reason === 'missing-point') return vi.imports.baremMissingPoint
   if (reason === 'unknown-tank') return vi.imports.baremUnknownTank
   return vi.imports.baremOutOfRange
+}
+
+/** Why a printed row could not be bound to a Hầm (ADR 0004). */
+function bindingText(reason: BindingRefusal): string {
+  if (reason === 'duplicate-number') return vi.imports.bindingDuplicateNumber
+  if (reason === 'roster-mismatch') return vi.imports.bindingRosterMismatch
+  return vi.imports.bindingUnidentified
 }
 
 /** Litres beside a cell, grouped and without forced decimals — the Barem deals
@@ -235,7 +248,17 @@ function baremLitersText(liters: number): string {
  * 2) review the form section-by-section against the paper and confirm;
  * 3) upload every related photo of the delivery session for later audits.
  */
-export function FuelImportForm({ stationId, tanks }: { stationId: string; tanks: TankOption[] }) {
+export function FuelImportForm({
+  stationId,
+  tanks,
+  paperTanks,
+}: {
+  stationId: string
+  tanks: TankOption[]
+  /** The Hầm this Trạm's own pre-printed biên bản lists — what the binding
+   *  ladder falls back on where the database has no Hầm to check against. */
+  paperTanks: readonly TankRosterEntry[]
+}) {
   const router = useRouter()
   const bienBanRef = useRef<HTMLInputElement>(null)
   const relatedRef = useRef<HTMLInputElement>(null)
@@ -395,7 +418,7 @@ export function FuelImportForm({ stationId, tanks }: { stationId: string; tanks:
     }
     const { data } = (await res.json()) as { data: BienBanExtraction }
     setRawExtract(data)
-    const filled = applyExtraction(data, tanks)
+    const filled = applyExtraction(data, tanks, paperTanks)
     setProducts(filled.products.length > 0 ? filled.products : [emptyProduct()])
     setCompartments(filled.compartments)
     setTankRows(filled.tanks)
@@ -445,7 +468,12 @@ export function FuelImportForm({ stationId, tanks }: { stationId: string; tanks:
     const receiving = tanksPayload.filter(
       (t) => t.tankCode && t.importedLiters !== null && t.importedLiters > 0
     )
-    if (receiving.length === 0) {
+    // A biên bản whose rows the ladder could not attribute books nothing — and
+    // still has to be saved. The paper is the legal record; refusing it would
+    // lose the trip as well as the Hầm. Read off the payload, so this asks
+    // exactly what the API asks of it.
+    const unattributed = tanksPayload.some((t) => !t.tankCode)
+    if (receiving.length === 0 && !unattributed) {
       toast.error(vi.imports.noTankLiters)
       return
     }
@@ -899,10 +927,20 @@ export function FuelImportForm({ stationId, tanks }: { stationId: string; tanks:
                             </td>
                           </tr>
                           {/* Why a cell is empty, and the reading that should not be */}
-                          {(barem.fellLiters !== null || barem.reasons.length > 0 || asking) && (
+                          {(barem.fellLiters !== null ||
+                            barem.reasons.length > 0 ||
+                            t.refusal !== null ||
+                            asking) && (
                             <tr>
                               <td></td>
                               <td colSpan={10} className="space-x-3 border-l px-1 pb-1 text-[11px]">
+                                {/* No Hầm, so no barem and no phiếu nhập — the row
+                                    still keeps everything the paper said. */}
+                                {t.refusal !== null && (
+                                  <span className="text-destructive font-medium">
+                                    {bindingText(t.refusal)}
+                                  </span>
+                                )}
                                 {barem.fellLiters !== null && (
                                   <span className="text-destructive font-medium">
                                     {vi.imports.baremTankFell} {baremLitersText(barem.fellLiters)} L

@@ -114,7 +114,11 @@ export async function POST(req: NextRequest) {
   const tankImports = data.tanks.filter(
     (t) => t.tankCode && t.fuelType && t.importedLiters !== null && t.importedLiters > 0
   )
-  if (tankImports.length === 0) return badRequest(vi.imports.noTankLiters)
+  // A row the binding ladder could not attribute (ADR 0004) names no Hầm, so it
+  // books nothing. It must not stop the biên bản from being saved either: the
+  // paper is the legal record, and the row's measurements are stored with it.
+  const unattributed = data.tanks.some((t) => !t.tankCode)
+  if (tankImports.length === 0 && !unattributed) return badRequest(vi.imports.noTankLiters)
 
   const station = await prisma.station.findFirst({
     where: { id: data.stationId, isActive: true },
