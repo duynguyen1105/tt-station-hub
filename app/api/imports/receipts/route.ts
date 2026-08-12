@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { checkStationOnPaper } from '@/lib/imports/station-check'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
@@ -90,6 +91,15 @@ const payloadSchema = z.object({
   rawExtract: z.unknown().nullish(),
 })
 
+/** All the confirm step needs from `rawExtract`: the station header the AI read.
+ *  Tolerant on purpose — the blob is stored verbatim and never schema-checked. */
+const paperStationSchema = z.object({ stationName: z.string().nullish() })
+
+function stationOnRawExtract(rawExtract: unknown): string | null {
+  const parsed = paperStationSchema.safeParse(rawExtract)
+  return parsed.success ? (parsed.data.stationName ?? null) : null
+}
+
 /**
  * Confirms a reviewed biên bản giao nhận: stores the receipt (all sections as
  * reviewed), creates one FuelImport per tank that actually received fuel
@@ -130,6 +140,13 @@ export async function POST(req: NextRequest) {
     select: { id: true, code: true },
   })
   if (!station) return badRequest('Trạm không hợp lệ.')
+
+  // A biên bản whose header names another Trạm is refused outright (ADR 0006) —
+  // the one check in this flow that blocks rather than warns, because the paper
+  // is not saying we failed to work something out, it is saying it belongs
+  // elsewhere. Manual entry sends no rawExtract and so is never refused here.
+  const onPaper = await checkStationOnPaper(data.stationId, stationOnRawExtract(data.rawExtract))
+  if (onPaper.verdict === 'mismatch') return badRequest(vi.imports.stationMismatchError)
 
   const supplier = [...new Set(data.products.map((p) => p.warehouse).filter(Boolean))].join(', ')
   const invoiceNo = [...new Set(data.products.map((p) => p.exportSlipNo).filter(Boolean))].join(

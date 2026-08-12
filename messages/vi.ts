@@ -356,6 +356,17 @@ export const vi = {
     bindingDuplicateNumber: 'Số hầm trùng trên biên bản',
     bindingRosterMismatch: 'Nhiên liệu / dung tích không khớp cấu hình hầm',
     bindingUnidentified: 'Không xác định được hầm',
+    // The one refusal in this flow that blocks (ADR 0006). Every other check
+    // says "we could not work something out" and lets the biên bản save; this
+    // one says the paper belongs to another Trạm, and booking it here would put
+    // that Trạm's litres into these hầm.
+    stationMismatchTitle: 'Biên bản này không phải của trạm này',
+    stationMismatchPaper: 'Giấy ghi',
+    stationMismatchCurrent: 'Đang nhập cho',
+    stationMismatchRead: 'AI đọc được ở đầu tờ',
+    stationMismatchHint:
+      'Chọn lại hình biên bản, hoặc mở trang Tồn kho của đúng trạm đó để nhập biên bản này.',
+    stationMismatchError: 'Biên bản của trạm khác — không lưu được ở trạm này.',
     deliveryNote: 'Phiếu giao',
     pumpsTitle: 'd. Tình trạng trụ bơm',
     pump: 'Trụ',
