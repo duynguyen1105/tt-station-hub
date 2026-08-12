@@ -363,6 +363,12 @@ export const vi = {
     totalMechanical: 'Total cơ',
     pumpDiff: 'Chênh lệch',
     addPump: 'Thêm trụ',
+    // Shown on the Hầm's row in (c), not in (d): a Trụ that moved was drawing
+    // fuel out of that Hầm while its height was being measured, so the measured
+    // intake there is suspect. A cue for the reviewer — it never blocks lưu.
+    // Reads "Trụ 2 chạy 12 L trong lúc nhập — số đo hầm này có thể sai".
+    pumpMoved: 'chạy',
+    pumpTaintsTank: 'trong lúc nhập — số đo hầm này có thể sai',
     noteTitle: 'e. Ghi chú',
     confirmSave: 'Xác nhận & lưu phiếu',
     back: 'Quay lại',
