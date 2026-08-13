@@ -453,6 +453,20 @@ model ZaloSender {
   @@map("zalo_senders")
 }
 
+/// The latest routing declaration a sender typed in chat ("chốt ca daknong1").
+/// Forwarded photos reach the OA as separate image messages with NO caption,
+/// so the accompanying text message's intent is remembered here and applied to
+/// the photos that follow it (within a sliding window).
+model ZaloSenderContext {
+  zaloUserId String   @id @map("zalo_user_id")
+  stationId  String?  @map("station_id") @db.Uuid
+  kind       String? // 'shift' | 'debt' | 'inventory'
+  declaredAt DateTime @map("declared_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("zalo_sender_contexts")
+}
+
 /// Zalo OA OAuth tokens (single "default" row). The access token expires ~25h and
 /// is refreshed via the rotating refresh token, so replies keep working unattended.
 model ZaloOaToken {
