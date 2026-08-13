@@ -15,6 +15,23 @@
    đồng hồ** (thành tiền / lít / đơn giá).
 2. Ghi chú kèm tên khách, ví dụ: **"Xe Tiến Oanh"**.
 
+## Chuyển tiếp (forward) ảnh từ nhóm khác vào OA
+
+Ảnh chốt ca có thể được **chuyển tiếp từ một nhóm Zalo khác** vào OA Trường Thịnh
+(ví dụ kế toán gom ảnh từ nhóm trạm rồi forward). Khi đó:
+
+1. **Nhắn một tin text trước**, kiểu **"chốt ca daknong1"** (loại + mã trạm; viết
+   thường/hoa, có dấu hay không đều được — "chốt ca Đăk Nông 1" cũng hiểu).
+2. Rồi **forward toàn bộ ảnh** ngay sau đó. Ảnh forward không mang caption, nên hệ
+   thống dùng tin nhắn vừa rồi để biết ảnh thuộc trạm nào, loại gì. Tin nhắn có
+   hiệu lực **15 phút** và tự gia hạn khi ảnh còn đang đến — forward xong một đợt
+   trạm khác thì **nhắn tin mới** trước khi forward tiếp.
+
+Lưu ý: nếu trong ảnh **đọc được bảng nhãn trạm** thì nhãn in luôn được tin hơn tin
+nhắn (tin nhắn có thể gõ nhầm, bảng nhãn dán trên trụ thì không) — ảnh sẽ về đúng
+trạm theo nhãn và hệ thống ghi log cảnh báo nếu hai bên lệch nhau. Tin nhắn chủ
+yếu cứu các ảnh **không thấy nhãn** (chụp cắt mất bảng, đồng hồ rời...).
+
 ## Lưu ý
 
 - Chụp ban ngày hoặc đủ sáng, tránh chói/lóa.

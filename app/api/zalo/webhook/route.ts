@@ -2,7 +2,12 @@ import { type NextRequest, NextResponse, after } from 'next/server'
 
 import { logger } from '@/lib/logger'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
-import { handleZaloImageMessage, parseZaloEvent } from '@/lib/zalo/webhook-handler'
+import {
+  handleZaloImageMessage,
+  handleZaloTextMessage,
+  parseZaloEvent,
+  parseZaloTextEvent,
+} from '@/lib/zalo/webhook-handler'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -74,6 +79,17 @@ export async function POST(req: NextRequest) {
         logger.error({ error }, 'Zalo webhook handler failed')
       )
     )
+  } else {
+    // Text-only messages carry the forward flow's routing declaration
+    // ("chốt ca daknong1") — remember it for the photos that follow.
+    const text = parseZaloTextEvent(payload)
+    if (text) {
+      after(() =>
+        handleZaloTextMessage(text).catch((error) =>
+          logger.error({ error }, 'Zalo text handler failed')
+        )
+      )
+    }
   }
 
   return NextResponse.json({ ok: true })

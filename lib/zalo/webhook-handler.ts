@@ -26,6 +26,11 @@ import { downloadZaloAttachment, sendZaloMessage } from '@/lib/zalo/client'
 // (one Zalo burst spreads over seconds; different stations arrive minutes apart).
 const BATCH_CONTEXT_WINDOW_MS = 5 * 60 * 1000
 
+// How long a typed declaration ("chốt ca daknong1") keeps routing the sender's
+// photos. Forwarding a whole shift batch takes a while, so the window slides:
+// every photo that uses the context re-stamps declaredAt.
+export const DECLARED_CONTEXT_WINDOW_MS = 15 * 60 * 1000
+
 export type ZaloImageMessage = {
   messageId: string
   senderId: string
@@ -71,6 +76,100 @@ export function parseZaloEvent(payload: unknown): ZaloImageMessage | null {
     caption: event.message?.text ?? null,
     imageUrls,
   }
+}
+
+export type ZaloTextMessage = {
+  senderId: string
+  text: string
+  timestamp: number
+}
+
+/**
+ * Extracts a TEXT-ONLY message from a Zalo webhook payload, or null if the
+ * event carries images (those go through parseZaloEvent) or no usable text.
+ * Needed for the forward flow: photos forwarded from another group arrive as
+ * bare image messages, and the "chốt ca daknong1" declaration is its own
+ * separate text message.
+ */
+export function parseZaloTextEvent(payload: unknown): ZaloTextMessage | null {
+  if (typeof payload !== 'object' || payload === null) return null
+  const event = payload as RawZaloEvent
+
+  const hasImages = (event.message?.attachments ?? []).some((a) => a.type === 'image')
+  if (hasImages) return null
+  const text = event.message?.text?.trim()
+  const senderId = event.sender?.id
+  if (!text || !senderId) return null
+
+  const rawTs = typeof event.timestamp === 'string' ? Number(event.timestamp) : event.timestamp
+  const timestamp = typeof rawTs === 'number' && Number.isFinite(rawTs) ? rawTs : Date.now()
+  return { senderId, text, timestamp }
+}
+
+/**
+ * Reads a routing declaration out of a text message ("chốt ca daknong1",
+ * "công nợ đăk nông 2") and remembers it as the sender's context, so the
+ * caption-less forwarded photos that follow inherit both the kind and the
+ * station. Ordinary chatter (no kind, no station) is ignored and does NOT
+ * clear an existing declaration mid-forward.
+ */
+export async function handleZaloTextMessage(msg: ZaloTextMessage): Promise<void> {
+  const kind = explicitCaptionKind(msg.text)
+  const station = await matchStationByLabel(msg.text)
+  if (!kind && !station) return
+
+  await prisma.zaloSenderContext.upsert({
+    where: { zaloUserId: msg.senderId },
+    create: {
+      zaloUserId: msg.senderId,
+      stationId: station?.id ?? null,
+      kind,
+      declaredAt: new Date(msg.timestamp),
+    },
+    update: {
+      stationId: station?.id ?? null,
+      kind,
+      declaredAt: new Date(msg.timestamp),
+    },
+  })
+  logger.info(
+    { senderId: msg.senderId, kind, station: station?.code ?? null },
+    'Zalo text declaration stored as sender context'
+  )
+
+  if (process.env.ZALO_AUTO_REPLY === 'true') {
+    const kindLabel =
+      kind === 'shift'
+        ? 'chốt ca'
+        : kind === 'debt'
+          ? 'công nợ'
+          : kind === 'inventory'
+            ? 'tồn kho'
+            : null
+    const parts = [kindLabel, station?.code].filter(Boolean).join(' — ')
+    const reply = `✅ Đã ghi nhận "${parts}". Ảnh gửi/chuyển tiếp trong 15 phút tới sẽ được xếp vào đó.`
+    await sendZaloMessage(msg.senderId, reply).catch((error) =>
+      logger.error({ error }, 'Zalo context confirm reply failed')
+    )
+  }
+}
+
+/** The sender's still-fresh typed declaration, or null. */
+async function findDeclaredContext(senderId: string, timestamp: number) {
+  const context = await prisma.zaloSenderContext.findFirst({
+    where: {
+      zaloUserId: senderId,
+      declaredAt: { gte: new Date(timestamp - DECLARED_CONTEXT_WINDOW_MS) },
+    },
+  })
+  if (!context) return null
+  const station = context.stationId
+    ? await prisma.station.findFirst({
+        where: { id: context.stationId, isActive: true },
+        select: { id: true, code: true },
+      })
+    : null
+  return { kind: context.kind as 'shift' | 'debt' | 'inventory' | null, station }
 }
 
 async function findStationForMessage(msg: ZaloImageMessage) {
@@ -131,7 +230,43 @@ async function findStationForMessage(msg: ZaloImageMessage) {
  * webhook can reply within Zalo's ~5s window.
  */
 export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<void> {
-  let station = await findStationForMessage(msg)
+  // A typed declaration — the caption on this very message, or the sender's
+  // recent text (the forward flow: "chốt ca daknong1" arrives as its own
+  // message, the photos follow caption-less) — beats group mapping and sender
+  // registration. It does NOT beat the label printed in the photo: text can
+  // carry a typo, the plate on the pump cannot, so the label stays the most
+  // trusted source and wins whenever it is readable (with a typo warning).
+  const explicitKind = explicitCaptionKind(msg.caption)
+  const captionStation = msg.caption ? await matchStationByLabel(msg.caption) : null
+  const context =
+    explicitKind && captionStation
+      ? null
+      : await findDeclaredContext(msg.senderId, msg.timestamp).catch(() => null)
+  const declaredKind = explicitKind ?? context?.kind ?? null
+  const declaredStation = captionStation ?? context?.station ?? null
+
+  // Slide the declaration window while the burst keeps flowing, so a long
+  // forward (many photos over many minutes) never falls out of context halfway.
+  if (declaredKind || declaredStation) {
+    await prisma.zaloSenderContext
+      .upsert({
+        where: { zaloUserId: msg.senderId },
+        create: {
+          zaloUserId: msg.senderId,
+          stationId: declaredStation?.id ?? null,
+          kind: declaredKind,
+          declaredAt: new Date(msg.timestamp),
+        },
+        update: {
+          stationId: declaredStation?.id ?? null,
+          kind: declaredKind,
+          declaredAt: new Date(msg.timestamp),
+        },
+      })
+      .catch((error) => logger.error({ error }, 'Sliding the sender context failed'))
+  }
+
+  let station = declaredStation ?? (await findStationForMessage(msg))
 
   // Buffers/extractions produced while identifying the station from photo content —
   // reused by the main loop so nothing is downloaded or AI-read twice.
@@ -218,11 +353,10 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
     }
   }
 
-  // An EXPLICIT caption ("chốt ca" / "công nợ" / "tồn kho") is authoritative for
-  // every photo in the message — the sender declared the intent, so the image
-  // classifier cannot override it. Without one, the caption is only a hint and
-  // the per-photo image content decides (below).
-  const explicitKind = explicitCaptionKind(msg.caption)
+  // An EXPLICIT declaration ("chốt ca" / "công nợ" / "tồn kho" — typed on this
+  // message or as the sender's recent text) is authoritative for every photo —
+  // the human declared the intent, so the image classifier cannot override it.
+  // Without one, the caption is only a hint and the per-photo content decides.
   const captionKind = classifyZaloMessage(msg.caption)
   let received = 0
 
@@ -243,7 +377,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           ? ((pre.raw as { router?: RouterResult })?.router ?? null)
           : await classifyPhoto(buffer).catch(() => null))
       const route =
-        explicitKind ?? (router ? routePhoto(router.image_type, captionKind) : captionKind)
+        declaredKind ?? (router ? routePhoto(router.image_type, captionKind) : captionKind)
 
       // For shift photos the meter is extracted anyway, so read it now and let the
       // PRINTED STATION LABEL override the sender-based station when they disagree
@@ -258,14 +392,27 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
             () => undefined
           ))
         if (extracted?.stationLabel) {
+          // The printed plate on the pump is the most trustworthy source — a
+          // typed declaration can carry a typo, the plate cannot. It still
+          // overrides everything, INCLUDING the declaration (which then only
+          // shows up in the log as a typo suspicion).
           const byLabel = await matchStationByLabel(extracted.stationLabel)
           if (byLabel && byLabel.id !== station.id) {
             logger.info(
               { from: station.code, to: byLabel.code, label: extracted.stationLabel },
-              'Photo station label overrides sender station'
+              'Photo station label overrides sender/declared station'
             )
             target = byLabel
           }
+          if (byLabel && declaredStation && byLabel.id !== declaredStation.id) {
+            logger.warn(
+              { declared: declaredStation.code, label: byLabel.code },
+              'Typed declaration disagrees with the printed label — label wins (typo?)'
+            )
+          }
+        } else if (declaredStation) {
+          // No readable label on this photo: the typed declaration already set
+          // the station, and it is more direct than the batch context below.
         } else {
           // No station label (e.g. the plate's first line was cropped out of
           // frame). The sender may be touring several stations back-to-back, so

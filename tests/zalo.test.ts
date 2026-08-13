@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import { pickStationByLabel } from '@/lib/matching/station-label'
 import { classifyZaloMessage, explicitCaptionKind, routePhoto } from '@/lib/zalo/classify'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
-import { parseZaloEvent } from '@/lib/zalo/webhook-handler'
+import { parseZaloEvent, parseZaloTextEvent } from '@/lib/zalo/webhook-handler'
 
 describe('classifyZaloMessage', () => {
   it('defaults to shift, detects debt captions', () => {
@@ -106,5 +107,65 @@ describe('explicitCaptionKind', () => {
     expect(explicitCaptionKind(null)).toBeNull()
     expect(explicitCaptionKind('')).toBeNull()
     expect(explicitCaptionKind('gửi hình nhé')).toBeNull()
+  })
+})
+
+describe('parseZaloTextEvent', () => {
+  it('extracts a text-only declaration message', () => {
+    const parsed = parseZaloTextEvent({
+      event_name: 'user_send_text',
+      sender: { id: 'user-1' },
+      message: { msg_id: 'm1', text: 'chốt ca daknong1' },
+      timestamp: '1755000000000',
+    })
+    expect(parsed).toEqual({
+      senderId: 'user-1',
+      text: 'chốt ca daknong1',
+      timestamp: 1755000000000,
+    })
+  })
+
+  it('returns null for image messages (those go through parseZaloEvent)', () => {
+    expect(
+      parseZaloTextEvent({
+        sender: { id: 'user-1' },
+        message: {
+          msg_id: 'm2',
+          text: 'chốt ca',
+          attachments: [{ type: 'image', payload: { url: 'https://x/img.jpg' } }],
+        },
+      })
+    ).toBeNull()
+  })
+
+  it('returns null without text or sender', () => {
+    expect(
+      parseZaloTextEvent({ sender: { id: 'u' }, message: { msg_id: 'm', text: '  ' } })
+    ).toBeNull()
+    expect(parseZaloTextEvent({ message: { msg_id: 'm', text: 'chốt ca' } })).toBeNull()
+    expect(parseZaloTextEvent(null)).toBeNull()
+  })
+})
+
+describe('station declared in a message text', () => {
+  // The forward flow: "chốt ca daknong1" typed by the accountant must resolve
+  // to the station even with diacritics, spacing, or zero-padding variants.
+  const STATIONS = [
+    { id: '1', code: 'DAKNONG1', name: 'Trạm Đăk Nông 1' },
+    { id: '2', code: 'DAKNONG2', name: 'Đắk Nông 2' },
+    { id: '3', code: 'NGANHA01', name: 'Ngân Hà 01' },
+    { id: '4', code: 'NGUYENVUONG', name: 'Nguyên Vượng' },
+  ]
+
+  it('finds the station code inside a declaration text', () => {
+    expect(pickStationByLabel('chốt ca daknong1', STATIONS)?.code).toBe('DAKNONG1')
+    expect(pickStationByLabel('Chốt ca Đăk Nông 2', STATIONS)?.code).toBe('DAKNONG2')
+    expect(pickStationByLabel('chốt ca nganha01', STATIONS)?.code).toBe('NGANHA01')
+    expect(pickStationByLabel('công nợ nguyên vượng', STATIONS)?.code).toBe('NGUYENVUONG')
+  })
+
+  it('finds no station when the text only declares the kind', () => {
+    expect(pickStationByLabel('chốt ca', STATIONS)).toBeNull()
+    expect(pickStationByLabel('công nợ', STATIONS)).toBeNull()
   })
 })
