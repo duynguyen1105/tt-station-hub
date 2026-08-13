@@ -7,6 +7,8 @@
 // vào hầm" is barem(after) − barem(before) rather than the delivery note's
 // quantity. Both stay overtypable in the form; this module only decides what is
 // offered. It reads no database and has no side effects.
+import { parseVnNumber } from '@/lib/imports/bien-ban'
+
 import { type BaremLookup, type BaremRefusal, baremIntake } from './barem'
 
 /** How far the AI's reading of the handwritten SL barem may sit from the Barem's
@@ -77,6 +79,18 @@ function refusalOf(lookup: BaremLookup | null): BaremRefusal[] {
 export function shownCell(typed: string, computed: number | null): string {
   if (typed !== '') return typed
   return computed === null ? '' : String(computed)
+}
+
+/**
+ * The same rule as a number — what confirming actually writes. The Barem's own
+ * figure is passed through rather than read back out of the cell text: the
+ * spreadsheet is served verbatim (ADR 0003), so a litre value can be
+ * fractional, and `parseVnNumber` reads a group of exactly three digits after
+ * the separator as thousands — a round trip would save 12358,125 L as
+ * 12.358.125 L.
+ */
+export function savedCell(typed: string, computed: number | null): number | null {
+  return typed === '' ? computed : parseVnNumber(typed)
 }
 
 export type DeliveryNoteProduct = { productLabel: string; quantityLiters: number | null }

@@ -35,6 +35,13 @@ export const BAREM_SHEETS: BaremSheetBinding[] = [
   { stationCode: 'TANHOA', tab: 'tanhoa', gid: '2061306672' },
 ]
 
+/** Which tab holds a Trạm's Barem, if any. A Trạm the map does not name — or a
+ *  station that does not exist — simply has no Barem, which is not the same as a
+ *  sheet that could not be read: there is nothing for an admin to fix. */
+export function baremSheetFor(stationCode: string | undefined): BaremSheetBinding | undefined {
+  return BAREM_SHEETS.find((sheet) => sheet.stationCode === stationCode)
+}
+
 /** The sheet as CSV. The spreadsheet is shared read-only, so no credentials. */
 export function baremSheetCsvUrl(gid: string): string {
   return `https://docs.google.com/spreadsheets/d/${BAREM_SPREADSHEET_ID}/export?format=csv&gid=${gid}`

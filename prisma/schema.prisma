@@ -186,8 +186,8 @@ model InventoryBalance {
 }
 
 // One tank-dip measurement, RAW as written on the dip photo (unit conversion
-// to liters waits for the barem table §12.6). History per (station, tank) lets
-// consecutive dips be compared: a RESERVE tank (no dispenser draws from it)
+// to liters waits for the dip-photo format, §12.6). History per (station, tank)
+// lets consecutive dips be compared: a RESERVE tank (no dispenser draws from it)
 // must stay stable, so a large change between dips is flagged for review.
 model TankDipRecord {
   id                String   @id @default(uuid()) @db.Uuid
@@ -209,46 +209,12 @@ model TankDipRecord {
   @@map("tank_dip_records")
 }
 
-// === BAREM (bảng barem) ===
-// Trường Thịnh's calibration table for one Hầm: the liters it holds at each
-// height in millimeters. Filled by `pnpm barem:import`, which replaces a Trạm's
-// rows wholesale from their spreadsheet and reports — never repairs — the
-// defects it finds (ADR 0003). Saved receipts keep the liters confirmed at the
-// time, so a re-import never rewrites what a past delivery was worth.
-model BaremTank {
-  id                    String   @id @default(uuid()) @db.Uuid
-  stationId             String   @map("station_id") @db.Uuid
-  tankCode              String   @map("tank_code") // normalized, e.g. "HAM_3"
-  // Fuel and capacity AS THE SHEET STATES THEM — provenance, not truth: a tank's
-  // volume at full height legitimately exceeds its label (DO 25,000 → 25,507 L),
-  // so capacity never validates a lookup. Disagreements with `dispensers` are
-  // reported by the importer and corrected on neither side.
-  fuelType              String   @map("fuel_type")
-  nominalCapacityLiters Int?     @map("nominal_capacity_liters")
-  // Range is per Hầm: a column that ends early is a shorter tank, not missing data.
-  minHeightMm           Int      @map("min_height_mm")
-  maxHeightMm           Int      @map("max_height_mm")
-  sourceSheet           String   @map("source_sheet") // spreadsheet tab, e.g. "daknong1"
-  importedAt            DateTime @map("imported_at")
-
-  @@unique([stationId, tankCode])
-  @@map("barem_tanks")
-}
-
-// One height→liters point. The composite key is the lookup: a review form asks
-// for one (Trạm, Hầm, mm) at a time and gets an exact match or nothing — there
-// is no interpolation.
-model BaremPoint {
-  stationId String @map("station_id") @db.Uuid
-  tankCode  String @map("tank_code")
-  heightMm  Int    @map("height_mm")
-  // Whole liters, as written: every point in all 12 sheets is an integer. A
-  // fractional value would fail the import loudly rather than be rounded in.
-  liters    Int
-
-  @@id([stationId, tankCode, heightMm])
-  @@map("barem_points")
-}
+// The Barem has no model here on purpose: it is read live from Trường Thịnh's
+// spreadsheet on every lookup and never stored (ADR 0005), so the app has no
+// copy that could disagree with the table the station is holding. Saved receipts
+// keep the liters confirmed at the time, in the receipt's tankChecks and its
+// FuelImport rows, so an edit to the spreadsheet never rewrites what a past
+// delivery was worth.
 
 // === FUEL IMPORTS (nhập hàng) ===
 // One tanker delivery into one tank. Fuel volume varies with temperature, so
