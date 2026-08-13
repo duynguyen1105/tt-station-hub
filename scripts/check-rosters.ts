@@ -12,7 +12,7 @@ import { STATION_ROSTERS } from '../lib/imports/station-rosters'
 
 // Compares the 13 pre-printed biên bản rosters (lib/imports/station-rosters.ts)
 // against what the database holds for each Trạm, and reports — repairing
-// neither side, in the manner of `pnpm barem:import`.
+// neither side, in the manner of `pnpm barem:check`.
 //
 //   pnpm roster:check                # report on the terminal
 //   pnpm roster:check > roster.txt   # report to a file
