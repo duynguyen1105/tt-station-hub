@@ -9,7 +9,11 @@ import type {
 } from '@/lib/ai/types'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { logger } from '@/lib/logger'
-import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
+import {
+  getOrCreateUnknownStation,
+  matchStationByDeclaration,
+  matchStationByLabel,
+} from '@/lib/matching/station-label'
 import { submitterKey } from '@/lib/matching/submitter'
 import {
   assembleDebtVisit,
@@ -115,7 +119,7 @@ export function parseZaloTextEvent(payload: unknown): ZaloTextMessage | null {
  */
 export async function handleZaloTextMessage(msg: ZaloTextMessage): Promise<void> {
   const kind = explicitCaptionKind(msg.text)
-  const station = await matchStationByLabel(msg.text)
+  const station = await matchStationByDeclaration(msg.text)
   if (!kind && !station) return
 
   await prisma.zaloSenderContext.upsert({
@@ -237,7 +241,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
   // carry a typo, the plate on the pump cannot, so the label stays the most
   // trusted source and wins whenever it is readable (with a typo warning).
   const explicitKind = explicitCaptionKind(msg.caption)
-  const captionStation = msg.caption ? await matchStationByLabel(msg.caption) : null
+  const captionStation = msg.caption ? await matchStationByDeclaration(msg.caption) : null
   const context =
     explicitKind && captionStation
       ? null
