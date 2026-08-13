@@ -117,7 +117,7 @@ export default async function StationInventoryPage({
   // Signed links for each import's documents so the reviewer can open the
   // originals straight from the list: docs attached to the import itself plus
   // docs attached to its parent biên bản (receipt) — the biên bản pages (BB)
-  // and the related session photos (HA) uploaded in the wizard's last step.
+  // and the "tài liệu nhập hàng" (TL) uploaded in the wizard's last step.
   const receiptIds = [...new Set(imports.map((i) => i.receiptId).filter((r): r is string => !!r))]
   const docs = await prisma.fuelImportDocument.findMany({
     where: {
@@ -136,7 +136,7 @@ export default async function StationInventoryPage({
       docLinks.set(doc.importId, list)
     } else if (doc.receiptId) {
       const list = receiptLinks.get(doc.receiptId) ?? []
-      const prefix = doc.kind === 'bien_ban' ? 'BB' : 'HA'
+      const prefix = doc.kind === 'bien_ban' ? 'BB' : 'TL'
       list.push({
         url,
         name: `${prefix}${list.filter((l) => l.name.startsWith(prefix)).length + 1}`,
@@ -148,6 +148,17 @@ export default async function StationInventoryPage({
     ...(docLinks.get(row.id) ?? []),
     ...(row.receiptId ? (receiptLinks.get(row.receiptId) ?? []) : []),
   ]
+
+  // "Người nhập" for each slip — Excel always had it, the web list now too.
+  const creatorIds = [...new Set(imports.map((i) => i.createdBy).filter((c): c is string => !!c))]
+  const creators =
+    creatorIds.length > 0
+      ? await prisma.profile.findMany({
+          where: { id: { in: creatorIds } },
+          select: { id: true, fullName: true },
+        })
+      : []
+  const creatorById = new Map(creators.map((c) => [c.id, c.fullName]))
 
   // The Hầm and Trụ this Trạm's own pre-printed biên bản lists — resolved here
   // rather than in the form, so the 13 rosters stay out of the browser bundle.
@@ -286,6 +297,7 @@ export default async function StationInventoryPage({
                 <th className="p-2 text-right">{vi.imports.liters}</th>
                 <th className="p-2 text-right">{vi.imports.temperature}</th>
                 <th className="p-2">{vi.imports.invoiceNo}</th>
+                <th className="p-2">{vi.imports.creator}</th>
                 <th className="p-2">{vi.imports.documents}</th>
                 <th className="p-2"></th>
               </tr>
@@ -293,7 +305,19 @@ export default async function StationInventoryPage({
             <tbody>
               {imports.map((row) => (
                 <tr key={row.id} className={`border-b ${row.canceledAt ? 'opacity-50' : ''}`}>
-                  <td className="p-2">{formatDate(row.importedAt)}</td>
+                  <td className="p-2">
+                    {row.receiptId ? (
+                      // A wizard slip opens its saved biên bản for cross-checking.
+                      <a
+                        href={`/stations/${id}/imports/${row.receiptId}`}
+                        className="text-primary underline underline-offset-2"
+                      >
+                        {formatDate(row.importedAt)}
+                      </a>
+                    ) : (
+                      formatDate(row.importedAt)
+                    )}
+                  </td>
                   <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
                   <td className="p-2">{fuelTypeLabel(row.fuelType)}</td>
                   <td className="p-2 text-right font-mono">
@@ -303,6 +327,9 @@ export default async function StationInventoryPage({
                     {row.temperatureC === null ? '—' : `${row.temperatureC}°C`}
                   </td>
                   <td className="p-2">{row.invoiceNo ?? '—'}</td>
+                  <td className="p-2">
+                    {(row.createdBy && creatorById.get(row.createdBy)) ?? '—'}
+                  </td>
                   <td className="space-x-2 p-2">
                     {linksForImport(row).map((doc, index) => (
                       <a
