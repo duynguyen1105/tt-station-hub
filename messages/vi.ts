@@ -502,8 +502,10 @@ export const vi = {
     tankFuel: 'Nhiên liệu',
     tankCapacity: 'Sức chứa',
     tankDipValue: 'Mực đo',
+    // The Barem itself is no longer what this waits on — it is read live from the
+    // trang tính (ADR 0005). What is unresolved is the dip photo's own format.
     tankBaremNote:
-      'Cần bảng barem bồn để quy mực đo ra số lít tồn (§12.6). Hiện ghi nhận mực đo thô.',
+      'Chưa quy mực đo ra số lít tồn: định dạng ảnh đo que chưa chốt (§12.6). Hiện ghi nhận mực đo thô.',
     photo: 'Ảnh đồng hồ',
     dropHint: 'Kéo thả ảnh vào đây hoặc bấm để chọn',
     changePhoto: 'Chọn ảnh khác',

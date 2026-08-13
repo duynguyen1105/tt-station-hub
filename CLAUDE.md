@@ -29,7 +29,7 @@ template in `.env.example`).
 - `pnpm dev` — dev server on `http://localhost:3000`
 - `pnpm build` / `pnpm start` — production build / serve
 - `pnpm lint` · `pnpm format` · `pnpm type-check`
-- `pnpm test` — **Vitest** unit tests for the domain logic (currently 343 passing)
+- `pnpm test` — **Vitest** unit tests for the domain logic (currently 362 passing)
 - `pnpm validate` — type-check + lint
 - `pnpm db:push` · `pnpm db:seed` · `pnpm db:studio` — Prisma
 

@@ -172,11 +172,20 @@ có trách nhiệm nói ra điều nó thấy. Trạm chưa cấu hình trụ tr
 không biết trụ hút hầm nào, nên chỉ hiện chênh lệch đỏ ở mục (d), không gán vào
 hầm nào cả.
 
-### Barem: từ chiều cao ra số lít (cập nhật 11/08/2026)
+### Barem: từ chiều cao ra số lít (cập nhật 13/08/2026)
 
 Mục (c) không còn lấy số của AI đọc từ chữ viết tay nữa. Với **mỗi chiều cao (mm)**
 trong bảng, app tra **Barem** của chính hầm đó — bảng chuẩn do Trường Thịnh phát
-hành, đã nạp vào database bằng lệnh `pnpm barem:import`:
+hành.
+
+**Barem nằm ở trang tính của Trường Thịnh, app không giữ bản nào cả.** Mỗi lần tra
+là đọc thẳng trang tính Google ngay lúc đó — không lưu vào database, server không
+cache gì cả (ADR 0005). Nên **sửa một số trong trang tính thì chiều cao gõ tiếp theo
+đã ăn số mới**: không cần lệnh, không cần developer, không cần deploy. Và không có
+bản sao nào để lệch với bảng Barem trạm đang giữ trong tay. (Trong **một** form
+đang mở, chiều cao nào đã tra rồi thì không hỏi lại — chiều cao trùng nhau giữa các
+dòng là chuyện thường. Sửa trang tính lúc đang rà soát thì thấy ở chiều cao chưa
+tra, hoặc mở lại form.)
 
 - **SL barem trước/sau** = số lít Barem ghi cho chiều cao đó (khớp **đúng
   milimét**, không nội suy). Số AI đọc được trên giấy vẫn giữ nguyên trong
@@ -191,14 +200,34 @@ hành, đã nạp vào database bằng lệnh `pnpm barem:import`:
   trong khi chênh lệch trụ bơm (mục d) bằng 0 là bất thường, phải dừng lại xem.
 - **Chiều cao Barem không trả lời được** thì ô để trống kèm lý do tiếng Việt trên
   dòng: *"Ngoài phạm vi barem"*, *"Không có barem cho chiều cao này"*, *"Chưa có
-  barem cho hầm này"* (trạm chưa nạp Barem cũng rơi vào trường hợp cuối). Biên bản
-  **vẫn lưu được** — kế toán tự gõ số lít.
-- **Sửa chiều cao thì cả dòng tra lại**: hai ô SL barem và ô Nhập vào hầm.
+  barem cho hầm này"* (trạm chưa gán tab trang tính cũng rơi vào trường hợp cuối).
+  Biên bản **vẫn lưu được** — kế toán tự gõ số lít.
+- **Không đọc được cả trang tính** — file bị siết chia sẻ, bị xóa, Google lỗi, hay
+  một lần sửa làm vỡ cấu trúc (chèn cột) — thì mất Barem của **cả trạm** cùng lúc,
+  nên form báo một dòng chung: *"Không đọc được trang tính barem — nhập tay và báo
+  quản trị viên"*. Các ô SL barem để trống, kế toán tự gõ số lít, **biên bản vẫn
+  lưu được**. Câu này khác *"Chưa có barem cho hầm này"* có chủ đích: lỗi ở tài
+  liệu, việc của quản trị viên, không phải ở cái hầm.
+- **Sửa chiều cao thì cả dòng tra lại**: hai ô SL barem và ô Nhập vào hầm. Nhờ vậy
+  một lần đọc trang tính lỗi tạm thời tự hết khi kế toán sửa lại chiều cao.
 - Mọi số app điền đều **gõ đè được**. Cái kế toán xác nhận mới là cái được lưu và
   cộng vào tồn kho; hầm không có số nhập thì không sinh phiếu. Xóa trắng ô thì
   app điền lại số của Barem — muốn hầm **không** sinh phiếu thì gõ `0`.
-- Số đã lưu là **bản chụp tại thời điểm xác nhận**: nạp lại Barem sau này **không**
+- Số đã lưu là **bản chụp tại thời điểm xác nhận**: sửa trang tính sau này **không**
   sửa biên bản cũ.
+
+> ⚠️ **Trang tính Barem phải luôn để "bất kỳ ai có link đều xem được".** Trước đây
+> đó chỉ là tiện lợi lúc nạp dữ liệu; nay nó là **phụ thuộc production** — siết
+> chia sẻ (hoặc xóa/đổi chỗ file) là **mất Barem của toàn bộ các trạm cùng một
+> lúc**, và mọi biên bản phải gõ tay số lít. Barem là bảng chuẩn đã in và treo ở
+> từng trạm nên trong đó không có gì phải bảo mật.
+
+Sửa trang tính rồi muốn biết có làm vỡ gì không: `pnpm barem:check` — fetch mọi tab
+đã gán, in báo cáo lỗi nguồn (lít giảm khi chiều cao tăng, thiếu số lít, chiều cao
+bị nhảy hoặc ghi hai lần, số lít không nguyên) + đối chiếu loại hàng/dung tích của
+từng tab với bảng `dispensers`, và **không ghi gì cả**. Đường tra cứu chỉ thấy vài chiều cao được hỏi
+nên không bao giờ phát hiện được những lỗi đó — lệnh này là chỗ duy nhất soi cả
+bảng Barem.
 
 ### Hủy phiếu
 
@@ -306,7 +335,13 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 - `lib/inventory/barem.ts` — đọc trang tính Barem, tra chiều cao → số lít, quy tắc
   tính số nhập; `lib/inventory/barem-form.ts` — mục (c) hiển thị gì: ô nào điền số
   nào, khi nào hiện số trên giấy màu đỏ, lấy số lượng phiếu giao nào để đối chiếu.
-  `scripts/import-barem.ts` (`pnpm barem:import`) nạp Barem + in báo cáo lỗi nguồn.
+  `lib/inventory/barem-sheets.ts` — bảng gán trạm → tab trang tính (theo `gid`, đổi
+  tên tab không ảnh hưởng) + link CSV; `lib/inventory/barem-fetch.ts` — định nghĩa
+  duy nhất của "không đọc được trang tính": fetch CSV, quá 5 giây thì bỏ, trả về
+  không phải CSV (file bị siết chia sẻ đáp 200 kèm trang đăng nhập Google) hay parse
+  ra 0 hầm đều tính là không đọc được. `scripts/check-barem.ts` (`pnpm barem:check`)
+  đọc qua đúng module đó, in báo cáo lỗi nguồn + đối chiếu `dispensers`, **không
+  ghi gì**. Barem không có bảng nào trong database (ADR 0005).
 - `components/inventory/import-cancel-button.tsx` — nút hủy.
 - `lib/inventory/tank-ledger.ts` — `computeTankFlows`: gom nhập/bán theo hầm
   (bán = delta điện tử của các trụ map vào hầm qua `dispenser.tank_code`;
