@@ -5,6 +5,7 @@ import {
   deliveryNoteLiters,
   fuelTypeFromProductLabel,
   resolveTankBarem,
+  savedCell,
   shownCell,
 } from '@/lib/inventory/barem-form'
 
@@ -178,5 +179,21 @@ describe('shownCell', () => {
   it('keeps what the reviewer typed — the paper is the legal record', () => {
     expect(shownCell('12400', 12358)).toBe('12400')
     expect(shownCell('0', 5205)).toBe('0')
+  })
+})
+
+describe('savedCell', () => {
+  it('saves the Barem’s own figure, whole or fractional', () => {
+    expect(savedCell('', 12358)).toBe(12358)
+    // The sheet is read verbatim, so a litre value can carry decimals. Written
+    // out and read back, "12358.125" would be three thousand groups.
+    expect(savedCell('', 12358.125)).toBe(12358.125)
+    expect(savedCell('', null)).toBeNull()
+  })
+
+  it('saves what the reviewer typed, read as a Vietnamese number', () => {
+    expect(savedCell('12.400', 12358)).toBe(12400)
+    expect(savedCell('12358,5', 12358)).toBe(12358.5)
+    expect(savedCell('0', 5205)).toBe(0)
   })
 })

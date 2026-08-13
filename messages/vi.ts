@@ -349,7 +349,9 @@ export const vi = {
     baremOnPaper: 'Giấy ghi',
     baremTankFell: 'Mức hầm giảm',
     baremResolving: 'Đang tra barem...',
-    baremLookupFailed: 'Không tra được barem lúc này — vui lòng nhập tay',
+    // The trang tính is named because the fix belongs to the admin, not to this
+    // Hầm — and nothing here suggests waiting it out (ADR 0005).
+    baremLookupFailed: 'Không đọc được trang tính barem — nhập tay và báo quản trị viên',
     // Why a row on the biên bản could not be bound to a Hầm (ADR 0004). Unbound
     // is not an error: the biên bản still saves, the row simply gets no Barem
     // lookup and no phiếu nhập.
@@ -500,8 +502,10 @@ export const vi = {
     tankFuel: 'Nhiên liệu',
     tankCapacity: 'Sức chứa',
     tankDipValue: 'Mực đo',
+    // The Barem itself is no longer what this waits on — it is read live from the
+    // trang tính (ADR 0005). What is unresolved is the dip photo's own format.
     tankBaremNote:
-      'Cần bảng barem bồn để quy mực đo ra số lít tồn (§12.6). Hiện ghi nhận mực đo thô.',
+      'Chưa quy mực đo ra số lít tồn: định dạng ảnh đo que chưa chốt (§12.6). Hiện ghi nhận mực đo thô.',
     photo: 'Ảnh đồng hồ',
     dropHint: 'Kéo thả ảnh vào đây hoặc bấm để chọn',
     changePhoto: 'Chọn ảnh khác',
