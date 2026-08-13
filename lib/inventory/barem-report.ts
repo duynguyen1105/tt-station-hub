@@ -1,11 +1,12 @@
-// The importer's report. It is a deliverable for Trường Thịnh (ADR 0003), not
+// The checker's report. It is a deliverable for Trường Thịnh (ADR 0003), not
 // developer output: the arithmetic errors it lists are in their spreadsheet,
 // which means they are wrong wherever else that spreadsheet is used. So it
 // speaks their vocabulary — Trạm, Hầm, chiều cao, lít — and names the height and
 // the litres at every defect rather than the row it sat on.
 //
-// Pure: it formats what the importer found and compares two sets of numbers.
-// It corrects nothing on either side.
+// Pure: it formats what the checker read, names the litres the sheet writes with
+// a fraction, and compares two sets of numbers. It corrects nothing on either
+// side.
 import { formatDateTime } from '@/lib/format'
 
 import type { BaremDefect, BaremSheet, BaremTank } from './barem'
@@ -33,7 +34,7 @@ export type BaremMismatch =
   | { kind: 'tank-missing-from-dispensers'; tankCode: string }
   | { kind: 'tank-missing-from-sheet'; tankCode: string; dispenserFuels: string[] }
 
-/** One Trạm's sheet, as the importer left it. */
+/** One Trạm's sheet, as the checker found it. */
 export type BaremStationOutcome =
   | {
       ok: true
@@ -111,16 +112,16 @@ export function compareBaremToDispensers(
 }
 
 /** The whole run, as a page a human can hand to Trường Thịnh. */
-export function formatBaremReport(outcomes: BaremStationOutcome[], importedAt: Date): string {
-  const lines = [`BÁO CÁO NHẬP BAREM — ${formatDateTime(importedAt)}`]
+export function formatBaremReport(outcomes: BaremStationOutcome[], checkedAt: Date): string {
+  const lines = [`BÁO CÁO KIỂM TRA BAREM — ${formatDateTime(checkedAt)}`]
 
   for (const outcome of outcomes) {
     lines.push('', '─'.repeat(72))
     const who = `${outcome.stationName} (${outcome.stationCode}) — trang tính \`${outcome.tab}\``
     if (!outcome.ok) {
-      // The importer writes last, so a skipped Trạm still holds the Barem it had
-      // before this run — whatever the reason turns out to be.
-      lines.push(`${who}: KHÔNG NHẬP ĐƯỢC (giữ barem cũ) — ${outcome.error}`)
+      // Nothing is kept or lost by a sheet that would not read: the Barem lives
+      // in the trang tính and nowhere else (ADR 0005). It simply went unchecked.
+      lines.push(`${who}: KHÔNG ĐỌC ĐƯỢC — ${outcome.error}`)
       continue
     }
 
@@ -128,6 +129,9 @@ export function formatBaremReport(outcomes: BaremStationOutcome[], importedAt: D
     for (const tank of outcome.sheet.tanks) {
       lines.push(`  ${describeTank(tank)}`)
       for (const defect of tank.defects) lines.push(`    • ${describeDefect(defect)}`)
+      for (const [heightMm, liters] of nonIntegerPoints(tank)) {
+        lines.push(`    • Số lít không nguyên: ${grouped(heightMm)} mm = ${grouped(liters)} L`)
+      }
     }
     if (outcome.mismatches.length > 0) {
       lines.push('  Sai lệch so với bảng dispensers (không sửa bên nào):')
@@ -135,19 +139,28 @@ export function formatBaremReport(outcomes: BaremStationOutcome[], importedAt: D
     }
   }
 
-  const importedSheets = outcomes.filter((o) => o.ok)
-  const tanks = importedSheets.flatMap((o) => o.sheet.tanks)
+  const readSheets = outcomes.filter((o) => o.ok)
+  const tanks = readSheets.flatMap((o) => o.sheet.tanks)
   lines.push(
     '',
     '─'.repeat(72),
     'TỔNG KẾT',
-    `  Trang tính nhập được: ${importedSheets.length}/${outcomes.length}`,
-    `  Hầm nhập được: ${tanks.length}`,
+    `  Trang tính đọc được: ${readSheets.length}/${outcomes.length}`,
+    `  Hầm đọc được: ${tanks.length}`,
     `  Điểm chiều cao → lít: ${grouped(tanks.reduce((n, t) => n + t.points.size, 0))}`,
-    `  Lỗi trong nguồn: ${tanks.reduce((n, t) => n + t.defects.length, 0)}`,
-    `  Sai lệch so với dispensers: ${importedSheets.reduce((n, o) => n + o.mismatches.length, 0)}`
+    `  Lỗi trong nguồn: ${tanks.reduce((n, t) => n + t.defects.length + nonIntegerPoints(t).length, 0)}`,
+    `  Sai lệch so với dispensers: ${readSheets.reduce((n, o) => n + o.mismatches.length, 0)}`
   )
   return lines.join('\n')
+}
+
+/**
+ * The heights whose litres the sheet writes with a fraction. A Barem is written
+ * in whole litres, so a fraction is a slip worth naming — but the lookup serves
+ * it as written (ADR 0003), which is why it is a defect and not a refusal.
+ */
+function nonIntegerPoints(tank: BaremTank): [number, number][] {
+  return [...tank.points.entries()].filter(([, liters]) => !Number.isInteger(liters))
 }
 
 function describeTank(tank: BaremTank): string {
@@ -207,9 +220,12 @@ function hamLabel(tankCode: string): string {
   return tankCode.replace('HAM_', 'Hầm ')
 }
 
-/** Grouped like the spreadsheet itself writes them: 13,532. */
+/** Grouped like the spreadsheet itself writes them: 13,532. Fractions are kept
+ *  whole — the default rounds at three digits, and a rounded litre value would
+ *  be a number the trang tính does not contain, in the line that names the cell
+ *  to correct. */
 function grouped(value: number): string {
-  return value.toLocaleString('en-US')
+  return value.toLocaleString('en-US', { maximumFractionDigits: 20 })
 }
 
 function distinct<T>(values: T[]): T[] {

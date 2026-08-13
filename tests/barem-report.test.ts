@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-import { parseBaremSheet } from '@/lib/inventory/barem'
+import { type BaremSheet, parseBaremSheet } from '@/lib/inventory/barem'
 import {
   type BaremStationOutcome,
   compareBaremToDispensers,
@@ -75,13 +75,13 @@ describe('compareBaremToDispensers', () => {
   })
 })
 
-const importedAt = new Date('2026-08-11T15:00:00.000Z')
+const checkedAt = new Date('2026-08-11T15:00:00.000Z')
 
-function imported(
+function checked(
   stationCode: string,
   stationName: string,
   tab: string,
-  sheet: ReturnType<typeof parseBaremSheet>,
+  sheet: BaremSheet,
   mismatches: ReturnType<typeof compareBaremToDispensers> = []
 ): BaremStationOutcome {
   return { ok: true, stationCode, stationName, tab, sheet, mismatches }
@@ -90,10 +90,10 @@ function imported(
 describe('formatBaremReport', () => {
   const report = formatBaremReport(
     [
-      imported('DAKNONG1', 'Trạm Đăk Nông 1', 'daknong1', daknong1, [
+      checked('DAKNONG1', 'Trạm Đăk Nông 1', 'daknong1', daknong1, [
         { kind: 'fuel', tankCode: 'HAM_2', sheetFuel: 'DC', dispenserFuels: ['DO'] },
       ]),
-      imported('DAKNONGVK', 'Đăk Nông VK', 'daknongvk', daknongvk),
+      checked('DAKNONGVK', 'Đăk Nông VK', 'daknongvk', daknongvk),
       {
         ok: false,
         stationCode: 'PHUCTIEN',
@@ -102,7 +102,7 @@ describe('formatBaremReport', () => {
         error: 'HTTP 404',
       },
     ],
-    importedAt
+    checkedAt
   )
 
   it('names the Trạm and the Hầm, not row indices', () => {
@@ -124,10 +124,10 @@ describe('formatBaremReport', () => {
     expect(report).toContain('barem ghi DC, dispensers ghi DO')
   })
 
-  it('names a sheet it could not import, says the Trạm kept its old Barem, and leaves it out of the count', () => {
+  it('names a sheet it could not read and leaves it out of the count', () => {
     expect(report).toContain('Phúc Tiến (PHUCTIEN)')
-    expect(report).toContain('KHÔNG NHẬP ĐƯỢC (giữ barem cũ) — HTTP 404')
-    expect(report).toContain('Trang tính nhập được: 2/3')
+    expect(report).toContain('KHÔNG ĐỌC ĐƯỢC — HTTP 404')
+    expect(report).toContain('Trang tính đọc được: 2/3')
   })
 
   it('ends with a summary of sheets, Hầm, points and defects', () => {
@@ -137,8 +137,43 @@ describe('formatBaremReport', () => {
       (n, t) => n + t.defects.length,
       0
     )
-    expect(report).toContain(`Hầm nhập được: ${tanks}`)
+    expect(report).toContain(`Hầm đọc được: ${tanks}`)
     expect(report).toContain(`Điểm chiều cao → lít: ${points.toLocaleString('en-US')}`)
     expect(report).toContain(`Lỗi trong nguồn: ${defects}`)
+  })
+
+  // The litres are served as written (ADR 0003) — a Barem is written in whole
+  // litres, so a fraction is worth naming, and naming it is all the report does.
+  it('names a non-integer number of litres, and still reports the Hầm it sits in', () => {
+    const sheet: BaremSheet = {
+      stationHeader: 'DAKNONG3',
+      tanks: [
+        {
+          tankCode: 'HAM_5',
+          fuel: 'DO',
+          nominalCapacityLiters: 25000,
+          minHeightMm: 681,
+          maxHeightMm: 683,
+          points: new Map([
+            [681, 2311],
+            [682, 2316.5],
+            [683, 2317.456789],
+          ]),
+          defects: [],
+        },
+      ],
+    }
+    const withFraction = formatBaremReport(
+      [checked('DAKNONG3', 'Trạm Đăk Nông 3', 'daknong3', sheet)],
+      checkedAt
+    )
+
+    expect(withFraction).toContain('Số lít không nguyên: 682 mm = 2,316.5 L')
+    // Written out to the last digit: the cell to correct is named exactly, and a
+    // rounded figure would be a litre value the trang tính does not contain.
+    expect(withFraction).toContain('Số lít không nguyên: 683 mm = 2,317.456789 L')
+    expect(withFraction).toContain('Hầm 5 — DO')
+    expect(withFraction).toContain('Trang tính đọc được: 1/1')
+    expect(withFraction).toContain('Lỗi trong nguồn: 2')
   })
 })
