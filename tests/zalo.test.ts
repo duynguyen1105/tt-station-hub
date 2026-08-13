@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { pickStationByLabel } from '@/lib/matching/station-label'
+import { pickStationByDeclaration, pickStationByLabel } from '@/lib/matching/station-label'
 import { classifyZaloMessage, explicitCaptionKind, routePhoto } from '@/lib/zalo/classify'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
 import { parseZaloEvent, parseZaloTextEvent } from '@/lib/zalo/webhook-handler'
@@ -167,5 +167,41 @@ describe('station declared in a message text', () => {
   it('finds no station when the text only declares the kind', () => {
     expect(pickStationByLabel('chốt ca', STATIONS)).toBeNull()
     expect(pickStationByLabel('công nợ', STATIONS)).toBeNull()
+  })
+})
+
+describe('pickStationByDeclaration', () => {
+  const STATIONS = [
+    { id: '1', code: 'DAKNONG1', name: 'Trạm Đăk Nông 1' },
+    { id: '2', code: 'DAKNONG2', name: 'Đắk Nông 2' },
+    { id: '3', code: 'NGANHA01', name: 'Ngân Hà 01' },
+    { id: '4', code: 'LAMDONG01', name: 'Lâm Đồng 1' },
+    { id: '5', code: 'NGUYENVUONG', name: 'Nguyên Vượng' },
+  ]
+
+  it('accepts spacing/diacritic/zero-padding variants', () => {
+    expect(pickStationByDeclaration('daknong 1', STATIONS)?.code).toBe('DAKNONG1')
+    expect(pickStationByDeclaration('dak nông  1', STATIONS)?.code).toBe('DAKNONG1')
+    expect(pickStationByDeclaration('chốt ca dak nong 01', STATIONS)?.code).toBe('DAKNONG1')
+    expect(pickStationByDeclaration('chốt ca lâm đồng 1', STATIONS)?.code).toBe('LAMDONG01')
+  })
+
+  it('tolerates one typo in the letters, digits exact', () => {
+    expect(pickStationByDeclaration('chốt ca daknog 1', STATIONS)?.code).toBe('DAKNONG1')
+    expect(pickStationByDeclaration('chốt ca dăk nôg 2', STATIONS)?.code).toBe('DAKNONG2')
+    expect(pickStationByDeclaration('công nợ nganha 01', STATIONS)?.code).toBe('NGANHA01')
+    expect(pickStationByDeclaration('chốt ca nguyen vuog', STATIONS)?.code).toBe('NGUYENVUONG')
+  })
+
+  it('never lets a typo cross the digit — no station swap', () => {
+    // "daknong 9" is one edit from both DAKNONG1 and DAKNONG2; digits refuse it.
+    expect(pickStationByDeclaration('chốt ca daknong 9', STATIONS)).toBeNull()
+    // No digit at all cannot fuzzy-match a digit-carrying code.
+    expect(pickStationByDeclaration('chốt ca daknong', STATIONS)).toBeNull()
+  })
+
+  it('refuses short or empty candidates', () => {
+    expect(pickStationByDeclaration('chốt ca', STATIONS)).toBeNull()
+    expect(pickStationByDeclaration('chốt ca 1', STATIONS)).toBeNull()
   })
 })
