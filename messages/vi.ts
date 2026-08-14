@@ -275,6 +275,17 @@ export const vi = {
     noDips: 'Chưa có lần đo hầm nào.',
     importedToday: 'Nhập hôm nay',
     soldToday: 'Bán hôm nay',
+    // Hàng tồn 2 phần: lý thuyết (movements) vs thực tế (đo bồn qua Barem)
+    theoreticalTitle: 'Tồn lý thuyết (nhập − bán)',
+    theoreticalNote:
+      'Tự cộng khi nhập hàng, tự trừ theo đồng hồ điện tử khi chốt ca — đúng đến ca đã chốt gần nhất, ca đang mở chưa trừ.',
+    actualTitle: 'Tồn thực tế (đo bồn)',
+    actualLiters: 'Quy ra lít (barem)',
+    compareTitle: 'Đối chiếu lý thuyết − thực tế',
+    theoretical: 'Lý thuyết',
+    actual: 'Thực tế',
+    diffIncomplete: 'Thiếu số đo hầm — chưa so được',
+    baremSheetFailed: 'Không đọc được trang tính barem — cột "Quy ra lít" tạm trống.',
   },
 
   imports: {

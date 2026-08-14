@@ -8,6 +8,9 @@ import { requireUser } from '@/lib/auth/session'
 import { formatDate, formatLiters } from '@/lib/format'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
+import { type BaremLookup, lookupBaremLiters } from '@/lib/inventory/barem'
+import { fetchBaremSheet } from '@/lib/inventory/barem-fetch'
+import { baremSheetFor } from '@/lib/inventory/barem-sheets'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
@@ -160,6 +163,41 @@ export default async function StationInventoryPage({
       : []
   const creatorById = new Map(creators.map((c) => [c.id, c.fullName]))
 
+  // ACTUAL stock: each tank's latest dip height resolved against the live
+  // Barem (same sheet, same no-cache rule as the nhập-hàng form). A tank whose
+  // height the Barem cannot answer keeps its raw reading and shows the reason.
+  const binding = baremSheetFor(station?.code)
+  const baremRead = binding ? await fetchBaremSheet(binding) : null
+  const baremByTank = baremRead?.ok
+    ? new Map(baremRead.sheet.tanks.map((t) => [t.tankCode, t]))
+    : null
+  const actualForTank = (tankCode: string): BaremLookup | null => {
+    const dip = latestByTank.get(tankCode)
+    if (!dip || !baremByTank) return null
+    return lookupBaremLiters(baremByTank.get(tankCode), Math.round(Number(dip.dipValue)))
+  }
+  const refusalLabel: Record<string, string> = {
+    'below-minimum': vi.imports.baremOutOfRange,
+    'above-maximum': vi.imports.baremOutOfRange,
+    'missing-point': vi.imports.baremMissingPoint,
+    'unknown-tank': vi.imports.baremUnknownTank,
+  }
+
+  // Per-fuel comparison: theoretical (movements) vs actual (dips). A fuel whose
+  // tanks are not all measured-and-resolved cannot honestly be compared.
+  const actualByFuel = new Map<string, number>()
+  const incompleteFuels = new Set<string>()
+  for (const t of tanks) {
+    const fuel = latestByTank.get(t.code)?.fuelType ?? t.fuelType
+    if (!fuel) continue
+    const lookup = actualForTank(t.code)
+    if (lookup?.ok) actualByFuel.set(fuel, (actualByFuel.get(fuel) ?? 0) + lookup.liters)
+    else incompleteFuels.add(fuel)
+  }
+  const compareFuels = [
+    ...new Set([...balances.map((b) => b.fuelType), ...actualByFuel.keys()]),
+  ].sort()
+
   // The Hầm and Trụ this Trạm's own pre-printed biên bản lists — resolved here
   // rather than in the form, so the 13 rosters stay out of the browser bundle.
   const paperRoster = station ? rosterForStation(station.code) : undefined
@@ -187,6 +225,10 @@ export default async function StationInventoryPage({
           <MovementForm stationId={id} />
         </div>
       </div>
+      <section className="space-y-1">
+        <h3 className="text-sm font-semibold">{vi.inventory.theoreticalTitle}</h3>
+        <p className="text-muted-foreground text-xs">{vi.inventory.theoreticalNote}</p>
+      </section>
       {balances.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.inventory.empty}</p>
       ) : (
@@ -222,7 +264,10 @@ export default async function StationInventoryPage({
       )}
 
       <section className="space-y-2">
-        <h3 className="text-muted-foreground text-sm font-medium">{vi.inventory.tankDips}</h3>
+        <h3 className="text-sm font-semibold">{vi.inventory.actualTitle}</h3>
+        {baremRead && !baremRead.ok && (
+          <p className="text-destructive text-xs">{vi.inventory.baremSheetFailed}</p>
+        )}
         {tankCodes.length === 0 ? (
           <p className="text-muted-foreground text-sm">{vi.inventory.noDips}</p>
         ) : (
@@ -232,6 +277,7 @@ export default async function StationInventoryPage({
                 <th className="p-2">{vi.inventory.tank}</th>
                 <th className="p-2">{vi.inventory.fuelType}</th>
                 <th className="p-2 text-right">{vi.inventory.dipValue}</th>
+                <th className="p-2 text-right">{vi.inventory.actualLiters}</th>
                 <th className="p-2 text-right">{vi.inventory.dipDelta}</th>
                 <th className="p-2 text-right">{vi.inventory.importedToday}</th>
                 <th className="p-2 text-right">{vi.inventory.soldToday}</th>
@@ -243,6 +289,7 @@ export default async function StationInventoryPage({
               {tankCodes.map((tankCode) => {
                 const dip = latestByTank.get(tankCode)
                 const flow = flows.get(tankCode)
+                const lookup = actualForTank(tankCode)
                 return (
                   <tr key={tankCode} className="border-b">
                     <td className="p-2 font-medium">{tankCode.replace('HAM_', 'Hầm ')}</td>
@@ -254,6 +301,17 @@ export default async function StationInventoryPage({
                           : '—'}
                     </td>
                     <td className="p-2 text-right font-mono">{dip?.dipValue.toString() ?? '—'}</td>
+                    <td className="p-2 text-right font-mono">
+                      {lookup?.ok ? (
+                        <span className="font-semibold">{formatLiters(lookup.liters)}</span>
+                      ) : lookup ? (
+                        <span className="text-muted-foreground text-xs">
+                          {refusalLabel[lookup.reason]}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className="p-2 text-right font-mono">
                       {dip?.deltaFromPrevious?.toString() ?? '—'}
                     </td>
@@ -277,6 +335,55 @@ export default async function StationInventoryPage({
           </table>
         )}
       </section>
+
+      {compareFuels.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">{vi.inventory.compareTitle}</h3>
+          <table className="w-full max-w-xl text-sm">
+            <thead>
+              <tr className="text-muted-foreground border-b text-left">
+                <th className="p-2">{vi.inventory.fuelType}</th>
+                <th className="p-2 text-right">{vi.inventory.theoretical}</th>
+                <th className="p-2 text-right">{vi.inventory.actual}</th>
+                <th className="p-2 text-right">{vi.inventory.variance}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {compareFuels.map((fuel) => {
+                const balance = balances.find((b) => b.fuelType === fuel)
+                const theoretical = balance ? Number(balance.estimatedStock) : 0
+                const actual = actualByFuel.get(fuel)
+                // Every tank of the fuel must be measured AND resolved by the
+                // Barem before the comparison means anything.
+                const comparable = actual !== undefined && !incompleteFuels.has(fuel)
+                const diff = comparable ? theoretical - actual : null
+                return (
+                  <tr key={fuel} className="border-b">
+                    <td className="p-2 font-medium">{fuelTypeLabel(fuel)}</td>
+                    <td className="p-2 text-right font-mono">{formatLiters(theoretical)}</td>
+                    <td className="p-2 text-right font-mono">
+                      {actual === undefined ? '—' : formatLiters(actual)}
+                    </td>
+                    <td className="p-2 text-right">
+                      {diff === null ? (
+                        <span className="text-muted-foreground text-xs">
+                          {vi.inventory.diffIncomplete}
+                        </span>
+                      ) : (
+                        <span
+                          className={`font-mono ${diff !== 0 ? 'font-semibold' : 'text-muted-foreground'}`}
+                        >
+                          {formatLiters(diff)}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
