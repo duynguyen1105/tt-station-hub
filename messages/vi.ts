@@ -306,6 +306,15 @@ export const vi = {
     dayClosing: 'Tồn cuối ngày',
     dipHistory: 'Lịch sử đo bồn',
     photo: 'Ảnh',
+    // Sub-tabs of the Hàng tồn page — the histories grow daily, so each gets
+    // its own tab with pagination instead of one ever-longer page.
+    tabOverview: 'Tổng quan',
+    tabLedger: 'Sổ sách theo ngày',
+    tabDips: 'Lịch sử đo bồn',
+    tabImports: 'Lịch sử nhập hàng',
+    pagePrev: '← Trước',
+    pageNext: 'Sau →',
+    pageOf: 'Trang',
   },
 
   imports: {

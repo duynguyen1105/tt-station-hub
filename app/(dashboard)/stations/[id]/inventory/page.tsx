@@ -57,21 +57,29 @@ function buildTankOptions(
   return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
 }
 
+const TABS = ['tong-quan', 'so-sach', 'do-bon', 'nhap-hang'] as const
+type InventoryTab = (typeof TABS)[number]
+const PAGE_SIZE = 20
+
 export default async function StationInventoryPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ from?: string; to?: string }>
+  searchParams: Promise<{ from?: string; to?: string; tab?: string; page?: string }>
 }) {
   const user = await requireUser()
   const { id } = await params
   const today = todayShiftDate()
 
-  // Optional date filter for the import history (?from=YYYY-MM-DD&to=...).
-  // Bounds are Vietnam wall-clock days; a filtered list may go deeper than the
-  // default "latest 20".
-  const { from, to } = await searchParams
+  // The histories grow every day, so each lives in its own sub-tab with
+  // pagination; the overview stays a fixed-size dashboard. Tab, page and the
+  // import-history date filter all live in the URL (plain GET navigation).
+  const { from, to, tab: rawTab, page: rawPage } = await searchParams
+  const tab: InventoryTab = (TABS as readonly string[]).includes(rawTab ?? '')
+    ? (rawTab as InventoryTab)
+    : 'tong-quan'
+  const pageNum = Math.max(1, Number.parseInt(rawPage ?? '1', 10) || 1)
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
   const fromDate = from && DATE_RE.test(from) ? new Date(`${from}T00:00:00+07:00`) : null
   const toDate = to && DATE_RE.test(to) ? new Date(`${to}T23:59:59+07:00`) : null
@@ -80,32 +88,51 @@ export default async function StationInventoryPage({
     ...(toDate ? { lte: toDate } : {}),
   }
   const hasDateFilter = fromDate !== null || toDate !== null
-  const [station, balances, dips, dispensers, imports, openings, movements] = await Promise.all([
-    prisma.station.findUnique({ where: { id }, select: { code: true } }),
-    prisma.inventoryBalance.findMany({
-      where: { stationId: id },
-      orderBy: { fuelType: 'asc' },
-    }),
-    prisma.tankDipRecord.findMany({
-      where: { stationId: id },
-      orderBy: { measuredAt: 'desc' },
-      take: 120,
-    }),
-    prisma.dispenser.findMany({ where: { stationId: id, isActive: true } }),
-    prisma.fuelImport.findMany({
-      where: {
-        stationId: id,
-        ...(hasDateFilter ? { importedAt: importFilter } : {}),
-      },
-      orderBy: { importedAt: 'desc' },
-      take: hasDateFilter ? 200 : 20,
-    }),
-    prisma.inventoryOpeningBalance.findMany({ where: { stationId: id } }),
-    prisma.inventoryMovement.findMany({
-      where: { stationId: id },
-      orderBy: { movementDate: 'asc' },
-    }),
-  ])
+  const importsWhere = {
+    stationId: id,
+    ...(hasDateFilter ? { importedAt: importFilter } : {}),
+  }
+  const [station, balances, dips, dispensers, imports, openings, movements, importsTotal] =
+    await Promise.all([
+      prisma.station.findUnique({ where: { id }, select: { code: true } }),
+      prisma.inventoryBalance.findMany({
+        where: { stationId: id },
+        orderBy: { fuelType: 'asc' },
+      }),
+      // Latest-per-tank for the overview; the do-bon tab paginates separately.
+      prisma.tankDipRecord.findMany({
+        where: { stationId: id },
+        orderBy: { measuredAt: 'desc' },
+        take: 120,
+      }),
+      prisma.dispenser.findMany({ where: { stationId: id, isActive: true } }),
+      prisma.fuelImport.findMany({
+        where: importsWhere,
+        orderBy: { importedAt: 'desc' },
+        skip: tab === 'nhap-hang' ? (pageNum - 1) * PAGE_SIZE : 0,
+        take: PAGE_SIZE,
+      }),
+      prisma.inventoryOpeningBalance.findMany({ where: { stationId: id } }),
+      prisma.inventoryMovement.findMany({
+        where: { stationId: id },
+        orderBy: { movementDate: 'asc' },
+      }),
+      tab === 'nhap-hang' ? prisma.fuelImport.count({ where: importsWhere }) : 0,
+    ])
+
+  // Dip history page — only fetched on its own tab.
+  const [dipsPage, dipsTotal] =
+    tab === 'do-bon'
+      ? await Promise.all([
+          prisma.tankDipRecord.findMany({
+            where: { stationId: id },
+            orderBy: { measuredAt: 'desc' },
+            skip: (pageNum - 1) * PAGE_SIZE,
+            take: PAGE_SIZE,
+          }),
+          prisma.tankDipRecord.count({ where: { stationId: id } }),
+        ])
+      : [[], 0]
 
   // Today's per-tank flows: imports from slips, sales from today's shift readings.
   const todayShift = await prisma.shift.findFirst({
@@ -115,6 +142,10 @@ export default async function StationInventoryPage({
   const todayReadings = todayShift
     ? await prisma.shiftReading.findMany({ where: { shiftId: todayShift.id } })
     : []
+  // Fetched on its own so neither the date filter nor pagination can starve it.
+  const todayImports = await prisma.fuelImport.findMany({
+    where: { stationId: id, canceledAt: null, importedAt: { gte: today } },
+  })
   const flows = computeTankFlows({
     dispensers: dispensers.map((d) => ({ id: d.id, tankCode: d.tankCode })),
     readings: todayReadings.map((r) => ({
@@ -123,13 +154,10 @@ export default async function StationInventoryPage({
         r.openingElectronicReading === null ? null : Number(r.openingElectronicReading),
       electronicReading: r.electronicReading === null ? null : Number(r.electronicReading),
     })),
-    // The list above may be date-filtered to the past; "Nhập hôm nay" must not be.
-    imports: (hasDateFilter
-      ? await prisma.fuelImport.findMany({
-          where: { stationId: id, canceledAt: null, importedAt: { gte: today } },
-        })
-      : imports.filter((i) => !i.canceledAt && i.importedAt >= today)
-    ).map((i) => ({ tankCode: i.tankCode, litersActual: Number(i.litersActual) })),
+    imports: todayImports.map((i) => ({
+      tankCode: i.tankCode,
+      litersActual: Number(i.litersActual),
+    })),
   })
 
   // Latest measurement per tank (dips are ordered newest-first).
@@ -150,12 +178,15 @@ export default async function StationInventoryPage({
   // docs attached to its parent biên bản (receipt) — the biên bản pages (BB)
   // and the "tài liệu nhập hàng" (TL) uploaded in the wizard's last step.
   const receiptIds = [...new Set(imports.map((i) => i.receiptId).filter((r): r is string => !!r))]
-  const docs = await prisma.fuelImportDocument.findMany({
-    where: {
-      OR: [{ importId: { in: imports.map((i) => i.id) } }, { receiptId: { in: receiptIds } }],
-    },
-    orderBy: { createdAt: 'asc' },
-  })
+  const docs =
+    tab === 'nhap-hang'
+      ? await prisma.fuelImportDocument.findMany({
+          where: {
+            OR: [{ importId: { in: imports.map((i) => i.id) } }, { receiptId: { in: receiptIds } }],
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+      : []
   const docLinks = new Map<string, { url: string; name: string }[]>()
   const receiptLinks = new Map<string, { url: string; name: string }[]>()
   for (const doc of docs) {
@@ -279,7 +310,8 @@ export default async function StationInventoryPage({
       ).map((row) => ({ fuel, ...row }))
     })
     .sort((a, b) => b.date.localeCompare(a.date) || a.fuel.localeCompare(b.fuel))
-    .slice(0, 60)
+  const ledgerTotal = ledgerRows.length
+  const ledgerPage = ledgerRows.slice((pageNum - 1) * PAGE_SIZE, pageNum * PAGE_SIZE)
   const openingEntries: OpeningEntry[] = bookFuels.map((fuel) => {
     const opening = openingByFuel.get(fuel)
     return {
@@ -291,7 +323,8 @@ export default async function StationInventoryPage({
   })
 
   // Signed photo links for the dip history — the measurement's own evidence.
-  const dipPhotoIds = dips.map((d) => d.photoId).filter((p): p is string => !!p)
+  // Only the visible page's photos are signed.
+  const dipPhotoIds = dipsPage.map((d) => d.photoId).filter((p): p is string => !!p)
   const dipPhotos = dipPhotoIds.length
     ? await prisma.shiftPhoto.findMany({
         where: { id: { in: dipPhotoIds } },
@@ -321,6 +354,49 @@ export default async function StationInventoryPage({
   const canEdit = user.role !== 'viewer'
   const fuelForTank = new Map(tanks.map((t) => [t.code, t.fuelType]))
 
+  const base = `/stations/${id}/inventory`
+  const tabHref = (t: InventoryTab) => (t === 'tong-quan' ? base : `${base}?tab=${t}`)
+  const pageHref = (p: number) => {
+    const query = new URLSearchParams()
+    if (tab !== 'tong-quan') query.set('tab', tab)
+    if (p > 1) query.set('page', String(p))
+    if (from && fromDate) query.set('from', from)
+    if (to && toDate) query.set('to', to)
+    const qs = query.toString()
+    return qs ? `${base}?${qs}` : base
+  }
+  const pager = (total: number) => {
+    const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
+    if (lastPage <= 1) return null
+    return (
+      <div className="flex items-center justify-end gap-3 text-sm">
+        {pageNum > 1 ? (
+          <a href={pageHref(pageNum - 1)} className="text-primary underline underline-offset-2">
+            {vi.inventory.pagePrev}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">{vi.inventory.pagePrev}</span>
+        )}
+        <span className="text-muted-foreground">
+          {vi.inventory.pageOf} {Math.min(pageNum, lastPage)}/{lastPage}
+        </span>
+        {pageNum < lastPage ? (
+          <a href={pageHref(pageNum + 1)} className="text-primary underline underline-offset-2">
+            {vi.inventory.pageNext}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">{vi.inventory.pageNext}</span>
+        )}
+      </div>
+    )
+  }
+  const TAB_LABELS: Record<InventoryTab, string> = {
+    'tong-quan': vi.inventory.tabOverview,
+    'so-sach': vi.inventory.tabLedger,
+    'do-bon': vi.inventory.tabDips,
+    'nhap-hang': vi.inventory.tabImports,
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -338,92 +414,114 @@ export default async function StationInventoryPage({
           <MovementForm stationId={id} />
         </div>
       </div>
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-semibold">{vi.inventory.theoreticalTitle}</h3>
-            <p className="text-muted-foreground text-xs">
-              {vi.inventory.openingNote} {vi.inventory.bookSoldNote}
-            </p>
-          </div>
-          {user.role === 'admin' && <OpeningBalanceForm stationId={id} entries={openingEntries} />}
-        </div>
-        {bookFuels.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{vi.inventory.empty}</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[44rem] text-sm">
-              <thead>
-                <tr className="text-muted-foreground border-b text-left">
-                  <th className="p-2">{vi.inventory.fuelType}</th>
-                  <th className="p-2 text-right">{vi.inventory.openingTitle}</th>
-                  <th className="p-2 text-right">+ {vi.inventory.bookImported}</th>
-                  <th className="p-2 text-right">− {vi.inventory.bookSold}</th>
-                  <th className="p-2 text-right">± {vi.inventory.bookAdjusted}</th>
-                  <th className="p-2 text-right">= {vi.inventory.bookStock}</th>
-                  <th className="p-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookFuels.map((fuel) => {
-                  const book = bookByFuel.get(fuel)!
-                  const balance = balances.find((b) => b.fuelType === fuel)
-                  const threshold =
-                    balance?.lowThreshold != null ? Number(balance.lowThreshold) : null
-                  const low = isLowStock(book.summary.bookStock, threshold)
-                  return (
-                    <tr key={fuel} className="border-b">
-                      <td className="p-2 font-medium">{fuelTypeLabel(fuel)}</td>
-                      <td className="p-2 text-right">
-                        {book.opening ? (
-                          <span className="font-mono">
-                            {formatLiters(book.summary.openingLiters)}
-                            <span className="text-muted-foreground ml-1 text-xs">
-                              ({formatDate(book.opening.effectiveDate)})
-                            </span>
-                          </span>
-                        ) : (
-                          <StatusBadge label={vi.inventory.noOpening} tone="warning" />
-                        )}
-                      </td>
-                      <td className="p-2 text-right">
-                        {/* Every component links to its own evidence trail. */}
-                        <a
-                          href="#lich-su-nhap-hang"
-                          className="text-primary font-mono underline underline-offset-2"
-                        >
-                          {formatLiters(book.summary.importedLiters)}
-                        </a>
-                      </td>
-                      <td className="p-2 text-right">
-                        <a
-                          href={`/stations/${id}/shifts`}
-                          className="text-primary font-mono underline underline-offset-2"
-                        >
-                          {formatLiters(book.summary.soldLiters)}
-                        </a>
-                      </td>
-                      <td className="p-2 text-right font-mono">
-                        {book.summary.adjustedLiters === 0
-                          ? '—'
-                          : formatLiters(book.summary.adjustedLiters)}
-                      </td>
-                      <td className="p-2 text-right font-mono font-semibold">
-                        {formatLiters(book.summary.bookStock)}
-                      </td>
-                      <td className="p-2">
-                        {low && <StatusBadge label={vi.inventory.low} tone="danger" />}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
 
-      {ledgerRows.length > 0 && (
+      {/* Sub-tabs: the overview stays fixed-size, each history paginates. */}
+      <nav className="flex gap-4 border-b text-sm">
+        {TABS.map((t) => (
+          <a
+            key={t}
+            href={tabHref(t)}
+            className={
+              t === tab
+                ? 'border-primary -mb-px border-b-2 pb-2 font-semibold'
+                : 'text-muted-foreground pb-2'
+            }
+          >
+            {TAB_LABELS[t]}
+          </a>
+        ))}
+      </nav>
+
+      {tab === 'tong-quan' && (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold">{vi.inventory.theoreticalTitle}</h3>
+              <p className="text-muted-foreground text-xs">
+                {vi.inventory.openingNote} {vi.inventory.bookSoldNote}
+              </p>
+            </div>
+            {user.role === 'admin' && (
+              <OpeningBalanceForm stationId={id} entries={openingEntries} />
+            )}
+          </div>
+          {bookFuels.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{vi.inventory.empty}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[44rem] text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-b text-left">
+                    <th className="p-2">{vi.inventory.fuelType}</th>
+                    <th className="p-2 text-right">{vi.inventory.openingTitle}</th>
+                    <th className="p-2 text-right">+ {vi.inventory.bookImported}</th>
+                    <th className="p-2 text-right">− {vi.inventory.bookSold}</th>
+                    <th className="p-2 text-right">± {vi.inventory.bookAdjusted}</th>
+                    <th className="p-2 text-right">= {vi.inventory.bookStock}</th>
+                    <th className="p-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookFuels.map((fuel) => {
+                    const book = bookByFuel.get(fuel)!
+                    const balance = balances.find((b) => b.fuelType === fuel)
+                    const threshold =
+                      balance?.lowThreshold != null ? Number(balance.lowThreshold) : null
+                    const low = isLowStock(book.summary.bookStock, threshold)
+                    return (
+                      <tr key={fuel} className="border-b">
+                        <td className="p-2 font-medium">{fuelTypeLabel(fuel)}</td>
+                        <td className="p-2 text-right">
+                          {book.opening ? (
+                            <span className="font-mono">
+                              {formatLiters(book.summary.openingLiters)}
+                              <span className="text-muted-foreground ml-1 text-xs">
+                                ({formatDate(book.opening.effectiveDate)})
+                              </span>
+                            </span>
+                          ) : (
+                            <StatusBadge label={vi.inventory.noOpening} tone="warning" />
+                          )}
+                        </td>
+                        <td className="p-2 text-right">
+                          {/* Every component links to its own evidence trail. */}
+                          <a
+                            href={tabHref('nhap-hang')}
+                            className="text-primary font-mono underline underline-offset-2"
+                          >
+                            {formatLiters(book.summary.importedLiters)}
+                          </a>
+                        </td>
+                        <td className="p-2 text-right">
+                          <a
+                            href={`/stations/${id}/shifts`}
+                            className="text-primary font-mono underline underline-offset-2"
+                          >
+                            {formatLiters(book.summary.soldLiters)}
+                          </a>
+                        </td>
+                        <td className="p-2 text-right font-mono">
+                          {book.summary.adjustedLiters === 0
+                            ? '—'
+                            : formatLiters(book.summary.adjustedLiters)}
+                        </td>
+                        <td className="p-2 text-right font-mono font-semibold">
+                          {formatLiters(book.summary.bookStock)}
+                        </td>
+                        <td className="p-2">
+                          {low && <StatusBadge label={vi.inventory.low} tone="danger" />}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === 'so-sach' && (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{vi.inventory.dailyLedgerTitle}</h3>
           <div className="overflow-x-auto">
@@ -440,7 +538,7 @@ export default async function StationInventoryPage({
                 </tr>
               </thead>
               <tbody>
-                {ledgerRows.map((row) => (
+                {ledgerPage.map((row) => (
                   <tr key={`${row.date}-${row.fuel}`} className="border-b">
                     <td className="p-2">{row.date.split('-').reverse().join('/')}</td>
                     <td className="p-2">{fuelTypeLabel(row.fuel)}</td>
@@ -462,83 +560,90 @@ export default async function StationInventoryPage({
               </tbody>
             </table>
           </div>
+          {pager(ledgerTotal)}
         </section>
       )}
 
-      <section className="space-y-2">
-        <h3 className="text-sm font-semibold">{vi.inventory.actualTitle}</h3>
-        {baremRead && !baremRead.ok && (
-          <p className="text-destructive text-xs">{vi.inventory.baremSheetFailed}</p>
-        )}
-        {tankCodes.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{vi.inventory.noDips}</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-b text-left">
-                <th className="p-2">{vi.inventory.tank}</th>
-                <th className="p-2">{vi.inventory.fuelType}</th>
-                <th className="p-2 text-right">{vi.inventory.dipValue}</th>
-                <th className="p-2 text-right">{vi.inventory.actualLiters}</th>
-                <th className="p-2 text-right">{vi.inventory.dipDelta}</th>
-                <th className="p-2 text-right">{vi.inventory.importedToday}</th>
-                <th className="p-2 text-right">{vi.inventory.soldToday}</th>
-                <th className="p-2">{vi.inventory.measuredAt}</th>
-                <th className="p-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {tankCodes.map((tankCode) => {
-                const dip = latestByTank.get(tankCode)
-                const flow = flows.get(tankCode)
-                const lookup = actualForTank(tankCode)
-                return (
-                  <tr key={tankCode} className="border-b">
-                    <td className="p-2 font-medium">{tankCode.replace('HAM_', 'Hầm ')}</td>
-                    <td className="p-2">
-                      {dip?.fuelType
-                        ? fuelTypeLabel(dip.fuelType)
-                        : fuelForTank.get(tankCode)
-                          ? fuelTypeLabel(fuelForTank.get(tankCode)!)
-                          : '—'}
-                    </td>
-                    <td className="p-2 text-right font-mono">{dip?.dipValue.toString() ?? '—'}</td>
-                    <td className="p-2 text-right font-mono">
-                      {lookup?.ok ? (
-                        <span className="font-semibold">{formatLiters(lookup.liters)}</span>
-                      ) : lookup ? (
-                        <span className="text-muted-foreground text-xs">
-                          {refusalLabel[lookup.reason]}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="p-2 text-right font-mono">
-                      {dip?.deltaFromPrevious?.toString() ?? '—'}
-                    </td>
-                    <td className="p-2 text-right font-mono">
-                      {flow?.imported ? formatLiters(flow.imported) : '—'}
-                    </td>
-                    <td className="p-2 text-right font-mono">
-                      {flow?.sold ? formatLiters(flow.sold) : '—'}
-                    </td>
-                    <td className="p-2">{dip ? formatDate(dip.measuredAt) : '—'}</td>
-                    <td className="space-x-1 p-2">
-                      {dip?.isReserve && <StatusBadge label={vi.inventory.reserve} tone="muted" />}
-                      {dip?.isAnomaly && (
-                        <StatusBadge label={vi.inventory.reserveChanged} tone="danger" />
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+      {tab === 'tong-quan' && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">{vi.inventory.actualTitle}</h3>
+          {baremRead && !baremRead.ok && (
+            <p className="text-destructive text-xs">{vi.inventory.baremSheetFailed}</p>
+          )}
+          {tankCodes.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{vi.inventory.noDips}</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-b text-left">
+                  <th className="p-2">{vi.inventory.tank}</th>
+                  <th className="p-2">{vi.inventory.fuelType}</th>
+                  <th className="p-2 text-right">{vi.inventory.dipValue}</th>
+                  <th className="p-2 text-right">{vi.inventory.actualLiters}</th>
+                  <th className="p-2 text-right">{vi.inventory.dipDelta}</th>
+                  <th className="p-2 text-right">{vi.inventory.importedToday}</th>
+                  <th className="p-2 text-right">{vi.inventory.soldToday}</th>
+                  <th className="p-2">{vi.inventory.measuredAt}</th>
+                  <th className="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {tankCodes.map((tankCode) => {
+                  const dip = latestByTank.get(tankCode)
+                  const flow = flows.get(tankCode)
+                  const lookup = actualForTank(tankCode)
+                  return (
+                    <tr key={tankCode} className="border-b">
+                      <td className="p-2 font-medium">{tankCode.replace('HAM_', 'Hầm ')}</td>
+                      <td className="p-2">
+                        {dip?.fuelType
+                          ? fuelTypeLabel(dip.fuelType)
+                          : fuelForTank.get(tankCode)
+                            ? fuelTypeLabel(fuelForTank.get(tankCode)!)
+                            : '—'}
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        {dip?.dipValue.toString() ?? '—'}
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        {lookup?.ok ? (
+                          <span className="font-semibold">{formatLiters(lookup.liters)}</span>
+                        ) : lookup ? (
+                          <span className="text-muted-foreground text-xs">
+                            {refusalLabel[lookup.reason]}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        {dip?.deltaFromPrevious?.toString() ?? '—'}
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        {flow?.imported ? formatLiters(flow.imported) : '—'}
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        {flow?.sold ? formatLiters(flow.sold) : '—'}
+                      </td>
+                      <td className="p-2">{dip ? formatDate(dip.measuredAt) : '—'}</td>
+                      <td className="space-x-1 p-2">
+                        {dip?.isReserve && (
+                          <StatusBadge label={vi.inventory.reserve} tone="muted" />
+                        )}
+                        {dip?.isAnomaly && (
+                          <StatusBadge label={vi.inventory.reserveChanged} tone="danger" />
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
 
-      {compareFuels.length > 0 && (
+      {tab === 'tong-quan' && compareFuels.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{vi.inventory.compareTitle}</h3>
           <table className="w-full max-w-xl text-sm">
@@ -587,194 +692,204 @@ export default async function StationInventoryPage({
         </section>
       )}
 
-      <section className="space-y-2">
-        <h3 className="text-sm font-semibold">{vi.inventory.dipHistory}</h3>
-        {dips.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{vi.inventory.noDips}</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-sm">
+      {tab === 'do-bon' && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">{vi.inventory.dipHistory}</h3>
+          {dipsPage.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{vi.inventory.noDips}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[40rem] text-sm">
+                <thead>
+                  <tr className="text-muted-foreground border-b text-left">
+                    <th className="p-2">{vi.inventory.measuredAt}</th>
+                    <th className="p-2">{vi.inventory.tank}</th>
+                    <th className="p-2">{vi.inventory.fuelType}</th>
+                    <th className="p-2 text-right">{vi.inventory.dipValue}</th>
+                    <th className="p-2 text-right">{vi.inventory.actualLiters}</th>
+                    <th className="p-2 text-right">{vi.inventory.dipDelta}</th>
+                    <th className="p-2">{vi.inventory.photo}</th>
+                    <th className="p-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dipsPage.map((dip) => {
+                    const lookup = baremByTank
+                      ? lookupBaremLiters(
+                          baremByTank.get(dip.tankCode),
+                          Math.round(Number(dip.dipValue))
+                        )
+                      : null
+                    const url = dip.photoId ? dipPhotoUrl.get(dip.photoId) : undefined
+                    return (
+                      <tr key={dip.id} className="border-b">
+                        <td className="p-2">{formatDateTime(dip.measuredAt)}</td>
+                        <td className="p-2 font-medium">{dip.tankCode.replace('HAM_', 'Hầm ')}</td>
+                        <td className="p-2">{dip.fuelType ? fuelTypeLabel(dip.fuelType) : '—'}</td>
+                        <td className="p-2 text-right font-mono">{dip.dipValue.toString()}</td>
+                        <td className="p-2 text-right font-mono">
+                          {lookup?.ok ? (
+                            formatLiters(lookup.liters)
+                          ) : lookup ? (
+                            <span className="text-muted-foreground text-xs">
+                              {refusalLabel[lookup.reason]}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="p-2 text-right font-mono">
+                          {dip.deltaFromPrevious?.toString() ?? '—'}
+                        </td>
+                        <td className="p-2">
+                          {url ? (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary underline underline-offset-2"
+                            >
+                              {vi.inventory.photo}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="space-x-1 p-2">
+                          {dip.isReserve && (
+                            <StatusBadge label={vi.inventory.reserve} tone="muted" />
+                          )}
+                          {dip.isAnomaly && (
+                            <StatusBadge label={vi.inventory.reserveChanged} tone="danger" />
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {pager(dipsTotal)}
+        </section>
+      )}
+
+      {tab === 'nhap-hang' && (
+        <section id="lich-su-nhap-hang" className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-muted-foreground text-sm font-medium">{vi.imports.recent}</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Plain GET form: the filter lives in the URL, so it survives
+                refresh and can be shared — no client JS involved. */}
+              <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
+                {/* GET submit resets the query string; keep the tab (page resets to 1 on purpose). */}
+                <input type="hidden" name="tab" value="nhap-hang" />
+                <label className="text-muted-foreground flex items-center gap-1">
+                  {vi.imports.fromDate}
+                  <input
+                    type="date"
+                    name="from"
+                    defaultValue={from && fromDate ? from : undefined}
+                    className="border-input bg-background h-8 rounded-md border px-2"
+                  />
+                </label>
+                <label className="text-muted-foreground flex items-center gap-1">
+                  {vi.imports.toDate}
+                  <input
+                    type="date"
+                    name="to"
+                    defaultValue={to && toDate ? to : undefined}
+                    className="border-input bg-background h-8 rounded-md border px-2"
+                  />
+                </label>
+                <Button type="submit" size="sm" variant="outline">
+                  {vi.imports.filter}
+                </Button>
+              </form>
+              <Button asChild size="sm" variant="outline">
+                <a
+                  href={`/api/imports/export?stationId=${id}${
+                    from && fromDate ? `&from=${from}` : ''
+                  }${to && toDate ? `&to=${to}` : ''}`}
+                >
+                  {vi.imports.exportExcel}
+                </a>
+              </Button>
+            </div>
+          </div>
+          {imports.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{vi.imports.none}</p>
+          ) : (
+            <table className="w-full text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b text-left">
-                  <th className="p-2">{vi.inventory.measuredAt}</th>
+                  <th className="p-2">{vi.imports.importedAt}</th>
                   <th className="p-2">{vi.inventory.tank}</th>
                   <th className="p-2">{vi.inventory.fuelType}</th>
-                  <th className="p-2 text-right">{vi.inventory.dipValue}</th>
-                  <th className="p-2 text-right">{vi.inventory.actualLiters}</th>
-                  <th className="p-2 text-right">{vi.inventory.dipDelta}</th>
-                  <th className="p-2">{vi.inventory.photo}</th>
+                  <th className="p-2 text-right">{vi.imports.liters}</th>
+                  <th className="p-2 text-right">{vi.imports.temperature}</th>
+                  <th className="p-2">{vi.imports.invoiceNo}</th>
+                  <th className="p-2">{vi.imports.creator}</th>
+                  <th className="p-2">{vi.imports.documents}</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {dips.map((dip) => {
-                  const lookup = baremByTank
-                    ? lookupBaremLiters(
-                        baremByTank.get(dip.tankCode),
-                        Math.round(Number(dip.dipValue))
-                      )
-                    : null
-                  const url = dip.photoId ? dipPhotoUrl.get(dip.photoId) : undefined
-                  return (
-                    <tr key={dip.id} className="border-b">
-                      <td className="p-2">{formatDateTime(dip.measuredAt)}</td>
-                      <td className="p-2 font-medium">{dip.tankCode.replace('HAM_', 'Hầm ')}</td>
-                      <td className="p-2">{dip.fuelType ? fuelTypeLabel(dip.fuelType) : '—'}</td>
-                      <td className="p-2 text-right font-mono">{dip.dipValue.toString()}</td>
-                      <td className="p-2 text-right font-mono">
-                        {lookup?.ok ? (
-                          formatLiters(lookup.liters)
-                        ) : lookup ? (
-                          <span className="text-muted-foreground text-xs">
-                            {refusalLabel[lookup.reason]}
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="p-2 text-right font-mono">
-                        {dip.deltaFromPrevious?.toString() ?? '—'}
-                      </td>
-                      <td className="p-2">
-                        {url ? (
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary underline underline-offset-2"
-                          >
-                            {vi.inventory.photo}
-                          </a>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="space-x-1 p-2">
-                        {dip.isReserve && <StatusBadge label={vi.inventory.reserve} tone="muted" />}
-                        {dip.isAnomaly && (
-                          <StatusBadge label={vi.inventory.reserveChanged} tone="danger" />
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {imports.map((row) => (
+                  <tr key={row.id} className={`border-b ${row.canceledAt ? 'opacity-50' : ''}`}>
+                    <td className="p-2">
+                      {row.receiptId ? (
+                        // A wizard slip opens its saved biên bản for cross-checking.
+                        <a
+                          href={`/stations/${id}/imports/${row.receiptId}`}
+                          className="text-primary underline underline-offset-2"
+                        >
+                          {formatDate(row.importedAt)}
+                        </a>
+                      ) : (
+                        formatDate(row.importedAt)
+                      )}
+                    </td>
+                    <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
+                    <td className="p-2">{fuelTypeLabel(row.fuelType)}</td>
+                    <td className="p-2 text-right font-mono">
+                      {formatLiters(Number(row.litersActual))}
+                    </td>
+                    <td className="p-2 text-right font-mono">
+                      {row.temperatureC === null ? '—' : `${row.temperatureC}°C`}
+                    </td>
+                    <td className="p-2">{row.invoiceNo ?? '—'}</td>
+                    <td className="p-2">
+                      {(row.createdBy && creatorById.get(row.createdBy)) ?? '—'}
+                    </td>
+                    <td className="space-x-2 p-2">
+                      {linksForImport(row).map((doc, index) => (
+                        <a
+                          key={index}
+                          href={doc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline underline-offset-2"
+                        >
+                          {doc.name}
+                        </a>
+                      ))}
+                    </td>
+                    <td className="p-2 text-right">
+                      {row.canceledAt ? (
+                        <StatusBadge label={vi.imports.canceled} tone="muted" />
+                      ) : canEdit ? (
+                        <ImportCancelButton importId={row.id} />
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </section>
-
-      <section id="lich-su-nhap-hang" className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-muted-foreground text-sm font-medium">{vi.imports.recent}</h3>
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Plain GET form: the filter lives in the URL, so it survives
-                refresh and can be shared — no client JS involved. */}
-            <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
-              <label className="text-muted-foreground flex items-center gap-1">
-                {vi.imports.fromDate}
-                <input
-                  type="date"
-                  name="from"
-                  defaultValue={from && fromDate ? from : undefined}
-                  className="border-input bg-background h-8 rounded-md border px-2"
-                />
-              </label>
-              <label className="text-muted-foreground flex items-center gap-1">
-                {vi.imports.toDate}
-                <input
-                  type="date"
-                  name="to"
-                  defaultValue={to && toDate ? to : undefined}
-                  className="border-input bg-background h-8 rounded-md border px-2"
-                />
-              </label>
-              <Button type="submit" size="sm" variant="outline">
-                {vi.imports.filter}
-              </Button>
-            </form>
-            <Button asChild size="sm" variant="outline">
-              <a
-                href={`/api/imports/export?stationId=${id}${
-                  from && fromDate ? `&from=${from}` : ''
-                }${to && toDate ? `&to=${to}` : ''}`}
-              >
-                {vi.imports.exportExcel}
-              </a>
-            </Button>
-          </div>
-        </div>
-        {imports.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{vi.imports.none}</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-b text-left">
-                <th className="p-2">{vi.imports.importedAt}</th>
-                <th className="p-2">{vi.inventory.tank}</th>
-                <th className="p-2">{vi.inventory.fuelType}</th>
-                <th className="p-2 text-right">{vi.imports.liters}</th>
-                <th className="p-2 text-right">{vi.imports.temperature}</th>
-                <th className="p-2">{vi.imports.invoiceNo}</th>
-                <th className="p-2">{vi.imports.creator}</th>
-                <th className="p-2">{vi.imports.documents}</th>
-                <th className="p-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {imports.map((row) => (
-                <tr key={row.id} className={`border-b ${row.canceledAt ? 'opacity-50' : ''}`}>
-                  <td className="p-2">
-                    {row.receiptId ? (
-                      // A wizard slip opens its saved biên bản for cross-checking.
-                      <a
-                        href={`/stations/${id}/imports/${row.receiptId}`}
-                        className="text-primary underline underline-offset-2"
-                      >
-                        {formatDate(row.importedAt)}
-                      </a>
-                    ) : (
-                      formatDate(row.importedAt)
-                    )}
-                  </td>
-                  <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
-                  <td className="p-2">{fuelTypeLabel(row.fuelType)}</td>
-                  <td className="p-2 text-right font-mono">
-                    {formatLiters(Number(row.litersActual))}
-                  </td>
-                  <td className="p-2 text-right font-mono">
-                    {row.temperatureC === null ? '—' : `${row.temperatureC}°C`}
-                  </td>
-                  <td className="p-2">{row.invoiceNo ?? '—'}</td>
-                  <td className="p-2">
-                    {(row.createdBy && creatorById.get(row.createdBy)) ?? '—'}
-                  </td>
-                  <td className="space-x-2 p-2">
-                    {linksForImport(row).map((doc, index) => (
-                      <a
-                        key={index}
-                        href={doc.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary underline underline-offset-2"
-                      >
-                        {doc.name}
-                      </a>
-                    ))}
-                  </td>
-                  <td className="p-2 text-right">
-                    {row.canceledAt ? (
-                      <StatusBadge label={vi.imports.canceled} tone="muted" />
-                    ) : canEdit ? (
-                      <ImportCancelButton importId={row.id} />
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+          )}
+          {pager(importsTotal)}
+        </section>
+      )}
     </div>
   )
 }
