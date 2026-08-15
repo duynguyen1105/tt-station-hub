@@ -26,7 +26,12 @@ export function explicitCaptionKind(caption: string | null | undefined): PhotoRo
     normalized.includes('tồn kho') ||
     normalized.includes('ton kho') ||
     normalized.includes('kiểm kê') ||
-    normalized.includes('kiem ke')
+    normalized.includes('kiem ke') ||
+    // Staff say "đo bồn" / "đo hầm" for a dip measurement — same declaration.
+    normalized.includes('đo bồn') ||
+    normalized.includes('do bon') ||
+    normalized.includes('đo hầm') ||
+    normalized.includes('do ham')
   ) {
     return 'inventory'
   }
@@ -58,7 +63,12 @@ export function classifyZaloMessage(caption: string | null | undefined): ZaloMes
  */
 export function routePhoto(
   routerType: RouterResult['image_type'],
-  captionKind: ZaloMessageKind
+  captionKind: ZaloMessageKind,
+  // A REMEMBERED declaration (the sender's recent text, not this message's own
+  // caption). Weaker than an explicit caption: it hints where ambiguity falls,
+  // but a clear image classification (a tank dip, a vehicle) still wins — a
+  // "công nợ" text must not turn the dip photos sent minutes later into debts.
+  declaredFallback: PhotoRoute | null = null
 ): PhotoRoute {
   switch (routerType) {
     case 'vehicle':
@@ -68,10 +78,11 @@ export function routePhoto(
       return 'inventory'
     case 'electronic_meter':
     case 'mechanical_meter':
-      // A shift totalizer — unless the sender explicitly captioned it as a debt fill.
-      return captionKind === 'debt' ? 'debt' : 'shift'
+      // A shift totalizer — unless the sender declared these photos are debt
+      // fills (the one pair vision alone can never separate).
+      return captionKind === 'debt' || declaredFallback === 'debt' ? 'debt' : 'shift'
     default:
-      // 'label_only' | 'not_relevant' — trust the caption's intent (defaults to shift).
-      return captionKind
+      // 'label_only' | 'not_relevant' — trust the declared intent (defaults to shift).
+      return declaredFallback ?? captionKind
   }
 }
