@@ -94,9 +94,16 @@ export default async function StationInventoryPage({
     stationId: id,
     ...(hasDateFilter ? { importedAt: importFilter } : {}),
   }
-  const [station, balances, dips, dispensers, imports, openings, movements, importsTotal] =
+  // Which of the heavy sources this tab actually renders. The Barem is a LIVE
+  // Google Sheet fetch (~1s, uncached by ADR 0005) — only the tabs that show
+  // litres pay for it, and it runs concurrently with the DB batch below.
+  const needsBarem = tab === 'tong-quan' || tab === 'do-bon'
+  const needsBook = tab === 'tong-quan' || tab === 'so-sach'
+  const station = await prisma.station.findUnique({ where: { id }, select: { code: true } })
+  const binding = baremSheetFor(station?.code)
+  const baremPromise = needsBarem && binding ? fetchBaremSheet(binding) : null
+  const [balances, dips, dispensers, imports, openings, movements, importsTotal] =
     await Promise.all([
-      prisma.station.findUnique({ where: { id }, select: { code: true } }),
       prisma.inventoryBalance.findMany({
         where: { stationId: id },
         orderBy: { fuelType: 'asc' },
@@ -115,10 +122,19 @@ export default async function StationInventoryPage({
         take: PAGE_SIZE,
       }),
       prisma.inventoryOpeningBalance.findMany({ where: { stationId: id } }),
-      prisma.inventoryMovement.findMany({
-        where: { stationId: id },
-        orderBy: { movementDate: 'asc' },
-      }),
+      // The whole movement history feeds the book ledger — skipped on the
+      // tabs that render neither the summary nor the daily ledger.
+      needsBook
+        ? prisma.inventoryMovement.findMany({
+            where: { stationId: id },
+            orderBy: { movementDate: 'asc' },
+          })
+        : ([] as {
+            movementType: string
+            quantity: unknown
+            movementDate: Date
+            fuelType: string
+          }[]),
       tab === 'nhap-hang' ? prisma.fuelImport.count({ where: importsWhere }) : 0,
     ])
 
@@ -229,8 +245,7 @@ export default async function StationInventoryPage({
   // ACTUAL stock: each tank's latest dip height resolved against the live
   // Barem (same sheet, same no-cache rule as the nhập-hàng form). A tank whose
   // height the Barem cannot answer keeps its raw reading and shows the reason.
-  const binding = baremSheetFor(station?.code)
-  const baremRead = binding ? await fetchBaremSheet(binding) : null
+  const baremRead = baremPromise ? await baremPromise : null
   const baremByTank = baremRead?.ok
     ? new Map(baremRead.sheet.tanks.map((t) => [t.tankCode, t]))
     : null
