@@ -1,5 +1,4 @@
-import Link from 'next/link'
-
+import { NavLink } from '@/components/shared/nav-link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
 import { formatVND } from '@/lib/format'
@@ -112,12 +111,12 @@ export default async function OverviewPage() {
                   className="hover:bg-muted/40 border-b transition-colors last:border-0"
                 >
                   <td className="px-3 py-2.5">
-                    <Link
+                    <NavLink
                       href={`/stations/${station.id}`}
                       className="text-primary font-medium hover:underline"
                     >
                       {station.name}
-                    </Link>
+                    </NavLink>
                   </td>
                   <td
                     className={cn(

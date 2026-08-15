@@ -1,5 +1,4 @@
-import Link from 'next/link'
-
+import { NavLink } from '@/components/shared/nav-link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
@@ -20,7 +19,7 @@ export default async function StationsPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {stations.map((station) => (
-            <Link key={station.id} href={`/stations/${station.id}`}>
+            <NavLink key={station.id} href={`/stations/${station.id}`}>
               <Card className="hover:border-primary/50 transition-colors">
                 <CardHeader>
                   <CardTitle className="text-base">{station.name}</CardTitle>
@@ -30,7 +29,7 @@ export default async function StationsPage() {
                   {[station.branch, station.address].filter(Boolean).join(' · ') || '—'}
                 </CardContent>
               </Card>
-            </Link>
+            </NavLink>
           ))}
         </div>
       )}

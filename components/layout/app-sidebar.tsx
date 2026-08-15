@@ -9,11 +9,11 @@ import {
   Upload,
 } from 'lucide-react'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { BrandMark } from '@/components/layout/brand-mark'
 import { SidebarUser } from '@/components/layout/sidebar-user'
+import { NavLink } from '@/components/shared/nav-link'
 import {
   Sidebar,
   SidebarContent,
@@ -77,10 +77,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       tooltip={item.label}
                       className="data-[active=true]:shadow-[inset_2px_0_0_var(--sidebar-primary)]"
                     >
-                      <Link href={item.href}>
+                      <NavLink href={item.href}>
                         <item.icon />
                         <span>{item.label}</span>
-                      </Link>
+                      </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )

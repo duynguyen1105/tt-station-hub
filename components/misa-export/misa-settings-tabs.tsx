@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import { NavLink } from '@/components/shared/nav-link'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
@@ -19,7 +19,7 @@ export function MisaSettingsTabs() {
       {tabs.map((tab) => {
         const isActive = pathname.startsWith(tab.href)
         return (
-          <Link
+          <NavLink
             key={tab.href}
             href={tab.href}
             className={cn(
@@ -30,7 +30,7 @@ export function MisaSettingsTabs() {
             )}
           >
             {tab.label}
-          </Link>
+          </NavLink>
         )
       })}
     </nav>

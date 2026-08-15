@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 
-import Link from 'next/link'
-
+import { NavLink } from '@/components/shared/nav-link'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -157,7 +156,7 @@ export function ExportPreflightDialog({
                         <p className="text-muted-foreground">{error.message}</p>
                       </div>
                       <Button asChild size="sm" variant="outline">
-                        <Link href={fixLink(error, stationId)}>{vi.misaExport.fix}</Link>
+                        <NavLink href={fixLink(error, stationId)}>{vi.misaExport.fix}</NavLink>
                       </Button>
                     </li>
                   ))}
