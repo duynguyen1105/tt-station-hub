@@ -286,6 +286,26 @@ export const vi = {
     actual: 'Thực tế',
     diffIncomplete: 'Thiếu số đo hầm — chưa so được',
     baremSheetFailed: 'Không đọc được trang tính barem — cột "Quy ra lít" tạm trống.',
+    // Sổ sách neo theo số đầu kỳ Trường Thịnh cấp (admin-only)
+    openingTitle: 'Số đầu kỳ',
+    openingEdit: 'Sửa đầu kỳ',
+    openingLiters: 'Đầu kỳ (lít)',
+    openingDate: 'Ngày hiệu lực',
+    openingSaved: 'Đã lưu số đầu kỳ',
+    openingNote:
+      'Số đầu kỳ do Trường Thịnh cấp — chỉ quản trị viên sửa được. Đổi đầu kỳ là neo lại toàn bộ sổ sách từ ngày hiệu lực.',
+    noOpening: 'Chưa có số đầu kỳ',
+    bookImported: 'Nhập vào',
+    bookSold: 'Xuất ra',
+    bookAdjusted: 'Điều chỉnh',
+    bookStock: 'Tồn sổ sách',
+    bookSoldNote: 'Xuất ra = tổng bán theo chốt ca (đã bao gồm công nợ).',
+    dailyLedgerTitle: 'Sổ sách theo ngày',
+    date: 'Ngày',
+    dayOpening: 'Tồn đầu ngày',
+    dayClosing: 'Tồn cuối ngày',
+    dipHistory: 'Lịch sử đo bồn',
+    photo: 'Ảnh',
   },
 
   imports: {
