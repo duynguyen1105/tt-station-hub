@@ -240,6 +240,8 @@ export const vi = {
     debtsTitle: 'Duyệt lượt xe',
     empty: 'Không có mục nào cần duyệt.',
     station: 'Trạm',
+    approved: 'Đã duyệt chỉ số.',
+    rejected: 'Đã từ chối chỉ số.',
   },
 
   correction: {
