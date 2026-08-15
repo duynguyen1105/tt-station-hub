@@ -58,12 +58,27 @@ function buildTankOptions(
 
 export default async function StationInventoryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ from?: string; to?: string }>
 }) {
   const user = await requireUser()
   const { id } = await params
   const today = todayShiftDate()
+
+  // Optional date filter for the import history (?from=YYYY-MM-DD&to=...).
+  // Bounds are Vietnam wall-clock days; a filtered list may go deeper than the
+  // default "latest 20".
+  const { from, to } = await searchParams
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+  const fromDate = from && DATE_RE.test(from) ? new Date(`${from}T00:00:00+07:00`) : null
+  const toDate = to && DATE_RE.test(to) ? new Date(`${to}T23:59:59+07:00`) : null
+  const importFilter = {
+    ...(fromDate ? { gte: fromDate } : {}),
+    ...(toDate ? { lte: toDate } : {}),
+  }
+  const hasDateFilter = fromDate !== null || toDate !== null
   const [station, balances, dips, dispensers, imports] = await Promise.all([
     prisma.station.findUnique({ where: { id }, select: { code: true } }),
     prisma.inventoryBalance.findMany({
@@ -77,9 +92,12 @@ export default async function StationInventoryPage({
     }),
     prisma.dispenser.findMany({ where: { stationId: id, isActive: true } }),
     prisma.fuelImport.findMany({
-      where: { stationId: id },
+      where: {
+        stationId: id,
+        ...(hasDateFilter ? { importedAt: importFilter } : {}),
+      },
       orderBy: { importedAt: 'desc' },
-      take: 20,
+      take: hasDateFilter ? 200 : 20,
     }),
   ])
 
@@ -99,9 +117,13 @@ export default async function StationInventoryPage({
         r.openingElectronicReading === null ? null : Number(r.openingElectronicReading),
       electronicReading: r.electronicReading === null ? null : Number(r.electronicReading),
     })),
-    imports: imports
-      .filter((i) => !i.canceledAt && i.importedAt >= today)
-      .map((i) => ({ tankCode: i.tankCode, litersActual: Number(i.litersActual) })),
+    // The list above may be date-filtered to the past; "Nhập hôm nay" must not be.
+    imports: (hasDateFilter
+      ? await prisma.fuelImport.findMany({
+          where: { stationId: id, canceledAt: null, importedAt: { gte: today } },
+        })
+      : imports.filter((i) => !i.canceledAt && i.importedAt >= today)
+    ).map((i) => ({ tankCode: i.tankCode, litersActual: Number(i.litersActual) })),
   })
 
   // Latest measurement per tank (dips are ordered newest-first).
@@ -139,7 +161,7 @@ export default async function StationInventoryPage({
       docLinks.set(doc.importId, list)
     } else if (doc.receiptId) {
       const list = receiptLinks.get(doc.receiptId) ?? []
-      const prefix = doc.kind === 'bien_ban' ? 'BB' : 'TL'
+      const prefix = doc.kind === 'bien_ban' ? 'BB' : doc.kind === 'phieu_xuat_kho' ? 'PXK' : 'TL'
       list.push({
         url,
         name: `${prefix}${list.filter((l) => l.name.startsWith(prefix)).length + 1}`,
@@ -386,11 +408,44 @@ export default async function StationInventoryPage({
       )}
 
       <section className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-muted-foreground text-sm font-medium">{vi.imports.recent}</h3>
-          <Button asChild size="sm" variant="outline">
-            <a href={`/api/imports/export?stationId=${id}`}>{vi.imports.exportExcel}</a>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Plain GET form: the filter lives in the URL, so it survives
+                refresh and can be shared — no client JS involved. */}
+            <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
+              <label className="text-muted-foreground flex items-center gap-1">
+                {vi.imports.fromDate}
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={from && fromDate ? from : undefined}
+                  className="border-input bg-background h-8 rounded-md border px-2"
+                />
+              </label>
+              <label className="text-muted-foreground flex items-center gap-1">
+                {vi.imports.toDate}
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={to && toDate ? to : undefined}
+                  className="border-input bg-background h-8 rounded-md border px-2"
+                />
+              </label>
+              <Button type="submit" size="sm" variant="outline">
+                {vi.imports.filter}
+              </Button>
+            </form>
+            <Button asChild size="sm" variant="outline">
+              <a
+                href={`/api/imports/export?stationId=${id}${
+                  from && fromDate ? `&from=${from}` : ''
+                }${to && toDate ? `&to=${to}` : ''}`}
+              >
+                {vi.imports.exportExcel}
+              </a>
+            </Button>
+          </div>
         </div>
         {imports.length === 0 ? (
           <p className="text-muted-foreground text-sm">{vi.imports.none}</p>
