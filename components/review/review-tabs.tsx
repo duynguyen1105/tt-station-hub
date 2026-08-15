@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import { NavLink } from '@/components/shared/nav-link'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
@@ -22,7 +22,7 @@ export function ReviewTabs() {
   return (
     <nav className="flex gap-1 border-b">
       {tabs.map((tab) => (
-        <Link
+        <NavLink
           key={tab.href}
           href={tab.href}
           className={cn(
@@ -33,7 +33,7 @@ export function ReviewTabs() {
           )}
         >
           {tab.label}
-        </Link>
+        </NavLink>
       ))}
     </nav>
   )

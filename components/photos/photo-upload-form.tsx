@@ -5,9 +5,9 @@ import { toast } from 'sonner'
 
 import { useEffect, useRef, useState } from 'react'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+import { NavLink } from '@/components/shared/nav-link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -499,7 +499,7 @@ export function PhotoUploadForm({
 
           {result && !result.extractionError && result.kind !== 'inventory' && (
             <Button asChild variant="outline" size="sm" className="mt-5 w-full">
-              <Link
+              <NavLink
                 href={
                   result.kind === 'debt'
                     ? '/review/debts'
@@ -509,7 +509,7 @@ export function PhotoUploadForm({
                 }
               >
                 {vi.upload.viewReview}
-              </Link>
+              </NavLink>
             </Button>
           )}
         </CardContent>

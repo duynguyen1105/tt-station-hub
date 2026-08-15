@@ -1,9 +1,8 @@
-import Link from 'next/link'
-
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { MovementForm } from '@/components/inventory/movement-form'
 import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
+import { NavLink } from '@/components/shared/nav-link'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { requireUser } from '@/lib/auth/session'
@@ -385,9 +384,12 @@ export default async function StationInventoryPage({
     return (
       <div className="flex items-center justify-end gap-3 text-sm">
         {pageNum > 1 ? (
-          <Link href={pageHref(pageNum - 1)} className="text-primary underline underline-offset-2">
+          <NavLink
+            href={pageHref(pageNum - 1)}
+            className="text-primary underline underline-offset-2"
+          >
             {vi.inventory.pagePrev}
-          </Link>
+          </NavLink>
         ) : (
           <span className="text-muted-foreground">{vi.inventory.pagePrev}</span>
         )}
@@ -395,9 +397,12 @@ export default async function StationInventoryPage({
           {vi.inventory.pageOf} {Math.min(pageNum, lastPage)}/{lastPage}
         </span>
         {pageNum < lastPage ? (
-          <Link href={pageHref(pageNum + 1)} className="text-primary underline underline-offset-2">
+          <NavLink
+            href={pageHref(pageNum + 1)}
+            className="text-primary underline underline-offset-2"
+          >
             {vi.inventory.pageNext}
-          </Link>
+          </NavLink>
         ) : (
           <span className="text-muted-foreground">{vi.inventory.pageNext}</span>
         )}
@@ -432,7 +437,7 @@ export default async function StationInventoryPage({
       {/* Sub-tabs: the overview stays fixed-size, each history paginates. */}
       <nav className="flex gap-4 border-b text-sm">
         {TABS.map((t) => (
-          <Link
+          <NavLink
             key={t}
             href={tabHref(t)}
             className={
@@ -442,7 +447,7 @@ export default async function StationInventoryPage({
             }
           >
             {TAB_LABELS[t]}
-          </Link>
+          </NavLink>
         ))}
       </nav>
 
@@ -499,20 +504,20 @@ export default async function StationInventoryPage({
                         </td>
                         <td className="p-2 text-right">
                           {/* Every component links to its own evidence trail. */}
-                          <Link
+                          <NavLink
                             href={tabHref('nhap-hang')}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.importedLiters)}
-                          </Link>
+                          </NavLink>
                         </td>
                         <td className="p-2 text-right">
-                          <Link
+                          <NavLink
                             href={`/stations/${id}/shifts`}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.soldLiters)}
-                          </Link>
+                          </NavLink>
                         </td>
                         <td className="p-2 text-right font-mono">
                           {book.summary.adjustedLiters === 0
@@ -854,12 +859,12 @@ export default async function StationInventoryPage({
                     <td className="p-2">
                       {row.receiptId ? (
                         // A wizard slip opens its saved biên bản for cross-checking.
-                        <Link
+                        <NavLink
                           href={`/stations/${id}/imports/${row.receiptId}`}
                           className="text-primary underline underline-offset-2"
                         >
                           {formatDate(row.importedAt)}
-                        </Link>
+                        </NavLink>
                       ) : (
                         formatDate(row.importedAt)
                       )}
