@@ -32,6 +32,29 @@ export async function getSignedUrl(path: string, expiresInSeconds = 3600): Promi
 export const REVIEW_URL_TTL_SECONDS = 60 * 60 * 8
 
 /**
+ * Signs many storage paths in ONE storage API call (createSignedUrls) instead
+ * of one round-trip per photo — page loads sign whole tables at once. Returns
+ * a path -> signedUrl map; paths that fail to sign are simply absent.
+ */
+export async function signedUrlsForPaths(
+  paths: (string | null | undefined)[],
+  expiresInSeconds = 3600
+): Promise<Map<string, string>> {
+  const unique = [...new Set(paths.filter((p): p is string => !!p))]
+  if (!unique.length) return new Map()
+  const supabase = createAdminClient()
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrls(unique, expiresInSeconds)
+  if (error || !data) return new Map()
+  const byPath = new Map<string, string>()
+  for (const row of data) {
+    if (row.path && row.signedUrl && !row.error) byPath.set(row.path, row.signedUrl)
+  }
+  return byPath
+}
+
+/**
  * Signs view URLs for a set of shift-photo ids (review screens attach them next to
  * the AI-read numbers). Returns a photoId -> signedUrl map; unknown ids and photos
  * without a storage path are simply absent.
@@ -54,12 +77,13 @@ export async function signedUrlsForPhotoIds(
     where: { id: { in: unique } },
     select: { id: true, storagePath: true },
   })
-  await Promise.all(
-    photos.map(async (p) => {
-      if (!p.storagePath) return
-      const url = await getSignedUrl(p.storagePath, REVIEW_URL_TTL_SECONDS).catch(() => null)
-      if (url) urlById.set(p.id, url)
-    })
+  const byPath = await signedUrlsForPaths(
+    photos.map((p) => p.storagePath),
+    REVIEW_URL_TTL_SECONDS
   )
+  for (const p of photos) {
+    const url = p.storagePath ? byPath.get(p.storagePath) : undefined
+    if (url) urlById.set(p.id, url)
+  }
   return urlById
 }

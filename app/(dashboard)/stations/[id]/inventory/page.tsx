@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { MovementForm } from '@/components/inventory/movement-form'
@@ -16,7 +18,7 @@ import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
-import { getSignedUrl } from '@/lib/storage/photo-storage'
+import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -187,10 +189,12 @@ export default async function StationInventoryPage({
           orderBy: { createdAt: 'asc' },
         })
       : []
+  // One bulk signing call for the whole table (was one round-trip per doc).
+  const docUrlByPath = await signedUrlsForPaths(docs.map((d) => d.storagePath))
   const docLinks = new Map<string, { url: string; name: string }[]>()
   const receiptLinks = new Map<string, { url: string; name: string }[]>()
   for (const doc of docs) {
-    const url = await getSignedUrl(doc.storagePath).catch(() => null)
+    const url = docUrlByPath.get(doc.storagePath)
     if (!url) continue
     if (doc.importId) {
       const list = docLinks.get(doc.importId) ?? []
@@ -331,17 +335,12 @@ export default async function StationInventoryPage({
         select: { id: true, storagePath: true },
       })
     : []
+  const dipPhotoPathUrl = await signedUrlsForPaths(dipPhotos.map((p) => p.storagePath))
   const dipPhotoUrl = new Map(
-    (
-      await Promise.all(
-        dipPhotos.map(async (p) => ({
-          id: p.id,
-          url: p.storagePath ? await getSignedUrl(p.storagePath).catch(() => null) : null,
-        }))
-      )
-    )
-      .filter((p): p is { id: string; url: string } => p.url !== null)
-      .map((p) => [p.id, p.url] as const)
+    dipPhotos.flatMap((p) => {
+      const url = p.storagePath ? dipPhotoPathUrl.get(p.storagePath) : undefined
+      return url ? [[p.id, url] as const] : []
+    })
   )
 
   // The Hầm and Trụ this Trạm's own pre-printed biên bản lists — resolved here
@@ -371,9 +370,9 @@ export default async function StationInventoryPage({
     return (
       <div className="flex items-center justify-end gap-3 text-sm">
         {pageNum > 1 ? (
-          <a href={pageHref(pageNum - 1)} className="text-primary underline underline-offset-2">
+          <Link href={pageHref(pageNum - 1)} className="text-primary underline underline-offset-2">
             {vi.inventory.pagePrev}
-          </a>
+          </Link>
         ) : (
           <span className="text-muted-foreground">{vi.inventory.pagePrev}</span>
         )}
@@ -381,9 +380,9 @@ export default async function StationInventoryPage({
           {vi.inventory.pageOf} {Math.min(pageNum, lastPage)}/{lastPage}
         </span>
         {pageNum < lastPage ? (
-          <a href={pageHref(pageNum + 1)} className="text-primary underline underline-offset-2">
+          <Link href={pageHref(pageNum + 1)} className="text-primary underline underline-offset-2">
             {vi.inventory.pageNext}
-          </a>
+          </Link>
         ) : (
           <span className="text-muted-foreground">{vi.inventory.pageNext}</span>
         )}
@@ -418,7 +417,7 @@ export default async function StationInventoryPage({
       {/* Sub-tabs: the overview stays fixed-size, each history paginates. */}
       <nav className="flex gap-4 border-b text-sm">
         {TABS.map((t) => (
-          <a
+          <Link
             key={t}
             href={tabHref(t)}
             className={
@@ -428,7 +427,7 @@ export default async function StationInventoryPage({
             }
           >
             {TAB_LABELS[t]}
-          </a>
+          </Link>
         ))}
       </nav>
 
@@ -485,20 +484,20 @@ export default async function StationInventoryPage({
                         </td>
                         <td className="p-2 text-right">
                           {/* Every component links to its own evidence trail. */}
-                          <a
+                          <Link
                             href={tabHref('nhap-hang')}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.importedLiters)}
-                          </a>
+                          </Link>
                         </td>
                         <td className="p-2 text-right">
-                          <a
+                          <Link
                             href={`/stations/${id}/shifts`}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.soldLiters)}
-                          </a>
+                          </Link>
                         </td>
                         <td className="p-2 text-right font-mono">
                           {book.summary.adjustedLiters === 0
@@ -840,12 +839,12 @@ export default async function StationInventoryPage({
                     <td className="p-2">
                       {row.receiptId ? (
                         // A wizard slip opens its saved biên bản for cross-checking.
-                        <a
+                        <Link
                           href={`/stations/${id}/imports/${row.receiptId}`}
                           className="text-primary underline underline-offset-2"
                         >
                           {formatDate(row.importedAt)}
-                        </a>
+                        </Link>
                       ) : (
                         formatDate(row.importedAt)
                       )}
