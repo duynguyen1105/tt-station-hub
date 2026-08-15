@@ -13,6 +13,7 @@ import {
 } from '@/lib/ai/types'
 import { plateListContains } from '@/lib/debts/plate'
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
+import { parseVnNumber } from '@/lib/imports/bien-ban'
 import { reserveDipExceedsTolerance } from '@/lib/inventory/tank-dip-rule'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
@@ -655,7 +656,10 @@ export async function ingestTankDip(
   })
 
   const tankNumber = result.tankNumber ?? result.tankLabel?.match(/(\d+)/)?.[1] ?? null
-  const dip = parseNumericString(result.dipValue)
+  // Dip overlays/handwriting use Vietnamese separators: "1.000" is one
+  // thousand millimetres, not 1.0 — parseNumericString (built for debt
+  // displays like "46.81") would read it a thousand times too small.
+  const dip = parseVnNumber(result.dipValue)
   if (!station || !tankNumber || dip === null) return result
 
   const tankCode = `HAM_${Number.parseInt(tankNumber, 10)}`
