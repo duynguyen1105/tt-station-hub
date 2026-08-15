@@ -214,36 +214,47 @@ export async function POST(req: NextRequest) {
     return { receipt: receiptRow, importIds: ids }
   })
 
-  // Biên bản photos upload AFTER the rows exist (paths carry the receipt id).
+  // Both papers upload AFTER the rows exist (paths carry the receipt id): the
+  // biên bản pages and the phiếu xuất kho the wizard requires alongside them.
   // A failed upload never loses the receipt — the doc list just ends up shorter.
-  const files = form.getAll('bienBan').filter((f): f is File => f instanceof File)
-  let uploaded = 0
-  for (const [index, file] of files.entries()) {
-    try {
-      const ext = EXT_BY_TYPE[file.type] ?? 'jpg'
-      const path = `${station.code}/imports/receipts/${receipt.id}/bien-ban-${index}.${ext}`
-      await uploadPhoto(path, Buffer.from(await file.arrayBuffer()), file.type || 'image/jpeg')
-      await prisma.fuelImportDocument.create({
-        data: {
-          receiptId: receipt.id,
-          kind: 'bien_ban',
-          storagePath: path,
-          fileName: file.name || null,
-          contentType: file.type || null,
-        },
-      })
-      uploaded++
-    } catch {
-      // The receipt stays valid without this document.
+  const uploadDocs = async (field: string, kind: string, prefix: string) => {
+    const files = form.getAll(field).filter((f): f is File => f instanceof File)
+    let uploaded = 0
+    for (const [index, file] of files.entries()) {
+      try {
+        const ext = EXT_BY_TYPE[file.type] ?? 'jpg'
+        const path = `${station.code}/imports/receipts/${receipt.id}/${prefix}-${index}.${ext}`
+        await uploadPhoto(path, Buffer.from(await file.arrayBuffer()), file.type || 'image/jpeg')
+        await prisma.fuelImportDocument.create({
+          data: {
+            receiptId: receipt.id,
+            kind,
+            storagePath: path,
+            fileName: file.name || null,
+            contentType: file.type || null,
+          },
+        })
+        uploaded++
+      } catch {
+        // The receipt stays valid without this document.
+      }
     }
+    return uploaded
   }
+  const uploaded = await uploadDocs('bienBan', 'bien_ban', 'bien-ban')
+  const pxkUploaded = await uploadDocs('pxk', 'phieu_xuat_kho', 'pxk')
 
   await writeAudit({
     userId: user.id,
     action: 'fuel_import_receipt.create',
     entity: 'fuel_import_receipt',
     entityId: receipt.id,
-    metadata: { stationId: data.stationId, imports: importIds, bienBanPhotos: uploaded },
+    metadata: {
+      stationId: data.stationId,
+      imports: importIds,
+      bienBanPhotos: uploaded,
+      pxkPhotos: pxkUploaded,
+    },
   })
   return created({ id: receipt.id, imports: importIds, bienBanPhotos: uploaded })
 }

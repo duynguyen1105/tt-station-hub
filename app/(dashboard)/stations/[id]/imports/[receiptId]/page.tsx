@@ -135,7 +135,10 @@ export default async function ImportReceiptPage({
     )
   ).filter((d): d is { doc: (typeof docs)[number]; url: string } => d.url !== null)
   const bienBanDocs = signedDocs.filter(({ doc }) => doc.kind === 'bien_ban')
-  const relatedDocs = signedDocs.filter(({ doc }) => doc.kind !== 'bien_ban')
+  const pxkDocs = signedDocs.filter(({ doc }) => doc.kind === 'phieu_xuat_kho')
+  const relatedDocs = signedDocs.filter(
+    ({ doc }) => doc.kind !== 'bien_ban' && doc.kind !== 'phieu_xuat_kho'
+  )
 
   const canEdit = user.role !== 'viewer'
   const perColumnSeals = products.map((p) => p.sealNo).filter(Boolean)
@@ -438,6 +441,15 @@ export default async function ImportReceiptPage({
           <p className="text-muted-foreground text-sm">{vi.imports.noDocs}</p>
         ) : (
           gallery(bienBanDocs)
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">{vi.imports.pxkDocs}</h3>
+        {pxkDocs.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{vi.imports.noDocs}</p>
+        ) : (
+          gallery(pxkDocs)
         )}
       </section>
 

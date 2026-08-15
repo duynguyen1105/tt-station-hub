@@ -331,11 +331,13 @@ export function FuelImportForm({
 }) {
   const router = useRouter()
   const bienBanRef = useRef<HTMLInputElement>(null)
+  const pxkRef = useRef<HTMLInputElement>(null)
   const relatedRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [busy, setBusy] = useState(false)
   const [bienBanFiles, setBienBanFiles] = useState<File[]>([])
+  const [pxkFiles, setPxkFiles] = useState<File[]>([])
   const [rawExtract, setRawExtract] = useState<BienBanExtraction | null>(null)
   const [receiptId, setReceiptId] = useState<string | null>(null)
   // Set when the header names another Trạm (ADR 0006). While it is set the
@@ -460,6 +462,7 @@ export function FuelImportForm({
   function reset() {
     setStep(1)
     setBienBanFiles([])
+    setPxkFiles([])
     setRawExtract(null)
     setStationMismatch(null)
     setReceiptId(null)
@@ -491,13 +494,29 @@ export function FuelImportForm({
     if (!next) reset()
   }
 
-  async function readBienBan() {
-    const files = [...(bienBanRef.current?.files ?? [])]
-    if (files.length === 0) {
+  /** Both papers must be in hand before anything is read: the biên bản (what
+   *  the AI reads the numbers from) AND the phiếu xuất kho (what the numbers
+   *  are later cross-checked against). */
+  function collectStepOneFiles(): { bienBan: File[]; pxk: File[] } | null {
+    const bienBan = [...(bienBanRef.current?.files ?? [])]
+    const pxk = [...(pxkRef.current?.files ?? [])]
+    if (bienBan.length === 0) {
       toast.error(vi.imports.noBienBanPhotos)
-      return
+      return null
     }
-    setBienBanFiles(files)
+    if (pxk.length === 0) {
+      toast.error(vi.imports.noPxkFiles)
+      return null
+    }
+    setBienBanFiles(bienBan)
+    setPxkFiles(pxk)
+    return { bienBan, pxk }
+  }
+
+  async function readBienBan() {
+    const collected = collectStepOneFiles()
+    if (!collected) return
+    const files = collected.bienBan
     setStationMismatch(null)
     const form = new FormData()
     for (const file of files) form.append('photos', file)
@@ -542,7 +561,7 @@ export function FuelImportForm({
   // friction enough that nobody reaches for it to dodge the check, and it keeps
   // a misread header from ever trapping a delivery that really happened.
   function manualEntry() {
-    setBienBanFiles([...(bienBanRef.current?.files ?? [])])
+    if (!collectStepOneFiles()) return
     setStep(2)
   }
 
@@ -645,6 +664,7 @@ export function FuelImportForm({
     const form = new FormData()
     form.set('payload', JSON.stringify(payload))
     for (const file of bienBanFiles) form.append('bienBan', file)
+    for (const file of pxkFiles) form.append('pxk', file)
     setBusy(true)
     const res = await fetch('/api/imports/receipts', { method: 'POST', body: form })
     setBusy(false)
@@ -707,13 +727,20 @@ export function FuelImportForm({
         {step === 1 && (
           <div className="space-y-3">
             <p className="text-muted-foreground text-sm">{vi.imports.uploadBienBanHint}</p>
-            <Input
-              ref={bienBanRef}
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={() => setStationMismatch(null)}
-            />
+            <Field>
+              <FieldLabel>{vi.imports.bienBanFileLabel}</FieldLabel>
+              <Input
+                ref={bienBanRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={() => setStationMismatch(null)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>{vi.imports.pxkFileLabel}</FieldLabel>
+              <Input ref={pxkRef} type="file" multiple accept="image/*,.pdf" />
+            </Field>
             {stationMismatch && (
               <Alert variant="destructive">
                 <AlertTitle>{vi.imports.stationMismatchTitle}</AlertTitle>
