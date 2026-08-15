@@ -43,6 +43,9 @@ model Station {
   zaloGroupId          String?  @map("zalo_group_id") // shift-photo Zalo group
   zaloDebtGroupId      String?  @map("zalo_debt_group_id") // debt group (if separated)
   assignedAccountantId String?  @map("assigned_accountant_id") @db.Uuid
+  // Admin-written requirement shown on the legal-documents tab
+  // ("giấy tờ từ 1-10 ..."), so every reviewer sees what must be on file.
+  documentsNote        String?  @map("documents_note")
   isActive             Boolean  @default(true) @map("is_active")
   createdAt            DateTime @default(now()) @map("created_at")
 
