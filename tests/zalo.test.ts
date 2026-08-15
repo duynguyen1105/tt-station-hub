@@ -205,3 +205,28 @@ describe('pickStationByDeclaration', () => {
     expect(pickStationByDeclaration('chốt ca 1', STATIONS)).toBeNull()
   })
 })
+
+describe('đo bồn caption and remembered-kind fallback', () => {
+  it('declares inventory for đo bồn / đo hầm captions', () => {
+    expect(explicitCaptionKind('đo bồn')).toBe('inventory')
+    expect(explicitCaptionKind('do bon ham 2')).toBe('inventory')
+    expect(explicitCaptionKind('đo hầm 3')).toBe('inventory')
+  })
+
+  it('a remembered debt kind never overrides a clear image classification', () => {
+    // The regression: a "công nợ" text minutes earlier turned tank-dip photos
+    // into empty debt visits. The remembered kind must lose to the router.
+    expect(routePhoto('tank_dip', 'shift', 'debt')).toBe('inventory')
+    expect(routePhoto('vehicle', 'shift', 'inventory')).toBe('debt')
+    expect(routePhoto('debt_meter', 'shift', 'shift')).toBe('debt')
+  })
+
+  it('a remembered kind still decides the genuinely ambiguous cases', () => {
+    // Totalizer vs debt display is the one pair vision cannot separate.
+    expect(routePhoto('electronic_meter', 'shift', 'debt')).toBe('debt')
+    expect(routePhoto('electronic_meter', 'shift', null)).toBe('shift')
+    // Unreadable photos fall back to the declaration, then the caption.
+    expect(routePhoto('label_only', 'shift', 'inventory')).toBe('inventory')
+    expect(routePhoto('label_only', 'shift', null)).toBe('shift')
+  })
+})

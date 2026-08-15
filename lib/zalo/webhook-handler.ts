@@ -357,10 +357,11 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
     }
   }
 
-  // An EXPLICIT declaration ("chốt ca" / "công nợ" / "tồn kho" — typed on this
-  // message or as the sender's recent text) is authoritative for every photo —
-  // the human declared the intent, so the image classifier cannot override it.
-  // Without one, the caption is only a hint and the per-photo content decides.
+  // An EXPLICIT caption on THIS message ("chốt ca" / "công nợ" / "tồn kho" /
+  // "đo bồn") is authoritative for every photo in it — the human declared the
+  // intent, so the image classifier cannot override it. A kind remembered from
+  // an earlier text is weaker (see routePhoto's declaredFallback): it fills in
+  // where the image is ambiguous but never overrides a clear classification.
   const captionKind = classifyZaloMessage(msg.caption)
   let received = 0
 
@@ -380,8 +381,17 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         (pre
           ? ((pre.raw as { router?: RouterResult })?.router ?? null)
           : await classifyPhoto(buffer).catch(() => null))
+      // The caption typed on THIS message keeps full authority. A kind carried
+      // over from the sender's earlier text is only a fallback: it decides the
+      // cases vision cannot (totalizer vs debt display, unreadable photos) but
+      // never overrides a clear classification — a "công nợ" text five minutes
+      // ago must not turn a tank-dip photo into a debt visit.
+      const contextKind = explicitKind ? null : (context?.kind ?? null)
       const route =
-        declaredKind ?? (router ? routePhoto(router.image_type, captionKind) : captionKind)
+        explicitKind ??
+        (router
+          ? routePhoto(router.image_type, captionKind, contextKind)
+          : (contextKind ?? captionKind))
 
       // For shift photos the meter is extracted anyway, so read it now and let the
       // PRINTED STATION LABEL override the sender-based station when they disagree
