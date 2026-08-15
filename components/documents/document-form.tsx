@@ -2,7 +2,7 @@
 
 import { toast } from 'sonner'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -30,6 +30,7 @@ const docTypeOptions = Object.entries(vi.docType)
 
 export function DocumentForm({ stationId }: { stationId: string }) {
   const router = useRouter()
+  const scanRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [docType, setDocType] = useState('business_license')
@@ -45,17 +46,18 @@ export function DocumentForm({ stationId }: { stationId: string }) {
       return
     }
     setBusy(true)
-    const payload: Record<string, unknown> = { stationId, docType, docName }
-    if (docNumber) payload.docNumber = docNumber
-    if (issuedDate) payload.issuedDate = issuedDate
-    if (expiryDate) payload.expiryDate = expiryDate
-    if (issuingAuthority) payload.issuingAuthority = issuingAuthority
+    const form = new FormData()
+    form.set('stationId', stationId)
+    form.set('docType', docType)
+    form.set('docName', docName)
+    if (docNumber) form.set('docNumber', docNumber)
+    if (issuedDate) form.set('issuedDate', issuedDate)
+    if (expiryDate) form.set('expiryDate', expiryDate)
+    if (issuingAuthority) form.set('issuingAuthority', issuingAuthority)
+    const scan = scanRef.current?.files?.[0]
+    if (scan) form.set('scan', scan)
 
-    const res = await fetch('/api/documents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+    const res = await fetch('/api/documents', { method: 'POST', body: form })
     setBusy(false)
     if (res.ok) {
       setOpen(false)
@@ -64,6 +66,7 @@ export function DocumentForm({ stationId }: { stationId: string }) {
       setIssuedDate('')
       setExpiryDate('')
       setIssuingAuthority('')
+      if (scanRef.current) scanRef.current.value = ''
       router.refresh()
     } else {
       toast.error(vi.errors.generic)
@@ -109,7 +112,7 @@ export function DocumentForm({ stationId }: { stationId: string }) {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field>
-              <FieldLabel htmlFor="issuedDate">Ngày cấp</FieldLabel>
+              <FieldLabel htmlFor="issuedDate">{vi.documents.signedDate}</FieldLabel>
               <Input
                 id="issuedDate"
                 type="date"
@@ -134,6 +137,10 @@ export function DocumentForm({ stationId }: { stationId: string }) {
               value={issuingAuthority}
               onChange={(e) => setIssuingAuthority(e.target.value)}
             />
+          </Field>
+          <Field>
+            <FieldLabel>{vi.documents.scan}</FieldLabel>
+            <Input ref={scanRef} type="file" accept="image/*,.pdf" />
           </Field>
         </div>
         <DialogFooter>

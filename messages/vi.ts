@@ -463,6 +463,14 @@ export const vi = {
     expiry: 'Hết hạn',
     authority: 'Cơ quan cấp',
     empty: 'Chưa có giấy tờ nào.',
+    signedDate: 'Ngày ký',
+    scan: 'File scan',
+    view: 'Xem',
+    requirementTitle: 'Yêu cầu giấy tờ',
+    requirementEdit: 'Sửa yêu cầu',
+    requirementPlaceholder: 'Ví dụ: giấy tờ từ 1-10 phải có bản scan, gia hạn trước 30 ngày...',
+    requirementSaved: 'Đã lưu yêu cầu giấy tờ',
+    requirementEmpty: 'Chưa có yêu cầu nào — quản trị viên bấm "Sửa yêu cầu" để nhập.',
   },
 
   debts: {
