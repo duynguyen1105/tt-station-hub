@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/auth/session'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { vnTime } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
-import { getSignedUrl } from '@/lib/storage/photo-storage'
+import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
 export default async function ReviewDebtsPage() {
@@ -44,15 +44,17 @@ export default async function ReviewDebtsPage() {
         select: { id: true, storagePath: true },
       })
     : []
-  const urlById = new Map<string, string>()
-  await Promise.all(
-    photos.map(async (p) => {
-      if (!p.storagePath) return
-      // 8h TTL so an enlarge click still works while the reviewer keeps the page open.
-      const url = await getSignedUrl(p.storagePath, 60 * 60 * 8).catch(() => null)
-      if (url) urlById.set(p.id, url)
-    })
+  // One bulk signing call; 8h TTL so an enlarge click still works while the
+  // reviewer keeps the page open.
+  const urlByPath = await signedUrlsForPaths(
+    photos.map((p) => p.storagePath),
+    60 * 60 * 8
   )
+  const urlById = new Map<string, string>()
+  for (const p of photos) {
+    const url = p.storagePath ? urlByPath.get(p.storagePath) : undefined
+    if (url) urlById.set(p.id, url)
+  }
 
   return (
     <div className="space-y-4">

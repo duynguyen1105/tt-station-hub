@@ -8,7 +8,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { requireUser } from '@/lib/auth/session'
 import { formatDateTime, formatLiters } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
-import { REVIEW_URL_TTL_SECONDS, getSignedUrl } from '@/lib/storage/photo-storage'
+import { REVIEW_URL_TTL_SECONDS, signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -126,14 +126,15 @@ export default async function ImportReceiptPage({
   const tanks = tanksSchema.parse(receipt.tankChecks ?? [])
   const pumps = pumpsSchema.parse(receipt.pumpChecks ?? [])
 
-  const signedDocs = (
-    await Promise.all(
-      docs.map(async (doc) => ({
-        doc,
-        url: await getSignedUrl(doc.storagePath, REVIEW_URL_TTL_SECONDS).catch(() => null),
-      }))
-    )
-  ).filter((d): d is { doc: (typeof docs)[number]; url: string } => d.url !== null)
+  // One bulk signing call for every gallery on the page.
+  const urlByPath = await signedUrlsForPaths(
+    docs.map((d) => d.storagePath),
+    REVIEW_URL_TTL_SECONDS
+  )
+  const signedDocs = docs.flatMap((doc) => {
+    const url = urlByPath.get(doc.storagePath)
+    return url ? [{ doc, url }] : []
+  })
   const bienBanDocs = signedDocs.filter(({ doc }) => doc.kind === 'bien_ban')
   const pxkDocs = signedDocs.filter(({ doc }) => doc.kind === 'phieu_xuat_kho')
   const relatedDocs = signedDocs.filter(
