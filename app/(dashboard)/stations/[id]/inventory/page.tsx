@@ -1,16 +1,17 @@
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { MovementForm } from '@/components/inventory/movement-form'
+import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
-import { formatDate, formatLiters } from '@/lib/format'
+import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import { type BaremLookup, lookupBaremLiters } from '@/lib/inventory/barem'
 import { fetchBaremSheet } from '@/lib/inventory/barem-fetch'
 import { baremSheetFor } from '@/lib/inventory/barem-sheets'
+import { type BookMovement, bookSummary, dailyLedger } from '@/lib/inventory/book-stock'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
@@ -79,7 +80,7 @@ export default async function StationInventoryPage({
     ...(toDate ? { lte: toDate } : {}),
   }
   const hasDateFilter = fromDate !== null || toDate !== null
-  const [station, balances, dips, dispensers, imports] = await Promise.all([
+  const [station, balances, dips, dispensers, imports, openings, movements] = await Promise.all([
     prisma.station.findUnique({ where: { id }, select: { code: true } }),
     prisma.inventoryBalance.findMany({
       where: { stationId: id },
@@ -88,7 +89,7 @@ export default async function StationInventoryPage({
     prisma.tankDipRecord.findMany({
       where: { stationId: id },
       orderBy: { measuredAt: 'desc' },
-      take: 40,
+      take: 120,
     }),
     prisma.dispenser.findMany({ where: { stationId: id, isActive: true } }),
     prisma.fuelImport.findMany({
@@ -98,6 +99,11 @@ export default async function StationInventoryPage({
       },
       orderBy: { importedAt: 'desc' },
       take: hasDateFilter ? 200 : 20,
+    }),
+    prisma.inventoryOpeningBalance.findMany({ where: { stationId: id } }),
+    prisma.inventoryMovement.findMany({
+      where: { stationId: id },
+      orderBy: { movementDate: 'asc' },
     }),
   ])
 
@@ -217,8 +223,93 @@ export default async function StationInventoryPage({
     else incompleteFuels.add(fuel)
   }
   const compareFuels = [
-    ...new Set([...balances.map((b) => b.fuelType), ...actualByFuel.keys()]),
+    ...new Set([
+      ...balances.map((b) => b.fuelType),
+      ...dispensers.map((d) => d.fuelType),
+      ...actualByFuel.keys(),
+    ]),
   ].sort()
+
+  // BOOK stock, anchored on Trường Thịnh's opening balance (số đầu kỳ):
+  // đầu kỳ + nhập − xuất ± điều chỉnh over the movements since the anchor date.
+  // A fuel with no anchor yet counts from zero across all movements and says so.
+  const openingByFuel = new Map(openings.map((o) => [o.fuelType, o]))
+  const movementsByFuel = new Map<string, BookMovement[]>()
+  for (const m of movements) {
+    const list = movementsByFuel.get(m.fuelType) ?? []
+    list.push({
+      movementType: m.movementType,
+      quantity: Number(m.quantity),
+      movementDate: m.movementDate,
+    })
+    movementsByFuel.set(m.fuelType, list)
+  }
+  const EPOCH = new Date(0)
+  const bookFuels = [
+    ...new Set([
+      ...openings.map((o) => o.fuelType),
+      ...balances.map((b) => b.fuelType),
+      ...dispensers.map((d) => d.fuelType),
+    ]),
+  ].sort()
+  const bookByFuel = new Map(
+    bookFuels.map((fuel) => {
+      const opening = openingByFuel.get(fuel)
+      return [
+        fuel,
+        {
+          opening,
+          summary: bookSummary(
+            opening ? Number(opening.openingLiters) : 0,
+            opening?.effectiveDate ?? EPOCH,
+            movementsByFuel.get(fuel) ?? []
+          ),
+        },
+      ] as const
+    })
+  )
+  // Day-by-day ledger across fuels, newest first, capped for display.
+  const ledgerRows = bookFuels
+    .flatMap((fuel) => {
+      const opening = openingByFuel.get(fuel)
+      return dailyLedger(
+        opening ? Number(opening.openingLiters) : 0,
+        opening?.effectiveDate ?? EPOCH,
+        movementsByFuel.get(fuel) ?? []
+      ).map((row) => ({ fuel, ...row }))
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || a.fuel.localeCompare(b.fuel))
+    .slice(0, 60)
+  const openingEntries: OpeningEntry[] = bookFuels.map((fuel) => {
+    const opening = openingByFuel.get(fuel)
+    return {
+      fuelType: fuel,
+      fuelLabel: fuelTypeLabel(fuel),
+      openingLiters: opening ? Number(opening.openingLiters) : null,
+      effectiveDate: opening ? opening.effectiveDate.toISOString().slice(0, 10) : null,
+    }
+  })
+
+  // Signed photo links for the dip history — the measurement's own evidence.
+  const dipPhotoIds = dips.map((d) => d.photoId).filter((p): p is string => !!p)
+  const dipPhotos = dipPhotoIds.length
+    ? await prisma.shiftPhoto.findMany({
+        where: { id: { in: dipPhotoIds } },
+        select: { id: true, storagePath: true },
+      })
+    : []
+  const dipPhotoUrl = new Map(
+    (
+      await Promise.all(
+        dipPhotos.map(async (p) => ({
+          id: p.id,
+          url: p.storagePath ? await getSignedUrl(p.storagePath).catch(() => null) : null,
+        }))
+      )
+    )
+      .filter((p): p is { id: string; url: string } => p.url !== null)
+      .map((p) => [p.id, p.url] as const)
+  )
 
   // The Hầm and Trụ this Trạm's own pre-printed biên bản lists — resolved here
   // rather than in the form, so the 13 rosters stay out of the browser bundle.
@@ -247,42 +338,131 @@ export default async function StationInventoryPage({
           <MovementForm stationId={id} />
         </div>
       </div>
-      <section className="space-y-1">
-        <h3 className="text-sm font-semibold">{vi.inventory.theoreticalTitle}</h3>
-        <p className="text-muted-foreground text-xs">{vi.inventory.theoreticalNote}</p>
-      </section>
-      {balances.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{vi.inventory.empty}</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {balances.map((balance) => {
-            const estimated = Number(balance.estimatedStock)
-            const threshold = balance.lowThreshold !== null ? Number(balance.lowThreshold) : null
-            const low = isLowStock(estimated, threshold)
-            return (
-              <Card key={balance.id}>
-                <CardHeader className="flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-base">{fuelTypeLabel(balance.fuelType)}</CardTitle>
-                  {low && <StatusBadge label={vi.inventory.low} tone="danger" />}
-                </CardHeader>
-                <CardContent className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">{vi.inventory.estimated}</span>
-                    <span className="font-mono">{formatLiters(estimated)}</span>
-                  </div>
-                  {balance.lastPhysicalStock !== null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">{vi.inventory.physical}</span>
-                      <span className="font-mono">
-                        {formatLiters(Number(balance.lastPhysicalStock))}
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold">{vi.inventory.theoreticalTitle}</h3>
+            <p className="text-muted-foreground text-xs">
+              {vi.inventory.openingNote} {vi.inventory.bookSoldNote}
+            </p>
+          </div>
+          {user.role === 'admin' && <OpeningBalanceForm stationId={id} entries={openingEntries} />}
         </div>
+        {bookFuels.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{vi.inventory.empty}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[44rem] text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-b text-left">
+                  <th className="p-2">{vi.inventory.fuelType}</th>
+                  <th className="p-2 text-right">{vi.inventory.openingTitle}</th>
+                  <th className="p-2 text-right">+ {vi.inventory.bookImported}</th>
+                  <th className="p-2 text-right">− {vi.inventory.bookSold}</th>
+                  <th className="p-2 text-right">± {vi.inventory.bookAdjusted}</th>
+                  <th className="p-2 text-right">= {vi.inventory.bookStock}</th>
+                  <th className="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookFuels.map((fuel) => {
+                  const book = bookByFuel.get(fuel)!
+                  const balance = balances.find((b) => b.fuelType === fuel)
+                  const threshold =
+                    balance?.lowThreshold != null ? Number(balance.lowThreshold) : null
+                  const low = isLowStock(book.summary.bookStock, threshold)
+                  return (
+                    <tr key={fuel} className="border-b">
+                      <td className="p-2 font-medium">{fuelTypeLabel(fuel)}</td>
+                      <td className="p-2 text-right">
+                        {book.opening ? (
+                          <span className="font-mono">
+                            {formatLiters(book.summary.openingLiters)}
+                            <span className="text-muted-foreground ml-1 text-xs">
+                              ({formatDate(book.opening.effectiveDate)})
+                            </span>
+                          </span>
+                        ) : (
+                          <StatusBadge label={vi.inventory.noOpening} tone="warning" />
+                        )}
+                      </td>
+                      <td className="p-2 text-right">
+                        {/* Every component links to its own evidence trail. */}
+                        <a
+                          href="#lich-su-nhap-hang"
+                          className="text-primary font-mono underline underline-offset-2"
+                        >
+                          {formatLiters(book.summary.importedLiters)}
+                        </a>
+                      </td>
+                      <td className="p-2 text-right">
+                        <a
+                          href={`/stations/${id}/shifts`}
+                          className="text-primary font-mono underline underline-offset-2"
+                        >
+                          {formatLiters(book.summary.soldLiters)}
+                        </a>
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        {book.summary.adjustedLiters === 0
+                          ? '—'
+                          : formatLiters(book.summary.adjustedLiters)}
+                      </td>
+                      <td className="p-2 text-right font-mono font-semibold">
+                        {formatLiters(book.summary.bookStock)}
+                      </td>
+                      <td className="p-2">
+                        {low && <StatusBadge label={vi.inventory.low} tone="danger" />}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {ledgerRows.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">{vi.inventory.dailyLedgerTitle}</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[44rem] text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-b text-left">
+                  <th className="p-2">{vi.inventory.date}</th>
+                  <th className="p-2">{vi.inventory.fuelType}</th>
+                  <th className="p-2 text-right">{vi.inventory.dayOpening}</th>
+                  <th className="p-2 text-right">+ {vi.inventory.bookImported}</th>
+                  <th className="p-2 text-right">− {vi.inventory.bookSold}</th>
+                  <th className="p-2 text-right">± {vi.inventory.bookAdjusted}</th>
+                  <th className="p-2 text-right">= {vi.inventory.dayClosing}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledgerRows.map((row) => (
+                  <tr key={`${row.date}-${row.fuel}`} className="border-b">
+                    <td className="p-2">{row.date.split('-').reverse().join('/')}</td>
+                    <td className="p-2">{fuelTypeLabel(row.fuel)}</td>
+                    <td className="p-2 text-right font-mono">{formatLiters(row.openingOfDay)}</td>
+                    <td className="p-2 text-right font-mono">
+                      {row.importedLiters === 0 ? '—' : formatLiters(row.importedLiters)}
+                    </td>
+                    <td className="p-2 text-right font-mono">
+                      {row.soldLiters === 0 ? '—' : formatLiters(row.soldLiters)}
+                    </td>
+                    <td className="p-2 text-right font-mono">
+                      {row.adjustedLiters === 0 ? '—' : formatLiters(row.adjustedLiters)}
+                    </td>
+                    <td className="p-2 text-right font-mono font-semibold">
+                      {formatLiters(row.closingOfDay)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       <section className="space-y-2">
@@ -372,8 +552,8 @@ export default async function StationInventoryPage({
             </thead>
             <tbody>
               {compareFuels.map((fuel) => {
-                const balance = balances.find((b) => b.fuelType === fuel)
-                const theoretical = balance ? Number(balance.estimatedStock) : 0
+                // Sổ sách side = the anchored book stock, same figure as above.
+                const theoretical = bookByFuel.get(fuel)?.summary.bookStock ?? 0
                 const actual = actualByFuel.get(fuel)
                 // Every tank of the fuel must be measured AND resolved by the
                 // Barem before the comparison means anything.
@@ -408,6 +588,83 @@ export default async function StationInventoryPage({
       )}
 
       <section className="space-y-2">
+        <h3 className="text-sm font-semibold">{vi.inventory.dipHistory}</h3>
+        {dips.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{vi.inventory.noDips}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-b text-left">
+                  <th className="p-2">{vi.inventory.measuredAt}</th>
+                  <th className="p-2">{vi.inventory.tank}</th>
+                  <th className="p-2">{vi.inventory.fuelType}</th>
+                  <th className="p-2 text-right">{vi.inventory.dipValue}</th>
+                  <th className="p-2 text-right">{vi.inventory.actualLiters}</th>
+                  <th className="p-2 text-right">{vi.inventory.dipDelta}</th>
+                  <th className="p-2">{vi.inventory.photo}</th>
+                  <th className="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {dips.map((dip) => {
+                  const lookup = baremByTank
+                    ? lookupBaremLiters(
+                        baremByTank.get(dip.tankCode),
+                        Math.round(Number(dip.dipValue))
+                      )
+                    : null
+                  const url = dip.photoId ? dipPhotoUrl.get(dip.photoId) : undefined
+                  return (
+                    <tr key={dip.id} className="border-b">
+                      <td className="p-2">{formatDateTime(dip.measuredAt)}</td>
+                      <td className="p-2 font-medium">{dip.tankCode.replace('HAM_', 'Hầm ')}</td>
+                      <td className="p-2">{dip.fuelType ? fuelTypeLabel(dip.fuelType) : '—'}</td>
+                      <td className="p-2 text-right font-mono">{dip.dipValue.toString()}</td>
+                      <td className="p-2 text-right font-mono">
+                        {lookup?.ok ? (
+                          formatLiters(lookup.liters)
+                        ) : lookup ? (
+                          <span className="text-muted-foreground text-xs">
+                            {refusalLabel[lookup.reason]}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="p-2 text-right font-mono">
+                        {dip.deltaFromPrevious?.toString() ?? '—'}
+                      </td>
+                      <td className="p-2">
+                        {url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary underline underline-offset-2"
+                          >
+                            {vi.inventory.photo}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="space-x-1 p-2">
+                        {dip.isReserve && <StatusBadge label={vi.inventory.reserve} tone="muted" />}
+                        {dip.isAnomaly && (
+                          <StatusBadge label={vi.inventory.reserveChanged} tone="danger" />
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section id="lich-su-nhap-hang" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-muted-foreground text-sm font-medium">{vi.imports.recent}</h3>
           <div className="flex flex-wrap items-center gap-2">

@@ -185,6 +185,24 @@ model InventoryBalance {
   @@map("inventory_balances")
 }
 
+/// Trường Thịnh's opening stock per fuel (số đầu kỳ) — the anchor the book
+/// stock counts from: sổ sách = đầu kỳ + nhập − xuất ± điều chỉnh, using the
+/// movements dated on/after effectiveDate. Admin-only to change; changing it
+/// re-anchors the whole ledger (history is the movements, which never move).
+model InventoryOpeningBalance {
+  id            String   @id @default(uuid()) @db.Uuid
+  stationId     String   @map("station_id") @db.Uuid
+  fuelType      String   @map("fuel_type")
+  openingLiters Decimal  @map("opening_liters") @db.Decimal(15, 3)
+  effectiveDate DateTime @map("effective_date") @db.Date
+  setBy         String?  @map("set_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([stationId, fuelType], map: "uq_opening_station_fuel")
+  @@map("inventory_opening_balances")
+}
+
 // One tank-dip measurement, RAW as written on the dip photo (unit conversion
 // to liters waits for the dip-photo format, §12.6). History per (station, tank)
 // lets consecutive dips be compared: a RESERVE tank (no dispenser draws from it)
