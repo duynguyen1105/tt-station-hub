@@ -1,10 +1,6 @@
 'use client'
 
-import { toast } from 'sonner'
-
 import { useState } from 'react'
-
-import { useRouter } from 'next/navigation'
 
 import {
   Select,
@@ -13,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useSaveAction } from '@/hooks/use-save-action'
 import { type FuelArea } from '@/lib/generated/prisma/client'
 import { vi } from '@/messages/vi'
 
@@ -25,29 +22,31 @@ export function StationFuelAreaForm({
   stationId: string
   fuelArea: FuelArea
 }) {
-  const router = useRouter()
-  const [busy, setBusy] = useState(false)
+  const { busy, save } = useSaveAction()
+  // The just-picked vùng, shown immediately so the trigger doesn't sit on the old
+  // label through the PATCH + router.refresh. Reverted if the save fails, and
+  // dropped the moment the fresh prop arrives (adjust-state-during-render).
+  const [optimistic, setOptimistic] = useState<FuelArea | null>(null)
+  const [prevFuelArea, setPrevFuelArea] = useState(fuelArea)
+  if (fuelArea !== prevFuelArea) {
+    setPrevFuelArea(fuelArea)
+    setOptimistic(null)
+  }
+  const shown = optimistic ?? fuelArea
 
-  async function save(next: FuelArea) {
-    if (next === fuelArea) return
-    setBusy(true)
-    const res = await fetch(`/api/stations/${stationId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fuelArea: next }),
-    })
-    setBusy(false)
-    if (res.ok) {
-      toast.success(vi.misaSettings.saved)
-      router.refresh()
-    } else {
-      const body = await res.json().catch(() => null)
-      toast.error(body?.error ?? vi.errors.generic)
-    }
+  function pick(next: FuelArea) {
+    if (next === shown) return
+    // Set outside save() so this is an urgent update and paints in this frame.
+    setOptimistic(next)
+    save(
+      `/api/stations/${stationId}`,
+      { method: 'PATCH', body: { fuelArea: next }, success: vi.misaSettings.saved },
+      { onError: () => setOptimistic(null) }
+    )
   }
 
   return (
-    <Select value={fuelArea} onValueChange={(v) => save(v as FuelArea)} disabled={busy}>
+    <Select value={shown} onValueChange={(v) => pick(v as FuelArea)} disabled={busy}>
       <SelectTrigger className="w-48">
         <SelectValue />
       </SelectTrigger>
