@@ -1,3 +1,4 @@
+import { AccountantForm } from '@/components/accountants/accountant-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireRole } from '@/lib/auth/session'
 import { isStationUncovered } from '@/lib/auth/station-access'
@@ -34,10 +35,13 @@ export default async function SettingsAccountantsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="label-micro">{vi.nav.settings}</p>
-        <h1 className="text-2xl font-bold tracking-tight">{vi.accountants.title}</h1>
-        <p className="text-muted-foreground text-sm">{vi.accountants.subtitle}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="label-micro">{vi.nav.settings}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{vi.accountants.title}</h1>
+          <p className="text-muted-foreground text-sm">{vi.accountants.subtitle}</p>
+        </div>
+        <AccountantForm />
       </div>
 
       <p className="text-sm">
