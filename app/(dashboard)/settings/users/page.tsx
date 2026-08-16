@@ -1,13 +1,12 @@
 import Link from 'next/link'
 
 import { AccountantForm } from '@/components/accountants/accountant-form'
-import { AccountantPasswordForm } from '@/components/accountants/accountant-password-form'
-import { AccountantStatusForm } from '@/components/accountants/accountant-status-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { activeStationsWithHolders } from '@/lib/accountants/station-holders'
 import { requireRole } from '@/lib/auth/session'
 import { isStationUncovered } from '@/lib/auth/station-access'
 import { prisma } from '@/lib/prisma'
+import { accountantStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export default async function SettingsAccountantsPage() {
@@ -75,16 +74,17 @@ export default async function SettingsAccountantsPage() {
               <th className="p-2">{vi.accountants.phone}</th>
               <th className="p-2">{vi.accountants.assignedStations}</th>
               <th className="p-2">{vi.accountants.accountStatus}</th>
-              <th className="p-2"></th>
             </tr>
           </thead>
           <tbody>
             {accountants.map((accountant) => {
               const held = stationsHeldBy.get(accountant.id)
+              const status = accountantStatusInfo(accountant.isActive)
               return (
                 <tr key={accountant.id} className="border-b">
-                  {/* The row's handle on the person: opening one is the obvious
-                      thing to do to a row, and it is where they are edited. */}
+                  {/* The only thing a row offers, now that mật khẩu and ngưng
+                      hoạt động sit on the person's page with everything else
+                      done to them: the list says who there is, and points. */}
                   <td className="p-2">
                     <Link
                       href={`/settings/users/${accountant.id}`}
@@ -103,27 +103,7 @@ export default async function SettingsAccountantsPage() {
                     )}
                   </td>
                   <td className="p-2">
-                    {accountant.isActive ? (
-                      <StatusBadge label={vi.accountants.active} tone="success" />
-                    ) : (
-                      <StatusBadge label={vi.accountants.suspended} tone="muted" />
-                    )}
-                  </td>
-                  <td className="p-2 text-right whitespace-nowrap">
-                    <AccountantPasswordForm
-                      accountant={{
-                        id: accountant.id,
-                        fullName: accountant.fullName,
-                        username: accountant.email,
-                      }}
-                    />
-                    <AccountantStatusForm
-                      accountant={{
-                        id: accountant.id,
-                        fullName: accountant.fullName,
-                        isActive: accountant.isActive,
-                      }}
-                    />
+                    <StatusBadge label={status.label} tone={status.tone} />
                   </td>
                 </tr>
               )

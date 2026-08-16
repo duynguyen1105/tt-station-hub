@@ -11,8 +11,8 @@
   không phải hộp thư** — hệ thống không gửi thư cho ai; điền nó vào ô **Email**
   ở trang đăng nhập.
 - Quên mật khẩu thì gọi quản trị viên. Quản trị viên mở màn hình **Kế toán**,
-  bấm **Đặt lại mật khẩu** trên dòng của bạn, đặt mật khẩu mới và đọc lại cho
-  bạn. Bạn đăng nhập được ngay bằng mật khẩu đó; mật khẩu cũ hết dùng được. Việc
+  bấm vào tên bạn để mở trang của bạn, bấm **Đặt lại mật khẩu** ở đó, đặt mật
+  khẩu mới và đọc lại cho bạn. Bạn đăng nhập được ngay bằng mật khẩu đó; mật khẩu cũ hết dùng được. Việc
   đặt lại được ghi nhật ký, mật khẩu thì không.
 - Không có chức năng "quên mật khẩu" tự phục vụ, và hệ thống không gửi email
   đặt lại.
