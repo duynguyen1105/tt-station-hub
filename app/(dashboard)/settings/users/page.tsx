@@ -1,4 +1,5 @@
 import { AccountantForm } from '@/components/accountants/accountant-form'
+import { AccountantPasswordForm } from '@/components/accountants/accountant-password-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireRole } from '@/lib/auth/session'
 import { isStationUncovered } from '@/lib/auth/station-access'
@@ -103,6 +104,13 @@ export default async function SettingsAccountantsPage() {
                         fullName: accountant.fullName,
                         username: accountant.email,
                         phone: accountant.phone,
+                      }}
+                    />
+                    <AccountantPasswordForm
+                      accountant={{
+                        id: accountant.id,
+                        fullName: accountant.fullName,
+                        username: accountant.email,
                       }}
                     />
                   </td>
