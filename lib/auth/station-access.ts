@@ -16,10 +16,10 @@ export type StationViewer = {
   role: AppRole
 }
 
-/** A trạm, reduced to who is phụ trách of it. */
+/** A trạm, reduced to the kế toán phụ trách of it — any number, all equals. */
 export type StationAccess = {
   id: string
-  assignedAccountantId: string | null
+  accountantIds: readonly string[]
 }
 
 /** A kế toán, reduced to whether their tài khoản still works. */
@@ -44,7 +44,7 @@ export function readsEveryStation(viewer: StationViewer): boolean {
  */
 export function canAccessStation(viewer: StationViewer, station: StationAccess): boolean {
   if (readsEveryStation(viewer)) return true
-  return station.assignedAccountantId === viewer.id
+  return station.accountantIds.includes(viewer.id)
 }
 
 /**
@@ -61,19 +61,20 @@ export function accessibleStationIds(
 }
 
 /**
- * Is this trạm without a working kế toán? True when it has no phụ trách at all,
- * and equally true when its phụ trách has been suspended — suspension keeps the
- * assignment so that restoring is lossless, which would otherwise leave the trạm
- * looking covered while nobody can sign in to review it.
+ * Is this trạm without a working kế toán? True when nobody is phụ trách of it,
+ * and equally true when every kế toán on it has been suspended — suspension
+ * keeps the assignment so that restoring is lossless, which would otherwise
+ * leave the trạm looking covered while nobody can sign in to review it. One
+ * active person covers it however many suspended ones sit beside them.
  *
  * A phụ trách who is not among the supplied kế toán at all — a profile that has
- * changed role or gone — counts as uncovered for the same reason.
+ * changed role or gone — counts for nothing here, for the same reason.
  */
 export function isStationUncovered(
   station: StationAccess,
   accountants: readonly AccountantAccess[]
 ): boolean {
-  if (!station.assignedAccountantId) return true
-  const assignee = accountants.find((a) => a.id === station.assignedAccountantId)
-  return !assignee?.isActive
+  return !station.accountantIds.some(
+    (id) => accountants.find((a) => a.id === id)?.isActive === true
+  )
 }

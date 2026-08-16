@@ -35,22 +35,34 @@ enum FuelArea {
 }
 
 model Station {
-  id                   String   @id @default(uuid()) @db.Uuid
-  code                 String   @unique // "DAKNONG_1"
-  name                 String // "Trạm Đăk Nông 1"
-  branch               String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
-  fuelArea             FuelArea @default(FUEL_AREA_1) @map("fuel_area") // retail price zone
-  address              String?
-  zaloGroupId          String?  @map("zalo_group_id") // shift-photo Zalo group
-  zaloDebtGroupId      String?  @map("zalo_debt_group_id") // debt group (if separated)
-  assignedAccountantId String?  @map("assigned_accountant_id") @db.Uuid
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique // "DAKNONG_1"
+  name            String // "Trạm Đăk Nông 1"
+  branch          String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
+  fuelArea        FuelArea @default(FUEL_AREA_1) @map("fuel_area") // retail price zone
+  address         String?
+  zaloGroupId     String?  @map("zalo_group_id") // shift-photo Zalo group
+  zaloDebtGroupId String?  @map("zalo_debt_group_id") // debt group (if separated)
   // Admin-written requirement shown on the legal-documents tab
   // ("giấy tờ từ 1-10 ..."), so every reviewer sees what must be on file.
-  documentsNote        String?  @map("documents_note")
-  isActive             Boolean  @default(true) @map("is_active")
-  createdAt            DateTime @default(now()) @map("created_at")
+  documentsNote   String?  @map("documents_note")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   @@map("stations")
+}
+
+// Who is phụ trách of which trạm. Any number of kế toán share a trạm and they
+// are equals — nothing here distinguishes one from another, and the pair is the
+// whole row. This is the boundary of what a kế toán reads (lib/auth/station-access.ts).
+model StationAccountant {
+  stationId    String   @map("station_id") @db.Uuid
+  accountantId String   @map("accountant_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@id([stationId, accountantId])
+  @@index([accountantId], map: "idx_station_accountants_accountant")
+  @@map("station_accountants")
 }
 
 model Dispenser {

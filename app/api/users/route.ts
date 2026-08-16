@@ -6,6 +6,7 @@ import { badRequest, created, forbidden, serverError, unauthorized } from '@/lib
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { planStationAssignment } from '@/lib/auth/station-assignment'
+import { activeStationAccess } from '@/lib/auth/station-guard'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -22,9 +23,9 @@ const createAccountantSchema = z.object({
   username: z.string().trim().toLowerCase().email(vi.accountants.usernameInvalid),
   phone: z.string().trim().optional(),
   password: z.string().min(8, vi.accountants.passwordTooShort),
-  // The trạm this person is phụ trách of from their first sign-in. Nobody holds
-  // anything yet, so every one of them is a claim — and some may be taken off
-  // another kế toán, which the checklist showed before this was sent.
+  // The trạm this person is phụ trách of from their first sign-in. This person
+  // is on nothing yet, so every one of them is a claim — and one another kế toán
+  // is already on simply gains a second name.
   stationIds: z.array(z.string()).optional(),
 })
 
@@ -62,10 +63,7 @@ export async function POST(req: NextRequest) {
   // the two would otherwise leave an auth user behind with nothing to undo it.
   // Active trạm only, the same list the checklist was drawn from, so a ticked id
   // that is not one of them is dropped rather than written.
-  const stations = await prisma.station.findMany({
-    where: { isActive: true },
-    select: { id: true, assignedAccountantId: true },
-  })
+  const stations = await activeStationAccess()
 
   const supabase = createAdminClient()
   // Auth goes first: it mints the identifier the profile is then written under —
@@ -87,7 +85,7 @@ export async function POST(req: NextRequest) {
   }
 
   const id = authUser.data.user.id
-  // Nobody's id is on a trạm yet, so this can only ever claim.
+  // This id is on no trạm yet, so this can only ever claim.
   const plan = planStationAssignment(id, stations, stationIds ?? [])
 
   let profile
@@ -98,9 +96,8 @@ export async function POST(req: NextRequest) {
       prisma.profile.create({
         data: { id, email: username, fullName, phone: phone || null, role: 'accountant' },
       }),
-      prisma.station.updateMany({
-        where: { id: { in: plan.claimed } },
-        data: { assignedAccountantId: id },
+      prisma.stationAccountant.createMany({
+        data: plan.claimed.map((stationId) => ({ stationId, accountantId: id })),
       }),
     ])
     profile = row
@@ -134,8 +131,8 @@ export async function POST(req: NextRequest) {
     entityId: profile.id,
     metadata: { username, fullName },
   })
-  // Its own entry, as on the update route: a handover changes what another kế toán
-  // may read, and that is worth finding without reading every creation.
+  // Its own entry, as on the update route: this decides what the new kế toán may
+  // read, and that is worth finding without reading every creation.
   if (plan.claimed.length > 0) {
     await writeAudit({
       userId: user.id,

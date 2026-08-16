@@ -6,7 +6,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
-import { canAccessStation } from '@/lib/auth/station-access'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 const fuelMapSchema = z.object({
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const station = await prisma.station.findUnique({ where: { id: stationId } })
   if (!station) return notFound()
-  if (!canAccessStation(user, station)) return forbidden()
+  if (!(await canReachStation(user, station.id))) return forbidden()
 
   const entry = await prisma.misaFuelMap.upsert({
     where: { stationId_fuelType: { stationId, fuelType } },

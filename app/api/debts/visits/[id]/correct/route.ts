@@ -6,7 +6,6 @@ import { checkAmountMatch } from '@/lib/ai/extract-visit'
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
-import { canAccessStation } from '@/lib/auth/station-access'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -58,12 +57,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (parsed.data.stationId !== undefined) {
     const station = await prisma.station.findFirst({
       where: { id: parsed.data.stationId, isActive: true },
-      select: { id: true, assignedAccountantId: true },
+      select: { id: true },
     })
     if (!station) return badRequest('Trạm không hợp lệ.')
     // Re-assigning the lượt xe is a write into the trạm it lands in, so the
     // destination is held to the same boundary as the trạm it came from.
-    if (!canAccessStation(user, station)) return forbidden()
+    if (!(await canReachStation(user, station.id))) return forbidden()
     data.stationId = station.id
   }
 

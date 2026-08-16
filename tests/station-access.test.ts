@@ -12,14 +12,16 @@ import {
 const HUONG = 'a1000000-0000-0000-0000-000000000001'
 const TUAN = 'a1000000-0000-0000-0000-000000000002'
 
-// Three trạm covering the only three shapes the rule can see: held by the
-// person asking, held by someone else, and held by nobody.
-const OWN: StationAccess = { id: 'st-1', assignedAccountantId: HUONG }
-const OTHERS: StationAccess = { id: 'st-2', assignedAccountantId: TUAN }
-const ORPHAN: StationAccess = { id: 'st-3', assignedAccountantId: null }
-const ALL = [OWN, OTHERS, ORPHAN]
+// The shapes the rule can see now that a trạm holds a set: Hương's alone,
+// somebody else's, shared by the two of them, and nobody's.
+const OWN: StationAccess = { id: 'st-1', accountantIds: [HUONG] }
+const OTHERS: StationAccess = { id: 'st-2', accountantIds: [TUAN] }
+const SHARED: StationAccess = { id: 'st-3', accountantIds: [HUONG, TUAN] }
+const ORPHAN: StationAccess = { id: 'st-4', accountantIds: [] }
+const ALL = [OWN, OTHERS, SHARED, ORPHAN]
 
 const huong = { id: HUONG, role: 'accountant' as const }
+const tuan = { id: TUAN, role: 'accountant' as const }
 const admin = { id: 'admin-id', role: 'admin' as const }
 const viewer = { id: 'viewer-id', role: 'viewer' as const }
 
@@ -37,13 +39,13 @@ describe('readsEveryStation', () => {
 describe('canAccessStation', () => {
   it('lets a quản trị viên into every trạm, including one with no phụ trách', () => {
     expect(canAccessStation(admin, OWN)).toBe(true)
-    expect(canAccessStation(admin, OTHERS)).toBe(true)
+    expect(canAccessStation(admin, SHARED)).toBe(true)
     expect(canAccessStation(admin, ORPHAN)).toBe(true)
   })
 
   it('lets a người xem into every trạm', () => {
     expect(canAccessStation(viewer, OWN)).toBe(true)
-    expect(canAccessStation(viewer, OTHERS)).toBe(true)
+    expect(canAccessStation(viewer, SHARED)).toBe(true)
     expect(canAccessStation(viewer, ORPHAN)).toBe(true)
   })
 
@@ -51,7 +53,12 @@ describe('canAccessStation', () => {
     expect(canAccessStation(huong, OWN)).toBe(true)
   })
 
-  it('refuses a kế toán the trạm another kế toán is phụ trách of', () => {
+  it('lets both kế toán phụ trách of one trạm into it', () => {
+    expect(canAccessStation(huong, SHARED)).toBe(true)
+    expect(canAccessStation(tuan, SHARED)).toBe(true)
+  })
+
+  it('refuses a kế toán a trạm they are not on, whoever else is', () => {
     expect(canAccessStation(huong, OTHERS)).toBe(false)
   })
 
@@ -61,8 +68,9 @@ describe('canAccessStation', () => {
 })
 
 describe('accessibleStationIds', () => {
-  it('returns exactly the trạm a kế toán is phụ trách of', () => {
-    expect(accessibleStationIds(huong, ALL)).toEqual(['st-1'])
+  it('returns every trạm a kế toán is phụ trách of and nothing else', () => {
+    expect(accessibleStationIds(huong, ALL)).toEqual(['st-1', 'st-3'])
+    expect(accessibleStationIds(tuan, ALL)).toEqual(['st-2', 'st-3'])
   })
 
   it('returns nothing for a kế toán who is phụ trách of none', () => {
@@ -71,8 +79,8 @@ describe('accessibleStationIds', () => {
   })
 
   it('returns the whole list unchanged for a quản trị viên and a người xem', () => {
-    expect(accessibleStationIds(admin, ALL)).toEqual(['st-1', 'st-2', 'st-3'])
-    expect(accessibleStationIds(viewer, ALL)).toEqual(['st-1', 'st-2', 'st-3'])
+    expect(accessibleStationIds(admin, ALL)).toEqual(['st-1', 'st-2', 'st-3', 'st-4'])
+    expect(accessibleStationIds(viewer, ALL)).toEqual(['st-1', 'st-2', 'st-3', 'st-4'])
   })
 })
 
@@ -81,29 +89,42 @@ describe('isStationUncovered', () => {
     { id: HUONG, isActive: true },
     { id: TUAN, isActive: true },
   ]
+  const huongSuspended: AccountantAccess[] = [
+    { id: HUONG, isActive: false },
+    { id: TUAN, isActive: true },
+  ]
 
   it('counts a trạm with no phụ trách as uncovered', () => {
     expect(isStationUncovered(ORPHAN, active)).toBe(true)
   })
 
-  it('counts a trạm whose phụ trách is suspended as uncovered', () => {
-    const suspended: AccountantAccess[] = [
+  it('counts a trạm whose only kế toán is suspended as uncovered', () => {
+    expect(isStationUncovered(OWN, huongSuspended)).toBe(true)
+  })
+
+  it('does not count a trạm with one active kế toán beside one suspended as uncovered', () => {
+    expect(isStationUncovered(SHARED, huongSuspended)).toBe(false)
+  })
+
+  it('counts a trạm all of whose kế toán are suspended as uncovered', () => {
+    const bothSuspended: AccountantAccess[] = [
       { id: HUONG, isActive: false },
-      { id: TUAN, isActive: true },
+      { id: TUAN, isActive: false },
     ]
-    expect(isStationUncovered(OWN, suspended)).toBe(true)
-    expect(isStationUncovered(OTHERS, suspended)).toBe(false)
+    expect(isStationUncovered(SHARED, bothSuspended)).toBe(true)
   })
 
-  it('does not count a trạm whose phụ trách is active as uncovered', () => {
+  it('does not count a trạm whose kế toán are active as uncovered', () => {
     expect(isStationUncovered(OWN, active)).toBe(false)
-    expect(isStationUncovered(OTHERS, active)).toBe(false)
+    expect(isStationUncovered(SHARED, active)).toBe(false)
   })
 
-  it('counts a trạm held by nobody in the supplied list as uncovered', () => {
-    // The column points at a profile that is not among the kế toán handed in —
-    // a người who has changed role, or a row that no longer exists.
+  it('counts a trạm held only by people missing from the supplied list as uncovered', () => {
+    // The join rows point at a profile that is not among the kế toán handed in —
+    // somebody who has changed role, or a row that no longer exists.
     expect(isStationUncovered(OWN, [{ id: TUAN, isActive: true }])).toBe(true)
     expect(isStationUncovered(OWN, [])).toBe(true)
+    // …and one live name beside such a ghost still covers the trạm.
+    expect(isStationUncovered(SHARED, [{ id: TUAN, isActive: true }])).toBe(false)
   })
 })

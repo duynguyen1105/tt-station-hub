@@ -224,13 +224,11 @@ export const vi = {
     usernameLocked:
       'Tên đăng nhập không đổi được. Nhập sai thì ngưng hoạt động tài khoản đó và tạo lại.',
     stationsHint:
-      'Mỗi trạm chỉ có một kế toán phụ trách. Tích vào trạm đã có người là chuyển trạm đó sang kế toán này.',
-    stationHeldBy: 'Đang phụ trách:',
+      'Một trạm có thể có nhiều kế toán cùng phụ trách. Tích vào trạm đã có người là thêm kế toán này vào đó, không lấy trạm khỏi ai.',
+    stationHeldBy: 'Cùng phụ trách:',
     stationNoHolder: 'Chưa có ai phụ trách',
-    stationTakeover: 'Sẽ chuyển từ:',
     stationRelease: 'Sẽ bỏ phụ trách',
     stationNoBranch: 'Chưa có chi nhánh',
-    stationTakeoverPrefix: 'Sẽ chuyển trạm từ kế toán khác:',
     suspend: 'Ngưng hoạt động',
     restore: 'Kích hoạt',
     suspendConfirmTitle: 'Ngưng hoạt động tài khoản này?',

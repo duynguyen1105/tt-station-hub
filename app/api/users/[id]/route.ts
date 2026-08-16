@@ -6,6 +6,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { planStationAssignment } from '@/lib/auth/station-assignment'
+import { activeStationAccess } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -66,22 +67,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
   if (!accountant || accountant.role !== 'accountant') return notFound()
 
-  // Active trạm only, the same list the checklist was drawn from: a closed trạm
-  // needs no kế toán, and one held by this person stays held so that reopening it
-  // is not the same as starting over.
   const plan = stationIds
-    ? planStationAssignment(
-        id,
-        await prisma.station.findMany({
-          where: { isActive: true },
-          select: { id: true, assignedAccountantId: true },
-        }),
-        stationIds
-      )
+    ? planStationAssignment(id, await activeStationAccess(), stationIds)
     : null
 
-  // One transaction, because a handover is two writes: the trạm has exactly one
-  // phụ trách, and a half-applied move would leave it held by both or by neither.
+  // One transaction with the profile, so a save is never half-applied — and the
+  // writes name this kế toán alone: nobody else's row is deleted or added, so a
+  // colleague sharing one of these trạm is left exactly where they were.
   const [updated] = await prisma.$transaction([
     prisma.profile.update({
       where: { id },
@@ -95,13 +87,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(isActive !== undefined ? { isActive } : {}),
       },
     }),
-    prisma.station.updateMany({
-      where: { id: { in: plan?.released ?? [] } },
-      data: { assignedAccountantId: null },
+    prisma.stationAccountant.deleteMany({
+      where: { accountantId: id, stationId: { in: plan?.released ?? [] } },
     }),
-    prisma.station.updateMany({
-      where: { id: { in: plan?.claimed ?? [] } },
-      data: { assignedAccountantId: id },
+    prisma.stationAccountant.createMany({
+      data: (plan?.claimed ?? []).map((stationId) => ({ stationId, accountantId: id })),
+      skipDuplicates: true,
     }),
   ])
 
@@ -137,8 +128,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
   }
 
-  // Its own entry rather than a field on the correction above: a handover changes
-  // what another kế toán may read, which is worth finding on its own.
+  // Its own entry rather than a field on the correction above: this changes what
+  // a kế toán may read, which is worth finding on its own.
   if (plan && (plan.released.length > 0 || plan.claimed.length > 0)) {
     await writeAudit({
       userId: user.id,
