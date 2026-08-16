@@ -108,6 +108,19 @@ pnpm db:studio        # open Prisma Studio to inspect the local DB
 pnpm db:push | db:seed
 ```
 
+## One-off migrations
+
+The project has no migration history — schema changes go through `db:push`, which
+will drop a removed column and its data together. Where a change moves data rather
+than discarding it, a script under `scripts/` does the move first and `db:push` then
+finds nothing left to do. Run it **before** `db:push`, on any database that predates
+the change; each one is idempotent, so it is safe on a database that is already
+migrated (and on a brand-new one, where it has nothing to do).
+
+```bash
+pnpm db:phu-trach     # phụ trách: stations.assigned_accountant_id → station_accountants
+```
+
 ## Running for real (production)
 
 > A Trường Thịnh **Supabase** project is already provisioned. With the team's

@@ -4,53 +4,66 @@ import { AccountantStatusForm } from '@/components/accountants/accountant-status
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireRole } from '@/lib/auth/session'
 import { isStationUncovered } from '@/lib/auth/station-access'
+import { activeStationAccess } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
 export default async function SettingsAccountantsPage() {
   await requireRole('admin')
 
-  const [profiles, stations] = await Promise.all([
-    // Every profile, not only the kế toán: the table below is theirs, but a trạm's
-    // phụ trách has to be named whoever holds it, or the checklist would offer a
-    // trạm as free while the save took it off somebody.
+  const [profiles, stationRows, access] = await Promise.all([
+    // Every profile, not only the kế toán: the table below is theirs, but the
+    // people already on a trạm have to be named whoever they are.
     prisma.profile.findMany({ orderBy: { fullName: 'asc' } }),
     // Active trạm only, as everywhere else a trạm list is read: a closed trạm
     // needs no kế toán, so it belongs in neither column nor coverage count.
     prisma.station.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, branch: true, assignedAccountantId: true },
+      select: { id: true, name: true, branch: true },
       orderBy: { code: 'asc' },
     }),
+    // Who is on each of them, read through the same module every other screen
+    // asks, so this one cannot answer differently from the boundary itself.
+    activeStationAccess(),
   ])
 
   const accountants = profiles.filter((profile) => profile.role === 'accountant')
 
-  // The assigned-accountant column read from the other side: which trạm each
-  // kế toán is phụ trách of.
+  // The trạm as this screen needs them: the row's own columns, in mã trạm order,
+  // carrying who is phụ trách of it.
+  const accountantIdsByStation = new Map(
+    access.map((station) => [station.id, station.accountantIds])
+  )
+  const stations = stationRows.map((station) => ({
+    ...station,
+    accountantIds: accountantIdsByStation.get(station.id) ?? [],
+  }))
+
+  // The same phụ trách read from the other side: which trạm each kế toán is on.
   const stationsHeldBy = new Map<string, string[]>()
   for (const station of stations) {
-    if (!station.assignedAccountantId) continue
-    const held = stationsHeldBy.get(station.assignedAccountantId) ?? []
-    held.push(station.name)
-    stationsHeldBy.set(station.assignedAccountantId, held)
+    for (const accountantId of station.accountantIds) {
+      const held = stationsHeldBy.get(accountantId) ?? []
+      held.push(station.name)
+      stationsHeldBy.set(accountantId, held)
+    }
   }
 
   // A signal, not a constraint: a trạm with no working kế toán is a trạm
   // nobody reviews, and nothing else in the app makes that visible.
   const uncovered = stations.filter((station) => isStationUncovered(station, accountants))
 
-  // The checklist inside the dialog: every active trạm, with whoever is phụ trách
-  // of it named so that ticking one is visibly taking it off them.
-  const stationChoices = stations.map((station) => {
-    const holder = profiles.find((profile) => profile.id === station.assignedAccountantId)
-    return {
-      id: station.id,
-      name: station.name,
-      branch: station.branch,
-      heldBy: holder ? { id: holder.id, fullName: holder.fullName } : null,
-    }
-  })
+  // The checklist inside the dialog: every active trạm, naming the kế toán
+  // already phụ trách of it, since ticking one adds a name beside theirs.
+  const stationChoices = stations.map((station) => ({
+    id: station.id,
+    name: station.name,
+    branch: station.branch,
+    heldBy: station.accountantIds.flatMap((accountantId) => {
+      const holder = profiles.find((profile) => profile.id === accountantId)
+      return holder ? [{ id: holder.id, fullName: holder.fullName }] : []
+    }),
+  }))
 
   return (
     <div className="space-y-4">

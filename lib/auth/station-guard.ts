@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 
 import { type CurrentUser, requireUser } from '@/lib/auth/session'
 import {
+  type StationAccess,
   type StationViewer,
   accessibleStationIds,
   canAccessStation,
@@ -16,16 +17,56 @@ import { prisma } from '@/lib/prisma'
  * module refuses to do itself, so the rule about who may reach which trạm stays
  * pure data-in, decision-out and every screen and endpoint asks it the same way.
  *
+ * Two reads rather than a join, because the schema keeps foreign keys as plain
+ * columns and declares no relations.
+ *
  * Wrapped in React `cache()` so a trạm's layout and the tab rendering inside it
  * share one lookup per request, the way `getCurrentUser` already does for the
  * profile.
  */
-const loadStationAccess = cache(async (stationId: string) =>
-  prisma.station.findUnique({
-    where: { id: stationId },
-    select: { id: true, assignedAccountantId: true },
-  })
+const loadStationAccess = cache(async (stationId: string): Promise<StationAccess | null> => {
+  const [station, rows] = await Promise.all([
+    prisma.station.findUnique({ where: { id: stationId }, select: { id: true } }),
+    prisma.stationAccountant.findMany({ where: { stationId }, select: { accountantId: true } }),
+  ])
+  if (!station) return null
+  return { id: station.id, accountantIds: rows.map((row) => row.accountantId) }
+})
+
+/**
+ * Every trạm with the kế toán phụ trách of it, open or closed — the whole table
+ * in the reduced shape the rule reads, since the two callers below want
+ * different halves of it and neither wants a second round trip for the other's.
+ */
+const loadEveryStationAccess = cache(
+  async (): Promise<(StationAccess & { isActive: boolean })[]> => {
+    const [stations, rows] = await Promise.all([
+      prisma.station.findMany({ select: { id: true, isActive: true } }),
+      prisma.stationAccountant.findMany({ select: { stationId: true, accountantId: true } }),
+    ])
+    const byStation = new Map<string, string[]>()
+    for (const row of rows) {
+      const ids = byStation.get(row.stationId) ?? []
+      ids.push(row.accountantId)
+      byStation.set(row.stationId, ids)
+    }
+    return stations.map((station) => ({
+      id: station.id,
+      isActive: station.isActive,
+      accountantIds: byStation.get(station.id) ?? [],
+    }))
+  }
 )
+
+/**
+ * The active trạm and who is on each — what the kế toán screen draws its
+ * checklist from and what the two kế toán routes work their assignment plan
+ * out against. Closed trạm are left out: one needs no kế toán, and one somebody
+ * is on stays that way rather than being released behind their back.
+ */
+export async function activeStationAccess(): Promise<StationAccess[]> {
+  return (await loadEveryStationAccess()).filter((station) => station.isActive)
+}
 
 /**
  * Gates a trạm page. A kế toán reaching a trạm they are not phụ trách of — by a
@@ -62,10 +103,7 @@ export async function canReachStation(viewer: StationViewer, stationId: string):
  * keeps the history of a trạm that has since shut.
  */
 export async function reachableStationIds(viewer: StationViewer): Promise<string[]> {
-  const stations = await prisma.station.findMany({
-    select: { id: true, assignedAccountantId: true },
-  })
-  return accessibleStationIds(viewer, stations)
+  return accessibleStationIds(viewer, await loadEveryStationAccess())
 }
 
 /**

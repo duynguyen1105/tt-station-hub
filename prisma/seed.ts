@@ -177,7 +177,6 @@ async function main() {
       branch: 'Đắk Nông',
       fuelArea: fuelAreaForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
-      assignedAccountantId: ACCOUNTANT_ID,
     },
     create: {
       id: STATION_ID,
@@ -186,8 +185,17 @@ async function main() {
       branch: 'Đắk Nông',
       fuelArea: fuelAreaForProvince('Đắk Nông'),
       address: 'Quốc lộ 14, Trường Xuân, Lâm Đồng',
-      assignedAccountantId: ACCOUNTANT_ID,
     },
+  })
+
+  // Phụ trách: Kế toán Vi on ĐAKNONG 1, so the seeded kế toán signs in to a trạm
+  // they can actually read. Any number of kế toán may share a trạm; the demo has one.
+  await prisma.stationAccountant.upsert({
+    where: {
+      stationId_accountantId: { stationId: station.id, accountantId: ACCOUNTANT_ID },
+    },
+    update: {},
+    create: { stationId: station.id, accountantId: ACCOUNTANT_ID },
   })
 
   // Dispensers (trụ bơm).

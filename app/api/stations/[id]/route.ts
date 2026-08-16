@@ -6,7 +6,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
-import { canAccessStation } from '@/lib/auth/station-access'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { FuelArea } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const station = await prisma.station.findUnique({ where: { id } })
   if (!station) return notFound()
-  if (!canAccessStation(user, station)) return forbidden()
+  if (!(await canReachStation(user, station.id))) return forbidden()
 
   const updated = await prisma.station.update({
     where: { id },

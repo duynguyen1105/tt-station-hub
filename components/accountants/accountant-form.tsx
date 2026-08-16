@@ -26,13 +26,13 @@ export type AccountantFormAccountant = {
   phone: string | null
 }
 
-/** A trạm as the checklist needs it: where it is, and whose it is today. */
+/** A trạm as the checklist needs it: where it is, and who is on it today. */
 export type AccountantFormStation = {
   id: string
   name: string
   branch: string | null
-  /** The kế toán phụ trách of it now, or nobody. */
-  heldBy: { id: string; fullName: string } | null
+  /** The kế toán phụ trách of it now — any number of them, all equals. */
+  heldBy: { id: string; fullName: string }[]
 }
 
 /**
@@ -62,10 +62,10 @@ function groupByBranch(stations: readonly AccountantFormStation[]) {
  * screen is a kế toán.
  *
  * The trạm checklist is offered in both modes, so a new hire can be phụ trách of
- * something before their first sign-in. A trạm has exactly one phụ trách, so
- * ticking one somebody else holds moves it — every row says who holds it now, and
- * the ticked handovers are named again beside the buttons, because a row can
- * scroll out of view but the decision should not.
+ * something before their first sign-in. A trạm has any number of phụ trách, so
+ * ticking one somebody else is on adds this person beside them and unticking one
+ * removes only this person — nothing is taken off anybody, and so nothing here
+ * warns about it.
  *
  * Nothing is checked here. The route's schema already names every rule in
  * Vietnamese and its refusal arrives as a toast, so restating them would only
@@ -87,20 +87,18 @@ export function AccountantForm({
   const [selected, setSelected] = useState<string[]>([])
 
   // What saving would do, worked out by the same function the route will run, so
-  // the warnings on screen are the writes themselves rather than a second opinion
+  // what is marked on screen is the writes themselves rather than a second opinion
   // about them. A kế toán being created has no id yet and no trạm can carry one,
   // which is exactly the plan wanted: everything ticked is a claim.
   const plan = planStationAssignment(
     accountant?.id ?? '',
     stations.map((station) => ({
       id: station.id,
-      assignedAccountantId: station.heldBy?.id ?? null,
+      accountantIds: station.heldBy.map((holder) => holder.id),
     })),
     selected
   )
-  const takenOver = new Set(plan.takenOver.map((handover) => handover.stationId))
   const released = new Set(plan.released)
-  const takeovers = stations.filter((station) => takenOver.has(station.id))
 
   // The boxes are seeded on the way in rather than on the way out: a save is
   // followed by a refresh that brings the row's new values with it, and resetting
@@ -116,7 +114,11 @@ export function AccountantForm({
       // A new kế toán starts holding nothing; an existing one starts from what they
       // hold now, so an untouched checklist saves the same assignment back.
       setSelected(
-        accountant ? stations.filter((s) => s.heldBy?.id === accountant.id).map((s) => s.id) : []
+        accountant
+          ? stations
+              .filter((s) => s.heldBy.some((holder) => holder.id === accountant.id))
+              .map((s) => s.id)
+          : []
       )
     }
     setPassword('')
@@ -241,7 +243,9 @@ export function AccountantForm({
                   <div key={group.branch} className="space-y-1">
                     <p className="label-micro">{group.branch}</p>
                     {group.stations.map((station) => {
-                      const held = station.heldBy
+                      // The people already on it besides the one being edited —
+                      // ticking is adding a name beside theirs, not taking it.
+                      const others = station.heldBy.filter((holder) => holder.id !== accountant?.id)
                       return (
                         <label
                           key={station.id}
@@ -254,18 +258,16 @@ export function AccountantForm({
                           />
                           <span>
                             {station.name}{' '}
-                            {takenOver.has(station.id) ? (
-                              <span className="text-amber-700 dark:text-amber-400">
-                                {vi.accountants.stationTakeover} {held?.fullName}
-                              </span>
-                            ) : released.has(station.id) ? (
+                            {released.has(station.id) ? (
                               <span className="text-amber-700 dark:text-amber-400">
                                 {vi.accountants.stationRelease}
                               </span>
                             ) : (
                               <span className="text-muted-foreground">
-                                {held
-                                  ? `${vi.accountants.stationHeldBy} ${held.fullName}`
+                                {others.length > 0
+                                  ? `${vi.accountants.stationHeldBy} ${others
+                                      .map((holder) => holder.fullName)
+                                      .join(', ')}`
                                   : vi.accountants.stationNoHolder}
                               </span>
                             )}
@@ -278,16 +280,6 @@ export function AccountantForm({
               </div>
             )}
           </Field>
-          {takeovers.length > 0 && (
-            // Said again beside the buttons: a handover ticked at the top of a long
-            // checklist should still be in front of the quản trị viên as they save.
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              {vi.accountants.stationTakeoverPrefix}{' '}
-              {takeovers
-                .map((station) => `${station.name} (${station.heldBy?.fullName})`)
-                .join(', ')}
-            </p>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => openChange(false)}>

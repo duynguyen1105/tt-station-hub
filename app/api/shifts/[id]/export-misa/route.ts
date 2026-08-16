@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { forbidden, notFound, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
-import { canAccessStation } from '@/lib/auth/station-access'
+import { canReachStation } from '@/lib/auth/station-guard'
 import {
   type CreditCustomer,
   type CreditVisit,
@@ -51,7 +51,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!station) return notFound()
   // The ca's own trạm decides — for the preflight as much as for the file, since
   // the preflight already answers with another trạm's figures.
-  if (!canAccessStation(user, station)) return forbidden()
+  if (!(await canReachStation(user, station.id))) return forbidden()
 
   const [config, fuelMap, priceRows, readingRows, dispenserRows, visitRows] = await Promise.all([
     prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } }),

@@ -5,18 +5,19 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, forbidden, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
-import { canAccessStation } from '@/lib/auth/station-access'
+import { reachableStationIds } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
+  // A kế toán is answered with the trạm they are phụ trách of, and nothing else.
+  const reachable = new Set(await reachableStationIds(user))
   const stations = await prisma.station.findMany({
     where: { isActive: true },
     orderBy: { code: 'asc' },
   })
-  // A kế toán is answered with the trạm they are phụ trách of, and nothing else.
-  return ok(stations.filter((station) => canAccessStation(user, station)))
+  return ok(stations.filter((station) => reachable.has(station.id)))
 }
 
 const createStationSchema = z.object({
@@ -26,7 +27,8 @@ const createStationSchema = z.object({
   address: z.string().optional(),
   zaloGroupId: z.string().optional(),
   zaloDebtGroupId: z.string().optional(),
-  assignedAccountantId: z.string().uuid().optional(),
+  // No kế toán: phụ trách is settled on the Kế toán screen, which is the one
+  // write path into the join table and the one place it is audited.
 })
 
 export async function POST(req: NextRequest) {

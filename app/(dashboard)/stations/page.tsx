@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
-import { canAccessStation } from '@/lib/auth/station-access'
+import { reachableStationIds } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -10,12 +10,13 @@ export default async function StationsPage() {
   const user = await requireUser()
   // A kế toán is left with the trạm they are phụ trách of — possibly none, which
   // is the empty list below rather than an error.
+  const reachable = new Set(await reachableStationIds(user))
   const stations = (
     await prisma.station.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
     })
-  ).filter((station) => canAccessStation(user, station))
+  ).filter((station) => reachable.has(station.id))
 
   return (
     <div className="space-y-4">

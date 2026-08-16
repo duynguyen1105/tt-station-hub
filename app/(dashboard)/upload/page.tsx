@@ -1,17 +1,18 @@
 import { PhotoUploadForm } from '@/components/photos/photo-upload-form'
 import { requireUser } from '@/lib/auth/session'
-import { canAccessStation } from '@/lib/auth/station-access'
+import { reachableStationIds } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
 export default async function UploadPage() {
   const user = await requireUser()
 
-  const [allStations, allDispensers] = await Promise.all([
+  const [reachable, allStations, allDispensers] = await Promise.all([
+    reachableStationIds(user).then((ids) => new Set(ids)),
     prisma.station.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true, assignedAccountantId: true },
+      select: { id: true, code: true, name: true },
     }),
     prisma.dispenser.findMany({
       where: { isActive: true },
@@ -23,11 +24,7 @@ export default async function UploadPage() {
   // A kế toán is offered the trạm they are phụ trách of and no other, so a photo
   // cannot be filed against someone else's trạm by a slip of the finger — and the
   // trụ follow the trạm, since a pump is only ever picked for the trạm it is on.
-  // Phụ trách is what decides here, so it is dropped again before the rows cross
-  // to the browser rather than riding along in the picker.
-  const stations = allStations
-    .filter((station) => canAccessStation(user, station))
-    .map(({ id, code, name }) => ({ id, code, name }))
+  const stations = allStations.filter((station) => reachable.has(station.id))
   const offeredStationIds = new Set(stations.map((station) => station.id))
   const dispensers = allDispensers.filter((dispenser) => offeredStationIds.has(dispenser.stationId))
 
