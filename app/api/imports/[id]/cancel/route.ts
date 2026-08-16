@@ -3,6 +3,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -18,6 +19,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const record = await prisma.fuelImport.findUnique({ where: { id } })
   if (!record) return notFound()
+  if (!(await canReachStation(user, record.stationId))) return forbidden()
   if (record.canceledAt) return badRequest('Phiếu nhập này đã được hủy trước đó.')
 
   const liters = Number(record.litersActual)

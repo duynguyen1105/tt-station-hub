@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatVND } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -16,8 +16,8 @@ function SummaryCard({ title, value }: { title: string; value: string | number }
 }
 
 export default async function StationOverviewPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser()
   const { id } = await params
+  await requireStationAccess(id)
 
   const shiftIds = (
     await prisma.shift.findMany({ where: { stationId: id }, select: { id: true } })

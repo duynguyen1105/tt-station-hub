@@ -3,6 +3,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, forbidden, notFound, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     select: { id: true, stationId: true },
   })
   if (!receipt) return notFound()
+  if (!(await canReachStation(user, receipt.stationId))) return forbidden()
   const station = await prisma.station.findUnique({
     where: { id: receipt.stationId },
     select: { code: true },

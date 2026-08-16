@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
 
-import { badRequest, created, unauthorized } from '@/lib/api/response'
+import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 const movementSchema = z.object({
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
   const parsed = movementSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
   const { stationId, fuelType, movementType, quantity, movementDate, note } = parsed.data
+  if (!(await canReachStation(user, stationId))) return forbidden()
 
   const movement = await prisma.$transaction(async (tx) => {
     const row = await tx.inventoryMovement.create({

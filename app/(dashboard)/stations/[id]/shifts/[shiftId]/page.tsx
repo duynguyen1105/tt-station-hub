@@ -7,6 +7,7 @@ import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row
 import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
 import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatLiters } from '@/lib/format'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
@@ -52,6 +53,9 @@ export default async function ShiftDetailPage({
 
   const shift = await prisma.shift.findUnique({ where: { id: shiftId } })
   if (!shift) notFound()
+  // Gated on the ca's own trạm rather than the address it was reached at, so a
+  // ca cannot be read through the address of a trạm the kế toán does hold.
+  await requireStationAccess(shift.stationId)
 
   const [station, readings, dispensers, visits] = await Promise.all([
     prisma.station.findUnique({ where: { id: shift.stationId }, select: { code: true } }),

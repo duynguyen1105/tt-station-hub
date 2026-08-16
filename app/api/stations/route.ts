@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, forbidden, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canAccessStation } from '@/lib/auth/station-access'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
@@ -14,7 +15,8 @@ export async function GET() {
     where: { isActive: true },
     orderBy: { code: 'asc' },
   })
-  return ok(stations)
+  // A kế toán is answered with the trạm they are phụ trách of, and nothing else.
+  return ok(stations.filter((station) => canAccessStation(user, station)))
 }
 
 const createStationSchema = z.object({

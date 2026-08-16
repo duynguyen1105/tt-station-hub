@@ -2,14 +2,14 @@ import { notFound } from 'next/navigation'
 
 import { MisaFuelMapForm } from '@/components/misa-export/fuel-map-form'
 import { StationFuelAreaForm } from '@/components/stations/station-fuel-area-form'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export default async function StationMisaPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser()
   const { id } = await params
+  await requireStationAccess(id)
 
   const station = await prisma.station.findUnique({ where: { id } })
   if (!station) notFound()

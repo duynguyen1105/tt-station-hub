@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
 
-import { badRequest, created, notFound, unauthorized } from '@/lib/api/response'
+import { badRequest, created, forbidden, notFound, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 const paymentSchema = z.object({
@@ -24,6 +25,9 @@ export async function POST(req: NextRequest) {
 
   const customer = await prisma.debtCustomer.findUnique({ where: { id: customerId } })
   if (!customer) return notFound()
+  if (customer.stationId && !(await canReachStation(user, customer.stationId))) {
+    return forbidden()
+  }
 
   const tx = await prisma.$transaction(async (db) => {
     const payment = await db.debtTransaction.create({
