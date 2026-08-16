@@ -19,7 +19,7 @@ export default async function SettingsAccountantsPage() {
     // needs no kế toán, so it belongs in neither column nor coverage count.
     prisma.station.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, branch: true },
+      select: { id: true, name: true },
       orderBy: { code: 'asc' },
     }),
     // Who is on each of them, read through the same module every other screen
@@ -58,7 +58,6 @@ export default async function SettingsAccountantsPage() {
   const stationChoices = stations.map((station) => ({
     id: station.id,
     name: station.name,
-    branch: station.branch,
     heldBy: station.accountantIds.flatMap((accountantId) => {
       const holder = profiles.find((profile) => profile.id === accountantId)
       return holder ? [{ id: holder.id, fullName: holder.fullName }] : []

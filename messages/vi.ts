@@ -226,9 +226,7 @@ export const vi = {
     stationsHint:
       'Một trạm có thể có nhiều kế toán cùng phụ trách. Tích vào trạm đã có người là thêm kế toán này vào đó, không lấy trạm khỏi ai.',
     stationHeldBy: 'Cùng phụ trách:',
-    stationNoHolder: 'Chưa có ai phụ trách',
     stationRelease: 'Sẽ bỏ phụ trách',
-    stationNoBranch: 'Chưa có chi nhánh',
     suspend: 'Ngưng hoạt động',
     restore: 'Kích hoạt',
     suspendConfirmTitle: 'Ngưng hoạt động tài khoản này?',
