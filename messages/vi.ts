@@ -650,7 +650,8 @@ export const vi = {
     amountMismatch: 'Lệch số hiển thị — cần kiểm tra',
     extractionFailed: 'AI chưa đọc được. Ảnh đã được lưu, bạn có thể kiểm tra thủ công.',
     uploaded: 'Đã tải ảnh lên thành công.',
-    noStations: 'Chưa có trạm nào. Hãy chạy seed dữ liệu trước.',
+    // Now most often a kế toán phụ trách of no trạm, not an unseeded database.
+    noStations: 'Chưa có trạm nào để chọn.',
     viewReview: 'Mở hàng đợi cần duyệt',
     empty: '—',
   },
