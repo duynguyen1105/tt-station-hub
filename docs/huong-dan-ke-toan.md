@@ -19,22 +19,27 @@
 
 ## 2. Trạm bạn phụ trách
 
-- **Quản trị viên** quyết định bạn phụ trách những trạm nào. Mỗi trạm chỉ có
-  **một** kế toán phụ trách; một kế toán có thể phụ trách nhiều trạm.
+- **Quản trị viên** quyết định bạn phụ trách những trạm nào. Một kế toán phụ
+  trách được nhiều trạm, và **một trạm cũng có thể có nhiều kế toán cùng phụ
+  trách** — những người đó ngang nhau, không ai là chính, không ai là người thay.
 - Mọi màn hình trong tài liệu này chỉ hiển thị **những trạm bạn phụ trách** —
   danh sách trạm, trang tổng thể, hàng chờ duyệt, tải ảnh và báo cáo MISA. Mở
   đường dẫn tới một trạm không phải của bạn thì hệ thống đưa bạn về danh sách
   trạm.
-- Cần xem hoặc duyệt một trạm khác (nghỉ phép, bàn giao...) thì đề nghị quản
-  trị viên chuyển trạm đó sang bạn. Trạm chuyển sang ai thì người cũ thôi phụ
-  trách trạm đó.
+- Cần xem hoặc duyệt thêm một trạm khác (nghỉ phép, hỗ trợ đồng nghiệp...) thì đề
+  nghị quản trị viên thêm bạn vào trạm đó. Việc này **không lấy trạm khỏi ai**:
+  người đang phụ trách vẫn phụ trách như cũ.
+- Trạm chung với đồng nghiệp thì ai phụ trách trạm đó cũng duyệt được ca, giấy tờ,
+  hàng tồn và công nợ của trạm. Hệ thống không giữ phần việc cho riêng ai, nên
+  những người cùng phụ trách tự thống nhất với nhau ai làm gì.
 - Chưa phụ trách trạm nào thì các màn hình hiện **trống** (không phải lỗi).
 
 ## 3. Trang tổng thể
 
 - Xem nhanh **các trạm bạn phụ trách**: ca đang chờ duyệt, giấy tờ sắp hết hạn,
   tồn thấp, công nợ quá hạn. Đây không phải bảng tổng hợp toàn công ty — số của
-  trạm người khác phụ trách không nằm ở đây.
+  trạm bạn không phụ trách không nằm ở đây. Trạm bạn phụ trách chung với đồng
+  nghiệp thì có, và ai phụ trách trạm đó cũng thấy.
 
 ## 4. Duyệt chốt ca (mục **Cần duyệt → Chốt ca**)
 
