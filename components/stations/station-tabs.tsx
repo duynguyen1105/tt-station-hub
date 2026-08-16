@@ -1,8 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { NavLink } from '@/components/shared/nav-link'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
@@ -24,7 +24,7 @@ export function StationTabs({ stationId }: { stationId: string }) {
       {tabs.map((tab) => {
         const isActive = tab.href === base ? pathname === base : pathname.startsWith(tab.href)
         return (
-          <NavLink
+          <Link
             key={tab.href}
             href={tab.href}
             className={cn(
@@ -35,7 +35,7 @@ export function StationTabs({ stationId }: { stationId: string }) {
             )}
           >
             {tab.label}
-          </NavLink>
+          </Link>
         )
       })}
     </nav>
