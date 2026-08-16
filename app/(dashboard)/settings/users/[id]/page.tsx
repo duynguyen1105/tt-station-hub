@@ -1,3 +1,5 @@
+import { ArrowLeft } from 'lucide-react'
+
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -34,19 +36,31 @@ export default async function AccountantPage({ params }: { params: Promise<{ id:
   const status = accountantStatusInfo(accountant.isActive)
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="space-y-1">
+    // Capped rather than full-bleed: this is a form, and left to the width of a
+    // wide screen the two controls acting on this one person end up a screen away
+    // from the person they name. Centred with it, so what is left over falls either
+    // side instead of piling up on one.
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b pb-4">
+        <div className="space-y-1.5">
           <p className="label-micro">
-            <Link href="/settings/users" className="hover:underline">
+            <Link
+              href="/settings/users"
+              className="hover:text-foreground inline-flex items-center gap-1 transition-colors"
+            >
+              <ArrowLeft className="size-3" />
               {vi.accountants.title}
             </Link>
           </p>
-          <h1 className="text-2xl font-bold tracking-tight">{accountant.fullName}</h1>
-          {/* Said here because this is where it is now changed: the control beside
-              it offers one of the two actions, and which one only makes sense
-              against the state it is leaving. */}
-          <StatusBadge label={status.label} tone={status.tone} />
+          {/* The badge is said on the title's own line: it is part of naming who
+              this is, not a fact underneath the name. */}
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">{accountant.fullName}</h1>
+            {/* Said here because this is where it is now changed: the control beside
+                it offers one of the two actions, and which one only makes sense
+                against the state it is leaving. */}
+            <StatusBadge label={status.label} tone={status.tone} />
+          </div>
         </div>
         {/* Beside the person rather than on a row in a list: both act on this one
             kế toán, and the list is no longer a place where things are done. */}
