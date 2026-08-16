@@ -2,6 +2,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { hasMissingOpening } from '@/lib/matching/anomaly-detection'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -15,6 +16,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!reading) return notFound()
   const shift = await prisma.shift.findUnique({ where: { id: reading.shiftId } })
   if (!shift) return notFound()
+  // The ca's own trạm decides, not the queue the row was reached from.
+  if (!(await canReachStation(user, shift.stationId))) return forbidden()
   if (!canReviewShift(user.role, shift.status as ShiftStatus)) return forbidden()
 
   // A meter with a closing reading but no opening books zero liters. Hard-block

@@ -1,8 +1,9 @@
 import { type NextRequest } from 'next/server'
 
-import { notFound, ok, unauthorized } from '@/lib/api/response'
+import { forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 /** Rejects a debt visit: marks it rejected without charging the customer. */
@@ -13,6 +14,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const visit = await prisma.debtVehicleVisit.findUnique({ where: { id } })
   if (!visit) return notFound()
+  if (!(await canReachStation(user, visit.stationId))) return forbidden()
 
   const updated = await prisma.debtVehicleVisit.update({
     where: { id },
