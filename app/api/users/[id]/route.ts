@@ -20,15 +20,29 @@ import { vi } from '@/messages/vi'
 // once — the later save wins outright, rather than two half-applied diffs leaving a
 // trạm with nobody. Absent means the assignments are left alone; an id no checkbox
 // could have produced is ignored rather than refused, so no message is needed here.
+//
+// Every field is optional because two different controls send here: the dialog,
+// which sends họ tên, số điện thoại and the trạm together, and the row's Ngưng
+// hoạt động / Kích hoạt, which sends only the tài khoản's state. Absent means
+// leave it alone; họ tên is still refused when it is sent empty.
 const updateAccountantSchema = z.object({
-  fullName: z.string().trim().min(1, vi.accountants.fullNameRequired),
+  fullName: z.string().trim().min(1, vi.accountants.fullNameRequired).optional(),
   phone: z.string().trim().optional(),
   stationIds: z.array(z.string()).optional(),
+  // Ngưng hoạt động, and its undo. It deliberately does not touch the trạm above:
+  // the assignment is kept so that kích hoạt lại gives the person back the work
+  // they had, and `isStationUncovered` counts those trạm as having no working kế
+  // toán in the meantime rather than letting them look covered.
+  isActive: z.boolean().optional(),
 })
 
 /**
- * Corrects a kế toán's họ tên or số điện thoại, and settles which trạm they are
- * phụ trách of. Quản trị viên only.
+ * Corrects a kế toán's họ tên or số điện thoại, settles which trạm they are phụ
+ * trách of, and ngưng hoạt động or kích hoạt their tài khoản. Quản trị viên only.
+ *
+ * There is no DELETE beside it, and there is not meant to be: a kế toán is stamped
+ * on every ca they duyệt and every công nợ they settle, so the row has to stay for
+ * that history to keep saying who did it.
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -41,13 +55,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const named = parsed.error.issues.find((issue) => issue.path.length > 0)?.message
     return badRequest(named, parsed.error.flatten())
   }
-  const { fullName, phone, stationIds } = parsed.data
+  const { fullName, phone, stationIds, isActive } = parsed.data
 
   // Only a kế toán is edited from this screen. Any other profile — a quản trị
-  // viên, an id that matches nobody — is not this endpoint's to write.
+  // viên, an id that matches nobody — is not this endpoint's to write. It is also
+  // what keeps a quản trị viên from ngưng hoạt động their own tài khoản here.
   const accountant = await prisma.profile.findUnique({
     where: { id },
-    select: { role: true, fullName: true, phone: true },
+    select: { role: true, fullName: true, phone: true, isActive: true },
   })
   if (!accountant || accountant.role !== 'accountant') return notFound()
 
@@ -68,7 +83,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // One transaction, because a handover is two writes: the trạm has exactly one
   // phụ trách, and a half-applied move would leave it held by both or by neither.
   const [updated] = await prisma.$transaction([
-    prisma.profile.update({ where: { id }, data: { fullName, phone: phone || null } }),
+    prisma.profile.update({
+      where: { id },
+      // Each field stands on its own: what was sent is written, what was not is
+      // left alone. The dialog sends họ tên and số điện thoại together, so a blank
+      // number there still means cleared; Ngưng hoạt động mentions neither, so
+      // neither moves.
+      data: {
+        ...(fullName !== undefined ? { fullName } : {}),
+        ...(phone !== undefined ? { phone: phone || null } : {}),
+        ...(isActive !== undefined ? { isActive } : {}),
+      },
+    }),
     prisma.station.updateMany({
       where: { id: { in: plan?.released ?? [] } },
       data: { assignedAccountantId: null },
@@ -79,17 +105,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }),
   ])
 
-  await writeAudit({
-    userId: user.id,
-    action: 'accountant.update',
-    entity: 'profile',
-    entityId: id,
-    // Both sides, because the point of auditing a correction is what it corrected.
-    metadata: {
-      from: { fullName: accountant.fullName, phone: accountant.phone },
-      to: { fullName, phone: phone || null },
-    },
-  })
+  // Only when a detail was actually sent — Ngưng hoạt động corrects nothing, and
+  // an entry saying a họ tên went from itself to itself would be a false trail.
+  if (fullName !== undefined || phone !== undefined) {
+    await writeAudit({
+      userId: user.id,
+      action: 'accountant.update',
+      entity: 'profile',
+      entityId: id,
+      // Both sides, because the point of auditing a correction is what it corrected.
+      // The new side is read back off the row, so it is what was written rather than
+      // what was asked for.
+      metadata: {
+        from: { fullName: accountant.fullName, phone: accountant.phone },
+        to: { fullName: updated.fullName, phone: updated.phone },
+      },
+    })
+  }
+
+  // Its own action rather than a field on the correction above, and named for what
+  // happened rather than which flag moved: cutting someone off mid-shift and giving
+  // them their work back are the two entries a quản trị viên would come looking for.
+  // Only when it actually changed — saving the row twice is not a second suspension.
+  if (isActive !== undefined && isActive !== accountant.isActive) {
+    await writeAudit({
+      userId: user.id,
+      action: isActive ? 'accountant.restore' : 'accountant.suspend',
+      entity: 'profile',
+      entityId: id,
+      metadata: { fullName: accountant.fullName },
+    })
+  }
 
   // Its own entry rather than a field on the correction above: a handover changes
   // what another kế toán may read, which is worth finding on its own.
