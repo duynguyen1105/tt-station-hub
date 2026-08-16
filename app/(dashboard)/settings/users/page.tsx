@@ -9,16 +9,21 @@ import { vi } from '@/messages/vi'
 export default async function SettingsAccountantsPage() {
   await requireRole('admin')
 
-  const [accountants, stations] = await Promise.all([
-    prisma.profile.findMany({ where: { role: 'accountant' }, orderBy: { fullName: 'asc' } }),
+  const [profiles, stations] = await Promise.all([
+    // Every profile, not only the kế toán: the table below is theirs, but a trạm's
+    // phụ trách has to be named whoever holds it, or the checklist would offer a
+    // trạm as free while the save took it off somebody.
+    prisma.profile.findMany({ orderBy: { fullName: 'asc' } }),
     // Active trạm only, as everywhere else a trạm list is read: a closed trạm
     // needs no kế toán, so it belongs in neither column nor coverage count.
     prisma.station.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, assignedAccountantId: true },
+      select: { id: true, name: true, branch: true, assignedAccountantId: true },
       orderBy: { code: 'asc' },
     }),
   ])
+
+  const accountants = profiles.filter((profile) => profile.role === 'accountant')
 
   // The assigned-accountant column read from the other side: which trạm each
   // kế toán is phụ trách of.
@@ -34,6 +39,18 @@ export default async function SettingsAccountantsPage() {
   // nobody reviews, and nothing else in the app makes that visible.
   const uncovered = stations.filter((station) => isStationUncovered(station, accountants))
 
+  // The checklist inside the dialog: every active trạm, with whoever is phụ trách
+  // of it named so that ticking one is visibly taking it off them.
+  const stationChoices = stations.map((station) => {
+    const holder = profiles.find((profile) => profile.id === station.assignedAccountantId)
+    return {
+      id: station.id,
+      name: station.name,
+      branch: station.branch,
+      heldBy: holder ? { id: holder.id, fullName: holder.fullName } : null,
+    }
+  })
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
@@ -42,7 +59,7 @@ export default async function SettingsAccountantsPage() {
           <h1 className="text-2xl font-bold tracking-tight">{vi.accountants.title}</h1>
           <p className="text-muted-foreground text-sm">{vi.accountants.subtitle}</p>
         </div>
-        <AccountantForm />
+        <AccountantForm stations={stationChoices} />
       </div>
 
       <p className="text-sm">
@@ -99,6 +116,7 @@ export default async function SettingsAccountantsPage() {
                   </td>
                   <td className="p-2 text-right whitespace-nowrap">
                     <AccountantForm
+                      stations={stationChoices}
                       accountant={{
                         id: accountant.id,
                         fullName: accountant.fullName,

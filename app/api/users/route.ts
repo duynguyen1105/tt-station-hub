@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, forbidden, serverError, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { planStationAssignment } from '@/lib/auth/station-assignment'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -21,12 +22,17 @@ const createAccountantSchema = z.object({
   username: z.string().trim().toLowerCase().email(vi.accountants.usernameInvalid),
   phone: z.string().trim().optional(),
   password: z.string().min(8, vi.accountants.passwordTooShort),
+  // The trạm this person is phụ trách of from their first sign-in. Nobody holds
+  // anything yet, so every one of them is a claim — and some may be taken off
+  // another kế toán, which the checklist showed before this was sent.
+  stationIds: z.array(z.string()).optional(),
 })
 
 /**
- * Creates a kế toán: the Supabase Auth login and the profile row that the session
- * resolves it to. Quản trị viên only — everything created here is a kế toán, so no
- * role is accepted in the payload.
+ * Creates a kế toán: the Supabase Auth login, the profile row that the session
+ * resolves it to, and the trạm they are phụ trách of from their first sign-in.
+ * Quản trị viên only — everything created here is a kế toán, so no role is accepted
+ * in the payload.
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
@@ -41,7 +47,7 @@ export async function POST(req: NextRequest) {
     const named = parsed.error.issues.find((issue) => issue.path.length > 0)?.message
     return badRequest(named, parsed.error.flatten())
   }
-  const { fullName, username, phone, password } = parsed.data
+  const { fullName, username, phone, password, stationIds } = parsed.data
 
   // Named rather than generic, so the quản trị viên knows to pick another one.
   // Asked of the profiles first because a profile can outlive its login — the
@@ -51,6 +57,15 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   })
   if (existing) return badRequest(vi.accountants.usernameTaken)
+
+  // Read before the login is made, not after: a database that has gone away between
+  // the two would otherwise leave an auth user behind with nothing to undo it.
+  // Active trạm only, the same list the checklist was drawn from, so a ticked id
+  // that is not one of them is dropped rather than written.
+  const stations = await prisma.station.findMany({
+    where: { isActive: true },
+    select: { id: true, assignedAccountantId: true },
+  })
 
   const supabase = createAdminClient()
   // Auth goes first: it mints the identifier the profile is then written under —
@@ -72,11 +87,23 @@ export async function POST(req: NextRequest) {
   }
 
   const id = authUser.data.user.id
+  // Nobody's id is on a trạm yet, so this can only ever claim.
+  const plan = planStationAssignment(id, stations, stationIds ?? [])
+
   let profile
   try {
-    profile = await prisma.profile.create({
-      data: { id, email: username, fullName, phone: phone || null, role: 'accountant' },
-    })
+    // One transaction with the trạm, so a kế toán is never created holding half of
+    // what was ticked — and so the compensation below has only the login to undo.
+    const [row] = await prisma.$transaction([
+      prisma.profile.create({
+        data: { id, email: username, fullName, phone: phone || null, role: 'accountant' },
+      }),
+      prisma.station.updateMany({
+        where: { id: { in: plan.claimed } },
+        data: { assignedAccountantId: id },
+      }),
+    ])
+    profile = row
   } catch (error) {
     // The two systems share no transaction, so the login made a moment ago is
     // undone by hand. Left behind it would be a login that resolves to no person:
@@ -107,5 +134,16 @@ export async function POST(req: NextRequest) {
     entityId: profile.id,
     metadata: { username, fullName },
   })
+  // Its own entry, as on the update route: a handover changes what another kế toán
+  // may read, and that is worth finding without reading every creation.
+  if (plan.claimed.length > 0) {
+    await writeAudit({
+      userId: user.id,
+      action: 'accountant.assign_stations',
+      entity: 'profile',
+      entityId: profile.id,
+      metadata: plan,
+    })
+  }
   return created(profile)
 }
