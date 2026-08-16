@@ -212,6 +212,15 @@ export const vi = {
     empty: 'Chưa có kế toán nào.',
     uncoveredNone: 'Mọi trạm đều có kế toán phụ trách.',
     uncoveredPrefix: 'Trạm chưa có kế toán phụ trách:',
+    addTitle: 'Thêm kế toán',
+    password: 'Mật khẩu',
+    passwordHint: 'Đọc mật khẩu này cho kế toán — hệ thống không gửi email cho ai.',
+    usernameHint: 'Dùng để đăng nhập, dạng ten@truongthinh.local.',
+    created: 'Đã tạo kế toán.',
+    usernameTaken: 'Tên đăng nhập này đã có người dùng.',
+    fullNameRequired: 'Vui lòng nhập họ tên.',
+    usernameInvalid: 'Tên đăng nhập phải có dạng ten@truongthinh.local.',
+    passwordTooShort: 'Mật khẩu phải có ít nhất 8 ký tự.',
   },
 
   stations: {
