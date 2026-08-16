@@ -3,7 +3,7 @@
 import { LockIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useState, useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -227,12 +227,22 @@ export function ReadingRow({
   mechanicalSlots: number
 }) {
   const router = useRouter()
-  const [busy, setBusy] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  // The refresh runs inside a transition, so `pending` spans the RSC round-trip
+  // that follows every write — together the two flags keep the row disabled from
+  // the click until the fresh values commit, without a gap in between.
+  const [pending, startTransition] = useTransition()
+  const busy = submitting || pending
 
   const info = data.reviewStatus ? reviewStatusInfo(data.reviewStatus) : null
   const canAct = data.readingId !== null
   const alreadyApproved = data.reviewStatus === 'approved' || data.reviewStatus === 'auto_approved'
   const alreadyRejected = data.reviewStatus === 'rejected'
+  // A decided row closes both buttons — the call is made. Only an admin keeps the
+  // opposite action live, as the escape hatch for a mistaken duyệt / từ chối.
+  const canReverse = data.role === 'admin'
+  const approveDisabled = !canAct || busy || alreadyApproved || (alreadyRejected && !canReverse)
+  const rejectDisabled = !canAct || busy || alreadyRejected || (alreadyApproved && !canReverse)
   const adminOpening = canEditOpening(data.role)
   const mayEditClosing = canEditClosing(data.role, data.shiftStatus)
   const mayReview = canReviewShift(data.role, data.shiftStatus)
@@ -242,11 +252,21 @@ export function ReadingRow({
 
   async function act(action: 'approve' | 'reject') {
     if (!data.readingId) return
-    setBusy(true)
+    setSubmitting(true)
     const result = await postAction(`/api/readings/${data.readingId}/${action}`)
-    setBusy(false)
-    if (result.ok) router.refresh()
-    else toast.error(result.error ?? vi.errors.generic)
+    if (!result.ok) {
+      setSubmitting(false)
+      toast.error(result.error ?? vi.errors.generic)
+      return
+    }
+    // Clearing `submitting` inside the transition hands the disabled state over to
+    // `pending`, so the buttons grey out once on the click and stay grey until the
+    // decided row arrives — instead of blinking back on when the POST returns.
+    startTransition(() => {
+      router.refresh()
+      setSubmitting(false)
+    })
+    toast.success(action === 'approve' ? vi.review.approved : vi.review.rejected)
   }
 
   async function saveField(
@@ -255,16 +275,19 @@ export function ReadingRow({
     value: string
   ): Promise<boolean> {
     if (!data.readingId) return false
-    setBusy(true)
+    setSubmitting(true)
     const result = await postAction(`/api/readings/${data.readingId}/${endpoint}`, {
       [field]: value || null,
     })
-    setBusy(false)
     if (result.ok) {
-      router.refresh()
+      startTransition(() => {
+        router.refresh()
+        setSubmitting(false)
+      })
       toast.success(vi.correction.saved)
       return true
     }
+    setSubmitting(false)
     toast.error(result.error ?? vi.errors.generic)
     return false
   }
@@ -339,15 +362,14 @@ export function ReadingRow({
       <td className="p-2 text-right whitespace-nowrap">
         <div className="inline-flex gap-1">
           {/* Approve / reject follow canReviewShift: admin at any status,
-              accountant until chốt; a viewer never sees them. Each is also off
-              once the row already holds that state — approved (or auto-approved)
-              for approve, rejected for reject — so neither re-issues a no-op.
-              They stay independent: an approved row can still be rejected. */}
+              accountant until chốt; a viewer never sees them. Once the row is
+              decided both close — an admin alone keeps the opposite one live to
+              reverse the call. */}
           {mayReview && (
             <Button
               size="sm"
               variant="outline"
-              disabled={!canAct || busy || alreadyApproved}
+              disabled={approveDisabled}
               onClick={() => act('approve')}
             >
               {vi.common.approve}
@@ -357,7 +379,7 @@ export function ReadingRow({
             <Button
               size="sm"
               variant="ghost"
-              disabled={!canAct || busy || alreadyRejected}
+              disabled={rejectDisabled}
               onClick={() => act('reject')}
             >
               {vi.common.reject}
