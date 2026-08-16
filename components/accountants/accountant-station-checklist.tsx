@@ -44,19 +44,26 @@ export function AccountantStationChecklist({
     selected
   )
   const released = new Set(plan.released)
+  const selectedIds = new Set(selected)
 
   function toggle(stationId: string, ticked: boolean) {
     onChange(ticked ? [...selected, stationId] : selected.filter((id) => id !== stationId))
   }
 
   return (
-    <Field>
+    // Measured against itself, not the window: the same list is the whole width of
+    // a page column here and a narrow dialog on the list, and only one of those
+    // has room for two trạm side by side.
+    <Field className="@container/stations">
       <FieldLabel>{vi.accountants.assignedStations}</FieldLabel>
       <FieldDescription>{vi.accountants.stationsHint}</FieldDescription>
       {stations.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.stations.empty}</p>
       ) : (
-        <div className="space-y-1 rounded-md border p-3">
+        // Columns rather than a grid: the trạm arrive in mã trạm order, and a grid
+        // would deal them across the rows, so reading down a column would skip
+        // every other name.
+        <div className="rounded-md border p-2 @lg/stations:columns-2 @lg/stations:gap-x-4">
           {/* A row says the trạm's name, and adds something only when there is
               something to say — a trạm nobody is on is not an opportunity to take
               one, so it says nothing at all. */}
@@ -65,10 +72,13 @@ export function AccountantStationChecklist({
             // adding a name beside theirs, not taking it.
             const others = station.heldBy.filter((holder) => holder.id !== accountantId)
             return (
-              <label key={station.id} className="flex items-start gap-2 py-1 text-sm leading-tight">
+              <label
+                key={station.id}
+                className="hover:bg-muted/50 flex break-inside-avoid items-start gap-2 rounded-sm px-2 py-1.5 text-sm leading-tight transition-colors"
+              >
                 <Checkbox
                   className="mt-0.5"
-                  checked={selected.includes(station.id)}
+                  checked={selectedIds.has(station.id)}
                   onCheckedChange={(state) => toggle(station.id, state === true)}
                 />
                 {/* The space belongs to what follows the name, not to the name: a
@@ -80,15 +90,13 @@ export function AccountantStationChecklist({
                       {' '}
                       {vi.accountants.stationRelease}
                     </span>
-                  ) : (
-                    others.length > 0 && (
-                      <span className="text-muted-foreground">
-                        {' '}
-                        {vi.accountants.stationHeldBy}{' '}
-                        {others.map((holder) => holder.fullName).join(', ')}
-                      </span>
-                    )
-                  )}
+                  ) : others.length > 0 ? (
+                    <span className="text-muted-foreground">
+                      {' '}
+                      {vi.accountants.stationHeldBy}{' '}
+                      {others.map((holder) => holder.fullName).join(', ')}
+                    </span>
+                  ) : null}
                 </span>
               </label>
             )

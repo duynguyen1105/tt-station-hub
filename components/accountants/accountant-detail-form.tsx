@@ -63,39 +63,54 @@ export function AccountantDetailForm({
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <Field>
-        <FieldLabel htmlFor="acc-full-name">{vi.accountants.fullName}</FieldLabel>
-        <Input id="acc-full-name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="acc-username">{vi.accountants.username}</FieldLabel>
-        <Input
-          id="acc-username"
-          readOnly
-          className="text-muted-foreground"
-          value={accountant.username}
+    <div className="space-y-6">
+      {/* Who they are on one side, what they are phụ trách of on the other: the
+          checklist is as long as there are trạm, and stacked under three short
+          inputs it pushed the one Lưu below the fold. */}
+      <div className="grid gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="acc-full-name">{vi.accountants.fullName}</FieldLabel>
+            <Input
+              id="acc-full-name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="acc-username">{vi.accountants.username}</FieldLabel>
+            <Input
+              id="acc-username"
+              readOnly
+              className="text-muted-foreground"
+              value={accountant.username}
+            />
+            <FieldDescription>{vi.accountants.usernameLocked}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="acc-phone">{vi.accountants.phone}</FieldLabel>
+            <Input
+              id="acc-phone"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </Field>
+        </div>
+        <AccountantStationChecklist
+          accountantId={accountant.id}
+          stations={stations}
+          selected={selected}
+          onChange={setSelected}
         />
-        <FieldDescription>{vi.accountants.usernameLocked}</FieldDescription>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="acc-phone">{vi.accountants.phone}</FieldLabel>
-        <Input
-          id="acc-phone"
-          inputMode="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
-      </Field>
-      <AccountantStationChecklist
-        accountantId={accountant.id}
-        stations={stations}
-        selected={selected}
-        onChange={setSelected}
-      />
-      <Button onClick={submit} disabled={busy}>
-        {vi.common.save}
-      </Button>
+      </div>
+      {/* Ruled off rather than trailing the last field: with two columns there is
+          no last field to trail, and the one Lưu covers both of them. */}
+      <div className="flex justify-end border-t pt-4">
+        <Button onClick={submit} disabled={busy}>
+          {vi.common.save}
+        </Button>
+      </div>
     </div>
   )
 }
