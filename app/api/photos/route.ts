@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
 
-import { badRequest, created, unauthorized } from '@/lib/api/response'
+import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canAccessStation } from '@/lib/auth/station-access'
 import { type ManualOverride, ingestManualPhoto } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 
@@ -55,9 +56,11 @@ export async function POST(req: NextRequest) {
 
   const station = await prisma.station.findFirst({
     where: { id: stationId, isActive: true },
-    select: { id: true, code: true },
+    select: { id: true, code: true, assignedAccountantId: true },
   })
   if (!station) return badRequest('Không tìm thấy trạm.')
+  // The trạm this photo is being filed against decides, whatever the form offered.
+  if (!canAccessStation(user, station)) return forbidden()
 
   // Optional manual assignment: force the pump (and meter slot) for label-less photos.
   const dispenserIdRaw = form.get('dispenserId')
