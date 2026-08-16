@@ -14,6 +14,7 @@ export const vi = {
     upload: 'Tải ảnh',
     misaReport: 'Báo cáo MISA',
     settings: 'Cài đặt',
+    accountants: 'Kế toán',
   },
 
   stationTabs: {
@@ -195,6 +196,22 @@ export const vi = {
     sale: 'Bán',
     physical_count: 'Kiểm kê',
     adjustment: 'Điều chỉnh',
+  },
+
+  accountants: {
+    title: 'Kế toán',
+    subtitle: 'Danh sách kế toán và trạm phụ trách.',
+    fullName: 'Họ tên',
+    username: 'Tên đăng nhập',
+    phone: 'Số điện thoại',
+    assignedStations: 'Trạm phụ trách',
+    accountStatus: 'Tài khoản',
+    active: 'Đang hoạt động',
+    suspended: 'Đã khóa',
+    noStations: 'Chưa phụ trách trạm nào',
+    empty: 'Chưa có kế toán nào.',
+    uncoveredNone: 'Mọi trạm đều có kế toán phụ trách.',
+    uncoveredPrefix: 'Trạm chưa có kế toán phụ trách:',
   },
 
   stations: {
