@@ -71,6 +71,7 @@ export default async function SettingsAccountantsPage() {
               <th className="p-2">{vi.accountants.phone}</th>
               <th className="p-2">{vi.accountants.assignedStations}</th>
               <th className="p-2">{vi.accountants.accountStatus}</th>
+              <th className="p-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -94,6 +95,16 @@ export default async function SettingsAccountantsPage() {
                     ) : (
                       <StatusBadge label={vi.accountants.suspended} tone="muted" />
                     )}
+                  </td>
+                  <td className="p-2 text-right whitespace-nowrap">
+                    <AccountantForm
+                      accountant={{
+                        id: accountant.id,
+                        fullName: accountant.fullName,
+                        username: accountant.email,
+                        phone: accountant.phone,
+                      }}
+                    />
                   </td>
                 </tr>
               )
