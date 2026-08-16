@@ -26,28 +26,12 @@ export type AccountantFormAccountant = {
   phone: string | null
 }
 
-/** A trạm as the checklist needs it: where it is, and who is on it today. */
+/** A trạm as the checklist needs it: what it is called, and who is on it today. */
 export type AccountantFormStation = {
   id: string
   name: string
-  branch: string | null
   /** The kế toán phụ trách of it now — any number of them, all equals. */
   heldBy: { id: string; fullName: string }[]
-}
-
-/**
- * The chi nhánh, in the order the trạm arrive — which is by mã trạm, so the
- * grouping does not reorder the list, it only breaks it up.
- */
-function groupByBranch(stations: readonly AccountantFormStation[]) {
-  const groups: { branch: string; stations: AccountantFormStation[] }[] = []
-  for (const station of stations) {
-    const branch = station.branch ?? vi.accountants.stationNoBranch
-    const group = groups.find((g) => g.branch === branch)
-    if (group) group.stations.push(station)
-    else groups.push({ branch, stations: [station] })
-  }
-  return groups
 }
 
 /**
@@ -238,45 +222,48 @@ export function AccountantForm({
             {stations.length === 0 ? (
               <p className="text-muted-foreground text-sm">{vi.stations.empty}</p>
             ) : (
-              <div className="space-y-3 rounded-md border p-3">
-                {groupByBranch(stations).map((group) => (
-                  <div key={group.branch} className="space-y-1">
-                    <p className="label-micro">{group.branch}</p>
-                    {group.stations.map((station) => {
-                      // The people already on it besides the one being edited —
-                      // ticking is adding a name beside theirs, not taking it.
-                      const others = station.heldBy.filter((holder) => holder.id !== accountant?.id)
-                      return (
-                        <label
-                          key={station.id}
-                          className="flex items-start gap-2 py-1 text-sm leading-tight"
-                        >
-                          <Checkbox
-                            className="mt-0.5"
-                            checked={selected.includes(station.id)}
-                            onCheckedChange={(state) => toggleStation(station.id, state === true)}
-                          />
-                          <span>
-                            {station.name}{' '}
-                            {released.has(station.id) ? (
-                              <span className="text-amber-700 dark:text-amber-400">
-                                {vi.accountants.stationRelease}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">
-                                {others.length > 0
-                                  ? `${vi.accountants.stationHeldBy} ${others
-                                      .map((holder) => holder.fullName)
-                                      .join(', ')}`
-                                  : vi.accountants.stationNoHolder}
-                              </span>
-                            )}
+              <div className="space-y-1 rounded-md border p-3">
+                {/* One flat list in the order the trạm arrive, which is by mã trạm.
+                    A row says the trạm's name, and adds something only when there
+                    is something to say — a trạm nobody is on is not an opportunity
+                    to take one, so it says nothing at all. */}
+                {stations.map((station) => {
+                  // The people already on it besides the one being edited —
+                  // ticking is adding a name beside theirs, not taking it.
+                  const others = station.heldBy.filter((holder) => holder.id !== accountant?.id)
+                  return (
+                    <label
+                      key={station.id}
+                      className="flex items-start gap-2 py-1 text-sm leading-tight"
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={selected.includes(station.id)}
+                        onCheckedChange={(state) => toggleStation(station.id, state === true)}
+                      />
+                      {/* The space belongs to what follows the name, not to the
+                          name: a row that says nothing more ends at its own last
+                          letter. */}
+                      <span>
+                        {station.name}
+                        {released.has(station.id) ? (
+                          <span className="text-amber-700 dark:text-amber-400">
+                            {' '}
+                            {vi.accountants.stationRelease}
                           </span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                ))}
+                        ) : (
+                          others.length > 0 && (
+                            <span className="text-muted-foreground">
+                              {' '}
+                              {vi.accountants.stationHeldBy}{' '}
+                              {others.map((holder) => holder.fullName).join(', ')}
+                            </span>
+                          )
+                        )}
+                      </span>
+                    </label>
+                  )
+                })}
               </div>
             )}
           </Field>
