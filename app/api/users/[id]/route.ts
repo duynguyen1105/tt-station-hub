@@ -22,10 +22,10 @@ import { vi } from '@/messages/vi'
 // trạm with nobody. Absent means the assignments are left alone; an id no checkbox
 // could have produced is ignored rather than refused, so no message is needed here.
 //
-// Every field is optional because two different controls send here: the dialog,
-// which sends họ tên, số điện thoại and the trạm together, and the row's Ngưng
-// hoạt động / Kích hoạt, which sends only the tài khoản's state. Absent means
-// leave it alone; họ tên is still refused when it is sent empty.
+// Every field is optional because two different controls on the kế toán's page
+// send here: the form, which sends họ tên, số điện thoại and the trạm together,
+// and Ngưng hoạt động / Kích hoạt, which sends only the tài khoản's state. Absent
+// means leave it alone; họ tên is still refused when it is sent empty.
 const updateAccountantSchema = z.object({
   fullName: z.string().trim().min(1, vi.accountants.fullNameRequired).optional(),
   phone: z.string().trim().optional(),
@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     prisma.profile.update({
       where: { id },
       // Each field stands on its own: what was sent is written, what was not is
-      // left alone. The dialog sends họ tên and số điện thoại together, so a blank
+      // left alone. The form sends họ tên and số điện thoại together, so a blank
       // number there still means cleared; Ngưng hoạt động mentions neither, so
       // neither moves.
       data: {

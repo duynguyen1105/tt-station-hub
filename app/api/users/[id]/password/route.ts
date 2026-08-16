@@ -34,7 +34,7 @@ const passwordResetSchema = z
 
 /**
  * Gives a kế toán a new password, the only way one is ever recovered here: the
- * kế toán rings the quản trị viên, who types it on their row and reads it back.
+ * kế toán rings the quản trị viên, who types it on their page and reads it back.
  * Quản trị viên only.
  *
  * The password lives in Supabase Auth alone, so nothing on the profile is

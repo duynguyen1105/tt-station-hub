@@ -25,10 +25,10 @@ export type PasswordResetAccountant = {
 }
 
 /**
- * Gives one kế toán a new password. There is no forgotten-password link to
- * follow and no mailbox to send one to, so this is the whole of the promise the
- * kế toán guide makes: they ring the quản trị viên, who types a password here
- * and reads it back to them.
+ * Gives one kế toán a new password, on their own page beside everything else
+ * done to them. There is no forgotten-password link to follow and no mailbox to
+ * send one to, so this is the whole of the promise the kế toán guide makes: they
+ * ring the quản trị viên, who types a password here and reads it back to them.
  *
  * Nothing is checked here — the route's rule names both refusals in Vietnamese
  * and they arrive as a toast — but the password is asked for twice, because the
@@ -41,8 +41,8 @@ export function AccountantPasswordForm({ accountant }: { accountant: PasswordRes
   const [confirmPassword, setConfirmPassword] = useState('')
 
   // Cleared in both directions, as on the create dialog: it stays mounted while
-  // it fades out, so one kế toán's password would otherwise still be on screen a
-  // moment after the dialog that belongs to them has gone.
+  // it fades out, so the password would otherwise still be on screen a moment
+  // after the dialog carrying it has gone.
   function openChange(next: boolean) {
     setPassword('')
     setConfirmPassword('')
@@ -64,15 +64,18 @@ export function AccountantPasswordForm({ accountant }: { accountant: PasswordRes
   return (
     <Dialog open={open} onOpenChange={openChange}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost">
+        {/* Outline, not ghost: on a page these two stand on their own instead of
+            being the quiet end of a table row, and a bare label there reads as
+            text rather than as something to press. */}
+        <Button size="sm" variant="outline">
           {vi.accountants.resetPassword}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{vi.accountants.resetPassword}</DialogTitle>
-          {/* Whose row this is, because the password is about to be read out to
-              them by name and the dialog looks the same on every row. */}
+          {/* Who is about to be read this password, and the tên đăng nhập that
+              goes with it down the same telephone call. */}
           <DialogDescription>
             {accountant.fullName} — {accountant.username}
           </DialogDescription>

@@ -19,19 +19,19 @@ import { vi } from '@/messages/vi'
 export type StatusAccountant = {
   id: string
   fullName: string
-  /** Whether the tài khoản still works — which of the two actions the row offers. */
+  /** Whether the tài khoản still works — which of the two actions is offered. */
   isActive: boolean
 }
 
 /**
  * Ngưng hoạt động for someone who has left or gone on long leave, and Kích hoạt
- * for the day they come back. One control, because a row is only ever in one of
- * the two states and the other action would mean nothing on it.
+ * for the day they come back. One control, because a person is only ever in one
+ * of the two states and the other action would mean nothing on them.
  *
  * Both are asked twice. Ngưng hoạt động takes effect on the person's very next
  * request — they may be sitting at their desk with a screen open — and Kích hoạt
- * hands back everything they could read before, so neither is a click to make by
- * passing the mouse over the wrong row.
+ * hands back everything they could read before, so neither is a click to make on
+ * the way past.
  *
  * There is deliberately no Xóa beside it. A kế toán is stamped on every ca they
  * duyệt and every công nợ they settle; removing the row would leave that history
@@ -57,7 +57,7 @@ export function AccountantStatusForm({ accountant }: { accountant: StatusAccount
       <AlertDialogTrigger asChild>
         <Button
           size="sm"
-          variant="ghost"
+          variant="outline"
           disabled={busy}
           className={cn(
             suspending &&
@@ -72,7 +72,8 @@ export function AccountantStatusForm({ accountant }: { accountant: StatusAccount
           <AlertDialogTitle>
             {suspending ? vi.accountants.suspendConfirmTitle : vi.accountants.restoreConfirmTitle}
           </AlertDialogTitle>
-          {/* Whose row this is: the dialog looks the same on every one of them. */}
+          {/* Whose tài khoản this is: the dialog looks the same for everybody,
+              and this is the last thing read before it takes effect. */}
           <AlertDialogDescription>
             {accountant.fullName} —{' '}
             {suspending ? vi.accountants.suspendConfirmBody : vi.accountants.restoreConfirmBody}
