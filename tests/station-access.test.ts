@@ -6,6 +6,7 @@ import {
   accessibleStationIds,
   canAccessStation,
   isStationUncovered,
+  readsEveryStation,
 } from '@/lib/auth/station-access'
 
 const HUONG = 'a1000000-0000-0000-0000-000000000001'
@@ -21,6 +22,17 @@ const ALL = [OWN, OTHERS, ORPHAN]
 const huong = { id: HUONG, role: 'accountant' as const }
 const admin = { id: 'admin-id', role: 'admin' as const }
 const viewer = { id: 'viewer-id', role: 'viewer' as const }
+
+describe('readsEveryStation', () => {
+  it('says a quản trị viên and a người xem read the whole company', () => {
+    expect(readsEveryStation(admin)).toBe(true)
+    expect(readsEveryStation(viewer)).toBe(true)
+  })
+
+  it('says a kế toán does not, whatever they are phụ trách of', () => {
+    expect(readsEveryStation(huong)).toBe(false)
+  })
+})
 
 describe('canAccessStation', () => {
   it('lets a quản trị viên into every trạm, including one with no phụ trách', () => {

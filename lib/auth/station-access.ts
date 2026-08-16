@@ -29,11 +29,21 @@ export type AccountantAccess = {
 }
 
 /**
+ * Does this person read the whole company, whatever the trạm? A quản trị viên
+ * and a người xem do. Asked on its own by a caller narrowing a query that has
+ * no trạm to filter on — it can then leave the query it had alone rather than
+ * enumerate every row a company-wide reader is entitled to.
+ */
+export function readsEveryStation(viewer: StationViewer): boolean {
+  return viewer.role === 'admin' || viewer.role === 'viewer'
+}
+
+/**
  * May this person reach this trạm? A quản trị viên and a người xem read the
  * whole company; a kế toán reads exactly the trạm they are phụ trách of.
  */
 export function canAccessStation(viewer: StationViewer, station: StationAccess): boolean {
-  if (viewer.role === 'admin' || viewer.role === 'viewer') return true
+  if (readsEveryStation(viewer)) return true
   return station.assignedAccountantId === viewer.id
 }
 

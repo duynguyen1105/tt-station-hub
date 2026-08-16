@@ -7,6 +7,7 @@ import {
   type StationViewer,
   accessibleStationIds,
   canAccessStation,
+  readsEveryStation,
 } from '@/lib/auth/station-access'
 import { prisma } from '@/lib/prisma'
 
@@ -65,4 +66,24 @@ export async function reachableStationIds(viewer: StationViewer): Promise<string
     select: { id: true, assignedAccountantId: true },
   })
   return accessibleStationIds(viewer, stations)
+}
+
+/**
+ * Every ca this person may reach, or `null` for someone who may reach them all
+ * — what the Ca review queue narrows its query to. A số liệu carries no trạm of
+ * its own, only the ca it belongs to, so the boundary has to be spelled out as
+ * identifiers before the queue is read; filtering afterwards would let another
+ * trạm's backlog crowd a kế toán's own work out of the page.
+ *
+ * `null` rather than every identifier in the table: a quản trị viên keeps the
+ * query they had instead of carrying the whole ca history through an `in`.
+ */
+export async function reachableShiftIds(viewer: StationViewer): Promise<string[] | null> {
+  if (readsEveryStation(viewer)) return null
+  const stationIds = await reachableStationIds(viewer)
+  const shifts = await prisma.shift.findMany({
+    where: { stationId: { in: stationIds } },
+    select: { id: true },
+  })
+  return shifts.map((shift) => shift.id)
 }

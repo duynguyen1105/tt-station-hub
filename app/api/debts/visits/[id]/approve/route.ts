@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
 
-import { badRequest, notFound, ok, unauthorized } from '@/lib/api/response'
+import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { plateListContains } from '@/lib/debts/plate'
 import { prisma } from '@/lib/prisma'
 
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const visit = await prisma.debtVehicleVisit.findUnique({ where: { id } })
   if (!visit) return notFound()
+  // The lượt xe belongs to the trạm it was pumped at; another person's trạm is
+  // refused here as well as absent from the queue.
+  if (!(await canReachStation(user, visit.stationId))) return forbidden()
 
   const customerId = parsed.data.customerId ?? visit.customerId
   if (!customerId) return badRequest('Chưa gán khách hàng cho lượt xe này.')
