@@ -53,6 +53,7 @@ export const vi = {
     invalidEmail: 'Email không hợp lệ',
     passwordRequired: 'Vui lòng nhập mật khẩu',
     loginFailed: 'Đăng nhập thất bại. Kiểm tra lại email và mật khẩu.',
+    accountSuspended: 'Tài khoản đã bị ngưng hoạt động. Vui lòng liên hệ quản trị viên.',
   },
 
   roles: {
@@ -207,7 +208,7 @@ export const vi = {
     assignedStations: 'Trạm phụ trách',
     accountStatus: 'Tài khoản',
     active: 'Đang hoạt động',
-    suspended: 'Đã khóa',
+    suspended: 'Đã ngưng hoạt động',
     noStations: 'Chưa phụ trách trạm nào',
     empty: 'Chưa có kế toán nào.',
     uncoveredNone: 'Mọi trạm đều có kế toán phụ trách.',
@@ -220,7 +221,8 @@ export const vi = {
     password: 'Mật khẩu',
     passwordHint: 'Đọc mật khẩu này cho kế toán — hệ thống không gửi email cho ai.',
     usernameHint: 'Dùng để đăng nhập, dạng ten@truongthinh.local.',
-    usernameLocked: 'Tên đăng nhập không đổi được. Nhập sai thì khóa tài khoản và tạo lại.',
+    usernameLocked:
+      'Tên đăng nhập không đổi được. Nhập sai thì ngưng hoạt động tài khoản đó và tạo lại.',
     stationsHint:
       'Mỗi trạm chỉ có một kế toán phụ trách. Tích vào trạm đã có người là chuyển trạm đó sang kế toán này.',
     stationHeldBy: 'Đang phụ trách:',
@@ -229,8 +231,18 @@ export const vi = {
     stationRelease: 'Sẽ bỏ phụ trách',
     stationNoBranch: 'Chưa có chi nhánh',
     stationTakeoverPrefix: 'Sẽ chuyển trạm từ kế toán khác:',
+    suspend: 'Ngưng hoạt động',
+    restore: 'Kích hoạt',
+    suspendConfirmTitle: 'Ngưng hoạt động tài khoản này?',
+    suspendConfirmBody:
+      'Người này bị từ chối ngay ở thao tác tiếp theo, không phải đợi tới lần đăng nhập sau. Trạm phụ trách vẫn giữ nguyên để lúc kích hoạt lại là có việc ngay, nhưng những trạm đó được tính là chưa có kế toán cho tới khi đó.',
+    restoreConfirmTitle: 'Kích hoạt lại tài khoản này?',
+    restoreConfirmBody:
+      'Người này đăng nhập lại được ngay, vẫn phụ trách đúng những trạm như trước khi bị ngưng.',
     created: 'Đã tạo kế toán.',
     updated: 'Đã lưu thay đổi.',
+    suspendDone: 'Đã ngưng hoạt động tài khoản.',
+    restoreDone: 'Đã kích hoạt lại tài khoản.',
     passwordResetDone: 'Đã đặt lại mật khẩu.',
     usernameTaken: 'Tên đăng nhập này đã có người dùng.',
     fullNameRequired: 'Vui lòng nhập họ tên.',
