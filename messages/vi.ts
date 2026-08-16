@@ -214,7 +214,6 @@ export const vi = {
     uncoveredNone: 'Mọi trạm đều có kế toán phụ trách.',
     uncoveredPrefix: 'Trạm chưa có kế toán phụ trách:',
     addTitle: 'Thêm kế toán',
-    editTitle: 'Sửa kế toán',
     resetPassword: 'Đặt lại mật khẩu',
     newPassword: 'Mật khẩu mới',
     confirmPassword: 'Nhập lại mật khẩu mới',
