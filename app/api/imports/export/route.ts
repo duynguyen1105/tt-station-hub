@@ -2,8 +2,9 @@ import ExcelJS from 'exceljs'
 
 import { type NextRequest } from 'next/server'
 
-import { unauthorized } from '@/lib/api/response'
+import { forbidden, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation, reachableStationIds } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -27,9 +28,11 @@ export async function GET(req: NextRequest) {
     ? new Date(`${searchParams.get('from')}T00:00:00+07:00`)
     : new Date(to.getTime() - 31 * DAY_MS)
 
+  if (stationId && !(await canReachStation(user, stationId))) return forbidden()
+
   const imports = await prisma.fuelImport.findMany({
     where: {
-      ...(stationId ? { stationId } : {}),
+      stationId: stationId ?? { in: await reachableStationIds(user) },
       importedAt: { gte: from, lte: to },
     },
     orderBy: { importedAt: 'asc' },

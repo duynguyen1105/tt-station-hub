@@ -3,6 +3,7 @@ import { type NextRequest } from 'next/server'
 import { extractBienBan } from '@/lib/ai/extract-bien-ban'
 import { badRequest, forbidden, ok, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { checkStationOnPaper } from '@/lib/imports/station-check'
 import { vi } from '@/messages/vi'
 
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
   if (files.length === 0) return badRequest(vi.imports.noBienBanPhotos)
   const stationId = form.get('stationId')
   if (typeof stationId !== 'string' || stationId === '') return badRequest()
+  if (!(await canReachStation(user, stationId))) return forbidden()
 
   const buffers = await Promise.all(
     files.map(async (file) => Buffer.from(await file.arrayBuffer()))

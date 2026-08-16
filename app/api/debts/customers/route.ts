@@ -6,6 +6,7 @@ import { badRequest, forbidden, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 const createSchema = z.object({
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
 
   const { name, stationId, phone, misaCode, knownPlates } = parsed.data
+  // A khách hàng belonging to a trạm is that trạm's; one belonging to none is
+  // company-wide and stays open to every kế toán.
+  if (stationId && !(await canReachStation(user, stationId))) return forbidden()
+
   const customer = await prisma.debtCustomer.create({
     data: {
       name,

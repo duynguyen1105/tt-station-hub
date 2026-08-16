@@ -3,15 +3,15 @@ import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
 import { StatusBadge } from '@/components/shared/status-badge'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export default async function StationShiftsPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser()
   const { id } = await params
+  await requireStationAccess(id)
   const shifts = await prisma.shift.findMany({
     where: { stationId: id },
     orderBy: { shiftDate: 'desc' },

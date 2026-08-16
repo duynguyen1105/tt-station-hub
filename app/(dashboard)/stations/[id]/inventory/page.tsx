@@ -6,7 +6,7 @@ import { MovementForm } from '@/components/inventory/movement-form'
 import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
@@ -70,8 +70,8 @@ export default async function StationInventoryPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ from?: string; to?: string; tab?: string; page?: string }>
 }) {
-  const user = await requireUser()
   const { id } = await params
+  const user = await requireStationAccess(id)
   const today = todayShiftDate()
 
   // The histories grow every day, so each lives in its own sub-tab with

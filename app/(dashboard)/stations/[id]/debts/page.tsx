@@ -2,14 +2,14 @@ import { CustomerForm } from '@/components/debts/customer-form'
 import { PaymentForm } from '@/components/debts/payment-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatVND } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
 export default async function StationDebtsPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser()
   const { id } = await params
+  await requireStationAccess(id)
   const customers = await prisma.debtCustomer.findMany({
     where: { stationId: id, isActive: true },
     orderBy: { name: 'asc' },
