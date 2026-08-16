@@ -41,11 +41,21 @@ describe('formatLiters', () => {
 })
 
 describe('formatDateTime / formatDate', () => {
-  it('formats dd/MM/yyyy HH:mm', () => {
-    expect(formatDateTime('2026-06-17T08:05:00')).toBe('17/06/2026 08:05')
+  // Every call site passes a Prisma `Date` — a real instant, not wall-clock
+  // text. VN is UTC+7 year-round (no DST), so 01:05Z is 08:05 in Vietnam.
+  it('renders an instant in Vietnam time as dd/MM/yyyy HH:mm', () => {
+    expect(formatDateTime(new Date('2026-06-17T01:05:00Z'))).toBe('17/06/2026 08:05')
   })
   it('formats dd/MM/yyyy', () => {
-    expect(formatDate('2026-06-17T08:05:00')).toBe('17/06/2026')
+    expect(formatDate(new Date('2026-06-17T01:05:00Z'))).toBe('17/06/2026')
+  })
+  // `@db.Date` columns (shiftDate, issuedDate, expiryDate, effectiveDate) come
+  // back from Prisma as UTC midnight — see shiftDateFor in lib/photos/ingest.ts,
+  // which writes them with Date.UTC(). Rendering those in +07 must not roll the
+  // calendar day forward. Locked here so a future change to vnTime that reads
+  // input as wall-clock fails loudly instead of shifting every shift by a day.
+  it('keeps the calendar day for UTC-midnight date columns', () => {
+    expect(formatDate(new Date(Date.UTC(2026, 5, 17)))).toBe('17/06/2026')
   })
   it('returns empty string for falsy input', () => {
     expect(formatDateTime(null)).toBe('')
