@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type ShiftStatus,
+  canCreateReading,
   canEditClosing,
   canEditOpening,
   canReviewShift,
@@ -68,6 +69,29 @@ describe('canReviewShift', () => {
   it('never lets a viewer review', () => {
     for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
       expect(canReviewShift('viewer', status)).toBe(false)
+    }
+  })
+})
+
+describe('canCreateReading', () => {
+  // Entering a Trụ no photo arrived for follows the closing rule, pinned here
+  // against concrete booleans rather than against canEditClosing.
+  it('lets the admin create a reading at any status', () => {
+    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
+      expect(canCreateReading('admin', status)).toBe(true)
+    }
+  })
+
+  it('lets the accountant create a reading until the ca is completed', () => {
+    for (const status of PRE_COMPLETED) {
+      expect(canCreateReading('accountant', status)).toBe(true)
+    }
+    expect(canCreateReading('accountant', 'completed')).toBe(false)
+  })
+
+  it('never lets a viewer create a reading', () => {
+    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
+      expect(canCreateReading('viewer', status)).toBe(false)
     }
   })
 })

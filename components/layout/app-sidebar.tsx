@@ -5,15 +5,17 @@ import {
   ClipboardCheck,
   FileSpreadsheet,
   LayoutDashboard,
+  type LucideIcon,
   Settings,
   Upload,
+  Users,
 } from 'lucide-react'
 
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { BrandMark } from '@/components/layout/brand-mark'
 import { SidebarUser } from '@/components/layout/sidebar-user'
-import { NavLink } from '@/components/shared/nav-link'
 import {
   Sidebar,
   SidebarContent,
@@ -26,23 +28,33 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { type AppRole } from '@/lib/auth/permissions'
 import { vi } from '@/messages/vi'
 
-const NAV_ITEMS = [
+// `roles`, where present, restricts the item to those roles — an entry a kế
+// toán may not open is not shown to them.
+const NAV_ITEMS: {
+  href: string
+  label: string
+  icon: LucideIcon
+  roles?: AppRole[]
+}[] = [
   { href: '/', label: vi.nav.overview, icon: LayoutDashboard },
   { href: '/stations', label: vi.nav.stations, icon: Building2 },
   { href: '/review/shifts', label: vi.nav.review, icon: ClipboardCheck },
   { href: '/upload', label: vi.nav.upload, icon: Upload },
   { href: '/reports/misa-export', label: vi.nav.misaReport, icon: FileSpreadsheet },
   { href: '/settings/misa', label: vi.nav.settings, icon: Settings },
+  { href: '/settings/users', label: vi.nav.accountants, icon: Users, roles: ['admin'] },
 ]
 
 type AppSidebarProps = {
-  user: { fullName: string; email: string; roleLabel: string }
+  user: { fullName: string; email: string; role: AppRole; roleLabel: string }
 }
 
 export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname()
+  const navItems = NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(user.role))
 
   return (
     <Sidebar>
@@ -66,7 +78,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const isActive =
                   item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
                 return (
@@ -77,10 +89,10 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       tooltip={item.label}
                       className="data-[active=true]:shadow-[inset_2px_0_0_var(--sidebar-primary)]"
                     >
-                      <NavLink href={item.href}>
+                      <Link href={item.href}>
                         <item.icon />
                         <span>{item.label}</span>
-                      </NavLink>
+                      </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )

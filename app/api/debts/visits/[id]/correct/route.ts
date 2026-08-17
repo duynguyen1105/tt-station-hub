@@ -3,9 +3,10 @@ import { z } from 'zod'
 import { type NextRequest } from 'next/server'
 
 import { checkAmountMatch } from '@/lib/ai/extract-visit'
-import { badRequest, notFound, ok, unauthorized } from '@/lib/api/response'
+import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const visit = await prisma.debtVehicleVisit.findUnique({ where: { id } })
   if (!visit) return notFound()
+  if (!(await canReachStation(user, visit.stationId))) return forbidden()
 
   const liters =
     parsed.data.litersRead ?? (visit.litersRead !== null ? Number(visit.litersRead) : null)
@@ -58,6 +60,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       select: { id: true },
     })
     if (!station) return badRequest('Trạm không hợp lệ.')
+    // Re-assigning the lượt xe is a write into the trạm it lands in, so the
+    // destination is held to the same boundary as the trạm it came from.
+    if (!(await canReachStation(user, station.id))) return forbidden()
     data.stationId = station.id
   }
 

@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
 
-import { badRequest, created, ok, unauthorized } from '@/lib/api/response'
+import { badRequest, created, forbidden, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation, reachableStationIds } from '@/lib/auth/station-guard'
 import { documentStatus } from '@/lib/documents/expiry-checker'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
@@ -19,9 +20,10 @@ export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
   const stationId = req.nextUrl.searchParams.get('stationId')
+  if (stationId && !(await canReachStation(user, stationId))) return forbidden()
 
   const documents = await prisma.stationDocument.findMany({
-    where: stationId ? { stationId } : undefined,
+    where: { stationId: stationId ?? { in: await reachableStationIds(user) } },
     orderBy: { expiryDate: 'asc' },
   })
   return ok(documents)
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createDocumentSchema.safeParse(raw)
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
+  if (!(await canReachStation(user, parsed.data.stationId))) return forbidden()
 
   const status = documentStatus(parsed.data.expiryDate ?? null, new Date())
   const document = await prisma.stationDocument.create({ data: { ...parsed.data, status } })

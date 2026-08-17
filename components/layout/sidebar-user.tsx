@@ -1,6 +1,8 @@
 'use client'
 
-import { LogOut } from 'lucide-react'
+import { LoaderCircle, LogOut } from 'lucide-react'
+
+import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -15,8 +17,12 @@ type SidebarUserProps = {
 
 export function SidebarUser({ user }: SidebarUserProps) {
   const router = useRouter()
+  const [busy, setBusy] = useState(false)
 
   async function handleLogout() {
+    // Never cleared: the page navigates away, and leaving it set keeps the
+    // spinner up instead of flicking back to the icon mid-redirect.
+    setBusy(true)
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
@@ -37,8 +43,8 @@ export function SidebarUser({ user }: SidebarUserProps) {
         </div>
       </SidebarMenuItem>
       <SidebarMenuItem>
-        <SidebarMenuButton onClick={handleLogout}>
-          <LogOut />
+        <SidebarMenuButton onClick={handleLogout} disabled={busy} aria-busy={busy || undefined}>
+          {busy ? <LoaderCircle className="animate-spin" /> : <LogOut />}
           <span>{vi.auth.logout}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>

@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
     select: { id: true, code: true },
   })
   if (!station) return badRequest('Trạm không hợp lệ.')
+  if (!(await canReachStation(user, station.id))) return forbidden()
 
   const record = await prisma.$transaction(async (tx) => {
     const row = await tx.fuelImport.create({

@@ -134,7 +134,7 @@ export function OpeningBalanceForm({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>
             {vi.common.cancel}
           </Button>
-          <Button onClick={save} disabled={busy}>
+          <Button onClick={save} loading={busy}>
             {vi.common.save}
           </Button>
         </DialogFooter>

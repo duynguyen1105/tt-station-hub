@@ -5,15 +5,45 @@
 
 ## 1. Đăng nhập
 
-- Mở trang web hệ thống, đăng nhập bằng **email + mật khẩu** được cấp.
-- Nếu quên mật khẩu, liên hệ quản trị viên (admin).
+- Mở trang web hệ thống, đăng nhập bằng **tên đăng nhập + mật khẩu** do quản trị
+  viên cấp. Không ai tự đăng ký tài khoản được.
+- Tên đăng nhập có dạng `ten@truongthinh.local`. Nó **trông giống email nhưng
+  không phải hộp thư** — hệ thống không gửi thư cho ai; điền nó vào ô **Email**
+  ở trang đăng nhập.
+- Quên mật khẩu thì gọi quản trị viên. Quản trị viên mở màn hình **Kế toán**,
+  bấm vào tên bạn để mở trang của bạn, bấm **Đặt lại mật khẩu** ở đó, đặt mật
+  khẩu mới và đọc lại cho bạn. Bạn đăng nhập được ngay bằng mật khẩu đó; mật khẩu cũ hết dùng được. Việc
+  đặt lại được ghi nhật ký, mật khẩu thì không.
+- Không có chức năng "quên mật khẩu" tự phục vụ, và hệ thống không gửi email
+  đặt lại.
 
-## 2. Trang tổng thể
+## 2. Trạm bạn phụ trách
 
-- Xem nhanh tất cả các trạm: ca đang chờ duyệt, giấy tờ sắp hết hạn, tồn thấp,
-  công nợ quá hạn.
+- **Quản trị viên** quyết định bạn phụ trách những trạm nào. Một kế toán phụ
+  trách được nhiều trạm, và **một trạm cũng có thể có nhiều kế toán cùng phụ
+  trách** — những người đó ngang nhau, không ai là chính, không ai là người thay.
+- Mọi màn hình trong tài liệu này chỉ hiển thị **những trạm bạn phụ trách** —
+  danh sách trạm, trang tổng thể, hàng chờ duyệt, tải ảnh và báo cáo MISA. Mở
+  đường dẫn tới một trạm không phải của bạn thì hệ thống đưa bạn về danh sách
+  trạm.
+- Cần xem hoặc duyệt thêm một trạm khác (nghỉ phép, hỗ trợ đồng nghiệp...) thì đề
+  nghị quản trị viên thêm bạn vào trạm đó. Việc này **không lấy trạm khỏi ai**:
+  người đang phụ trách vẫn phụ trách như cũ.
+- Trạm chung với đồng nghiệp thì ai phụ trách trạm đó cũng duyệt được ca, giấy tờ,
+  hàng tồn và công nợ của trạm. Hệ thống không giữ phần việc cho riêng ai, nên
+  những người cùng phụ trách tự thống nhất với nhau ai làm gì.
+- Chưa phụ trách trạm nào thì các màn hình hiện **trống** (không phải lỗi).
 
-## 3. Duyệt chốt ca (mục **Cần duyệt → Chốt ca**)
+## 3. Trang tổng thể
+
+- Xem nhanh **các trạm bạn phụ trách**: ca đang chờ duyệt, giấy tờ sắp hết hạn,
+  tồn thấp, công nợ quá hạn. Đây không phải bảng tổng hợp toàn công ty — số của
+  trạm bạn không phụ trách không nằm ở đây. Trạm bạn phụ trách chung với đồng
+  nghiệp thì có, và ai phụ trách trạm đó cũng thấy.
+
+## 4. Duyệt chốt ca (mục **Cần duyệt → Chốt ca**)
+
+Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 1. AI đọc số đồng hồ từ ảnh nhân viên gửi qua Zalo và điền sẵn (bản nháp).
 2. Mỗi dòng hiển thị: trụ, số điện tử, số cơ, ảnh, độ tin cậy (%).
@@ -25,30 +55,40 @@
    sẽ được tô để ưu tiên kiểm tra.
 5. Khi tất cả dòng đã duyệt → bấm **Chốt ca**.
 
-## 4. Giấy tờ pháp lý (tab **Giấy tờ**)
+## 5. Giấy tờ pháp lý (tab **Giấy tờ**)
 
 - Thêm/sửa giấy tờ, đính kèm bản scan, nhập ngày hết hạn.
 - Màu trạng thái: **xanh** (còn hạn), **vàng** (sắp hết — trong 60 ngày),
   **đỏ** (hết hạn). Hệ thống tự nhắc trước **60 / 30 / 15 ngày**.
 
-## 5. Hàng tồn (tab **Hàng tồn**)
+## 6. Hàng tồn (tab **Hàng tồn**)
 
 - **Tồn ước tính** = tồn đầu + nhập − bán (tự tính từ ca đã duyệt).
 - Nhập lệnh **nhập hàng**, nhập **tồn thực** (đo bồn) → xem chênh lệch.
 - Cảnh báo khi tồn dưới ngưỡng.
 
-## 6. Công nợ theo lượt xe (tab **Công nợ**)
+## 7. Công nợ theo lượt xe (tab **Công nợ**)
 
+- Hàng chờ ở **Cần duyệt → Công nợ** chỉ có lượt xe của các trạm bạn phụ trách.
+  Chuyển một lượt xe sang trạm khác cũng chỉ chuyển được vào trạm bạn phụ trách.
 - AI đọc **số lít** và **đơn giá** từ ảnh đồng hồ; hệ thống **tự tính tiền =
   lít × đơn giá** (KHÔNG dùng số tiền hiển thị vì có thể bị cụt số).
 - Kế toán **xác nhận biển số** và số liệu, gán đúng khách.
 - Ghi **thanh toán** → hệ thống trừ vào công nợ (ưu tiên nợ cũ nhất).
 
-## 7. Xuất MISA (mục **Báo cáo MISA**)
+## 8. Tải ảnh (mục **Tải ảnh**)
+
+- Dùng khi ảnh không gửi qua Zalo được. Ô chọn trạm chỉ liệt kê **trạm bạn phụ
+  trách**, và ô chọn trụ chỉ liệt kê trụ của trạm đã chọn.
+
+## 9. Xuất MISA (mục **Báo cáo MISA**)
 
 - Chọn ca → tải file Excel để import vào MISA Nội bộ.
+- Bảng chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
-## 8. Nguyên tắc quan trọng
+## 10. Nguyên tắc quan trọng
 
+- Quản trị viên quyết định bạn phụ trách trạm nào; đó cũng là ranh giới của
+  những gì bạn đọc được.
 - AI chỉ **làm nháp**; kế toán là người **duyệt cuối**.
 - Mọi chỉnh sửa đều được ghi nhật ký (ai sửa, sửa gì, khi nào).

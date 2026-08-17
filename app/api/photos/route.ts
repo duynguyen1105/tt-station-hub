@@ -2,9 +2,10 @@ import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
 
-import { badRequest, created, unauthorized } from '@/lib/api/response'
+import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { type ManualOverride, ingestManualPhoto } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 
@@ -58,6 +59,8 @@ export async function POST(req: NextRequest) {
     select: { id: true, code: true },
   })
   if (!station) return badRequest('Không tìm thấy trạm.')
+  // The trạm this photo is being filed against decides, whatever the form offered.
+  if (!(await canReachStation(user, station.id))) return forbidden()
 
   // Optional manual assignment: force the pump (and meter slot) for label-less photos.
   const dispenserIdRaw = form.get('dispenserId')

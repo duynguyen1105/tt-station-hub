@@ -13,7 +13,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <SidebarProvider>
       <AppSidebar
-        user={{ fullName: user.fullName, email: user.email, roleLabel: vi.roles[user.role] }}
+        user={{
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
+          roleLabel: vi.roles[user.role],
+        }}
       />
       <SidebarInset>
         <header className="bg-background/80 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b backdrop-blur-sm">

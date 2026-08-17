@@ -1,6 +1,7 @@
 import { DebtVisitCard } from '@/components/debts/debt-visit-card'
 import { ReviewTabs } from '@/components/review/review-tabs'
 import { requireUser } from '@/lib/auth/session'
+import { reachableStationIds } from '@/lib/auth/station-guard'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { vnTime } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
@@ -8,15 +9,19 @@ import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
 export default async function ReviewDebtsPage() {
-  await requireUser()
+  const user = await requireUser()
 
   // Lazy rescue of misclassified shift photos stuck as unpaired debt visits.
   // Currently a no-op: the sweep is frozen (see SWEEP_FROZEN in lib/debts/stray-sweep.ts).
   await sweepStrayDebtMeters().catch(() => 0)
 
+  // The same boundary the Ca queue draws: a kế toán confirms the lượt xe of the
+  // trạm they are phụ trách of, and is offered no other trạm to move one to.
+  const stationIds = await reachableStationIds(user)
+
   const [visits, customers, stations] = await Promise.all([
     prisma.debtVehicleVisit.findMany({
-      where: { reviewStatus: { in: ['pending', 'needs_review'] } },
+      where: { reviewStatus: { in: ['pending', 'needs_review'] }, stationId: { in: stationIds } },
       orderBy: { visitDate: 'desc' },
       take: 100,
     }),
@@ -26,7 +31,7 @@ export default async function ReviewDebtsPage() {
       select: { id: true, name: true },
     }),
     prisma.station.findMany({
-      where: { isActive: true },
+      where: { isActive: true, id: { in: stationIds } },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     }),

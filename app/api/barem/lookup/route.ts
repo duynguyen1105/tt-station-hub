@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api/response'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { type BaremLookupResult, lookupBaremLiters } from '@/lib/inventory/barem'
 import { fetchBaremSheet } from '@/lib/inventory/barem-fetch'
 import { baremSheetFor } from '@/lib/inventory/barem-sheets'
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
   const { stationId, heights } = parsed.data
+  if (!(await canReachStation(user, stationId))) return forbidden()
 
   const station = await prisma.station.findUnique({
     where: { id: stationId },

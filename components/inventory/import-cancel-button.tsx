@@ -27,7 +27,7 @@ export function ImportCancelButton({ importId }: { importId: string }) {
   }
 
   return (
-    <Button size="sm" variant="ghost" disabled={busy} onClick={cancel}>
+    <Button size="sm" variant="ghost" loading={busy} onClick={cancel}>
       {vi.imports.cancelAction}
     </Button>
   )

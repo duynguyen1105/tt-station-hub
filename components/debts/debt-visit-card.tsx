@@ -185,7 +185,11 @@ function CustomerPicker({
 
 export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   const router = useRouter()
-  const [busy, setBusy] = useState(false)
+  // Which write is in flight, not merely whether one is — Duyệt and Từ chối sit
+  // side by side, so only the button that was clicked should spin.
+  const [action, setAction] = useState<'station' | 'approve' | 'reject' | 'correct' | null>(null)
+  const busy = action !== null
+  const [openReject, setOpenReject] = useState(false)
   const [customerId, setCustomerId] = useState<string | null>(data.customerId)
   // Local so a customer created inline (walk-in) appears + selects immediately.
   const [customers, setCustomers] = useState(data.customers)
@@ -208,9 +212,9 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   async function changeStation(next: string) {
     const prev = stationId
     setStationId(next)
-    setBusy(true)
+    setAction('station')
     const res = await post(`/api/debts/visits/${data.visitId}/correct`, { stationId: next })
-    setBusy(false)
+    setAction(null)
     if (res.ok) {
       toast.success(vi.debtReview.stationChanged)
       router.refresh()
@@ -229,23 +233,25 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
       toast.error(vi.debtReview.needCustomer)
       return
     }
-    setBusy(true)
+    setAction('approve')
     const res = await post(`/api/debts/visits/${data.visitId}/approve`, { customerId })
-    setBusy(false)
+    setAction(null)
     if (res.ok) router.refresh()
     else toast.error((await res.json().catch(() => null))?.error ?? vi.errors.generic)
   }
 
   async function reject() {
-    setBusy(true)
+    setAction('reject')
     const res = await post(`/api/debts/visits/${data.visitId}/reject`)
-    setBusy(false)
-    if (res.ok) router.refresh()
-    else toast.error(vi.errors.generic)
+    setAction(null)
+    if (res.ok) {
+      setOpenReject(false)
+      router.refresh()
+    } else toast.error(vi.errors.generic)
   }
 
   async function saveCorrection() {
-    setBusy(true)
+    setAction('correct')
     const res = await post(`/api/debts/visits/${data.visitId}/correct`, {
       plateConfirmed: plate || null,
       litersRead: liters ? Number(liters) : null,
@@ -253,7 +259,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
       customerId: customerId ?? null,
       fuelType: fuelType === UNASSIGNED ? null : fuelType,
     })
-    setBusy(false)
+    setAction(null)
     if (res.ok) {
       setOpenCorrect(false)
       router.refresh()
@@ -393,7 +399,12 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
 
         {/* Actions */}
         <div className="flex gap-2">
-          <Button className="flex-1" disabled={busy} onClick={approve}>
+          <Button
+            className="flex-1"
+            loading={action === 'approve'}
+            disabled={busy}
+            onClick={approve}
+          >
             {vi.common.approve}
           </Button>
 
@@ -453,14 +464,16 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
                 <Button variant="outline" onClick={() => setOpenCorrect(false)}>
                   {vi.common.cancel}
                 </Button>
-                <Button onClick={saveCorrection} disabled={busy}>
+                <Button onClick={saveCorrection} loading={action === 'correct'} disabled={busy}>
                   {vi.common.save}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <AlertDialog>
+          {/* Controlled so the click can be intercepted: the default Action closes
+              the dialog immediately, which would unmount the spinner on sight. */}
+          <AlertDialog open={openReject} onOpenChange={setOpenReject}>
             <AlertDialogTrigger asChild>
               <Button
                 variant="ghost"
@@ -477,7 +490,15 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
-                <AlertDialogAction onClick={reject}>{vi.common.reject}</AlertDialogAction>
+                <AlertDialogAction
+                  loading={action === 'reject'}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    void reject()
+                  }}
+                >
+                  {vi.common.reject}
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

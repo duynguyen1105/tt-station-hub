@@ -2,6 +2,7 @@ import { ReviewTabs } from '@/components/review/review-tabs'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
+import { reachableShiftIds } from '@/lib/auth/station-guard'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
@@ -16,8 +17,15 @@ export default async function ReviewShiftsPage() {
   // Currently a no-op: the sweep is frozen (see SWEEP_FROZEN in lib/debts/stray-sweep.ts).
   await sweepStrayDebtMeters().catch(() => 0)
 
+  // A kế toán is offered the ca of the trạm they are phụ trách of and no other,
+  // so the hundred rows below are a hundred rows of their own work.
+  const reviewableShiftIds = await reachableShiftIds(user)
+
   const readings = await prisma.shiftReading.findMany({
-    where: { reviewStatus: { in: ['pending', 'needs_review'] } },
+    where: {
+      reviewStatus: { in: ['pending', 'needs_review'] },
+      ...(reviewableShiftIds !== null && { shiftId: { in: reviewableShiftIds } }),
+    },
     orderBy: { createdAt: 'desc' },
     take: 100,
   })
@@ -90,6 +98,8 @@ export default async function ReviewShiftsPage() {
               const slotPhotos = photosByReading.get(reading.id)!
               const data: ReadingRowData = {
                 readingId: reading.id,
+                shiftId: reading.shiftId,
+                dispenserId: reading.dispenserId,
                 stationName: station?.name ?? '—',
                 dispenserName: dispenser?.displayName ?? '—',
                 fuelType: dispenser?.fuelType ?? '',

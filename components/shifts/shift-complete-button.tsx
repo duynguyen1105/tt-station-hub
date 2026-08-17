@@ -33,7 +33,7 @@ export function ShiftCompleteButton({
   }
 
   return (
-    <Button onClick={complete} disabled={busy || disabled}>
+    <Button onClick={complete} loading={busy} disabled={disabled}>
       {busy ? vi.shifts.completing : vi.shifts.complete}
     </Button>
   )

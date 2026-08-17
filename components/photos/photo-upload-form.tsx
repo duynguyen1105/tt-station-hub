@@ -1,13 +1,13 @@
 'use client'
 
-import { CheckCircle2, ImageUp, Loader2, TriangleAlert, X } from 'lucide-react'
+import { CheckCircle2, ImageUp, TriangleAlert, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useEffect, useRef, useState } from 'react'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-import { NavLink } from '@/components/shared/nav-link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -350,15 +350,8 @@ export function PhotoUploadForm({
             />
           </Field>
 
-          <Button className="w-full" onClick={submit} disabled={busy || !file || !stationId}>
-            {busy ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                {vi.upload.uploading}
-              </>
-            ) : (
-              vi.upload.submit
-            )}
+          <Button className="w-full" onClick={submit} loading={busy} disabled={!file || !stationId}>
+            {busy ? vi.upload.uploading : vi.upload.submit}
           </Button>
         </CardContent>
       </Card>
@@ -499,7 +492,7 @@ export function PhotoUploadForm({
 
           {result && !result.extractionError && result.kind !== 'inventory' && (
             <Button asChild variant="outline" size="sm" className="mt-5 w-full">
-              <NavLink
+              <Link
                 href={
                   result.kind === 'debt'
                     ? '/review/debts'
@@ -509,7 +502,7 @@ export function PhotoUploadForm({
                 }
               >
                 {vi.upload.viewReview}
-              </NavLink>
+              </Link>
             </Button>
           )}
         </CardContent>

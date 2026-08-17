@@ -5,6 +5,7 @@ import { type NextRequest } from 'next/server'
 import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { checkStationOnPaper } from '@/lib/imports/station-check'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
     select: { id: true, code: true },
   })
   if (!station) return badRequest('Trạm không hợp lệ.')
+  if (!(await canReachStation(user, station.id))) return forbidden()
 
   // A biên bản whose header names another Trạm is refused outright (ADR 0006) —
   // the one check in this flow that blocks rather than warns, because the paper

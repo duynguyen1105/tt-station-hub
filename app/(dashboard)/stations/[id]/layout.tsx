@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { StationTabs } from '@/components/stations/station-tabs'
 import { Badge } from '@/components/ui/badge'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -13,8 +13,8 @@ export default async function StationLayout({
   children: React.ReactNode
   params: Promise<{ id: string }>
 }) {
-  await requireUser()
   const { id } = await params
+  await requireStationAccess(id)
   const station = await prisma.station.findUnique({ where: { id } })
   if (!station) notFound()
 
