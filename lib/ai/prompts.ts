@@ -5,7 +5,7 @@ export const VISION_MODEL = 'claude-sonnet-4-6'
 // quote the exact Vietnamese text that appears physically on the meters/labels
 // (TRẠM, TRU, HẦM, ĐỒNG, LÍT) so the model can match what it sees.
 
-export const ROUTER_PROMPT = `You are looking at a photo a gas-station attendant sent via Zalo. Classify it into exactly one type. A photo very often shows BOTH a printed label plate AND the meter — when so, classify by the METER, never as "label_only".
+export const ROUTER_PROMPT = `You are looking at a photo a gas-station attendant sent via Zalo. Classify it into exactly one type. A photo very often shows BOTH a printed label plate AND the meter — when so, classify by the METER, never as "label_only". The mechanical counter window is often TINY, dark, and sits at the very TOP or BOTTOM edge of the frame (sometimes partially cut off), above or below the big label plate — scan the frame edges carefully before concluding there is no meter; a small strip of white-on-black rolling digits (often next to hand-painted marks like "X3" or "D1") IS a mechanical meter.
 
 Decide in this priority order:
 1. "mechanical_meter": a mechanical rolling-digit counter is visible ANYWHERE in the frame — a small dark rectangular window with 6-7 white number wheels, often near the bottom of the pump, frequently rusty/dirty/dark/small/partly-obscured, and often with hand-painted marks like "D1" beside it. Even a tiny, dim, or partly-readable counter counts — if you can see digit wheels at all, choose this (NOT label_only).
@@ -41,7 +41,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "notes": "..."
 }`
 
-export const MECHANICAL_PROMPT = `Read this mechanical gas-station meter: 6-7 rolling digits inside a small dark metal window (white digits on black wheels), often dusty, blurry, rusty, dark, or with glare. The window is frequently small and near the bottom of the pump, sometimes below a large printed label plate and beside hand-painted marks like "D1" — find that window and read the wheels inside it.
+export const MECHANICAL_PROMPT = `Read this mechanical gas-station meter: 6-7 rolling digits inside a small dark metal window (white digits on black wheels), often dusty, blurry, rusty, dark, or with glare. The window is frequently small and near the bottom of the pump, sometimes below a large printed label plate and beside hand-painted marks like "D1" — find that window and read the wheels inside it. It may also sit at the very TOP edge of the frame, partially cut off, with only the digit strip visible — read it anyway if the digits are legible.
 - Read the rolling digits left to right and KEEP leading zeros. Read THIS meter; do NOT copy the example below.
 - If the last digit is mid-roll between two values, record the SMALLER one.
 - If a digit is too blurry to read, write "?" in its place and set has_unreadable_digits=true.

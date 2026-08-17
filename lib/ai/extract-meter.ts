@@ -1,5 +1,5 @@
 import { callClaudeVision, parseJsonFromText } from '@/lib/ai/claude-vision'
-import { prepareImageForAI } from '@/lib/ai/image-prep'
+import { prepareImageCropsForAI, prepareImageForAI } from '@/lib/ai/image-prep'
 import { isAiMockEnabled, lookupMockExtraction, mockDelay } from '@/lib/ai/mock'
 import { ELECTRONIC_PROMPT, MECHANICAL_PROMPT, ROUTER_PROMPT } from '@/lib/ai/prompts'
 import {
@@ -37,8 +37,14 @@ function normalizeElectronic(result: ElectronicResult, router: RouterResult): Ex
 }
 
 function normalizeMechanical(result: MechanicalResult, router: RouterResult): ExtractMeterResult {
+  // A hedging reader ("unclear") that still produced digits yields to a router
+  // that positively classified the photo as a mechanical meter: the number
+  // lands in the right slot and the low confidence flags it for human review —
+  // better than parking the photo unmatched (the tiny-window TRỤ 3 case).
+  const routerSaysMechanical = router.image_type === 'mechanical_meter'
+  const trustDespiteHedge = routerSaysMechanical && result.reading !== null
   return {
-    meterType: result.meter_type === 'unclear' ? 'unclear' : 'mechanical',
+    meterType: result.meter_type === 'unclear' && !trustDespiteHedge ? 'unclear' : 'mechanical',
     reading: result.reading,
     stationLabel: result.station_label ?? null,
     dispenserLabel: result.dispenser_label ?? null,
@@ -122,6 +128,21 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
       .catch(() => null)
     if (elec && elec.meter_type !== 'unclear' && elec.reading) {
       return normalizeElectronic(elec, router)
+    }
+
+    // Zoom retry: a tiny counter at the frame's edge can be unreadable once the
+    // full photo is squeezed to 1568px (the DAKNONG1 TRỤ 3 case — the window sat
+    // at the very top, above the plate). Re-read top/bottom half crops, where
+    // the strip gets the whole pixel budget.
+    if (input.imageBuffer) {
+      for (const crop of await prepareImageCropsForAI(input.imageBuffer)) {
+        const cropMech = await callClaudeVision({ prompt: MECHANICAL_PROMPT, images: [crop] })
+          .then((text) => mechanicalSchema.parse(parseJsonFromText(text)))
+          .catch(() => null)
+        if (cropMech && cropMech.meter_type === 'mechanical' && cropMech.reading) {
+          return normalizeMechanical(cropMech, router)
+        }
+      }
     }
   }
 
