@@ -222,9 +222,9 @@ export const vi = {
     confirmPassword: 'Nhập lại mật khẩu mới',
     password: 'Mật khẩu',
     passwordHint: 'Đọc mật khẩu này cho kế toán — hệ thống không gửi email cho ai.',
-    usernameHint: 'Dùng để đăng nhập, dạng ten@truongthinh.local.',
-    usernameLocked:
-      'Tên đăng nhập không đổi được. Nhập sai thì ngưng hoạt động tài khoản đó và tạo lại.',
+    usernameHint:
+      'Dùng để đăng nhập, dạng ten@truongthinh.local. Tạo xong không sửa được — nhập kỹ.',
+    usernameLocked: 'Tên đăng nhập không đổi được.',
     stationsHint:
       'Một trạm có thể có nhiều kế toán cùng phụ trách. Tích vào trạm đã có người là thêm kế toán này vào đó, không lấy trạm khỏi ai.',
     stationsSelectAll: 'Chọn tất cả',
