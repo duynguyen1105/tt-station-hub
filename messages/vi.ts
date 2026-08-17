@@ -224,6 +224,7 @@ export const vi = {
       'Tên đăng nhập không đổi được. Nhập sai thì ngưng hoạt động tài khoản đó và tạo lại.',
     stationsHint:
       'Một trạm có thể có nhiều kế toán cùng phụ trách. Tích vào trạm đã có người là thêm kế toán này vào đó, không lấy trạm khỏi ai.',
+    stationsSelectAll: 'Chọn tất cả',
     stationHeldBy: 'Cùng phụ trách:',
     stationRelease: 'Sẽ bỏ phụ trách',
     suspend: 'Ngưng hoạt động',
