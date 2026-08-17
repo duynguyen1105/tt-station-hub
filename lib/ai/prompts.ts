@@ -93,7 +93,7 @@ Return JSON only:
 
 export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
 Read the printed label: the STATION name usually printed on the first line ("DAKNONG1", "PHUCTIEN"...), the tank ("HẦM" + number), the fuel type (DO / E0 / DC / XĂNG / URE), and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
-Read the measurement value EXACTLY as written/shown (it may be hand-written or a coloured overlay; keep it verbatim, including dots — its unit and conversion to liters are applied later from a barem table).
+Read the measurement value EXACTLY as shown, choosing the source in THIS order: (1) the number stamped in a COLOURED BADGE/BOX overlaid on the photo by the camera app (e.g. a red box in a corner) — when present, that badge IS the dip value; (2) otherwise a hand-written value. NEVER use the ruler's own engraved scale numbers (mm or inch markings printed along the ruler) as the value — the wet/red line on the ruler only shows the level's position, the declared value lives in the badge. Keep the value verbatim, including dots — its unit and conversion to liters are applied later from a barem table.
 
 Return JSON only (example values are placeholders, replace with what you actually see):
 {
