@@ -51,3 +51,42 @@ export async function prepareImageForAI(input: Buffer | Uint8Array): Promise<Pre
     return { base64: bytes.toString('base64'), mediaType: detectMediaType(bytes) }
   }
 }
+
+/**
+ * Top/bottom half crops at full resolution — the zoom retry for tiny meter
+ * windows. The full frame gets squeezed into 1568px, which can leave a small
+ * mechanical counter only a few dozen pixels tall; cropping first gives the
+ * strip the whole pixel budget (~2x effective zoom). Returns [] when sharp is
+ * unavailable, and the caller simply skips the retry.
+ */
+export async function prepareImageCropsForAI(input: Buffer | Uint8Array): Promise<PreparedImage[]> {
+  const bytes = Buffer.isBuffer(input) ? input : Buffer.from(input)
+  try {
+    const sharp = (await import('sharp')).default
+    const rotated = await sharp(bytes).rotate().toBuffer()
+    const meta = await sharp(rotated).metadata()
+    if (!meta.width || !meta.height) return []
+    const half = Math.round(meta.height * 0.55)
+    const regions = [
+      { left: 0, top: 0, width: meta.width, height: half },
+      { left: 0, top: meta.height - half, width: meta.width, height: half },
+    ]
+    const crops: PreparedImage[] = []
+    for (const region of regions) {
+      const output = await sharp(rotated)
+        .extract(region)
+        .resize({
+          width: MAX_DIMENSION,
+          height: MAX_DIMENSION,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 85 })
+        .toBuffer()
+      crops.push({ base64: output.toString('base64'), mediaType: 'image/jpeg' })
+    }
+    return crops
+  } catch {
+    return []
+  }
+}
