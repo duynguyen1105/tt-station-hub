@@ -98,6 +98,8 @@ export default async function ReviewShiftsPage() {
               const slotPhotos = photosByReading.get(reading.id)!
               const data: ReadingRowData = {
                 readingId: reading.id,
+                shiftId: reading.shiftId,
+                dispenserId: reading.dispenserId,
                 stationName: station?.name ?? '—',
                 dispenserName: dispenser?.displayName ?? '—',
                 fuelType: dispenser?.fuelType ?? '',

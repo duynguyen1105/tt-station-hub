@@ -48,3 +48,12 @@ export function canEditClosing(role: AppRole, shiftStatus: ShiftStatus): boolean
 export function canReviewShift(role: AppRole, shiftStatus: ShiftStatus): boolean {
   return canEditClosing(role, shiftStatus)
 }
+
+/**
+ * Creating a ca's reading by hand — for a Trụ no photo ever arrived for — follows
+ * the same rule as editing a closing: admin at any status, accountant until chốt.
+ * The opening of the row so created is still admin-only, per `canEditOpening`.
+ */
+export function canCreateReading(role: AppRole, shiftStatus: ShiftStatus): boolean {
+  return canEditClosing(role, shiftStatus)
+}
