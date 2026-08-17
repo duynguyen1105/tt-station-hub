@@ -816,6 +816,7 @@ export default async function StationInventoryPage({
               <thead>
                 <tr className="text-muted-foreground border-b text-left">
                   <th className="p-2">{vi.imports.importedAt}</th>
+                  <th className="p-2">{vi.imports.savedAt}</th>
                   <th className="p-2">{vi.inventory.tank}</th>
                   <th className="p-2">{vi.inventory.fuelType}</th>
                   <th className="p-2 text-right">{vi.imports.liters}</th>
@@ -842,6 +843,9 @@ export default async function StationInventoryPage({
                         formatDate(row.importedAt)
                       )}
                     </td>
+                    {/* When the slip was keyed into the app — the delivery date
+                        beside it can be days older than the data entry. */}
+                    <td className="p-2">{formatDateTime(row.createdAt)}</td>
                     <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
                     <td className="p-2">{fuelTypeLabel(row.fuelType)}</td>
                     <td className="p-2 text-right font-mono">
