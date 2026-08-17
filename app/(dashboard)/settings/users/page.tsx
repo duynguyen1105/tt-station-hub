@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { AccountantForm } from '@/components/accountants/accountant-form'
+import { StationOverflow } from '@/components/accountants/station-overflow'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { activeStationsWithHolders } from '@/lib/accountants/station-holders'
 import { requireRole } from '@/lib/auth/session'
@@ -8,6 +9,13 @@ import { isStationUncovered } from '@/lib/auth/station-access'
 import { prisma } from '@/lib/prisma'
 import { accountantStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
+
+/**
+ * How many trạm the cell names before the rest go behind a `+N`. Fixed rather
+ * than fitted to the width: fitting would mean measuring, and a measurement the
+ * server cannot take is a measurement the two of them can disagree about.
+ */
+const VISIBLE_STATIONS = 3
 
 export default async function SettingsAccountantsPage() {
   await requireRole('admin')
@@ -78,7 +86,18 @@ export default async function SettingsAccountantsPage() {
           </thead>
           <tbody>
             {accountants.map((accountant) => {
-              const held = stationsHeldBy.get(accountant.id)
+              const held = stationsHeldBy.get(accountant.id) ?? []
+              // Nothing marks a kế toán as covering everything, so covering
+              // everything is only ever what today's count says — put a trạm on
+              // and whoever was not given it stops reading as all of them, which
+              // is the truth about them rather than a lapse in the display.
+              //
+              // Only worth saying where naming them would not have fitted: with
+              // two or three trạm in the whole company, "Tất cả 3 trạm" is the
+              // same length as the three names and tells the reader less.
+              const coversAll =
+                stations.length > VISIBLE_STATIONS && held.length === stations.length
+              const hidden = held.slice(VISIBLE_STATIONS)
               const status = accountantStatusInfo(accountant.isActive)
               return (
                 <tr key={accountant.id} className="border-b">
@@ -95,11 +114,20 @@ export default async function SettingsAccountantsPage() {
                   </td>
                   <td className="p-2 font-mono">{accountant.email}</td>
                   <td className="p-2 font-mono">{accountant.phone ?? '—'}</td>
+                  {/* A row's worth of trạm, said in a row's worth of height:
+                      the whole list was a paragraph in a table of short values,
+                      and the one thing worth knowing about somebody phụ trách of
+                      all of them was the thing you had to count to find out. */}
                   <td className="p-2">
-                    {held ? (
-                      held.join(', ')
-                    ) : (
+                    {held.length === 0 ? (
                       <span className="text-muted-foreground">{vi.accountants.noStations}</span>
+                    ) : coversAll ? (
+                      vi.accountants.allStations(stations.length)
+                    ) : (
+                      <span className="inline-flex items-baseline gap-1.5">
+                        {held.slice(0, VISIBLE_STATIONS).join(', ')}
+                        {hidden.length > 0 ? <StationOverflow names={hidden} /> : null}
+                      </span>
                     )}
                   </td>
                   <td className="p-2">
