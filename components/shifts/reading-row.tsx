@@ -25,10 +25,10 @@ import { vi } from '@/messages/vi'
 
 export type ReadingRowData = {
   readingId: string | null
-  // Together these let a row WITHOUT a reading yet (photo never arrived) accept
-  // manual entry — the values create the reading via /api/shifts/[id]/readings.
-  shiftId?: string
-  dispenserId?: string
+  // The ca and the Trụ address a reading that does not exist yet — a Trụ no
+  // photo arrived for is filled in by hand through them.
+  shiftId: string
+  dispenserId: string
   stationName?: string | null
   dispenserName: string
   fuelType: string
@@ -239,10 +239,9 @@ export function ReadingRow({
   const busy = submitting || pending
 
   const info = data.reviewStatus ? reviewStatusInfo(data.reviewStatus) : null
+  // Duyệt / Từ chối need a reading to decide on; the value cells do not — typing
+  // into a Trụ that has none creates it.
   const canAct = data.readingId !== null
-  // Editable even with no reading yet, as long as the row knows where a manual
-  // entry would land (shift + dispenser).
-  const canEnter = canAct || (data.shiftId != null && data.dispenserId != null)
   const alreadyApproved = data.reviewStatus === 'approved' || data.reviewStatus === 'auto_approved'
   const alreadyRejected = data.reviewStatus === 'rejected'
   // A decided row closes both buttons — the call is made. Only an admin keeps the
@@ -281,18 +280,16 @@ export function ReadingRow({
     field: string,
     value: string
   ): Promise<boolean> {
-    // No reading yet (the trụ's photo never arrived): the same edit CREATES the
-    // reading instead of patching one — same policy, same audit trail.
-    if (!data.readingId && !(data.shiftId && data.dispenserId)) return false
+    // A Trụ with no reading yet is addressed by ca + Trụ instead; that endpoint
+    // creates the row on the first value saved, then this row has an id like
+    // any other and the correction endpoints take over.
+    const url = data.readingId
+      ? `/api/readings/${data.readingId}/${endpoint}`
+      : `/api/shifts/${data.shiftId}/readings/${data.dispenserId}`
     setSubmitting(true)
-    const result = data.readingId
-      ? await postAction(`/api/readings/${data.readingId}/${endpoint}`, {
-          [field]: value || null,
-        })
-      : await postAction(`/api/shifts/${data.shiftId}/readings`, {
-          dispenserId: data.dispenserId,
-          [field]: value || null,
-        })
+    const result = await postAction(url, {
+      [field]: value || null,
+    })
     if (result.ok) {
       startTransition(() => {
         router.refresh()
@@ -316,7 +313,7 @@ export function ReadingRow({
       <td className="p-2 font-mono">
         <EditableReading
           value={data.openingElectronicReading}
-          canEdit={adminOpening && canEnter}
+          canEdit={adminOpening}
           lockHint={showLocks ? vi.correction.adminOnly : undefined}
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingElectronicReading', next)}
@@ -325,7 +322,7 @@ export function ReadingRow({
       <td className="p-2 font-mono">
         <EditableReading
           value={data.electronicReading}
-          canEdit={mayEditClosing && canEnter}
+          canEdit={mayEditClosing}
           lockHint={showLocks ? vi.correction.closingLocked : undefined}
           confidence={data.electronicConfidence}
           busy={busy}
@@ -342,7 +339,7 @@ export function ReadingRow({
       <td className="p-2 font-mono">
         <EditableReading
           value={data.openingMechanicalReading}
-          canEdit={adminOpening && canEnter}
+          canEdit={adminOpening}
           lockHint={showLocks ? vi.correction.adminOnly : undefined}
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingMechanicalReading', next)}
@@ -351,7 +348,7 @@ export function ReadingRow({
       <td className="p-2 font-mono">
         <EditableReading
           value={data.mechanicalReading}
-          canEdit={mayEditClosing && canEnter}
+          canEdit={mayEditClosing}
           lockHint={showLocks ? vi.correction.closingLocked : undefined}
           confidence={data.mechanicalConfidence}
           busy={busy}
