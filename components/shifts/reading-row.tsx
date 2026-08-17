@@ -231,12 +231,15 @@ export function ReadingRow({
   mechanicalSlots: number
 }) {
   const router = useRouter()
-  const [submitting, setSubmitting] = useState(false)
+  // Which write is in flight, not merely whether one is — the row shows Duyệt and
+  // Từ chối side by side, and only the one that was clicked should spin. 'field'
+  // is the inline cell edit, which greys the row without spinning any button.
+  const [acting, setActing] = useState<'approve' | 'reject' | 'field' | null>(null)
   // The refresh runs inside a transition, so `pending` spans the RSC round-trip
   // that follows every write — together the two flags keep the row disabled from
   // the click until the fresh values commit, without a gap in between.
   const [pending, startTransition] = useTransition()
-  const busy = submitting || pending
+  const busy = acting !== null || pending
 
   const info = data.reviewStatus ? reviewStatusInfo(data.reviewStatus) : null
   // Duyệt / Từ chối need a reading to decide on; the value cells do not — typing
@@ -258,19 +261,19 @@ export function ReadingRow({
 
   async function act(action: 'approve' | 'reject') {
     if (!data.readingId) return
-    setSubmitting(true)
+    setActing(action)
     const result = await postAction(`/api/readings/${data.readingId}/${action}`)
     if (!result.ok) {
-      setSubmitting(false)
+      setActing(null)
       toast.error(result.error ?? vi.errors.generic)
       return
     }
-    // Clearing `submitting` inside the transition hands the disabled state over to
+    // Clearing `acting` inside the transition hands the disabled state over to
     // `pending`, so the buttons grey out once on the click and stay grey until the
     // decided row arrives — instead of blinking back on when the POST returns.
     startTransition(() => {
       router.refresh()
-      setSubmitting(false)
+      setActing(null)
     })
     toast.success(action === 'approve' ? vi.review.approved : vi.review.rejected)
   }
@@ -286,19 +289,19 @@ export function ReadingRow({
     const url = data.readingId
       ? `/api/readings/${data.readingId}/${endpoint}`
       : `/api/shifts/${data.shiftId}/readings/${data.dispenserId}`
-    setSubmitting(true)
+    setActing('field')
     const result = await postAction(url, {
       [field]: value || null,
     })
     if (result.ok) {
       startTransition(() => {
         router.refresh()
-        setSubmitting(false)
+        setActing(null)
       })
       toast.success(vi.correction.saved)
       return true
     }
-    setSubmitting(false)
+    setActing(null)
     toast.error(result.error ?? vi.errors.generic)
     return false
   }
@@ -381,6 +384,7 @@ export function ReadingRow({
               size="sm"
               variant="outline"
               disabled={approveDisabled}
+              loading={acting === 'approve'}
               onClick={() => act('approve')}
             >
               {vi.common.approve}
@@ -391,6 +395,7 @@ export function ReadingRow({
               size="sm"
               variant="ghost"
               disabled={rejectDisabled}
+              loading={acting === 'reject'}
               onClick={() => act('reject')}
             >
               {vi.common.reject}

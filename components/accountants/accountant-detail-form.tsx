@@ -107,7 +107,7 @@ export function AccountantDetailForm({
       {/* Ruled off rather than trailing the last field: with two columns there is
           no last field to trail, and the one Lưu covers both of them. */}
       <div className="flex justify-end border-t pt-4">
-        <Button onClick={submit} disabled={busy}>
+        <Button onClick={submit} loading={busy}>
           {vi.common.save}
         </Button>
       </div>

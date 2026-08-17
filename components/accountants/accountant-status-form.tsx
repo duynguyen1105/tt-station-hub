@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,21 +41,30 @@ export type StatusAccountant = {
  */
 export function AccountantStatusForm({ accountant }: { accountant: StatusAccountant }) {
   const { busy, save } = useSaveAction()
+  const [open, setOpen] = useState(false)
   const suspending = accountant.isActive
 
   function submit() {
-    save(`/api/users/${accountant.id}`, {
-      method: 'PATCH',
-      // Only the state of the tài khoản. Họ tên, số điện thoại and — above all —
-      // the trạm phụ trách are left out, so ngưng hoạt động keeps the assignment
-      // and kích hoạt gives the person back the same trạm they had.
-      body: { isActive: !accountant.isActive },
-      success: suspending ? vi.accountants.suspendDone : vi.accountants.restoreDone,
-    })
+    save(
+      `/api/users/${accountant.id}`,
+      {
+        method: 'PATCH',
+        // Only the state of the tài khoản. Họ tên, số điện thoại and — above all —
+        // the trạm phụ trách are left out, so ngưng hoạt động keeps the assignment
+        // and kích hoạt gives the person back the same trạm they had.
+        body: { isActive: !accountant.isActive },
+        success: suspending ? vi.accountants.suspendDone : vi.accountants.restoreDone,
+      },
+      // Closes with the refresh, so the dialog holds its spinner until the fresh
+      // row commits rather than vanishing the moment the PATCH is sent.
+      { onSuccess: () => setOpen(false) }
+    )
   }
 
   return (
-    <AlertDialog>
+    // Controlled so the click can be intercepted: the default Action closes the
+    // dialog immediately, which would unmount the spinner on sight.
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger asChild>
         <Button
           size="sm"
@@ -81,7 +92,13 @@ export function AccountantStatusForm({ accountant }: { accountant: StatusAccount
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
-          <AlertDialogAction onClick={submit}>
+          <AlertDialogAction
+            loading={busy}
+            onClick={(e) => {
+              e.preventDefault()
+              submit()
+            }}
+          >
             {suspending ? vi.accountants.suspend : vi.accountants.restore}
           </AlertDialogAction>
         </AlertDialogFooter>
