@@ -14,6 +14,7 @@ export const vi = {
     upload: 'Tải ảnh',
     misaReport: 'Báo cáo MISA',
     settings: 'Cài đặt',
+    accountants: 'Kế toán',
   },
 
   stationTabs: {
@@ -52,6 +53,7 @@ export const vi = {
     invalidEmail: 'Email không hợp lệ',
     passwordRequired: 'Vui lòng nhập mật khẩu',
     loginFailed: 'Đăng nhập thất bại. Kiểm tra lại email và mật khẩu.',
+    accountSuspended: 'Tài khoản đã bị ngưng hoạt động. Vui lòng liên hệ quản trị viên.',
   },
 
   roles: {
@@ -195,6 +197,57 @@ export const vi = {
     sale: 'Bán',
     physical_count: 'Kiểm kê',
     adjustment: 'Điều chỉnh',
+  },
+
+  accountants: {
+    title: 'Kế toán',
+    subtitle: 'Danh sách kế toán và trạm phụ trách.',
+    fullName: 'Họ tên',
+    username: 'Tên đăng nhập',
+    phone: 'Số điện thoại',
+    assignedStations: 'Trạm phụ trách',
+    accountStatus: 'Tài khoản',
+    active: 'Đang hoạt động',
+    suspended: 'Đã ngưng hoạt động',
+    noStations: 'Chưa phụ trách trạm nào',
+    allStations: (count: number) => `Tất cả ${count} trạm`,
+    moreStations: (count: number) => `+${count} trạm`,
+    otherStations: 'Trạm phụ trách còn lại',
+    empty: 'Chưa có kế toán nào.',
+    uncoveredNone: 'Mọi trạm đều có kế toán phụ trách.',
+    uncoveredPrefix: 'Trạm chưa có kế toán phụ trách:',
+    addTitle: 'Thêm kế toán',
+    resetPassword: 'Đặt lại mật khẩu',
+    newPassword: 'Mật khẩu mới',
+    confirmPassword: 'Nhập lại mật khẩu mới',
+    password: 'Mật khẩu',
+    passwordHint: 'Đọc mật khẩu này cho kế toán — hệ thống không gửi email cho ai.',
+    usernameHint:
+      'Dùng để đăng nhập, dạng ten@truongthinh.local. Tạo xong không sửa được — nhập kỹ.',
+    usernameLocked: 'Tên đăng nhập không đổi được.',
+    stationsHint:
+      'Một trạm có thể có nhiều kế toán cùng phụ trách. Tích vào trạm đã có người là thêm kế toán này vào đó, không lấy trạm khỏi ai.',
+    stationsSelectAll: 'Chọn tất cả',
+    stationHeldBy: 'Cùng phụ trách:',
+    stationRelease: 'Sẽ bỏ phụ trách',
+    suspend: 'Ngưng hoạt động',
+    restore: 'Kích hoạt',
+    suspendConfirmTitle: 'Ngưng hoạt động tài khoản này?',
+    suspendConfirmBody:
+      'Người này bị từ chối ngay ở thao tác tiếp theo, không phải đợi tới lần đăng nhập sau. Trạm phụ trách vẫn giữ nguyên để lúc kích hoạt lại là có việc ngay, nhưng những trạm đó được tính là chưa có kế toán cho tới khi đó.',
+    restoreConfirmTitle: 'Kích hoạt lại tài khoản này?',
+    restoreConfirmBody:
+      'Người này đăng nhập lại được ngay, vẫn phụ trách đúng những trạm như trước khi bị ngưng.',
+    created: 'Đã tạo kế toán.',
+    updated: 'Đã lưu thay đổi.',
+    suspendDone: 'Đã ngưng hoạt động tài khoản.',
+    restoreDone: 'Đã kích hoạt lại tài khoản.',
+    passwordResetDone: 'Đã đặt lại mật khẩu.',
+    usernameTaken: 'Tên đăng nhập này đã có người dùng.',
+    fullNameRequired: 'Vui lòng nhập họ tên.',
+    usernameInvalid: 'Tên đăng nhập phải có dạng ten@truongthinh.local.',
+    passwordTooShort: 'Mật khẩu phải có ít nhất 8 ký tự.',
+    passwordMismatch: 'Hai mật khẩu không khớp.',
   },
 
   stations: {
@@ -596,7 +649,8 @@ export const vi = {
     amountMismatch: 'Lệch số hiển thị — cần kiểm tra',
     extractionFailed: 'AI chưa đọc được. Ảnh đã được lưu, bạn có thể kiểm tra thủ công.',
     uploaded: 'Đã tải ảnh lên thành công.',
-    noStations: 'Chưa có trạm nào. Hãy chạy seed dữ liệu trước.',
+    // Now most often a kế toán phụ trách of no trạm, not an unseeded database.
+    noStations: 'Chưa có trạm nào để chọn.',
     viewReview: 'Mở hàng đợi cần duyệt',
     empty: '—',
   },

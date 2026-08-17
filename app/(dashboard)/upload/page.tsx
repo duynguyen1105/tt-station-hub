@@ -1,12 +1,14 @@
 import { PhotoUploadForm } from '@/components/photos/photo-upload-form'
 import { requireUser } from '@/lib/auth/session'
+import { reachableStationIds } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
 export default async function UploadPage() {
-  await requireUser()
+  const user = await requireUser()
 
-  const [stations, dispensers] = await Promise.all([
+  const [reachable, allStations, allDispensers] = await Promise.all([
+    reachableStationIds(user).then((ids) => new Set(ids)),
     prisma.station.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
@@ -18,6 +20,13 @@ export default async function UploadPage() {
       select: { id: true, stationId: true, displayName: true, fuelType: true },
     }),
   ])
+
+  // A kế toán is offered the trạm they are phụ trách of and no other, so a photo
+  // cannot be filed against someone else's trạm by a slip of the finger — and the
+  // trụ follow the trạm, since a pump is only ever picked for the trạm it is on.
+  const stations = allStations.filter((station) => reachable.has(station.id))
+  const offeredStationIds = new Set(stations.map((station) => station.id))
+  const dispensers = allDispensers.filter((dispenser) => offeredStationIds.has(dispenser.stationId))
 
   return (
     <div className="space-y-6">

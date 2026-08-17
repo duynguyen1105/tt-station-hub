@@ -6,6 +6,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 
 const updateSchema = z.object({
@@ -33,6 +34,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const customer = await prisma.debtCustomer.findUnique({ where: { id } })
   if (!customer) return notFound()
+  if (customer.stationId && !(await canReachStation(user, customer.stationId))) {
+    return forbidden()
+  }
 
   const { misaCode, name, phone, knownPlates } = parsed.data
   const updated = await prisma.debtCustomer.update({

@@ -1,5 +1,6 @@
 'use client'
 
+import { LoaderCircle } from 'lucide-react'
 import { AlertDialog as AlertDialogPrimitive } from 'radix-ui'
 
 import * as React from 'react'
@@ -135,16 +136,26 @@ function AlertDialogAction({
   className,
   variant = 'default',
   size = 'default',
+  loading = false,
+  disabled,
+  children,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
-  Pick<React.ComponentProps<typeof Button>, 'variant' | 'size'>) {
+  Pick<React.ComponentProps<typeof Button>, 'variant' | 'size' | 'loading'>) {
   return (
+    // The spinner goes inside the Action rather than beside it — Button is `asChild`
+    // here, so its own `loading` is inert and Slot still needs a single child.
     <Button variant={variant} size={size} asChild>
       <AlertDialogPrimitive.Action
         data-slot="alert-dialog-action"
-        className={cn(className)}
+        aria-busy={loading || undefined}
+        disabled={loading || disabled}
+        className={cn(loading && '[&_svg:not(.animate-spin)]:hidden', className)}
         {...props}
-      />
+      >
+        {loading ? <LoaderCircle className="animate-spin" /> : null}
+        {children}
+      </AlertDialogPrimitive.Action>
     </Button>
   )
 }

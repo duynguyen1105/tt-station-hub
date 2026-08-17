@@ -2,6 +2,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation } from '@/lib/auth/station-guard'
 import { computeShiftSales } from '@/lib/inventory/shift-sales'
 import { prisma } from '@/lib/prisma'
 
@@ -12,6 +13,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const shift = await prisma.shift.findUnique({ where: { id } })
   if (!shift) return notFound()
+  // Chốt is the closing decision the queue is asking for; it is refused for a
+  // trạm the person does not hold, like the approvals that lead up to it.
+  if (!(await canReachStation(user, shift.stationId))) return forbidden()
   if (!canReviewShift(user.role, shift.status as ShiftStatus)) return forbidden()
   if (shift.status === 'completed') return badRequest('Ca này đã được chốt.')
 

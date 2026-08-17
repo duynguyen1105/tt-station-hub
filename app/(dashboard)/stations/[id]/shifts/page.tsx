@@ -1,16 +1,17 @@
 import { ChevronRight } from 'lucide-react'
 
-import { NavLink } from '@/components/shared/nav-link'
+import Link from 'next/link'
+
 import { StatusBadge } from '@/components/shared/status-badge'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export default async function StationShiftsPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser()
   const { id } = await params
+  await requireStationAccess(id)
   const shifts = await prisma.shift.findMany({
     where: { stationId: id },
     orderBy: { shiftDate: 'desc' },
@@ -32,7 +33,7 @@ export default async function StationShiftsPage({ params }: { params: Promise<{ 
       {shifts.map((shift) => {
         const status = shiftStatusInfo(shift.status)
         return (
-          <NavLink
+          <Link
             key={shift.id}
             href={`/stations/${id}/shifts/${shift.id}`}
             className="hover:bg-muted/40 grid grid-cols-[1.2fr_1fr_1fr_auto] items-center gap-3 border-b px-3 py-3 text-sm transition-colors last:border-0"
@@ -46,7 +47,7 @@ export default async function StationShiftsPage({ params }: { params: Promise<{ 
               {vi.shifts.viewDetail}
               <ChevronRight className="size-4" />
             </span>
-          </NavLink>
+          </Link>
         )
       })}
     </div>

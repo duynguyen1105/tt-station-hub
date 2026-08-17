@@ -103,7 +103,7 @@ export function PaymentForm({
           <Button variant="outline" onClick={() => setOpen(false)}>
             {vi.common.cancel}
           </Button>
-          <Button onClick={submit} disabled={busy}>
+          <Button onClick={submit} loading={busy}>
             {vi.common.save}
           </Button>
         </DialogFooter>

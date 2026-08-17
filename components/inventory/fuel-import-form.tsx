@@ -766,7 +766,7 @@ export function FuelImportForm({
               <Button variant="outline" onClick={manualEntry} disabled={busy}>
                 {vi.imports.manualEntry}
               </Button>
-              <Button onClick={readBienBan} disabled={busy}>
+              <Button onClick={readBienBan} loading={busy}>
                 {busy ? vi.imports.reading : vi.imports.readAi}
               </Button>
             </DialogFooter>
@@ -1281,7 +1281,7 @@ export function FuelImportForm({
               <Button variant="outline" onClick={() => setStep(1)} disabled={busy}>
                 {vi.imports.back}
               </Button>
-              <Button onClick={confirm} disabled={busy}>
+              <Button onClick={confirm} loading={busy}>
                 {vi.imports.confirmSave}
               </Button>
             </DialogFooter>
@@ -1296,7 +1296,7 @@ export function FuelImportForm({
               <Button variant="outline" onClick={finish} disabled={busy}>
                 {vi.imports.skipRelated}
               </Button>
-              <Button onClick={uploadRelated} disabled={busy}>
+              <Button onClick={uploadRelated} loading={busy}>
                 {busy ? vi.imports.uploading : vi.imports.done}
               </Button>
             </DialogFooter>

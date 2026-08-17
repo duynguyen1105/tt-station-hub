@@ -1,4 +1,5 @@
 import { type VariantProps, cva } from 'class-variance-authority'
+import { LoaderCircle } from 'lucide-react'
 import { Slot } from 'radix-ui'
 
 import * as React from 'react'
@@ -47,21 +48,46 @@ function Button({
   variant = 'default',
   size = 'default',
   asChild = false,
+  loading = false,
+  disabled,
+  children,
   ...props
 }: React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
+    /** Swaps the button's icon for a spinner and disables it for the call. */
+    loading?: boolean
   }) {
   const Comp = asChild ? Slot.Root : 'button'
+  // Slot.Root takes exactly one child, so under `asChild` we must hand it `children`
+  // alone — even a `null` sibling makes it an array and Slot throws. `loading` is
+  // therefore inert there, and those callers render their own spinner.
+  const showSpinner = loading && !asChild
 
   return (
     <Comp
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      aria-busy={showSpinner || undefined}
+      disabled={showSpinner || disabled}
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        // Hides whatever icon the caller passed while the spinner — the only
+        // .animate-spin svg — stays, so the button keeps its width either way.
+        showSpinner && '[&_svg:not(.animate-spin)]:hidden'
+      )}
       {...props}
-    />
+    >
+      {showSpinner ? (
+        <>
+          <LoaderCircle className="animate-spin" />
+          {children}
+        </>
+      ) : (
+        children
+      )}
+    </Comp>
   )
 }
 

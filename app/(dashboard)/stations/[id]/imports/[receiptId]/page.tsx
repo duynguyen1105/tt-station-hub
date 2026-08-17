@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { ReceiptDocUpload } from '@/components/inventory/receipt-doc-upload'
 import { StatusBadge } from '@/components/shared/status-badge'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDateTime, formatLiters } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { REVIEW_URL_TTL_SECONDS, signedUrlsForPaths } from '@/lib/storage/photo-storage'
@@ -104,8 +104,8 @@ export default async function ImportReceiptPage({
 }: {
   params: Promise<{ id: string; receiptId: string }>
 }) {
-  const user = await requireUser()
   const { id: stationId, receiptId } = await params
+  const user = await requireStationAccess(stationId)
 
   const receipt = await prisma.fuelImportReceipt.findUnique({ where: { id: receiptId } })
   if (!receipt || receipt.stationId !== stationId) notFound()

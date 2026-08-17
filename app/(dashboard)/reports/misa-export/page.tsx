@@ -1,19 +1,28 @@
 import { ExportPreflightDialog } from '@/components/misa-export/export-preflight-dialog'
 import { requireUser } from '@/lib/auth/session'
+import { reachableStationIds } from '@/lib/auth/station-guard'
 import { formatDate } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export default async function MisaExportPage() {
-  await requireUser()
+  const user = await requireUser()
+  // A kế toán is offered the ca of the trạm they are phụ trách of, and the
+  // narrowing happens in the query: the fifty rows below are fifty rows of their
+  // own work rather than whatever survives someone else's more recent ca. Phụ
+  // trách of none is the empty table, not an error.
+  const stationIds = await reachableStationIds(user)
   const [shifts, stations] = await Promise.all([
     prisma.shift.findMany({
-      where: { status: 'completed' },
+      where: { status: 'completed', stationId: { in: stationIds } },
       orderBy: { completedAt: 'desc' },
       take: 50,
     }),
-    prisma.station.findMany({ select: { id: true, name: true } }),
+    prisma.station.findMany({
+      where: { id: { in: stationIds } },
+      select: { id: true, name: true },
+    }),
   ])
   const stationNameById = new Map(stations.map((s) => [s.id, s.name]))
 

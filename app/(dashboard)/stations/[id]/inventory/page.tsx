@@ -1,11 +1,13 @@
+import Link from 'next/link'
+
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
+import { ImportFilterForm } from '@/components/inventory/import-filter-form'
 import { MovementForm } from '@/components/inventory/movement-form'
 import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
-import { NavLink } from '@/components/shared/nav-link'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
@@ -69,8 +71,8 @@ export default async function StationInventoryPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ from?: string; to?: string; tab?: string; page?: string }>
 }) {
-  const user = await requireUser()
   const { id } = await params
+  const user = await requireStationAccess(id)
   const today = todayShiftDate()
 
   // The histories grow every day, so each lives in its own sub-tab with
@@ -384,12 +386,9 @@ export default async function StationInventoryPage({
     return (
       <div className="flex items-center justify-end gap-3 text-sm">
         {pageNum > 1 ? (
-          <NavLink
-            href={pageHref(pageNum - 1)}
-            className="text-primary underline underline-offset-2"
-          >
+          <Link href={pageHref(pageNum - 1)} className="text-primary underline underline-offset-2">
             {vi.inventory.pagePrev}
-          </NavLink>
+          </Link>
         ) : (
           <span className="text-muted-foreground">{vi.inventory.pagePrev}</span>
         )}
@@ -397,12 +396,9 @@ export default async function StationInventoryPage({
           {vi.inventory.pageOf} {Math.min(pageNum, lastPage)}/{lastPage}
         </span>
         {pageNum < lastPage ? (
-          <NavLink
-            href={pageHref(pageNum + 1)}
-            className="text-primary underline underline-offset-2"
-          >
+          <Link href={pageHref(pageNum + 1)} className="text-primary underline underline-offset-2">
             {vi.inventory.pageNext}
-          </NavLink>
+          </Link>
         ) : (
           <span className="text-muted-foreground">{vi.inventory.pageNext}</span>
         )}
@@ -437,7 +433,7 @@ export default async function StationInventoryPage({
       {/* Sub-tabs: the overview stays fixed-size, each history paginates. */}
       <nav className="flex gap-4 border-b text-sm">
         {TABS.map((t) => (
-          <NavLink
+          <Link
             key={t}
             href={tabHref(t)}
             className={
@@ -447,7 +443,7 @@ export default async function StationInventoryPage({
             }
           >
             {TAB_LABELS[t]}
-          </NavLink>
+          </Link>
         ))}
       </nav>
 
@@ -504,20 +500,20 @@ export default async function StationInventoryPage({
                         </td>
                         <td className="p-2 text-right">
                           {/* Every component links to its own evidence trail. */}
-                          <NavLink
+                          <Link
                             href={tabHref('nhap-hang')}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.importedLiters)}
-                          </NavLink>
+                          </Link>
                         </td>
                         <td className="p-2 text-right">
-                          <NavLink
+                          <Link
                             href={`/stations/${id}/shifts`}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.soldLiters)}
-                          </NavLink>
+                          </Link>
                         </td>
                         <td className="p-2 text-right font-mono">
                           {book.summary.adjustedLiters === 0
@@ -798,33 +794,10 @@ export default async function StationInventoryPage({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-muted-foreground text-sm font-medium">{vi.imports.recent}</h3>
             <div className="flex flex-wrap items-center gap-2">
-              {/* Plain GET form: the filter lives in the URL, so it survives
-                refresh and can be shared — no client JS involved. */}
-              <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
-                {/* GET submit resets the query string; keep the tab (page resets to 1 on purpose). */}
-                <input type="hidden" name="tab" value="nhap-hang" />
-                <label className="text-muted-foreground flex items-center gap-1">
-                  {vi.imports.fromDate}
-                  <input
-                    type="date"
-                    name="from"
-                    defaultValue={from && fromDate ? from : undefined}
-                    className="border-input bg-background h-8 rounded-md border px-2"
-                  />
-                </label>
-                <label className="text-muted-foreground flex items-center gap-1">
-                  {vi.imports.toDate}
-                  <input
-                    type="date"
-                    name="to"
-                    defaultValue={to && toDate ? to : undefined}
-                    className="border-input bg-background h-8 rounded-md border px-2"
-                  />
-                </label>
-                <Button type="submit" size="sm" variant="outline">
-                  {vi.imports.filter}
-                </Button>
-              </form>
+              <ImportFilterForm
+                from={from && fromDate ? from : undefined}
+                to={to && toDate ? to : undefined}
+              />
               <Button asChild size="sm" variant="outline">
                 <a
                   href={`/api/imports/export?stationId=${id}${
@@ -843,6 +816,7 @@ export default async function StationInventoryPage({
               <thead>
                 <tr className="text-muted-foreground border-b text-left">
                   <th className="p-2">{vi.imports.importedAt}</th>
+                  <th className="p-2">{vi.imports.savedAt}</th>
                   <th className="p-2">{vi.inventory.tank}</th>
                   <th className="p-2">{vi.inventory.fuelType}</th>
                   <th className="p-2 text-right">{vi.imports.liters}</th>
@@ -859,16 +833,19 @@ export default async function StationInventoryPage({
                     <td className="p-2">
                       {row.receiptId ? (
                         // A wizard slip opens its saved biên bản for cross-checking.
-                        <NavLink
+                        <Link
                           href={`/stations/${id}/imports/${row.receiptId}`}
                           className="text-primary underline underline-offset-2"
                         >
                           {formatDate(row.importedAt)}
-                        </NavLink>
+                        </Link>
                       ) : (
                         formatDate(row.importedAt)
                       )}
                     </td>
+                    {/* When the slip was keyed into the app — the delivery date
+                        beside it can be days older than the data entry. */}
+                    <td className="p-2">{formatDateTime(row.createdAt)}</td>
                     <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
                     <td className="p-2">{fuelTypeLabel(row.fuelType)}</td>
                     <td className="p-2 text-right font-mono">

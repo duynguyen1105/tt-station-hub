@@ -1,7 +1,7 @@
 import { DocumentForm } from '@/components/documents/document-form'
 import { DocumentsNote } from '@/components/documents/documents-note'
 import { ExpiryBadge } from '@/components/documents/expiry-badge'
-import { requireUser } from '@/lib/auth/session'
+import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { REVIEW_URL_TTL_SECONDS, signedUrlsForPaths } from '@/lib/storage/photo-storage'
@@ -14,8 +14,8 @@ export default async function StationDocumentsPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const user = await requireUser()
   const { id } = await params
+  const user = await requireStationAccess(id)
   const [station, documents] = await Promise.all([
     prisma.station.findUnique({ where: { id }, select: { documentsNote: true } }),
     prisma.stationDocument.findMany({

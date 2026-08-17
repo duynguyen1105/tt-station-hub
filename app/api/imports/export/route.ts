@@ -2,8 +2,9 @@ import ExcelJS from 'exceljs'
 
 import { type NextRequest } from 'next/server'
 
-import { unauthorized } from '@/lib/api/response'
+import { forbidden, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
+import { canReachStation, reachableStationIds } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -27,9 +28,11 @@ export async function GET(req: NextRequest) {
     ? new Date(`${searchParams.get('from')}T00:00:00+07:00`)
     : new Date(to.getTime() - 31 * DAY_MS)
 
+  if (stationId && !(await canReachStation(user, stationId))) return forbidden()
+
   const imports = await prisma.fuelImport.findMany({
     where: {
-      ...(stationId ? { stationId } : {}),
+      stationId: stationId ?? { in: await reachableStationIds(user) },
       importedAt: { gte: from, lte: to },
     },
     orderBy: { importedAt: 'asc' },
@@ -61,6 +64,7 @@ export async function GET(req: NextRequest) {
   const ws = wb.addWorksheet('Nhập hàng')
   ws.columns = [
     { header: 'Ngày giờ nhập', key: 'importedAt', width: 18 },
+    { header: 'Lưu lúc', key: 'savedAt', width: 18 },
     { header: 'Trạm', key: 'station', width: 16 },
     { header: 'Hầm', key: 'tank', width: 10 },
     { header: 'Loại hàng', key: 'fuel', width: 12 },
@@ -82,6 +86,7 @@ export async function GET(req: NextRequest) {
     const station = stationById.get(row.stationId)
     ws.addRow({
       importedAt: row.importedAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+      savedAt: row.createdAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       station: station?.name ?? station?.code ?? '',
       tank: row.tankCode.replace('HAM_', 'Hầm '),
       fuel: fuelLabels[row.fuelType] ?? row.fuelType,
