@@ -112,6 +112,9 @@ export default async function ShiftDetailPage({
     const slotPhotos = r ? readingPhotosForSlots(r, matchedPhotos, photoUrlById) : null
     return {
       readingId: r?.id ?? null,
+      // Lets a photo-less row take manual entry (creates the reading).
+      shiftId: shift.id,
+      dispenserId: d.id,
       dispenserName: d.displayName,
       fuelType: d.fuelType,
       openingElectronicReading: r?.openingElectronicReading?.toString() ?? null,
