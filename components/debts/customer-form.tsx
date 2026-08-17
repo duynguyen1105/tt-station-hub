@@ -151,7 +151,7 @@ export function CustomerForm({
           <Button variant="outline" onClick={() => setOpen(false)}>
             {vi.common.cancel}
           </Button>
-          <Button onClick={save} disabled={busy}>
+          <Button onClick={save} loading={busy}>
             {vi.common.save}
           </Button>
         </DialogFooter>

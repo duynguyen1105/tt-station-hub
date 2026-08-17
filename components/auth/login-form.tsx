@@ -70,7 +70,7 @@ export function LoginForm() {
           />
           {errors.password ? <FieldError>{errors.password.message}</FieldError> : null}
         </Field>
-        <Button type="submit" disabled={isSubmitting} className="w-full">
+        <Button type="submit" loading={isSubmitting} className="w-full">
           {isSubmitting ? vi.auth.loggingIn : vi.auth.login}
         </Button>
       </FieldGroup>

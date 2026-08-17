@@ -110,7 +110,7 @@ export function AccountantPasswordForm({ accountant }: { accountant: PasswordRes
           <Button variant="outline" onClick={() => openChange(false)}>
             {vi.common.cancel}
           </Button>
-          <Button onClick={submit} disabled={busy}>
+          <Button onClick={submit} loading={busy}>
             {vi.common.save}
           </Button>
         </DialogFooter>

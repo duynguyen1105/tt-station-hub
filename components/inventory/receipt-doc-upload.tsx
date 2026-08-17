@@ -47,7 +47,7 @@ export function ReceiptDocUpload({ receiptId }: { receiptId: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Input ref={fileRef} type="file" multiple accept="image/*,.pdf" className="max-w-xs" />
-      <Button size="sm" onClick={upload} disabled={busy}>
+      <Button size="sm" onClick={upload} loading={busy}>
         {busy ? vi.imports.uploading : vi.imports.addDocs}
       </Button>
     </div>

@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
+import { ImportFilterForm } from '@/components/inventory/import-filter-form'
 import { MovementForm } from '@/components/inventory/movement-form'
 import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -793,33 +794,10 @@ export default async function StationInventoryPage({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-muted-foreground text-sm font-medium">{vi.imports.recent}</h3>
             <div className="flex flex-wrap items-center gap-2">
-              {/* Plain GET form: the filter lives in the URL, so it survives
-                refresh and can be shared — no client JS involved. */}
-              <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
-                {/* GET submit resets the query string; keep the tab (page resets to 1 on purpose). */}
-                <input type="hidden" name="tab" value="nhap-hang" />
-                <label className="text-muted-foreground flex items-center gap-1">
-                  {vi.imports.fromDate}
-                  <input
-                    type="date"
-                    name="from"
-                    defaultValue={from && fromDate ? from : undefined}
-                    className="border-input bg-background h-8 rounded-md border px-2"
-                  />
-                </label>
-                <label className="text-muted-foreground flex items-center gap-1">
-                  {vi.imports.toDate}
-                  <input
-                    type="date"
-                    name="to"
-                    defaultValue={to && toDate ? to : undefined}
-                    className="border-input bg-background h-8 rounded-md border px-2"
-                  />
-                </label>
-                <Button type="submit" size="sm" variant="outline">
-                  {vi.imports.filter}
-                </Button>
-              </form>
+              <ImportFilterForm
+                from={from && fromDate ? from : undefined}
+                to={to && toDate ? to : undefined}
+              />
               <Button asChild size="sm" variant="outline">
                 <a
                   href={`/api/imports/export?stationId=${id}${

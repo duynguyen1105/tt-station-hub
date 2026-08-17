@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, ImageUp, Loader2, TriangleAlert, X } from 'lucide-react'
+import { CheckCircle2, ImageUp, TriangleAlert, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useEffect, useRef, useState } from 'react'
@@ -350,15 +350,8 @@ export function PhotoUploadForm({
             />
           </Field>
 
-          <Button className="w-full" onClick={submit} disabled={busy || !file || !stationId}>
-            {busy ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                {vi.upload.uploading}
-              </>
-            ) : (
-              vi.upload.submit
-            )}
+          <Button className="w-full" onClick={submit} loading={busy} disabled={!file || !stationId}>
+            {busy ? vi.upload.uploading : vi.upload.submit}
           </Button>
         </CardContent>
       </Card>
