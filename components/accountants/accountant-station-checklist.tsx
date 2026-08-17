@@ -45,6 +45,8 @@ export function AccountantStationChecklist({
   )
   const released = new Set(plan.released)
   const selectedIds = new Set(selected)
+  const allSelected = stations.every((station) => selectedIds.has(station.id))
+  const someSelected = !allSelected && stations.some((station) => selectedIds.has(station.id))
 
   function toggle(stationId: string, ticked: boolean) {
     onChange(ticked ? [...selected, stationId] : selected.filter((id) => id !== stationId))
@@ -60,47 +62,65 @@ export function AccountantStationChecklist({
       {stations.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.stations.empty}</p>
       ) : (
-        // Columns rather than a grid: the trạm arrive in mã trạm order, and a grid
-        // would deal them across the rows, so reading down a column would skip
-        // every other name.
-        <div className="rounded-md border p-2 @lg/stations:columns-2 @lg/stations:gap-x-4">
-          {/* A row says the trạm's name, and adds something only when there is
-              something to say — a trạm nobody is on is not an opportunity to take
-              one, so it says nothing at all. */}
-          {stations.map((station) => {
-            // The people already on it besides the one being edited — ticking is
-            // adding a name beside theirs, not taking it.
-            const others = station.heldBy.filter((holder) => holder.id !== accountantId)
-            return (
-              <label
-                key={station.id}
-                className="hover:bg-muted/50 flex break-inside-avoid items-start gap-2 rounded-sm px-2 py-1.5 text-sm leading-tight transition-colors"
-              >
-                <Checkbox
-                  className="mt-0.5"
-                  checked={selectedIds.has(station.id)}
-                  onCheckedChange={(state) => toggle(station.id, state === true)}
-                />
-                {/* The space belongs to what follows the name, not to the name: a
-                    row that says nothing more ends at its own last letter. */}
-                <span>
-                  {station.name}
-                  {released.has(station.id) ? (
-                    <span className="text-amber-700 dark:text-amber-400">
-                      {' '}
-                      {vi.accountants.stationRelease}
-                    </span>
-                  ) : others.length > 0 ? (
-                    <span className="text-muted-foreground">
-                      {' '}
-                      {vi.accountants.stationHeldBy}{' '}
-                      {others.map((holder) => holder.fullName).join(', ')}
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-            )
-          })}
+        <div className="rounded-md border">
+          {/* Above the columns, not in them: dealt into a column it would read as
+              the first trạm of the list rather than as a heading over all of them.
+
+              Unticking it on a person's page lets go of every trạm they hold. That
+              needs no warning of its own — the rows themselves turn amber, one per
+              trạm, from the same plan the route will follow, and nothing is written
+              until Lưu. */}
+          <label className="hover:bg-muted/50 flex items-center gap-2 border-b px-2 py-1.5 text-sm leading-tight font-medium transition-colors">
+            <Checkbox
+              checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+              onCheckedChange={(state) =>
+                onChange(state === true ? stations.map((station) => station.id) : [])
+              }
+            />
+            <span>{vi.accountants.stationsSelectAll}</span>
+          </label>
+          {/* Columns rather than a grid: the trạm arrive in mã trạm order, and a grid
+              would deal them across the rows, so reading down a column would skip
+              every other name. */}
+          <div className="p-2 @lg/stations:columns-2 @lg/stations:gap-x-4">
+            {/* A row says the trạm's name, and adds something only when there is
+                something to say — a trạm nobody is on is not an opportunity to take
+                one, so it says nothing at all. */}
+            {stations.map((station) => {
+              // The people already on it besides the one being edited — ticking is
+              // adding a name beside theirs, not taking it.
+              const others = station.heldBy.filter((holder) => holder.id !== accountantId)
+              return (
+                <label
+                  key={station.id}
+                  className="hover:bg-muted/50 flex break-inside-avoid items-start gap-2 rounded-sm px-2 py-1.5 text-sm leading-tight transition-colors"
+                >
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={selectedIds.has(station.id)}
+                    onCheckedChange={(state) => toggle(station.id, state === true)}
+                  />
+                  {/* The space belongs to what follows the name, not to the name: a
+                      row that says nothing more ends at its own last letter. */}
+                  <span>
+                    {station.name}
+                    {released.has(station.id) ? (
+                      <span className="text-amber-700 dark:text-amber-400">
+                        {' '}
+                        {vi.accountants.stationRelease}
+                      </span>
+                    ) : others.length > 0 ? (
+                      <span className="text-muted-foreground">
+                        {' '}
+                        {vi.accountants.stationHeldBy}{' '}
+                        {others.map((holder) => holder.fullName).join(', ')}
+                      </span>
+                    ) : null}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
         </div>
       )}
     </Field>
