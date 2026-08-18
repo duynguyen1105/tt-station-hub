@@ -17,7 +17,7 @@ import { vi } from '@/messages/vi'
  */
 const VISIBLE_STATIONS = 3
 
-export default async function SettingsAccountantsPage() {
+export default async function AccountantsPage() {
   await requireRole('admin')
 
   const [accountants, stations] = await Promise.all([
@@ -48,7 +48,7 @@ export default async function SettingsAccountantsPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="label-micro">{vi.nav.settings}</p>
+          <p className="label-micro">{vi.nav.admin}</p>
           <h1 className="text-2xl font-bold tracking-tight">{vi.accountants.title}</h1>
           <p className="text-muted-foreground text-sm">{vi.accountants.subtitle}</p>
         </div>
@@ -106,7 +106,7 @@ export default async function SettingsAccountantsPage() {
                       done to them: the list says who there is, and points. */}
                   <td className="p-2">
                     <Link
-                      href={`/settings/users/${accountant.id}`}
+                      href={`/admin/accountants/${accountant.id}`}
                       className="font-medium hover:underline"
                     >
                       {accountant.fullName}
