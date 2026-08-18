@@ -98,7 +98,6 @@ export function AccountantDetailForm({
           </Field>
         </div>
         <AccountantStationChecklist
-          accountantId={accountant.id}
           stations={stations}
           selected={selected}
           onChange={setSelected}

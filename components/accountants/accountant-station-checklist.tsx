@@ -3,7 +3,6 @@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import type { StationWithHolders } from '@/lib/accountants/station-holders'
-import { planStationAssignment } from '@/lib/auth/station-assignment'
 import { vi } from '@/messages/vi'
 
 /**
@@ -14,36 +13,21 @@ import { vi } from '@/messages/vi'
  * this person beside them and unticking one removes only this person — nothing
  * is taken off anybody, and so nothing here warns about it.
  *
- * Shared by the create dialog and the person's page, which differ in one thing
- * only: a kế toán being created has no id yet, so `accountantId` is left off.
- * Nobody on a trạm is then them, which means no row names them as a colleague
- * and everything ticked is a claim.
+ * A row is the trạm's name and nothing else. Who else is on it used to be named
+ * beside every one of them, which with the same two kế toán on nearly every trạm
+ * said the same thing the whole way down the column; the description above the
+ * list says it once instead. The create dialog and the person's page want the
+ * same list on the same terms, and so pass the same props.
  */
 export function AccountantStationChecklist({
-  accountantId,
   stations,
   selected,
   onChange,
 }: {
-  /** Whose assignment this is, or absent while the kế toán is being created. */
-  accountantId?: string
   stations: readonly StationWithHolders[]
   selected: readonly string[]
   onChange: (stationIds: string[]) => void
 }) {
-  // What saving would do, worked out by the same function the route will run, so
-  // what is marked on screen is the writes themselves rather than a second opinion
-  // about them. Nobody carries the empty id a kế toán being created stands in with,
-  // so nothing is ever released there.
-  const plan = planStationAssignment(
-    accountantId ?? '',
-    stations.map((station) => ({
-      id: station.id,
-      accountantIds: station.heldBy.map((holder) => holder.id),
-    })),
-    selected
-  )
-  const released = new Set(plan.released)
   const selectedIds = new Set(selected)
   const allSelected = stations.every((station) => selectedIds.has(station.id))
   const someSelected = !allSelected && stations.some((station) => selectedIds.has(station.id))
@@ -66,10 +50,9 @@ export function AccountantStationChecklist({
           {/* Above the columns, not in them: dealt into a column it would read as
               the first trạm of the list rather than as a heading over all of them.
 
-              Unticking it on a person's page lets go of every trạm they hold. That
-              needs no warning of its own — the rows themselves turn amber, one per
-              trạm, from the same plan the route will follow, and nothing is written
-              until Lưu. */}
+              Unticking it on a person's page lets go of every trạm they hold — a
+              wide stroke, but one that moves checkboxes and nothing else: nothing
+              is written until Lưu. */}
           <label className="hover:bg-muted/50 flex items-center gap-2 border-b px-2 py-1.5 text-sm leading-tight font-medium transition-colors">
             <Checkbox
               checked={allSelected ? true : someSelected ? 'indeterminate' : false}
@@ -83,43 +66,19 @@ export function AccountantStationChecklist({
               would deal them across the rows, so reading down a column would skip
               every other name. */}
           <div className="p-2 @lg/stations:columns-2 @lg/stations:gap-x-4">
-            {/* A row says the trạm's name, and adds something only when there is
-                something to say — a trạm nobody is on is not an opportunity to take
-                one, so it says nothing at all. */}
-            {stations.map((station) => {
-              // The people already on it besides the one being edited — ticking is
-              // adding a name beside theirs, not taking it.
-              const others = station.heldBy.filter((holder) => holder.id !== accountantId)
-              return (
-                <label
-                  key={station.id}
-                  className="hover:bg-muted/50 flex break-inside-avoid items-start gap-2 rounded-sm px-2 py-1.5 text-sm leading-tight transition-colors"
-                >
-                  <Checkbox
-                    className="mt-0.5"
-                    checked={selectedIds.has(station.id)}
-                    onCheckedChange={(state) => toggle(station.id, state === true)}
-                  />
-                  {/* The space belongs to what follows the name, not to the name: a
-                      row that says nothing more ends at its own last letter. */}
-                  <span>
-                    {station.name}
-                    {released.has(station.id) ? (
-                      <span className="text-amber-700 dark:text-amber-400">
-                        {' '}
-                        {vi.accountants.stationRelease}
-                      </span>
-                    ) : others.length > 0 ? (
-                      <span className="text-muted-foreground">
-                        {' '}
-                        {vi.accountants.stationHeldBy}{' '}
-                        {others.map((holder) => holder.fullName).join(', ')}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
-              )
-            })}
+            {stations.map((station) => (
+              <label
+                key={station.id}
+                className="hover:bg-muted/50 flex break-inside-avoid items-start gap-2 rounded-sm px-2 py-1.5 text-sm leading-tight transition-colors"
+              >
+                <Checkbox
+                  className="mt-0.5"
+                  checked={selectedIds.has(station.id)}
+                  onCheckedChange={(state) => toggle(station.id, state === true)}
+                />
+                {station.name}
+              </label>
+            ))}
           </div>
         </div>
       )}
