@@ -214,7 +214,6 @@ export const vi = {
     subtitle: 'Danh sách kế toán và trạm phụ trách.',
     fullName: 'Họ tên',
     username: 'Tên đăng nhập',
-    phone: 'Số điện thoại',
     assignedStations: 'Trạm phụ trách',
     accountStatus: 'Tài khoản',
     active: 'Đang hoạt động',

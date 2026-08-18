@@ -21,7 +21,6 @@ const createAccountantSchema = z.object({
   // is lower-cased here because Auth normalises it that way, and the profile must
   // carry the same string it will be looked up by.
   username: z.string().trim().toLowerCase().email(vi.accountants.usernameInvalid),
-  phone: z.string().trim().optional(),
   password: z.string().min(8, vi.accountants.passwordTooShort),
   // The trạm this person is phụ trách of from their first sign-in. This person
   // is on nothing yet, so every one of them is a claim — and one another kế toán
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
     const named = parsed.error.issues.find((issue) => issue.path.length > 0)?.message
     return badRequest(named, parsed.error.flatten())
   }
-  const { fullName, username, phone, password, stationIds } = parsed.data
+  const { fullName, username, password, stationIds } = parsed.data
 
   // Named rather than generic, so the quản trị viên knows to pick another one.
   // Asked of the profiles first because a profile can outlive its login — the
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
     // what was ticked — and so the compensation below has only the login to undo.
     const [row] = await prisma.$transaction([
       prisma.profile.create({
-        data: { id, email: username, fullName, phone: phone || null, role: 'accountant' },
+        data: { id, email: username, fullName, role: 'accountant' },
       }),
       prisma.stationAccountant.createMany({
         data: plan.claimed.map((stationId) => ({ stationId, accountantId: id })),

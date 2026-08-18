@@ -79,7 +79,6 @@ export default async function AccountantsPage() {
             <tr className="text-muted-foreground border-b text-left">
               <th className="p-2">{vi.accountants.fullName}</th>
               <th className="p-2">{vi.accountants.username}</th>
-              <th className="p-2">{vi.accountants.phone}</th>
               <th className="p-2">{vi.accountants.assignedStations}</th>
               <th className="p-2">{vi.accountants.accountStatus}</th>
             </tr>
@@ -113,7 +112,6 @@ export default async function AccountantsPage() {
                     </Link>
                   </td>
                   <td className="p-2 font-mono">{accountant.email}</td>
-                  <td className="p-2 font-mono">{accountant.phone ?? '—'}</td>
                   {/* A row's worth of trạm, said in a row's worth of height:
                       the whole list was a paragraph in a table of short values,
                       and the one thing worth knowing about somebody phụ trách of

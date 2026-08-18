@@ -10,7 +10,7 @@ import { activeStationAccess } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
-// Họ tên, số điện thoại, and which trạm this person is phụ trách of. The username
+// Họ tên and which trạm this person is phụ trách of. The username
 // is deliberately absent: it is the identity the person signs in with, held by Auth
 // as well as here, so changing it would mean writing to both systems with no
 // transaction between them — the same problem creation has, for what is only ever a
@@ -23,12 +23,11 @@ import { vi } from '@/messages/vi'
 // could have produced is ignored rather than refused, so no message is needed here.
 //
 // Every field is optional because two different controls on the kế toán's page
-// send here: the form, which sends họ tên, số điện thoại and the trạm together,
-// and Ngưng hoạt động / Kích hoạt, which sends only the tài khoản's state. Absent
-// means leave it alone; họ tên is still refused when it is sent empty.
+// send here: the form, which sends họ tên and the trạm together, and Ngưng hoạt
+// động / Kích hoạt, which sends only the tài khoản's state. Absent means leave it
+// alone; họ tên is still refused when it is sent empty.
 const updateAccountantSchema = z.object({
   fullName: z.string().trim().min(1, vi.accountants.fullNameRequired).optional(),
-  phone: z.string().trim().optional(),
   stationIds: z.array(z.string()).optional(),
   // Ngưng hoạt động, and its undo. It deliberately does not touch the trạm above:
   // the assignment is kept so that kích hoạt lại gives the person back the work
@@ -38,8 +37,8 @@ const updateAccountantSchema = z.object({
 })
 
 /**
- * Corrects a kế toán's họ tên or số điện thoại, settles which trạm they are phụ
- * trách of, and ngưng hoạt động or kích hoạt their tài khoản. Quản trị viên only.
+ * Corrects a kế toán's họ tên, settles which trạm they are phụ trách of, and
+ * ngưng hoạt động or kích hoạt their tài khoản. Quản trị viên only.
  *
  * There is no DELETE beside it, and there is not meant to be: a kế toán is stamped
  * on every ca they duyệt and every công nợ they settle, so the row has to stay for
@@ -56,14 +55,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const named = parsed.error.issues.find((issue) => issue.path.length > 0)?.message
     return badRequest(named, parsed.error.flatten())
   }
-  const { fullName, phone, stationIds, isActive } = parsed.data
+  const { fullName, stationIds, isActive } = parsed.data
 
   // Only a kế toán is edited from this screen. Any other profile — a quản trị
   // viên, an id that matches nobody — is not this endpoint's to write. It is also
   // what keeps a quản trị viên from ngưng hoạt động their own tài khoản here.
   const accountant = await prisma.profile.findUnique({
     where: { id },
-    select: { role: true, fullName: true, phone: true, isActive: true },
+    select: { role: true, fullName: true, isActive: true },
   })
   if (!accountant || accountant.role !== 'accountant') return notFound()
 
@@ -78,12 +77,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     prisma.profile.update({
       where: { id },
       // Each field stands on its own: what was sent is written, what was not is
-      // left alone. The form sends họ tên and số điện thoại together, so a blank
-      // number there still means cleared; Ngưng hoạt động mentions neither, so
-      // neither moves.
+      // left alone. The form sends họ tên; Ngưng hoạt động never mentions it, so it
+      // does not move.
       data: {
         ...(fullName !== undefined ? { fullName } : {}),
-        ...(phone !== undefined ? { phone: phone || null } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
       },
     }),
@@ -98,7 +95,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Only when a detail was actually sent — Ngưng hoạt động corrects nothing, and
   // an entry saying a họ tên went from itself to itself would be a false trail.
-  if (fullName !== undefined || phone !== undefined) {
+  if (fullName !== undefined) {
     await writeAudit({
       userId: user.id,
       action: 'accountant.update',
@@ -108,8 +105,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // The new side is read back off the row, so it is what was written rather than
       // what was asked for.
       metadata: {
-        from: { fullName: accountant.fullName, phone: accountant.phone },
-        to: { fullName: updated.fullName, phone: updated.phone },
+        from: { fullName: accountant.fullName },
+        to: { fullName: updated.fullName },
       },
     })
   }

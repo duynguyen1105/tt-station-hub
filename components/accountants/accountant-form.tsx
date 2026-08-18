@@ -41,7 +41,6 @@ export function AccountantForm({ stations }: { stations: readonly StationWithHol
   const [open, setOpen] = useState(false)
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
-  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [selected, setSelected] = useState<string[]>([])
 
@@ -52,7 +51,6 @@ export function AccountantForm({ stations }: { stations: readonly StationWithHol
     if (next) {
       setFullName('')
       setUsername('')
-      setPhone('')
       // A new kế toán starts holding nothing.
       setSelected([])
     }
@@ -68,7 +66,6 @@ export function AccountantForm({ stations }: { stations: readonly StationWithHol
         body: {
           fullName: fullName.trim(),
           username: username.trim(),
-          phone: phone.trim(),
           password,
           stationIds: selected,
         },
@@ -110,15 +107,6 @@ export function AccountantForm({ stations }: { stations: readonly StationWithHol
               onChange={(e) => setUsername(e.target.value)}
             />
             <FieldDescription>{vi.accountants.usernameHint}</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="acc-phone">{vi.accountants.phone}</FieldLabel>
-            <Input
-              id="acc-phone"
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
           </Field>
           <Field>
             <FieldLabel htmlFor="acc-password">{vi.accountants.password}</FieldLabel>

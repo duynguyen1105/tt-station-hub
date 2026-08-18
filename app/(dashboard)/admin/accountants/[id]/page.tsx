@@ -87,7 +87,6 @@ export default async function AccountantPage({ params }: { params: Promise<{ id:
           id: accountant.id,
           fullName: accountant.fullName,
           username: accountant.email,
-          phone: accountant.phone,
         }}
         stations={stations}
       />
