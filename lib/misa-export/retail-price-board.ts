@@ -1,12 +1,22 @@
 // The Giá bán lẻ board: one entry per nhiên liệu, both vùng side by side, each cell
 // carrying the price in force today. Pure — plain rows in, view model out — so the
 // rules below are testable without React or Prisma.
-import { FuelArea } from '../generated/prisma/client'
+//
+// FuelArea is imported as a *type* only: the Thêm giá dialog pre-fills its cells with
+// this module's in-force rule, and importing the Prisma enum's value would drag the
+// Prisma runtime into the client bundle. The two vùng are listed here instead.
+import type { FuelArea } from '../generated/prisma/client'
 import { type RetailPrice, priceRowOnDate } from './build-sales-voucher'
 
 // Business order xăng → dầu → phụ gia. The board is driven by this list, not by
 // what happens to be in the database, so a fuel with no price still gets a row.
-const BOARD_FUEL_ORDER = ['XANG_A95', 'E0', 'DO', 'DC', 'URE'] as const
+export const BOARD_FUEL_ORDER = ['XANG_A95', 'E0', 'DO', 'DC', 'URE'] as const
+
+/** Both vùng, in the order the board columns and the Thêm giá grid show them. */
+export const BOARD_AREA_ORDER = [
+  'FUEL_AREA_1',
+  'FUEL_AREA_2',
+] as const satisfies readonly FuelArea[]
 
 /** A giá bán lẻ row as the board receives it (Prisma's Decimal already a number). */
 export type BoardPrice = RetailPrice & { fuelArea: FuelArea }
@@ -34,8 +44,8 @@ export function buildRetailPriceBoard(prices: BoardPrice[], today: Date): BoardE
   return BOARD_FUEL_ORDER.map((fuelType) => ({
     fuelType,
     cells: {
-      [FuelArea.FUEL_AREA_1]: buildCell(prices, FuelArea.FUEL_AREA_1, fuelType, today),
-      [FuelArea.FUEL_AREA_2]: buildCell(prices, FuelArea.FUEL_AREA_2, fuelType, today),
+      FUEL_AREA_1: buildCell(prices, 'FUEL_AREA_1', fuelType, today),
+      FUEL_AREA_2: buildCell(prices, 'FUEL_AREA_2', fuelType, today),
     },
   }))
 }
@@ -89,4 +99,62 @@ export function buildPriceTimeline(
       effectiveDate: p.effectiveDate,
       isCurrent: p === current,
     }))
+}
+
+/** A giá bán lẻ row the kỳ planner can address, i.e. one already saved. */
+export type ExistingPrice = BoardPrice & { id: string }
+
+/** One cell of the Thêm giá grid. A blank cell — null — means "nothing changes". */
+export type KyCell = { fuelArea: FuelArea; fuelType: string; unitPrice: number | null }
+
+/** What the kỳ does to one cell. The ngày áp dụng is the kỳ's own, so it is not repeated. */
+export type KyOperation =
+  | { kind: 'create'; fuelArea: FuelArea; fuelType: string; unitPrice: number }
+  | {
+      kind: 'update'
+      id: string
+      fuelArea: FuelArea
+      fuelType: string
+      unitPrice: number
+      previousUnitPrice: number
+    }
+
+/**
+ * Resolves a submitted kỳ điều chỉnh giá into the rows to write: a blank cell does
+ * nothing, a filled cell creates unless the kỳ date already carries that cell, in
+ * which case it updates that row. The caller applies the whole plan or none of it.
+ */
+export function planKyPriceSave(
+  existing: ExistingPrice[],
+  effectiveDate: Date,
+  cells: KyCell[]
+): KyOperation[] {
+  const plan: KyOperation[] = []
+  for (const cell of cells) {
+    if (cell.unitPrice === null) continue
+    const onDate = existing.find(
+      (p) =>
+        p.fuelArea === cell.fuelArea &&
+        p.fuelType === cell.fuelType &&
+        p.effectiveDate.getTime() === effectiveDate.getTime()
+    )
+    plan.push(
+      onDate
+        ? {
+            kind: 'update',
+            id: onDate.id,
+            fuelArea: cell.fuelArea,
+            fuelType: cell.fuelType,
+            unitPrice: cell.unitPrice,
+            previousUnitPrice: onDate.unitPrice,
+          }
+        : {
+            kind: 'create',
+            fuelArea: cell.fuelArea,
+            fuelType: cell.fuelType,
+            unitPrice: cell.unitPrice,
+          }
+    )
+  }
+  return plan
 }

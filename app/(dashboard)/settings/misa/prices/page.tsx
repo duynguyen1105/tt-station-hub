@@ -32,7 +32,7 @@ export default async function MisaPricesPage() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <RetailPriceForm />
+        <RetailPriceForm prices={rows} />
       </div>
 
       <table className="w-full text-sm">
