@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { FuelArea } from '@/lib/generated/prisma/client'
-import { buildPriceTimeline, buildRetailPriceBoard } from '@/lib/misa-export/retail-price-board'
+import {
+  buildPriceTimeline,
+  buildRetailPriceBoard,
+  planKyPriceSave,
+} from '@/lib/misa-export/retail-price-board'
 
 const TODAY = new Date('2026-08-18')
 
@@ -208,5 +212,116 @@ describe('buildPriceTimeline', () => {
     expect(timeline).toEqual([
       { unitPrice: 15000, effectiveDate: new Date('2026-08-25'), isCurrent: false },
     ])
+  })
+})
+
+/** An existing giá bán lẻ row, as the kỳ planner receives it — with its id. */
+function existing(
+  id: string,
+  fuelArea: FuelArea,
+  fuelType: string,
+  effectiveDate: string,
+  unitPrice: number
+) {
+  return { id, fuelArea, fuelType, effectiveDate: new Date(effectiveDate), unitPrice }
+}
+
+const KY_DATE = new Date('2026-08-25')
+
+describe('planKyPriceSave', () => {
+  it('creates a row for a filled cell the kỳ date has no row for', () => {
+    const plan = planKyPriceSave([], KY_DATE, [
+      { fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'XANG_A95', unitPrice: 23100 },
+    ])
+    expect(plan).toEqual([
+      { kind: 'create', fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'XANG_A95', unitPrice: 23100 },
+    ])
+  })
+
+  it('updates the row the kỳ date already carries instead of creating a second', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_1, 'XANG_A95', '2026-08-25', 23100)],
+      KY_DATE,
+      [{ fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'XANG_A95', unitPrice: 23400 }]
+    )
+    expect(plan).toEqual([
+      {
+        kind: 'update',
+        id: 'row-1',
+        fuelArea: FuelArea.FUEL_AREA_1,
+        fuelType: 'XANG_A95',
+        unitPrice: 23400,
+        previousUnitPrice: 23100,
+      },
+    ])
+  })
+
+  it('does nothing for a blank cell on a kỳ date with no row for that fuel', () => {
+    const plan = planKyPriceSave([], KY_DATE, [
+      { fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'URE', unitPrice: null },
+    ])
+    expect(plan).toEqual([])
+  })
+
+  it('leaves the row the kỳ date already carries untouched when the cell is blank', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_1, 'URE', '2026-08-25', 15000)],
+      KY_DATE,
+      [{ fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'URE', unitPrice: null }]
+    )
+    expect(plan).toEqual([])
+  })
+
+  it('updates rather than creates when the cell holds the value that date already has', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_2, 'DO', '2026-08-25', 24000)],
+      KY_DATE,
+      [{ fuelArea: FuelArea.FUEL_AREA_2, fuelType: 'DO', unitPrice: 24000 }]
+    )
+    expect(plan).toEqual([
+      {
+        kind: 'update',
+        id: 'row-1',
+        fuelArea: FuelArea.FUEL_AREA_2,
+        fuelType: 'DO',
+        unitPrice: 24000,
+        previousUnitPrice: 24000,
+      },
+    ])
+  })
+
+  it('resolves each vùng on its own, so one fuel can create in one and update in the other', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_1, 'DC', '2026-08-25', 24300)],
+      KY_DATE,
+      [
+        { fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'DC', unitPrice: 24350 },
+        { fuelArea: FuelArea.FUEL_AREA_2, fuelType: 'DC', unitPrice: 24430 },
+      ]
+    )
+    expect(plan.map((op) => op.kind)).toEqual(['update', 'create'])
+  })
+
+  it('creates when the fuel has a row on another date, since a kỳ only edits its own date', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_1, 'E0', '2026-06-25', 20100)],
+      KY_DATE,
+      [{ fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'E0', unitPrice: 20500 }]
+    )
+    expect(plan).toEqual([
+      { kind: 'create', fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'E0', unitPrice: 20500 },
+    ])
+  })
+
+  it('writes nothing for a kỳ whose every cell is blank', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_1, 'DO', '2026-08-25', 23900)],
+      KY_DATE,
+      [
+        { fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'DO', unitPrice: null },
+        { fuelArea: FuelArea.FUEL_AREA_2, fuelType: 'DO', unitPrice: null },
+      ]
+    )
+    expect(plan).toEqual([])
   })
 })
