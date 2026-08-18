@@ -19,20 +19,25 @@ import { vi } from '@/messages/vi'
  * A board cell that opens its own Lịch sử: every giá bán lẻ ever recorded for that
  * nhiên liệu in that vùng, newest first, with the one the cell shows marked Hiện
  * hành. Read-only — this is where kế toán explains what a litre cost on the day a
- * ca was exported.
+ * ca was exported. A cell covering both vùng says so instead of naming one.
  */
 export function PriceHistoryDialog({
   fuelLabel,
   areaLabel,
+  areaIndependent,
   rows,
   children,
 }: {
   fuelLabel: string
   areaLabel: string
+  areaIndependent: boolean
   rows: TimelineRow[]
   children: React.ReactNode
 }) {
   const title = vi.misaSettings.historyTitle(fuelLabel, areaLabel)
+  const empty = areaIndependent
+    ? vi.misaSettings.noPriceHistoryAllAreas
+    : vi.misaSettings.noPriceHistory
 
   return (
     <Dialog>
@@ -53,7 +58,7 @@ export function PriceHistoryDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         {rows.length === 0 ? (
-          <p className="text-muted-foreground py-2 text-sm">{vi.misaSettings.noPriceHistory}</p>
+          <p className="text-muted-foreground py-2 text-sm">{empty}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>

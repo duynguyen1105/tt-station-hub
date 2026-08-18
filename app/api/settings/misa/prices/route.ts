@@ -11,12 +11,13 @@ import { BOARD_FUEL_ORDER, planKyPriceSave } from '@/lib/misa-export/retail-pric
 import { prisma } from '@/lib/prisma'
 
 // One kỳ điều chỉnh giá: a single ngày áp dụng carrying a cell per nhiên liệu per
-// vùng. A null cell is one kế toán left blank — that fuel's price did not move.
+// vùng. A null cell is one kế toán left blank — that fuel's price did not move. A null
+// fuelArea is a nhiên liệu priced the same everywhere, keyed once and written to both.
 const kySchema = z.object({
   effectiveDate: z.coerce.date(),
   cells: z.array(
     z.object({
-      fuelArea: z.nativeEnum(FuelArea),
+      fuelArea: z.nativeEnum(FuelArea).nullable(),
       fuelType: z.enum(BOARD_FUEL_ORDER),
       unitPrice: z.number().positive().nullable(),
     })

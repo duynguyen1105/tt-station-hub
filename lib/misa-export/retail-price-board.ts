@@ -18,6 +18,19 @@ export const BOARD_AREA_ORDER = [
   'FUEL_AREA_2',
 ] as const satisfies readonly FuelArea[]
 
+/**
+ * Nhiên liệu whose giá bán lẻ carries no vùng. URE (Adblue) is a phụ gia sold at one
+ * price nationally, so the board shows it once and a kỳ writes that one number into
+ * both vùng — the rows on disk stay per-vùng, because every reader downstream still
+ * filters by the trạm's own vùng and must find a row there.
+ */
+const AREA_INDEPENDENT_FUELS = new Set<string>(['URE'])
+
+/** Whether this nhiên liệu is priced once for both vùng rather than per vùng. */
+export function isAreaIndependent(fuelType: string): boolean {
+  return AREA_INDEPENDENT_FUELS.has(fuelType)
+}
+
 /** A giá bán lẻ row as the board receives it (Prisma's Decimal already a number). */
 export type BoardPrice = RetailPrice & { fuelArea: FuelArea }
 
@@ -33,6 +46,8 @@ export type BoardCell = {
 
 export type BoardEntry = {
   fuelType: string
+  /** True when one price covers both vùng, so the board merges the entry's two cells. */
+  areaIndependent: boolean
   cells: Record<FuelArea, BoardCell>
 }
 
@@ -43,6 +58,7 @@ export type BoardEntry = {
 export function buildRetailPriceBoard(prices: BoardPrice[], today: Date): BoardEntry[] {
   return BOARD_FUEL_ORDER.map((fuelType) => ({
     fuelType,
+    areaIndependent: isAreaIndependent(fuelType),
     cells: {
       FUEL_AREA_1: buildCell(prices, 'FUEL_AREA_1', fuelType, today),
       FUEL_AREA_2: buildCell(prices, 'FUEL_AREA_2', fuelType, today),
@@ -69,9 +85,23 @@ function priceAt(price: RetailPrice | null | undefined): BoardPriceAt | null {
   return price ? { unitPrice: price.unitPrice, effectiveDate: price.effectiveDate } : null
 }
 
-/** Every price ever recorded for one cell of the board — one nhiên liệu in one vùng. */
+/**
+ * Every price ever recorded for one cell of the board — one nhiên liệu in one vùng, or
+ * both vùng at once when the nhiên liệu is priced the same everywhere.
+ */
 function pricesForCell(prices: BoardPrice[], fuelArea: FuelArea, fuelType: string): BoardPrice[] {
-  return prices.filter((p) => p.fuelArea === fuelArea && p.fuelType === fuelType)
+  const ofFuel = prices.filter((p) => p.fuelType === fuelType)
+  if (!isAreaIndependent(fuelType)) return ofFuel.filter((p) => p.fuelArea === fuelArea)
+
+  // A kỳ writes this nhiên liệu into both vùng, so each ngày áp dụng holds two rows of
+  // the same price. Collapse them onto the date — otherwise the Lịch sử would list every
+  // date twice — keeping vùng 1 where both exist so the pick is deterministic.
+  const byDate = new Map<number, BoardPrice>()
+  for (const price of ofFuel) {
+    const date = price.effectiveDate.getTime()
+    if (!byDate.has(date) || price.fuelArea === BOARD_AREA_ORDER[0]) byDate.set(date, price)
+  }
+  return [...byDate.values()]
 }
 
 /** A row of a cell's Lịch sử, with whether it is the price the board calls current. */
@@ -104,8 +134,12 @@ export function buildPriceTimeline(
 /** A giá bán lẻ row the kỳ planner can address, i.e. one already saved. */
 export type ExistingPrice = BoardPrice & { id: string }
 
-/** One cell of the Thêm giá grid. A blank cell — null — means "nothing changes". */
-export type KyCell = { fuelArea: FuelArea; fuelType: string; unitPrice: number | null }
+/**
+ * One cell of the Thêm giá grid. A blank cell — a null `unitPrice` — means "nothing
+ * changes"; a null `fuelArea` means the price covers both vùng, which is how a nhiên
+ * liệu with no vùng separation is keyed once and stored twice.
+ */
+export type KyCell = { fuelArea: FuelArea | null; fuelType: string; unitPrice: number | null }
 
 /** What the kỳ does to one cell. The ngày áp dụng is the kỳ's own, so it is not repeated. */
 export type KyOperation =
@@ -122,7 +156,8 @@ export type KyOperation =
 /**
  * Resolves a submitted kỳ điều chỉnh giá into the rows to write: a blank cell does
  * nothing, a filled cell creates unless the kỳ date already carries that cell, in
- * which case it updates that row. The caller applies the whole plan or none of it.
+ * which case it updates that row. A cell with no vùng resolves to one row per vùng,
+ * so both carry the same price. The caller applies the whole plan or none of it.
  */
 export function planKyPriceSave(
   existing: ExistingPrice[],
@@ -132,29 +167,33 @@ export function planKyPriceSave(
   const plan: KyOperation[] = []
   for (const cell of cells) {
     if (cell.unitPrice === null) continue
-    const onDate = existing.find(
-      (p) =>
-        p.fuelArea === cell.fuelArea &&
-        p.fuelType === cell.fuelType &&
-        p.effectiveDate.getTime() === effectiveDate.getTime()
-    )
-    plan.push(
-      onDate
-        ? {
-            kind: 'update',
-            id: onDate.id,
-            fuelArea: cell.fuelArea,
-            fuelType: cell.fuelType,
-            unitPrice: cell.unitPrice,
-            previousUnitPrice: onDate.unitPrice,
-          }
-        : {
-            kind: 'create',
-            fuelArea: cell.fuelArea,
-            fuelType: cell.fuelType,
-            unitPrice: cell.unitPrice,
-          }
-    )
+    const unitPrice = cell.unitPrice
+    const areas = cell.fuelArea === null ? BOARD_AREA_ORDER : [cell.fuelArea]
+    for (const fuelArea of areas) {
+      const onDate = existing.find(
+        (p) =>
+          p.fuelArea === fuelArea &&
+          p.fuelType === cell.fuelType &&
+          p.effectiveDate.getTime() === effectiveDate.getTime()
+      )
+      plan.push(
+        onDate
+          ? {
+              kind: 'update',
+              id: onDate.id,
+              fuelArea,
+              fuelType: cell.fuelType,
+              unitPrice,
+              previousUnitPrice: onDate.unitPrice,
+            }
+          : {
+              kind: 'create',
+              fuelArea,
+              fuelType: cell.fuelType,
+              unitPrice,
+            }
+      )
+    }
   }
   return plan
 }

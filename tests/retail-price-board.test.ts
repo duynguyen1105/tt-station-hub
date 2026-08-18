@@ -92,11 +92,30 @@ describe('buildRetailPriceBoard', () => {
 
   it('marks the vùng with no price as Chưa có giá while the other shows its price', () => {
     const board = buildRetailPriceBoard(
-      [price(FuelArea.FUEL_AREA_1, 'URE', '2026-07-20', 15000)],
+      [price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 24300)],
       TODAY
     )
+    expect(cell(board, 'DC', FuelArea.FUEL_AREA_1).current?.unitPrice).toBe(24300)
+    expect(cell(board, 'DC', FuelArea.FUEL_AREA_2).current).toBeNull()
+  })
+
+  it('shows a nhiên liệu with no vùng at the same price in both cells', () => {
+    const board = buildRetailPriceBoard(
+      [price(FuelArea.FUEL_AREA_2, 'URE', '2026-07-20', 15000)],
+      TODAY
+    )
+    // Only vùng 2 has a row, but URE is one price everywhere, so vùng 1 reads it too.
+    expect(cell(board, 'URE', FuelArea.FUEL_AREA_1)).toEqual(
+      cell(board, 'URE', FuelArea.FUEL_AREA_2)
+    )
     expect(cell(board, 'URE', FuelArea.FUEL_AREA_1).current?.unitPrice).toBe(15000)
-    expect(cell(board, 'URE', FuelArea.FUEL_AREA_2).current).toBeNull()
+  })
+
+  it('marks only URE as priced without a vùng', () => {
+    const board = buildRetailPriceBoard([], TODAY)
+    expect(board.filter((entry) => entry.areaIndependent).map((entry) => entry.fuelType)).toEqual([
+      'URE',
+    ])
   })
 
   it('carries a ngày áp dụng per cell, so the two vùng can sit on different dates', () => {
@@ -194,12 +213,30 @@ describe('buildPriceTimeline', () => {
 
   it('returns nothing for a cell that has never had a price', () => {
     const timeline = buildPriceTimeline(
-      [price(FuelArea.FUEL_AREA_1, 'URE', '2026-07-20', 15000)],
+      [price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 24300)],
       FuelArea.FUEL_AREA_2,
-      'URE',
+      'DC',
       TODAY
     )
     expect(timeline).toEqual([])
+  })
+
+  it('lists a nhiên liệu with no vùng once per ngày áp dụng, not once per vùng', () => {
+    // A kỳ writes URE into both vùng, so each date holds two rows of the same price.
+    const timeline = buildPriceTimeline(
+      [
+        price(FuelArea.FUEL_AREA_1, 'URE', '2026-07-20', 15000),
+        price(FuelArea.FUEL_AREA_2, 'URE', '2026-07-20', 15000),
+        price(FuelArea.FUEL_AREA_2, 'URE', '2026-06-25', 14500),
+      ],
+      FuelArea.FUEL_AREA_1,
+      'URE',
+      TODAY
+    )
+    expect(timeline).toEqual([
+      { unitPrice: 15000, effectiveDate: new Date('2026-07-20'), isCurrent: true },
+      { unitPrice: 14500, effectiveDate: new Date('2026-06-25'), isCurrent: false },
+    ])
   })
 
   it('marks no row current when every price for the cell is still in the future', () => {
@@ -311,6 +348,44 @@ describe('planKyPriceSave', () => {
     expect(plan).toEqual([
       { kind: 'create', fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'E0', unitPrice: 20500 },
     ])
+  })
+
+  it('writes a cell with no vùng into both vùng at the same price', () => {
+    const plan = planKyPriceSave([], KY_DATE, [
+      { fuelArea: null, fuelType: 'URE', unitPrice: 15500 },
+    ])
+    expect(plan).toEqual([
+      { kind: 'create', fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'URE', unitPrice: 15500 },
+      { kind: 'create', fuelArea: FuelArea.FUEL_AREA_2, fuelType: 'URE', unitPrice: 15500 },
+    ])
+  })
+
+  it('updates the vùng the kỳ date already carries and creates the one it does not', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_2, 'URE', '2026-08-25', 15000)],
+      KY_DATE,
+      [{ fuelArea: null, fuelType: 'URE', unitPrice: 15500 }]
+    )
+    expect(plan).toEqual([
+      { kind: 'create', fuelArea: FuelArea.FUEL_AREA_1, fuelType: 'URE', unitPrice: 15500 },
+      {
+        kind: 'update',
+        id: 'row-1',
+        fuelArea: FuelArea.FUEL_AREA_2,
+        fuelType: 'URE',
+        unitPrice: 15500,
+        previousUnitPrice: 15000,
+      },
+    ])
+  })
+
+  it('writes neither vùng when the cell with no vùng is left blank', () => {
+    const plan = planKyPriceSave(
+      [existing('row-1', FuelArea.FUEL_AREA_2, 'URE', '2026-08-25', 15000)],
+      KY_DATE,
+      [{ fuelArea: null, fuelType: 'URE', unitPrice: null }]
+    )
+    expect(plan).toEqual([])
   })
 
   it('writes nothing for a kỳ whose every cell is blank', () => {
