@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FuelArea } from '@/lib/generated/prisma/client'
-import { buildRetailPriceBoard } from '@/lib/misa-export/retail-price-board'
+import { buildPriceTimeline, buildRetailPriceBoard } from '@/lib/misa-export/retail-price-board'
 
 const TODAY = new Date('2026-08-18')
 
@@ -118,5 +118,95 @@ describe('buildRetailPriceBoard', () => {
         expect(entry.cells[area]).toEqual({ current: null, pending: null })
       }
     }
+  })
+})
+
+describe('buildPriceTimeline', () => {
+  it('lists every price for the nhiên liệu and vùng, newest ngày áp dụng first', () => {
+    const timeline = buildPriceTimeline(
+      [
+        price(FuelArea.FUEL_AREA_1, 'DO', '2026-06-25', 22290),
+        price(FuelArea.FUEL_AREA_1, 'DO', '2026-07-20', 23900),
+        price(FuelArea.FUEL_AREA_1, 'DO', '2026-05-10', 21800),
+      ],
+      FuelArea.FUEL_AREA_1,
+      'DO',
+      TODAY
+    )
+    expect(timeline.map((row) => row.effectiveDate)).toEqual([
+      new Date('2026-07-20'),
+      new Date('2026-06-25'),
+      new Date('2026-05-10'),
+    ])
+  })
+
+  it('marks the price the board shows as current, and no other', () => {
+    const timeline = buildPriceTimeline(
+      [
+        price(FuelArea.FUEL_AREA_1, 'DO', '2026-06-25', 22290),
+        price(FuelArea.FUEL_AREA_1, 'DO', '2026-07-20', 23900),
+      ],
+      FuelArea.FUEL_AREA_1,
+      'DO',
+      TODAY
+    )
+    expect(timeline).toEqual([
+      { unitPrice: 23900, effectiveDate: new Date('2026-07-20'), isCurrent: true },
+      { unitPrice: 22290, effectiveDate: new Date('2026-06-25'), isCurrent: false },
+    ])
+  })
+
+  it('lists a pending future price without marking it current', () => {
+    const timeline = buildPriceTimeline(
+      [
+        price(FuelArea.FUEL_AREA_1, 'XANG_A95', '2026-08-14', 22000),
+        price(FuelArea.FUEL_AREA_1, 'XANG_A95', '2026-08-25', 23100),
+      ],
+      FuelArea.FUEL_AREA_1,
+      'XANG_A95',
+      TODAY
+    )
+    expect(timeline).toEqual([
+      { unitPrice: 23100, effectiveDate: new Date('2026-08-25'), isCurrent: false },
+      { unitPrice: 22000, effectiveDate: new Date('2026-08-14'), isCurrent: true },
+    ])
+  })
+
+  it('leaves out prices belonging to another vùng or another nhiên liệu', () => {
+    const timeline = buildPriceTimeline(
+      [
+        price(FuelArea.FUEL_AREA_1, 'DO', '2026-07-20', 23900),
+        price(FuelArea.FUEL_AREA_2, 'DO', '2026-07-20', 24000),
+        price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 24300),
+      ],
+      FuelArea.FUEL_AREA_1,
+      'DO',
+      TODAY
+    )
+    expect(timeline).toEqual([
+      { unitPrice: 23900, effectiveDate: new Date('2026-07-20'), isCurrent: true },
+    ])
+  })
+
+  it('returns nothing for a cell that has never had a price', () => {
+    const timeline = buildPriceTimeline(
+      [price(FuelArea.FUEL_AREA_1, 'URE', '2026-07-20', 15000)],
+      FuelArea.FUEL_AREA_2,
+      'URE',
+      TODAY
+    )
+    expect(timeline).toEqual([])
+  })
+
+  it('marks no row current when every price for the cell is still in the future', () => {
+    const timeline = buildPriceTimeline(
+      [price(FuelArea.FUEL_AREA_2, 'URE', '2026-08-25', 15000)],
+      FuelArea.FUEL_AREA_2,
+      'URE',
+      TODAY
+    )
+    expect(timeline).toEqual([
+      { unitPrice: 15000, effectiveDate: new Date('2026-08-25'), isCurrent: false },
+    ])
   })
 })

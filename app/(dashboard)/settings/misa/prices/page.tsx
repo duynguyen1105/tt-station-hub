@@ -1,9 +1,14 @@
 import { TriangleAlert } from 'lucide-react'
 
+import { PriceHistoryDialog } from '@/components/misa-export/price-history-dialog'
 import { RetailPriceForm } from '@/components/misa-export/retail-price-form'
 import { formatDate, formatVND, vnTime } from '@/lib/format'
 import { FuelArea } from '@/lib/generated/prisma/client'
-import { type BoardCell, buildRetailPriceBoard } from '@/lib/misa-export/retail-price-board'
+import {
+  type BoardCell,
+  buildPriceTimeline,
+  buildRetailPriceBoard,
+} from '@/lib/misa-export/retail-price-board'
 import { prisma } from '@/lib/prisma'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -16,15 +21,13 @@ export default async function MisaPricesPage() {
   // effectiveDate is a @db.Date (UTC midnight), so "today" is the Vietnam calendar
   // day read the same way — a price dated today is in force from its first ca.
   const today = new Date(vnTime(new Date()).format('YYYY-MM-DD'))
-  const board = buildRetailPriceBoard(
-    prices.map((price) => ({
-      fuelArea: price.fuelArea,
-      fuelType: price.fuelType,
-      effectiveDate: price.effectiveDate,
-      unitPrice: Number(price.unitPrice),
-    })),
-    today
-  )
+  const rows = prices.map((price) => ({
+    fuelArea: price.fuelArea,
+    fuelType: price.fuelType,
+    effectiveDate: price.effectiveDate,
+    unitPrice: Number(price.unitPrice),
+  }))
+  const board = buildRetailPriceBoard(rows, today)
 
   return (
     <div className="space-y-4">
@@ -49,7 +52,13 @@ export default async function MisaPricesPage() {
               <td className="p-2 font-medium">{fuelTypeLabel(entry.fuelType)}</td>
               {AREA_COLUMNS.map((area) => (
                 <td key={area} className="p-2 align-top">
-                  <PriceCell cell={entry.cells[area]} />
+                  <PriceHistoryDialog
+                    fuelLabel={fuelTypeLabel(entry.fuelType)}
+                    areaLabel={vi.fuelArea[area]}
+                    rows={buildPriceTimeline(rows, area, entry.fuelType, today)}
+                  >
+                    <PriceCell cell={entry.cells[area]} />
+                  </PriceHistoryDialog>
                 </td>
               ))}
             </tr>
@@ -62,26 +71,26 @@ export default async function MisaPricesPage() {
 
 function PriceCell({ cell }: { cell: BoardCell }) {
   return (
-    <div className="space-y-0.5">
+    <span className="block space-y-0.5">
       {cell.current === null ? (
-        <p className="text-destructive flex items-center gap-1.5">
+        <span className="text-destructive flex items-center gap-1.5">
           <TriangleAlert className="size-4 shrink-0" />
           {vi.misaSettings.noPrice}
-        </p>
+        </span>
       ) : (
-        <p className="flex items-baseline gap-2">
+        <span className="flex items-baseline gap-2">
           <span className="readout">{formatVND(cell.current.unitPrice)}</span>
           <span className="text-muted-foreground text-xs">
             {formatDate(cell.current.effectiveDate)}
           </span>
-        </p>
+        </span>
       )}
       {cell.pending !== null && (
-        <p className="text-muted-foreground flex items-baseline gap-2 text-xs">
+        <span className="text-muted-foreground flex items-baseline gap-2 text-xs">
           <span className="readout">→ {formatVND(cell.pending.unitPrice)}</span>
           <span>{vi.misaSettings.pendingFrom(formatDate(cell.pending.effectiveDate))}</span>
-        </p>
+        </span>
       )}
-    </div>
+    </span>
   )
 }
