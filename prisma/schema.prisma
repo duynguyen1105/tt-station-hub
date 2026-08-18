@@ -19,7 +19,6 @@ model Profile {
   id        String   @id @db.Uuid // = auth.users.id
   email     String   @unique
   fullName  String   @map("full_name")
-  phone     String? // contact number, so the admin can reach an accountant
   role      String // 'admin' | 'accountant' | 'viewer'
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")

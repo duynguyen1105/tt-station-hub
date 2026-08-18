@@ -38,8 +38,8 @@ const passwordResetSchema = z
  * Quản trị viên only.
  *
  * The password lives in Supabase Auth alone, so nothing on the profile is
- * touched — họ tên, số điện thoại, trạm phụ trách and the khóa state all come
- * through unchanged.
+ * touched — họ tên, trạm phụ trách and the khóa state all come through
+ * unchanged.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
