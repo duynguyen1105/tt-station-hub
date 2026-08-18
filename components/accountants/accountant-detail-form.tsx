@@ -15,13 +15,12 @@ export type DetailAccountant = {
   fullName: string
   /** Held in the email column, but it is a tên đăng nhập everywhere a person reads it. */
   username: string
-  phone: string | null
 }
 
 /**
- * Everything about one kế toán that can be corrected, under one Lưu: họ tên, số
- * điện thoại and the trạm they are phụ trách of. One visit to a person is one
- * save, so the checklist is not a second form with a second button.
+ * Everything about one kế toán that can be corrected, under one Lưu: họ tên and
+ * the trạm they are phụ trách of. One visit to a person is one save, so the
+ * checklist is not a second form with a second button.
  *
  * The tên đăng nhập sits between them, shown and fixed — it is the identity the
  * person signs in with, held by the authentication system as well as here, so
@@ -42,7 +41,6 @@ export function AccountantDetailForm({
 }) {
   const { busy, save } = useSaveAction()
   const [fullName, setFullName] = useState(accountant.fullName)
-  const [phone, setPhone] = useState(accountant.phone ?? '')
   // Seeded from what the person is phụ trách of now, so an untouched checklist
   // saves the same assignment back.
   const [selected, setSelected] = useState<string[]>(() =>
@@ -57,7 +55,7 @@ export function AccountantDetailForm({
       // The whole set the person is phụ trách of afterwards, not a diff: it is what
       // the checklist knows, and the later of two saves then wins outright instead
       // of leaving two half-applied diffs.
-      body: { fullName: fullName.trim(), phone: phone.trim(), stationIds: selected },
+      body: { fullName: fullName.trim(), stationIds: selected },
       success: vi.accountants.updated,
     })
   }
@@ -65,7 +63,7 @@ export function AccountantDetailForm({
   return (
     <div className="space-y-6">
       {/* Who they are on one side, what they are phụ trách of on the other: the
-          checklist is as long as there are trạm, and stacked under three short
+          checklist is as long as there are trạm, and stacked under the short
           inputs it pushed the one Lưu below the fold. */}
       <div className="grid gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
         <div className="space-y-4">
@@ -87,18 +85,8 @@ export function AccountantDetailForm({
             />
             <FieldDescription>{vi.accountants.usernameLocked}</FieldDescription>
           </Field>
-          <Field>
-            <FieldLabel htmlFor="acc-phone">{vi.accountants.phone}</FieldLabel>
-            <Input
-              id="acc-phone"
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </Field>
         </div>
         <AccountantStationChecklist
-          accountantId={accountant.id}
           stations={stations}
           selected={selected}
           onChange={setSelected}

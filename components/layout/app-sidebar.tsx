@@ -45,7 +45,7 @@ const NAV_ITEMS: {
   { href: '/upload', label: vi.nav.upload, icon: Upload },
   { href: '/reports/misa-export', label: vi.nav.misaReport, icon: FileSpreadsheet },
   { href: '/settings/misa', label: vi.nav.settings, icon: Settings },
-  { href: '/settings/users', label: vi.nav.accountants, icon: Users, roles: ['admin'] },
+  { href: '/admin/accountants', label: vi.nav.admin, icon: Users, roles: ['admin'] },
 ]
 
 type AppSidebarProps = {

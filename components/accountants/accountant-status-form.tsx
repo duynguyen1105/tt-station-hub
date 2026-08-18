@@ -49,9 +49,9 @@ export function AccountantStatusForm({ accountant }: { accountant: StatusAccount
       `/api/users/${accountant.id}`,
       {
         method: 'PATCH',
-        // Only the state of the tài khoản. Họ tên, số điện thoại and — above all —
-        // the trạm phụ trách are left out, so ngưng hoạt động keeps the assignment
-        // and kích hoạt gives the person back the same trạm they had.
+        // Only the state of the tài khoản. Họ tên and — above all — the trạm phụ
+        // trách are left out, so ngưng hoạt động keeps the assignment and kích hoạt
+        // gives the person back the same trạm they had.
         body: { isActive: !accountant.isActive },
         success: suspending ? vi.accountants.suspendDone : vi.accountants.restoreDone,
       },

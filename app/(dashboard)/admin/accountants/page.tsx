@@ -17,7 +17,7 @@ import { vi } from '@/messages/vi'
  */
 const VISIBLE_STATIONS = 3
 
-export default async function SettingsAccountantsPage() {
+export default async function AccountantsPage() {
   await requireRole('admin')
 
   const [accountants, stations] = await Promise.all([
@@ -48,7 +48,7 @@ export default async function SettingsAccountantsPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="label-micro">{vi.nav.settings}</p>
+          <p className="label-micro">{vi.nav.admin}</p>
           <h1 className="text-2xl font-bold tracking-tight">{vi.accountants.title}</h1>
           <p className="text-muted-foreground text-sm">{vi.accountants.subtitle}</p>
         </div>
@@ -79,7 +79,6 @@ export default async function SettingsAccountantsPage() {
             <tr className="text-muted-foreground border-b text-left">
               <th className="p-2">{vi.accountants.fullName}</th>
               <th className="p-2">{vi.accountants.username}</th>
-              <th className="p-2">{vi.accountants.phone}</th>
               <th className="p-2">{vi.accountants.assignedStations}</th>
               <th className="p-2">{vi.accountants.accountStatus}</th>
             </tr>
@@ -106,14 +105,13 @@ export default async function SettingsAccountantsPage() {
                       done to them: the list says who there is, and points. */}
                   <td className="p-2">
                     <Link
-                      href={`/settings/users/${accountant.id}`}
+                      href={`/admin/accountants/${accountant.id}`}
                       className="font-medium hover:underline"
                     >
                       {accountant.fullName}
                     </Link>
                   </td>
                   <td className="p-2 font-mono">{accountant.email}</td>
-                  <td className="p-2 font-mono">{accountant.phone ?? '—'}</td>
                   {/* A row's worth of trạm, said in a row's worth of height:
                       the whole list was a paragraph in a table of short values,
                       and the one thing worth knowing about somebody phụ trách of
