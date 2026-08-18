@@ -24,15 +24,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+// Type-only: importing the FuelArea *value* would drag the Prisma runtime into the
+// client bundle, which Turbopack rejects (node:module in a client chunk).
 import { type FuelArea } from '@/lib/generated/prisma/client'
 import { vi } from '@/messages/vi'
 
 const fuelOptions = Object.entries(vi.fuelType)
+const fuelAreaOptions = Object.entries(vi.fuelArea) as [FuelArea, string][]
 
-export function RetailPriceForm({ fuelArea }: { fuelArea: FuelArea }) {
+export function RetailPriceForm() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  // The board shows both vùng at once, so the vùng a price applies to is chosen here.
+  const [fuelArea, setFuelArea] = useState<FuelArea>('FUEL_AREA_1')
   const [fuelType, setFuelType] = useState('DO')
   const [effectiveDate, setEffectiveDate] = useState('')
   const [unitPrice, setUnitPrice] = useState('')
@@ -75,6 +80,21 @@ export function RetailPriceForm({ fuelArea }: { fuelArea: FuelArea }) {
           <DialogTitle>{vi.misaSettings.addPrice}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <Field>
+            <FieldLabel>{vi.misaSettings.fuelAreaLabel}</FieldLabel>
+            <Select value={fuelArea} onValueChange={(v) => setFuelArea(v as FuelArea)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {fuelAreaOptions.map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
           <Field>
             <FieldLabel>{vi.misaSettings.fuel}</FieldLabel>
             <Select value={fuelType} onValueChange={setFuelType}>
