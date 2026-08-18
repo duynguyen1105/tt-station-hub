@@ -99,6 +99,8 @@ export const vi = {
     current: 'Hiện hành',
     noPrice: 'Chưa có giá',
     pendingFrom: (date: string) => `từ ${date}`,
+    historyTitle: (fuel: string, area: string) => `Lịch sử giá ${fuel} — ${area}`,
+    noPriceHistory: 'Chưa có giá nào cho nhiên liệu này ở vùng này.',
     noStations: 'Chưa có trạm nào. Hãy chạy seed dữ liệu trước.',
     duplicate: 'Đã có giá cho nhiên liệu này vào ngày này.',
     invalidPrice: 'Vui lòng nhập đơn giá hợp lệ.',

@@ -46,7 +46,7 @@ function buildCell(
   fuelType: string,
   today: Date
 ): BoardCell {
-  const inArea = prices.filter((p) => p.fuelArea === fuelArea && p.fuelType === fuelType)
+  const inArea = pricesForCell(prices, fuelArea, fuelType)
   const current = priceRowOnDate(inArea, fuelType, today)
   // The next kỳ to take effect — the earliest ngày áp dụng still ahead of today.
   const pending = inArea
@@ -57,4 +57,36 @@ function buildCell(
 
 function priceAt(price: RetailPrice | null | undefined): BoardPriceAt | null {
   return price ? { unitPrice: price.unitPrice, effectiveDate: price.effectiveDate } : null
+}
+
+/** Every price ever recorded for one cell of the board — one nhiên liệu in one vùng. */
+function pricesForCell(prices: BoardPrice[], fuelArea: FuelArea, fuelType: string): BoardPrice[] {
+  return prices.filter((p) => p.fuelArea === fuelArea && p.fuelType === fuelType)
+}
+
+/** A row of a cell's Lịch sử, with whether it is the price the board calls current. */
+export type TimelineRow = BoardPriceAt & { isCurrent: boolean }
+
+/**
+ * The Lịch sử behind one board cell: every giá bán lẻ ever recorded for that nhiên
+ * liệu in that vùng, newest ngày áp dụng first. The row marked current is the one
+ * `buildRetailPriceBoard` shows in the cell, so the timeline and the board agree.
+ */
+export function buildPriceTimeline(
+  prices: BoardPrice[],
+  fuelArea: FuelArea,
+  fuelType: string,
+  today: Date
+): TimelineRow[] {
+  const inCell = pricesForCell(prices, fuelArea, fuelType)
+  const current = priceRowOnDate(inCell, fuelType, today)
+  // priceRowOnDate returns a row out of inCell, so identity marks the very row the
+  // board's cell is showing rather than one that merely looks like it.
+  return inCell
+    .sort((a, b) => b.effectiveDate.getTime() - a.effectiveDate.getTime())
+    .map((p) => ({
+      unitPrice: p.unitPrice,
+      effectiveDate: p.effectiveDate,
+      isCurrent: p === current,
+    }))
 }
