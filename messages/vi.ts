@@ -14,7 +14,7 @@ export const vi = {
     upload: 'Tải ảnh',
     misaReport: 'Báo cáo MISA',
     settings: 'Cài đặt',
-    accountants: 'Kế toán',
+    admin: 'Quản trị',
   },
 
   stationTabs: {

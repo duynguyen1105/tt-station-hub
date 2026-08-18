@@ -45,7 +45,7 @@ export default async function AccountantPage({ params }: { params: Promise<{ id:
         <div className="space-y-1.5">
           <p className="label-micro">
             <Link
-              href="/settings/users"
+              href="/admin/accountants"
               className="hover:text-foreground inline-flex items-center gap-1 transition-colors"
             >
               <ArrowLeft className="size-3" />
