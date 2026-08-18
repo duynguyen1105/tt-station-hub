@@ -18,18 +18,28 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { formatVND } from '@/lib/format'
+import type { FuelArea } from '@/lib/generated/prisma/client'
 import {
   BOARD_AREA_ORDER,
   BOARD_FUEL_ORDER,
   type BoardPrice,
   buildRetailPriceBoard,
+  isAreaIndependent,
 } from '@/lib/misa-export/retail-price-board'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 /** A kỳ is keyed one cell per nhiên liệu per vùng, so cells are addressed by both. */
-function cellKey(fuelArea: string, fuelType: string): string {
-  return `${fuelArea}:${fuelType}`
+function cellKey(fuelArea: FuelArea | null, fuelType: string): string {
+  return `${fuelArea ?? 'ALL'}:${fuelType}`
+}
+
+/**
+ * The vùng a nhiên liệu is keyed under. One priced the same everywhere is asked for
+ * once — a single null cell the kỳ then writes into both vùng.
+ */
+function areasFor(fuelType: string): readonly (FuelArea | null)[] {
+  return isAreaIndependent(fuelType) ? [null] : BOARD_AREA_ORDER
 }
 
 /**
@@ -64,8 +74,8 @@ export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
       toast.error(vi.misaSettings.selectDate)
       return
     }
-    const filled = BOARD_AREA_ORDER.flatMap((fuelArea) =>
-      BOARD_FUEL_ORDER.map((fuelType) => ({
+    const filled = BOARD_FUEL_ORDER.flatMap((fuelType) =>
+      areasFor(fuelType).map((fuelArea) => ({
         fuelArea,
         fuelType,
         entered: (cells[cellKey(fuelArea, fuelType)] ?? '').trim(),
@@ -147,15 +157,22 @@ export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
                 {board.map((entry) => (
                   <tr key={entry.fuelType}>
                     <td className="p-2 font-medium">{fuelTypeLabel(entry.fuelType)}</td>
-                    {BOARD_AREA_ORDER.map((area) => {
+                    {areasFor(entry.fuelType).map((area) => {
                       const key = cellKey(area, entry.fuelType)
-                      const inForce = entry.cells[area].current
+                      // A null vùng reads the board's vùng 1 cell — both hold the same price.
+                      const inForce = entry.cells[area ?? BOARD_AREA_ORDER[0]].current
+                      const areaLabel =
+                        area === null ? vi.misaSettings.bothAreas : vi.fuelArea[area]
                       return (
-                        <td className="space-y-1 p-2" key={area}>
+                        <td
+                          className="space-y-1 p-2"
+                          key={key}
+                          colSpan={area === null ? BOARD_AREA_ORDER.length : undefined}
+                        >
                           <Input
                             type="number"
                             inputMode="numeric"
-                            aria-label={`${fuelTypeLabel(entry.fuelType)} — ${vi.fuelArea[area]}`}
+                            aria-label={`${fuelTypeLabel(entry.fuelType)} — ${areaLabel}`}
                             value={cells[key] ?? ''}
                             onChange={(e) =>
                               setCells((prev) => ({ ...prev, [key]: e.target.value }))

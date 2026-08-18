@@ -103,6 +103,8 @@ export const vi = {
     pendingFrom: (date: string) => `từ ${date}`,
     historyTitle: (fuel: string, area: string) => `Lịch sử giá ${fuel} — ${area}`,
     noPriceHistory: 'Chưa có giá nào cho nhiên liệu này ở vùng này.',
+    noPriceHistoryAllAreas: 'Chưa có giá nào cho nhiên liệu này.',
+    bothAreas: 'Cả hai vùng',
     kyTitle: 'Thêm kỳ điều chỉnh giá',
     blankMeansUnchanged: 'Để trống ô của nhiên liệu không đổi giá trong kỳ này.',
     kyEmpty: 'Chưa nhập giá nào cho kỳ này.',

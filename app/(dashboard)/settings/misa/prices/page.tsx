@@ -50,17 +50,33 @@ export default async function MisaPricesPage() {
           {board.map((entry) => (
             <tr key={entry.fuelType} className="border-b">
               <td className="p-2 font-medium">{fuelTypeLabel(entry.fuelType)}</td>
-              {AREA_COLUMNS.map((area) => (
-                <td key={area} className="p-2 align-top">
+              {/* A nhiên liệu priced the same everywhere gets one cell across both cột
+                  vùng — kế toán reads one number because there is only one. */}
+              {entry.areaIndependent ? (
+                <td className="p-2 align-top" colSpan={AREA_COLUMNS.length}>
                   <PriceHistoryDialog
                     fuelLabel={fuelTypeLabel(entry.fuelType)}
-                    areaLabel={vi.fuelArea[area]}
-                    rows={buildPriceTimeline(rows, area, entry.fuelType, today)}
+                    areaLabel={vi.misaSettings.bothAreas}
+                    areaIndependent
+                    rows={buildPriceTimeline(rows, AREA_COLUMNS[0], entry.fuelType, today)}
                   >
-                    <PriceCell cell={entry.cells[area]} />
+                    <PriceCell cell={entry.cells[AREA_COLUMNS[0]]} />
                   </PriceHistoryDialog>
                 </td>
-              ))}
+              ) : (
+                AREA_COLUMNS.map((area) => (
+                  <td key={area} className="p-2 align-top">
+                    <PriceHistoryDialog
+                      fuelLabel={fuelTypeLabel(entry.fuelType)}
+                      areaLabel={vi.fuelArea[area]}
+                      areaIndependent={false}
+                      rows={buildPriceTimeline(rows, area, entry.fuelType, today)}
+                    >
+                      <PriceCell cell={entry.cells[area]} />
+                    </PriceHistoryDialog>
+                  </td>
+                ))
+              )}
             </tr>
           ))}
         </tbody>
