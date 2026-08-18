@@ -1,6 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
@@ -12,6 +13,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { createClient } from '@/lib/supabase/client'
 import { vi } from '@/messages/vi'
 
@@ -25,6 +32,7 @@ type LoginValues = z.infer<typeof loginSchema>
 export function LoginForm() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const {
     register,
     handleSubmit,
@@ -62,12 +70,24 @@ export function LoginForm() {
         </Field>
         <Field>
           <FieldLabel htmlFor="password">{vi.auth.password}</FieldLabel>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            {...register('password')}
-          />
+          <InputGroup>
+            <InputGroupInput
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              {...register('password')}
+            />
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                size="icon-xs"
+                aria-label={showPassword ? vi.auth.hidePassword : vi.auth.showPassword}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((visible) => !visible)}
+              >
+                {showPassword ? <EyeOff /> : <Eye />}
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
           {errors.password ? <FieldError>{errors.password.message}</FieldError> : null}
         </Field>
         <Button type="submit" loading={isSubmitting} className="w-full">

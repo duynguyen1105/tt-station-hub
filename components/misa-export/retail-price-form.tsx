@@ -17,47 +17,96 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { formatVND } from '@/lib/format'
+import type { FuelArea } from '@/lib/generated/prisma/client'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { type FuelArea } from '@/lib/generated/prisma/client'
+  BOARD_AREA_ORDER,
+  BOARD_FUEL_ORDER,
+  type BoardPrice,
+  buildRetailPriceBoard,
+  isAreaIndependent,
+} from '@/lib/misa-export/retail-price-board'
+import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
-const fuelOptions = Object.entries(vi.fuelType)
+/** A kỳ is keyed one cell per nhiên liệu per vùng, so cells are addressed by both. */
+function cellKey(fuelArea: FuelArea | null, fuelType: string): string {
+  return `${fuelArea ?? 'ALL'}:${fuelType}`
+}
 
-export function RetailPriceForm({ fuelArea }: { fuelArea: FuelArea }) {
+/**
+ * The vùng a nhiên liệu is keyed under. One priced the same everywhere is asked for
+ * once — a single null cell the kỳ then writes into both vùng.
+ */
+function areasFor(fuelType: string): readonly (FuelArea | null)[] {
+  return isAreaIndependent(fuelType) ? [null] : BOARD_AREA_ORDER
+}
+
+/**
+ * Thêm giá as a kỳ điều chỉnh giá: one ngày áp dụng, every nhiên liệu, both vùng in
+ * one grid. Each cell shows the price in force on the chosen date, so kế toán can see
+ * what a number is changing from; a cell left blank means that fuel did not move and
+ * writes nothing. One announcement is one pass through one dialog.
+ */
+export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [fuelType, setFuelType] = useState('DO')
   const [effectiveDate, setEffectiveDate] = useState('')
-  const [unitPrice, setUnitPrice] = useState('')
+  const [cells, setCells] = useState<Record<string, string>>({})
+
+  // The grid shows what each cell is in force at on the date chosen — the board's own
+  // rule, read at that date rather than at today's, so a backdated kỳ shows what was
+  // actually being billed then.
+  const chosenDate = effectiveDate === '' ? null : new Date(effectiveDate)
+  const board = chosenDate === null ? null : buildRetailPriceBoard(prices, chosenDate)
+  const dateHasKy =
+    chosenDate !== null &&
+    prices.some((price) => price.effectiveDate.getTime() === chosenDate.getTime())
+
+  function reset() {
+    setEffectiveDate('')
+    setCells({})
+  }
 
   async function submit() {
-    const value = Number(unitPrice)
-    if (!Number.isFinite(value) || value <= 0) {
-      toast.error(vi.misaSettings.invalidPrice)
-      return
-    }
-    if (!effectiveDate) {
+    if (effectiveDate === '') {
       toast.error(vi.misaSettings.selectDate)
       return
     }
+    const filled = BOARD_FUEL_ORDER.flatMap((fuelType) =>
+      areasFor(fuelType).map((fuelArea) => ({
+        fuelArea,
+        fuelType,
+        entered: (cells[cellKey(fuelArea, fuelType)] ?? '').trim(),
+      }))
+    ).filter((cell) => cell.entered !== '')
+    if (filled.some((cell) => !(Number(cell.entered) > 0))) {
+      toast.error(vi.misaSettings.invalidPrice)
+      return
+    }
+    if (filled.length === 0) {
+      toast.error(vi.misaSettings.kyEmpty)
+      return
+    }
+
     setBusy(true)
     const res = await fetch('/api/settings/misa/prices', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fuelArea, fuelType, effectiveDate, unitPrice: value }),
+      body: JSON.stringify({
+        effectiveDate,
+        cells: filled.map((cell) => ({
+          fuelArea: cell.fuelArea,
+          fuelType: cell.fuelType,
+          unitPrice: Number(cell.entered),
+        })),
+      }),
     })
     setBusy(false)
     if (res.ok) {
       setOpen(false)
-      setEffectiveDate('')
-      setUnitPrice('')
+      reset()
       router.refresh()
     } else {
       const body = await res.json().catch(() => null)
@@ -65,31 +114,21 @@ export function RetailPriceForm({ fuelArea }: { fuelArea: FuelArea }) {
     }
   }
 
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (!next) reset()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm">{vi.misaSettings.addPrice}</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{vi.misaSettings.addPrice}</DialogTitle>
+          <DialogTitle>{vi.misaSettings.kyTitle}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <Field>
-            <FieldLabel>{vi.misaSettings.fuel}</FieldLabel>
-            <Select value={fuelType} onValueChange={setFuelType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {fuelOptions.map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
           <Field>
             <FieldLabel htmlFor="effectiveDate">{vi.misaSettings.effectiveDate}</FieldLabel>
             <Input
@@ -99,19 +138,64 @@ export function RetailPriceForm({ fuelArea }: { fuelArea: FuelArea }) {
               onChange={(e) => setEffectiveDate(e.target.value)}
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="unitPrice">{vi.misaSettings.unitPrice}</FieldLabel>
-            <Input
-              id="unitPrice"
-              type="number"
-              inputMode="numeric"
-              value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
-            />
-          </Field>
+
+          {dateHasKy && <p className="text-sm">{vi.misaSettings.dateHasKy}</p>}
+
+          {board !== null && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted-foreground text-left">
+                  <th className="p-2 font-normal">{vi.misaSettings.fuel}</th>
+                  {BOARD_AREA_ORDER.map((area) => (
+                    <th key={area} className="p-2 font-normal">
+                      {vi.fuelArea[area]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {board.map((entry) => (
+                  <tr key={entry.fuelType}>
+                    <td className="p-2 font-medium">{fuelTypeLabel(entry.fuelType)}</td>
+                    {areasFor(entry.fuelType).map((area) => {
+                      const key = cellKey(area, entry.fuelType)
+                      // A null vùng reads the board's vùng 1 cell — both hold the same price.
+                      const inForce = entry.cells[area ?? BOARD_AREA_ORDER[0]].current
+                      const areaLabel =
+                        area === null ? vi.misaSettings.bothAreas : vi.fuelArea[area]
+                      return (
+                        <td
+                          className="space-y-1 p-2"
+                          key={key}
+                          colSpan={area === null ? BOARD_AREA_ORDER.length : undefined}
+                        >
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            aria-label={`${fuelTypeLabel(entry.fuelType)} — ${areaLabel}`}
+                            value={cells[key] ?? ''}
+                            onChange={(e) =>
+                              setCells((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                          />
+                          <p className="text-muted-foreground text-xs">
+                            {inForce === null
+                              ? vi.misaSettings.noPrice
+                              : `${vi.misaSettings.current}: ${formatVND(inForce.unitPrice)}`}
+                          </p>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <p className="text-muted-foreground text-xs">{vi.misaSettings.blankMeansUnchanged}</p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             {vi.common.cancel}
           </Button>
           <Button onClick={submit} loading={busy}>

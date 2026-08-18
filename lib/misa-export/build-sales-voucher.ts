@@ -206,15 +206,29 @@ function formatDate(d: Date): string {
   return `${day}/${month}/${d.getUTCFullYear()}`
 }
 
-/** Latest retail price with effectiveDate ≤ saleDate for a fuel, or null. */
-function priceOnDate(prices: RetailPrice[], fuelType: string, saleDate: Date): number | null {
+/**
+ * Latest retail price row with effectiveDate ≤ saleDate for a fuel, or null — the one
+ * definition of "the price in force on a date". The MISA export prices a ca with it at
+ * the ca's shift date; the Giá bán lẻ board shows it at today's date, so the screen and
+ * the export can never disagree about what a litre costs.
+ */
+export function priceRowOnDate(
+  prices: RetailPrice[],
+  fuelType: string,
+  saleDate: Date
+): RetailPrice | null {
   let best: RetailPrice | null = null
   for (const p of prices) {
     if (p.fuelType !== fuelType) continue
     if (p.effectiveDate.getTime() > saleDate.getTime()) continue
     if (best === null || p.effectiveDate.getTime() > best.effectiveDate.getTime()) best = p
   }
-  return best === null ? null : best.unitPrice
+  return best
+}
+
+/** The in-force unit price for a fuel on a date, or null. */
+function priceOnDate(prices: RetailPrice[], fuelType: string, saleDate: Date): number | null {
+  return priceRowOnDate(prices, fuelType, saleDate)?.unitPrice ?? null
 }
 
 /**
