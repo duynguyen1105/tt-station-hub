@@ -52,6 +52,8 @@ export const vi = {
     loginSubtitle: 'Đăng nhập để tiếp tục',
     invalidEmail: 'Email không hợp lệ',
     passwordRequired: 'Vui lòng nhập mật khẩu',
+    showPassword: 'Hiện mật khẩu',
+    hidePassword: 'Ẩn mật khẩu',
     loginFailed: 'Đăng nhập thất bại. Kiểm tra lại email và mật khẩu.',
     accountSuspended: 'Tài khoản đã bị ngưng hoạt động. Vui lòng liên hệ quản trị viên.',
   },
