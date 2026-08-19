@@ -91,7 +91,7 @@ model Dispenser {
   stationId             String    @map("station_id") @db.Uuid
   code                  String // "TRU_1"
   displayName           String    @map("display_name") // "Trụ 1"
-  fuelType              String    @map("fuel_type") // "DO" | "E0" | "DC" | "XANG_A95" | "URE"
+  fuelType              String    @map("fuel_type") // khóa nhiên liệu of a Fuel row
   tankCode              String?   @map("tank_code") // "HAM_3"
   tankCapacityK         Int?      @map("tank_capacity_k") // 25
   hasElectronicMeter    Boolean   @default(true) @map("has_electronic_meter")

@@ -75,14 +75,6 @@ export const vi = {
     missingOpening: 'Chưa có chỉ số đầu ca — vui lòng nhập trước khi duyệt.',
   },
 
-  fuelType: {
-    DO: 'Dầu DO',
-    E0: 'Xăng E0',
-    DC: 'Dầu DC',
-    XANG_A95: 'Xăng A95',
-    URE: 'URE (Adblue)',
-  },
-
   fuelArea: {
     FUEL_AREA_1: 'Vùng 1',
     FUEL_AREA_2: 'Vùng 2',
