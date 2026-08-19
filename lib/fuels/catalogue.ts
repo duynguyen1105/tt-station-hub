@@ -17,6 +17,10 @@ import { vi } from '@/messages/vi'
  * is free to change afterwards. The five founding nhiên liệu are the exception:
  * their khóa predate this rule and are seeded literally (prisma/seed.ts), so four
  * of the five are not what this function would produce from their tên.
+ *
+ * It has a second job: `resolvePlateFuel` runs it over both sides of a comparison to
+ * ask whether two strings name the same thing, which is what makes a plate word match a
+ * mã hàng, a tên or a khóa without caring about case, diacritics or spacing.
  */
 export function generateFuelType(name: string): string {
   return name
@@ -222,4 +226,53 @@ export function decideStationFuelRemoval(usage: StationFuelUsage): StationFuelRe
       : []),
   ]
   return reasons.length === 0 ? { kind: 'remove' } : { kind: 'blocked', reasons }
+}
+
+/**
+ * One row of a trạm's Map nhiên liệu, as the plate resolver reads it: the khóa it
+ * stores and the mã hàng MISA knows that nhiên liệu by at this trạm.
+ */
+export type StationFuelMapping = { fuelType: string; productCode: string }
+
+/**
+ * What a fuel word printed on a trụ or hầm plate means at one trạm. The vision prompt
+ * no longer carries a list of codes — it copies the word as printed — so this is the
+ * one place that turns "DO01" into a khóa, and it needs a trạm to do it.
+ *
+ * It must be called with the trạm the photo is FINALLY assigned to, not the one it
+ * arrived from: a plate can name a different trạm than the sender does, and the app
+ * honours that override. Resolving before the trạm is settled reads the wrong trạm's
+ * mã hàng.
+ *
+ * Two steps, and the order is the plate rollout: Trường Thịnh is having plates printed
+ * with the mã hàng, so that is asked first; failing that the danh mục's tên and khóa
+ * answer, which is what keeps a trụ still painted "DC" readable on the same day as one
+ * repainted "DO01". Both are correct at once.
+ *
+ * Comparison is by the khóa each side would generate, so case, diacritics and
+ * surrounding whitespace fall away on both sides at once.
+ *
+ * A nhiên liệu đã ngừng never resolves, by either step — a photo cannot bring back
+ * something Trường Thịnh stopped selling. Neither does a word nothing answers for: the
+ * result is null, the field stays empty, and kế toán sets it in review. Never guess. A
+ * wrong nhiên liệu that looks confident is worse than an empty one that waits.
+ */
+export function resolvePlateFuel(
+  catalogue: readonly CatalogueFuel[],
+  mappings: readonly StationFuelMapping[],
+  word: string | null | undefined
+): string | null {
+  const key = word ? generateFuelType(word) : ''
+  if (key === '') return null
+
+  const selectable = selectableFuels(catalogue)
+  const byMaHang = mappings.find((row) => generateFuelType(row.productCode) === key)
+  if (byMaHang && selectable.some((fuel) => fuel.fuelType === byMaHang.fuelType)) {
+    return byMaHang.fuelType
+  }
+
+  const byCatalogue = selectable.find(
+    (fuel) => generateFuelType(fuel.fuelType) === key || generateFuelType(fuel.name) === key
+  )
+  return byCatalogue?.fuelType ?? null
 }
