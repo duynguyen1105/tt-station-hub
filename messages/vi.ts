@@ -204,10 +204,16 @@ export const vi = {
     pumpNumber: 'Số trụ',
     pumpNumberNote:
       'Số in trên biển trụ. Số này sinh ra mã trụ để AI khớp ảnh chụp biển, nên lắp xong là cố định.',
-    // Ticket 13 opens this field; until then an edit here would rewrite the nhiên liệu
-    // of every chỉ số the trụ đã ghi.
-    fuelLocked:
-      'Chưa đổi được nhiên liệu của trụ — tính năng này sẽ mở ở bản sau. Cần trụ khác nhiên liệu thì tạm thời lắp trụ mới.',
+    // Đổi nhiên liệu is for a trụ hoán cải thật ngoài trạm, so the note says what the
+    // change does and does not reach.
+    fuelEditNote:
+      'Chỉ đổi khi trụ được hoán cải thật. Ca đã chốt vẫn giữ nhiên liệu lúc chốt; ca sau này ghi theo nhiên liệu mới.',
+    convert: 'Đổi nhiên liệu',
+    convertTitle: (name: string) => `Đổi nhiên liệu ${name}?`,
+    // Says the tồn kho out loud: hoán cải một trụ không chuyển lít nào giữa hai nhiên
+    // liệu — hầm được rút cạn và đổ lại ngoài thực tế, và đó là việc của kho.
+    convertBody: (from: string, to: string) =>
+      `Từ giờ ca của trụ này được ghi theo ${to}. Ca đã chốt vẫn giữ ${from}, trên mọi màn hình và khi xuất lại MISA. Tồn kho không được chuyển từ ${from} sang ${to} — hầm phải được rút cạn và đổ lại ngoài thực tế, rồi ghi bằng phiếu nhập và điều chỉnh kho.`,
     tank: 'Hầm',
     tankNumber: 'Số hầm',
     tankNote:

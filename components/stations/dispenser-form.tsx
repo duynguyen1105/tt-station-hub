@@ -40,16 +40,22 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSaveAction } from '@/hooks/use-save-action'
-import { refuseDispenserShape } from '@/lib/dispensers/rules'
-import { type CatalogueFuel } from '@/lib/fuels/catalogue'
+import {
+  type DispenserFuelOption,
+  dispenserFuelOptions,
+  refuseDispenserShape,
+} from '@/lib/dispensers/rules'
 import { vi } from '@/messages/vi'
 
-/** One trụ as its row hands it to the form: the tên it is known by, and what is editable. */
+/** One trụ as its row hands it to the form: the tên it is known by, and what it holds. */
 export type DispenserRow = {
   id: string
   displayName: string
-  /** Read-only until ticket 13 — shown so the form says what the trụ pumps. */
-  fuelName: string
+  /**
+   * What it pumps today, named as the danh mục names it — read unfiltered, so a nhiên
+   * liệu đã ngừng still reads its tên rather than its khóa.
+   */
+  fuel: DispenserFuelOption
   tankNumber: number | null
   tankCapacityK: number | null
   hasElectronicMeter: boolean
@@ -80,22 +86,25 @@ function numberOrNull(value: string): number | null {
  * a số trụ and a nhiên liệu first.
  *
  * `fuels` is what the trạm declared it sells, so the two can never disagree about the
- * nhiên liệu a trụ pumps. On an edit the nhiên liệu is shown but disabled: every chỉ số
- * the trụ has written is stamped with it, and ticket 13 is what makes changing it safe.
+ * nhiên liệu a trụ pumps. Changing it on an edit is a hoán cải — the trụ pumps the new
+ * nhiên liệu from here on, while every chỉ số it has already written keeps the one
+ * stamped on it — so it is confirmed rather than saved with the rest.
  */
 export function DispenserForm({
   stationId,
   dispenser,
   fuels,
-}: { stationId: string } & (
-  | { dispenser: DispenserRow; fuels?: never }
-  | { dispenser?: never; fuels: readonly CatalogueFuel[] }
-)) {
+}: {
+  stationId: string
+  dispenser?: DispenserRow
+  fuels: readonly DispenserFuelOption[]
+}) {
   const { busy, save } = useSaveAction()
   const [open, setOpen] = useState(false)
   const [standing, setStanding] = useState(false)
+  const [converting, setConverting] = useState(false)
   const [pumpNumber, setPumpNumber] = useState('')
-  const [fuelType, setFuelType] = useState('')
+  const [fuelType, setFuelType] = useState(dispenser?.fuel.fuelType ?? '')
   const [tankNumber, setTankNumber] = useState(toInputValue(dispenser?.tankNumber ?? null))
   const [tankCapacityK, setTankCapacityK] = useState(toInputValue(dispenser?.tankCapacityK ?? null))
   // Both đồng hồ ticked is what every trụ at Trường Thịnh has today; a trụ without one
@@ -103,9 +112,14 @@ export function DispenserForm({
   const [electronic, setElectronic] = useState(dispenser?.hasElectronicMeter ?? true)
   const [mechanical, setMechanical] = useState(dispenser?.hasMechanicalMeter ?? true)
 
+  // What the ô chọn offers: the trạm's Map nhiên liệu rows, plus whatever this trụ
+  // already pumps — a trụ đã ngừng may hold one the trạm has since stopped selling, and
+  // it has to read back as what it pumps rather than as an empty box.
+  const options = dispenserFuelOptions(fuels, dispenser?.fuel)
+
   function reset() {
     setPumpNumber('')
-    setFuelType('')
+    setFuelType(dispenser?.fuel.fuelType ?? '')
     setTankNumber(toInputValue(dispenser?.tankNumber ?? null))
     setTankCapacityK(toInputValue(dispenser?.tankCapacityK ?? null))
     setElectronic(dispenser?.hasElectronicMeter ?? true)
@@ -117,26 +131,49 @@ export function DispenserForm({
     setOpen(next)
   }
 
-  function submit() {
-    const edits = {
+  function editBody() {
+    return {
+      fuelType,
       tankNumber: numberOrNull(tankNumber),
       tankCapacityK: numberOrNull(tankCapacityK),
       hasElectronicMeter: electronic,
       hasMechanicalMeter: mechanical,
     }
+  }
+
+  function saveEdit(row: DispenserRow) {
+    save(
+      `/api/stations/${stationId}/dispensers/${row.id}`,
+      { method: 'PATCH', body: editBody(), success: vi.dispensers.saved },
+      {
+        onSuccess: () => {
+          setConverting(false)
+          setOpen(false)
+        },
+      }
+    )
+  }
+
+  function submit() {
     // The same rules the route keeps, asked here first so a dung tích that would be
     // dropped is said out loud rather than vanishing behind a success toast.
-    const refusal = refuseDispenserShape(edits)
+    const refusal = refuseDispenserShape(editBody())
     if (refusal) {
       toast.error(refusal)
       return
     }
+    if (!fuelType) {
+      toast.error(vi.dispensers.fuelRequired)
+      return
+    }
     if (dispenser) {
-      save(
-        `/api/stations/${stationId}/dispensers/${dispenser.id}`,
-        { method: 'PATCH', body: edits, success: vi.dispensers.saved },
-        { onSuccess: () => setOpen(false) }
-      )
+      // A hoán cải is a physical event with a tồn kho it does not move, so it is asked
+      // about before it is written rather than saved alongside a hầm number.
+      if (fuelType !== dispenser.fuel.fuelType) {
+        setConverting(true)
+        return
+      }
+      saveEdit(dispenser)
       return
     }
 
@@ -145,13 +182,9 @@ export function DispenserForm({
       toast.error(vi.dispensers.numberRequired)
       return
     }
-    if (!fuelType) {
-      toast.error(vi.dispensers.fuelRequired)
-      return
-    }
     save(
       `/api/stations/${stationId}/dispensers`,
-      { body: { pumpNumber: number, fuelType, ...edits }, success: vi.dispensers.saved },
+      { body: { pumpNumber: number, ...editBody() }, success: vi.dispensers.saved },
       { onSuccess: () => setOpen(false) }
     )
   }
@@ -196,7 +229,7 @@ export function DispenserForm({
       ) : (
         // Nothing to pump: a trạm declares its nhiên liệu before it lắp a trụ, so the
         // button waits rather than opening an ô chọn with nothing in it.
-        <Button size="sm" disabled={fuels?.length === 0} onClick={() => openChange(true)}>
+        <Button size="sm" disabled={fuels.length === 0} onClick={() => openChange(true)}>
           {vi.dispensers.add}
         </Button>
       )}
@@ -234,6 +267,38 @@ export function DispenserForm({
         </AlertDialog>
       )}
 
+      {dispenser && (
+        // Over the open Chỉnh sửa dialog, not instead of it: cancelling here goes back
+        // to the form with everything typed still in it.
+        <AlertDialog open={converting} onOpenChange={setConverting}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {vi.dispensers.convertTitle(dispenser.displayName)}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {vi.dispensers.convertBody(
+                  dispenser.fuel.name,
+                  options.find((fuel) => fuel.fuelType === fuelType)?.name ?? fuelType
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+              <AlertDialogAction
+                loading={busy}
+                onClick={(e) => {
+                  e.preventDefault()
+                  saveEdit(dispenser)
+                }}
+              >
+                {vi.dispensers.convert}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       <Dialog open={open} onOpenChange={openChange}>
         <DialogContent>
           <DialogHeader>
@@ -242,42 +307,35 @@ export function DispenserForm({
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {dispenser ? (
+            {!dispenser && (
               <Field>
-                <FieldLabel htmlFor="fuelType">{vi.misaSettings.fuel}</FieldLabel>
-                <Input id="fuelType" value={dispenser.fuelName} disabled readOnly />
-                <FieldDescription>{vi.dispensers.fuelLocked}</FieldDescription>
+                <FieldLabel htmlFor="pumpNumber">{vi.dispensers.pumpNumber}</FieldLabel>
+                <Input
+                  id="pumpNumber"
+                  type="number"
+                  min={1}
+                  value={pumpNumber}
+                  onChange={(e) => setPumpNumber(e.target.value)}
+                />
+                <FieldDescription>{vi.dispensers.pumpNumberNote}</FieldDescription>
               </Field>
-            ) : (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="pumpNumber">{vi.dispensers.pumpNumber}</FieldLabel>
-                  <Input
-                    id="pumpNumber"
-                    type="number"
-                    min={1}
-                    value={pumpNumber}
-                    onChange={(e) => setPumpNumber(e.target.value)}
-                  />
-                  <FieldDescription>{vi.dispensers.pumpNumberNote}</FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel>{vi.misaSettings.fuel}</FieldLabel>
-                  <Select value={fuelType} onValueChange={setFuelType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={vi.misaSettings.selectFuel} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fuels?.map((fuel) => (
-                        <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
-                          {fuel.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </>
             )}
+            <Field>
+              <FieldLabel>{vi.misaSettings.fuel}</FieldLabel>
+              <Select value={fuelType} onValueChange={setFuelType}>
+                <SelectTrigger>
+                  <SelectValue placeholder={vi.misaSettings.selectFuel} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((fuel) => (
+                    <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                      {fuel.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {dispenser && <FieldDescription>{vi.dispensers.fuelEditNote}</FieldDescription>}
+            </Field>
             <Field>
               <FieldLabel htmlFor="tankNumber">{vi.dispensers.tankNumber}</FieldLabel>
               <Input

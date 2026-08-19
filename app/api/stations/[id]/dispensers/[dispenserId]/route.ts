@@ -8,14 +8,16 @@ import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
+import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 
 /**
- * What Chỉnh sửa changes: the hầm the trụ draws from, its dung tích and the đồng hồ it
- * carries. Neither the số trụ nor the nhiên liệu is here — both are stamped on chỉ số
- * already written, and ticket 13 is what opens the nhiên liệu.
+ * What Chỉnh sửa changes: the nhiên liệu the trụ pumps, the hầm it draws from, its dung
+ * tích and the đồng hồ it carries. The số trụ is not here — it is the code a photo
+ * matches a biển to, and it is fixed once the trụ is lắp.
  */
 const editSchema = z.strictObject({
+  fuelType: z.string().trim().min(1),
   tankNumber: z.number().int().min(1).max(99).nullable(),
   tankCapacityK: z.number().int().min(1).max(1000).nullable(),
   hasElectronicMeter: z.boolean(),
@@ -33,6 +35,11 @@ const patchSchema = z.union([standingSchema, editSchema])
 
 /**
  * Chỉnh sửa a trụ, or retire and restore one.
+ *
+ * Changing the nhiên liệu converts the trụ from here on: the chỉ số of every ca already
+ * chốt carry their own nhiên liệu, so what the trụ sold as a trụ DO still reads DO on
+ * screen and re-exports as DO. Tồn kho is not migrated — the hầm is emptied and refilled
+ * in the real world, and that is recorded as kho movements.
  *
  * Retiring deactivates rather than deletes: the chỉ số and the đồng hồ cache hanging
  * off the row are the trạm's history, and a ca that has already been chốt reads them.
@@ -73,31 +80,45 @@ export async function PATCH(
     return ok(updated)
   }
 
-  const { tankNumber, tankCapacityK, ...meters } = parsed.data
+  const { fuelType, tankNumber, tankCapacityK, ...meters } = parsed.data
   const refusal = refuseDispenserShape(parsed.data)
   if (refusal) return badRequest(refusal)
+
+  // A trụ converted from DO to DC pumps DC from every ca after this one; each chỉ số it
+  // has already written keeps the nhiên liệu stamped on it, so nothing behind it moves.
+  // A nhiên liệu left alone passes untouched: a trụ đã ngừng may still hold one the trạm
+  // has since stopped selling, and editing its hầm is not the moment to refuse it.
+  const converted = fuelType !== dispenser.fuelType
+  if (converted) {
+    const notSold = await stationFuelRefusal(stationId, fuelType)
+    if (notSold) return badRequest(notSold)
+  }
 
   const tankFields = tankFieldsFor(tankNumber, tankCapacityK)
   const updated = await prisma.dispenser.update({
     where: { id: dispenserId },
-    data: { ...tankFields, ...meters },
+    data: { fuelType, ...tankFields, ...meters },
   })
 
   await writeAudit({
     userId: user.id,
-    action: 'dispenser.update',
+    // A conversion is a physical event — the hầm is emptied and refilled — and someone
+    // will want to date it later, so it is its own action rather than one more field
+    // buried in an edit.
+    action: converted ? 'dispenser.convert' : 'dispenser.update',
     entity: 'dispenser',
     entityId: dispenserId,
     metadata: {
       stationId,
       code: dispenser.code,
       from: {
+        fuelType: dispenser.fuelType,
         tankCode: dispenser.tankCode,
         tankCapacityK: dispenser.tankCapacityK,
         hasElectronicMeter: dispenser.hasElectronicMeter,
         hasMechanicalMeter: dispenser.hasMechanicalMeter,
       },
-      to: { ...tankFields, ...meters },
+      to: { fuelType, ...tankFields, ...meters },
     },
   })
   return ok(updated)
