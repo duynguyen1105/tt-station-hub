@@ -10,6 +10,7 @@ import {
   fuelTypeLabelFrom,
   generateFuelType,
   selectableFuels,
+  stationFuels,
 } from '@/lib/fuels/catalogue'
 
 describe('generateFuelType', () => {
@@ -286,5 +287,46 @@ describe('decideStationFuelRemoval', () => {
         dispensers: [{ displayName: 'Trụ 3', isActive: false }],
       })
     ).toEqual({ kind: 'remove' })
+  })
+})
+
+/**
+ * What a fuel picker inside a trạm may offer. The mirror of `addableFuels`: that one
+ * answers what the trạm has yet to take on, this one what it has already taken on and
+ * may therefore book a movement, a phiếu nhập or a công nợ against.
+ */
+describe('stationFuels', () => {
+  const CATALOGUE: CatalogueFuel[] = [
+    { fuelType: 'XANG_A95', name: 'Xăng RON 95', areaIndependent: false, isActive: true },
+    { fuelType: 'DC', name: 'Dầu hỏa', areaIndependent: false, isActive: false },
+    { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+    { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+  ]
+
+  it('offers only what the trạm has a Map nhiên liệu row for, in danh mục order', () => {
+    expect(stationFuels(CATALOGUE, ['E0', 'DO']).map((fuel) => fuel.fuelType)).toEqual(['DO', 'E0'])
+  })
+
+  it('offers nothing to a trạm that has declared no nhiên liệu', () => {
+    expect(stationFuels(CATALOGUE, [])).toEqual([])
+  })
+
+  // The row survives Ngừng sử dụng so the trạm's history still reads, but the ô chọn
+  // stops offering it the moment Trường Thịnh stops selling it.
+  it('drops a nhiên liệu đã ngừng the trạm still has a row for', () => {
+    expect(stationFuels(CATALOGUE, ['DO', 'DC']).map((fuel) => fuel.fuelType)).toEqual(['DO'])
+  })
+
+  // Đăk Nông 1 sells DO; Đăk Nông 2 sells A95. Neither is offered the other's nhiên
+  // liệu, because the rows read are its own.
+  it('reads only the rows of the trạm it is asked about', () => {
+    expect(stationFuels(CATALOGUE, ['DO']).map((fuel) => fuel.fuelType)).toEqual(['DO'])
+    expect(stationFuels(CATALOGUE, ['XANG_A95']).map((fuel) => fuel.fuelType)).toEqual(['XANG_A95'])
+  })
+
+  // A khóa left behind by a nhiên liệu deleted from the danh mục names nothing to
+  // offer; it must not become an ô chọn entry with no tên.
+  it('ignores a mapped khóa the danh mục no longer holds', () => {
+    expect(stationFuels(CATALOGUE, ['DO', 'GONE']).map((fuel) => fuel.fuelType)).toEqual(['DO'])
   })
 })

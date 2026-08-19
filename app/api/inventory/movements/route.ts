@@ -6,6 +6,7 @@ import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 
 const movementSchema = z.object({
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
   const { stationId, fuelType, movementType, quantity, movementDate, note } = parsed.data
   if (!(await canReachStation(user, stationId))) return forbidden()
+  // The ô chọn offers only what the trạm sells; so does the route, or a movement could
+  // still be booked into a tồn kho for a nhiên liệu the trạm has no hầm and no trụ for.
+  const refusal = await stationFuelRefusal(stationId, fuelType)
+  if (refusal) return badRequest(refusal)
 
   const movement = await prisma.$transaction(async (tx) => {
     const row = await tx.inventoryMovement.create({

@@ -9,7 +9,7 @@ import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatLiters } from '@/lib/format'
-import { fuelTypeLabeller, loadFuelCatalogue } from '@/lib/fuels/load-catalogue'
+import { fuelTypeLabeller, loadFuelCatalogue, loadStationFuels } from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import {
@@ -61,6 +61,9 @@ export default async function ShiftDetailPage({
   // The tên nhiên liệu this page shows — on each hầm of the nhập hàng dialog and on
   // each bán nợ row — read from the danh mục once for the request.
   const fuelLabel = await fuelTypeLabeller()
+  // What this trạm sells, for the nhập hàng dialog's ô chọn nhiên liệu. Labels above
+  // resolve every khóa; this narrows what a new hầm row may be given.
+  const stationFuels = await loadStationFuels(shift.stationId)
 
   const [station, readings, dispensers, visits] = await Promise.all([
     prisma.station.findUnique({ where: { id: shift.stationId }, select: { code: true } }),
@@ -167,6 +170,7 @@ export default async function ShiftDetailPage({
           {user.role !== 'viewer' && (
             <FuelImportForm
               stationId={shift.stationId}
+              fuels={stationFuels}
               tanks={buildTankOptionsFromDispensers(dispensers, fuelLabel)}
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}

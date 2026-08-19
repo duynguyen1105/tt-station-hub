@@ -3,8 +3,9 @@
 // page and tab underneath it.
 import { cache } from 'react'
 
-import { type CatalogueFuel, fuelTypeLabelFrom } from '@/lib/fuels/catalogue'
+import { type CatalogueFuel, fuelTypeLabelFrom, stationFuels } from '@/lib/fuels/catalogue'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 /**
  * Every nhiên liệu in the danh mục, oldest first — the order it was seeded in, so a
@@ -37,4 +38,44 @@ export const loadFuelCatalogue = cache(
 export async function fuelTypeLabeller(): Promise<(fuelType: string) => string> {
   const catalogue = await loadFuelCatalogue()
   return (fuelType: string) => fuelTypeLabelFrom(catalogue, fuelType)
+}
+
+/**
+ * What one trạm sells, in danh mục order — the danh mục narrowed to the nhiên liệu the
+ * trạm has a Map nhiên liệu row for. Every fuel picker that sits inside a trạm reads
+ * this rather than the whole danh mục, so a kế toán at Đăk Nông 1 is offered the three
+ * nhiên liệu that trạm holds and not the company's whole list.
+ *
+ * Cached per request like `loadFuelCatalogue`, and keyed by trạm, so a page that both
+ * renders a picker and validates a write pays for one query.
+ */
+export const loadStationFuels = cache(async (stationId: string): Promise<CatalogueFuel[]> => {
+  const [catalogue, maps] = await Promise.all([
+    loadFuelCatalogue(),
+    prisma.misaFuelMap.findMany({ where: { stationId }, select: { fuelType: true } }),
+  ])
+  return stationFuels(
+    catalogue,
+    maps.map((map) => map.fuelType)
+  )
+})
+
+/**
+ * The refusal a route gives for a khóa the trạm does not sell, or null when it does —
+ * the server-side half of the narrowing, so a payload naming a nhiên liệu no ô chọn
+ * offered is turned away rather than written. It is the same rule the picker draws, and
+ * it catches an unknown or ngừng khóa on the way through, because neither can be among
+ * what a trạm sells.
+ *
+ * The refusal names the nhiên liệu by its tên where the danh mục knows one, and by the
+ * bare khóa where it does not.
+ */
+export async function stationFuelRefusal(
+  stationId: string,
+  fuelType: string
+): Promise<string | null> {
+  const [sold, catalogue] = await Promise.all([loadStationFuels(stationId), loadFuelCatalogue()])
+  return sold.some((fuel) => fuel.fuelType === fuelType)
+    ? null
+    : vi.misaSettings.notStationFuel(fuelTypeLabelFrom(catalogue, fuelType))
 }

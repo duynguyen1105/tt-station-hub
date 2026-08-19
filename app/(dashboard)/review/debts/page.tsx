@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { vnTime } from '@/lib/format'
+import { loadStationFuels } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
@@ -36,6 +37,19 @@ export default async function ReviewDebtsPage() {
       select: { id: true, name: true },
     }),
   ])
+
+  // What each trạm on this page sells, so a card's fuel ô chọn offers that trạm's
+  // nhiên liệu and no other's. The queue spans several trạm, so this is per trạm rather
+  // than per page; moving a lượt xe to another trạm saves and refreshes, which is what
+  // hands the card the new trạm's list. Keyed by the trạm of every visit below, so the
+  // lookup that reads it has no miss to answer for.
+  const fuelsByStation = new Map(
+    await Promise.all(
+      [...new Set(visits.map((v) => v.stationId))].map(
+        async (stationId) => [stationId, await loadStationFuels(stationId)] as const
+      )
+    )
+  )
 
   // Sign the paired photos so the reviewer can check the AI reading against them.
   const photoIds = [
@@ -88,6 +102,7 @@ export default async function ReviewDebtsPage() {
                 displayedAmount: v.displayedAmount !== null ? Number(v.displayedAmount) : null,
                 amountMatchesDisplay: v.amountMatchesDisplay,
                 fuelType: v.fuelType,
+                fuels: fuelsByStation.get(v.stationId)!,
                 customerId: v.customerId,
                 autoMatched: v.customerId !== null,
                 anomalyReasons: v.anomalyReasons,
