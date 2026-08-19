@@ -22,3 +22,15 @@ export function generateFuelType(name: string): string {
     .replace(/[^A-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
 }
+
+/**
+ * One nhiên liệu of the danh mục, as the screens that read it need it. The khóa is
+ * what every other table stores; the tên is what kế toán sees; the flag says whether
+ * one giá covers the whole nước. No id and no active flag — nothing that reads a
+ * danh mục addresses the row it came from.
+ */
+export type CatalogueFuel = {
+  fuelType: string
+  name: string
+  areaIndependent: boolean
+}
