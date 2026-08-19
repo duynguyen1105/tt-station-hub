@@ -36,7 +36,9 @@ export function MovementForm({ stationId }: { stationId: string }) {
   const fuels = useSelectableFuels()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [fuelType, setFuelType] = useState('DO')
+  // The first nhiên liệu of the danh mục rather than a khóa written in here: a default
+  // the ô chọn does not offer would leave the field blank and submit anyway.
+  const [fuelType, setFuelType] = useState(fuels[0]?.fuelType ?? '')
   const [movementType, setMovementType] = useState('import')
   const [quantity, setQuantity] = useState('')
   const [movementDate, setMovementDate] = useState('')
