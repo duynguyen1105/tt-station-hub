@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   type CatalogueFuel,
   type FuelUsageCounts,
+  type StationFuelUsage,
   addableFuels,
   decideFuelRemoval,
+  decideStationFuelRemoval,
   fuelTypeLabelFrom,
   generateFuelType,
   selectableFuels,
@@ -215,5 +217,74 @@ describe('addableFuels', () => {
   it('reads only the rows of the trạm it is asked about', () => {
     expect(addableFuels(CATALOGUE, ['DO']).map((fuel) => fuel.fuelType)).toContain('E0')
     expect(addableFuels(CATALOGUE, ['E0']).map((fuel) => fuel.fuelType)).toContain('DO')
+  })
+})
+
+/**
+ * A trạm stops selling a nhiên liệu. Removing its Map nhiên liệu row is what says so,
+ * and it is refused while the trạm is still equipped to pump it or still holding it:
+ * an active trụ pumping it, or a tồn kho that is not zero. What the trạm sold in the
+ * past is never in the way — those rows store the khóa and read their tên back through
+ * the danh mục, which the removal does not touch.
+ */
+describe('decideStationFuelRemoval', () => {
+  const EMPTY: StationFuelUsage = { dispensers: [], stock: 0 }
+
+  it('removes a nhiên liệu the trạm neither pumps nor holds', () => {
+    expect(decideStationFuelRemoval(EMPTY)).toEqual({ kind: 'remove' })
+  })
+
+  it('refuses while an active trụ pumps it, naming the trụ', () => {
+    expect(
+      decideStationFuelRemoval({
+        ...EMPTY,
+        dispensers: [
+          { displayName: 'Trụ 1', isActive: true },
+          { displayName: 'Trụ 4', isActive: true },
+        ],
+      })
+    ).toEqual({
+      kind: 'blocked',
+      reasons: ['Trụ đang bơm nhiên liệu này: Trụ 1, Trụ 4'],
+    })
+  })
+
+  it('refuses while the tồn kho is not zero, naming the số lít', () => {
+    expect(decideStationFuelRemoval({ ...EMPTY, stock: 3240 })).toEqual({
+      kind: 'blocked',
+      reasons: ['Tồn kho còn 3,240.00 lít'],
+    })
+  })
+
+  // A tồn kho that has drifted below zero is still stock kế toán has to settle, so it
+  // blocks exactly as a positive one does.
+  it('refuses on a tồn kho âm as well', () => {
+    expect(decideStationFuelRemoval({ ...EMPTY, stock: -12.5 })).toEqual({
+      kind: 'blocked',
+      reasons: ['Tồn kho còn -12.50 lít'],
+    })
+  })
+
+  it('lists both blockers when both are present', () => {
+    expect(
+      decideStationFuelRemoval({
+        dispensers: [{ displayName: 'Trụ 2', isActive: true }],
+        stock: 3240,
+      })
+    ).toEqual({
+      kind: 'blocked',
+      reasons: ['Trụ đang bơm nhiên liệu này: Trụ 2', 'Tồn kho còn 3,240.00 lít'],
+    })
+  })
+
+  // A trụ ngừng hoạt động pumps nothing, which is exactly how kế toán clears this
+  // blocker: ngừng the trụ, then remove the nhiên liệu.
+  it('lets an inactive trụ through', () => {
+    expect(
+      decideStationFuelRemoval({
+        ...EMPTY,
+        dispensers: [{ displayName: 'Trụ 3', isActive: false }],
+      })
+    ).toEqual({ kind: 'remove' })
   })
 })
