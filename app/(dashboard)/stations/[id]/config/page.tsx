@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
-export default async function StationMisaPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StationConfigPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   await requireStationAccess(id)
 
