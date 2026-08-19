@@ -12,7 +12,7 @@ import { vi } from '@/messages/vi'
 
 const fuelMapSchema = z.object({
   stationId: z.string().uuid(),
-  fuelType: z.enum(['DO', 'E0', 'DC', 'XANG_A95', 'URE']),
+  fuelType: z.string().trim().min(1),
   productCode: z.string().trim().min(1),
   productName: z.string().trim().min(1).nullable().optional(),
   warehouseCode: z.string().trim().min(1),

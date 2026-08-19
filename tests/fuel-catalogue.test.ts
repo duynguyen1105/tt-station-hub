@@ -8,7 +8,6 @@ import {
   generateFuelType,
   selectableFuels,
 } from '@/lib/fuels/catalogue'
-import { fuelTypeLabel } from '@/lib/ui/status'
 
 describe('generateFuelType', () => {
   it('uppercases and joins the words of a tên with a single underscore', () => {
@@ -131,7 +130,7 @@ describe('fuelTypeLabelFrom', () => {
   })
 
   // What keeps history readable: a khóa the danh mục no longer answers for still
-  // renders, as the message-bundle helper has always done.
+  // renders as itself rather than blank.
   it('falls back to the raw khóa when no row matches', () => {
     expect(fuelTypeLabelFrom(CATALOGUE, 'DAU_NHON')).toBe('DAU_NHON')
     expect(fuelTypeLabelFrom([], 'DO')).toBe('DO')
@@ -173,27 +172,5 @@ describe('selectableFuels', () => {
 
   it('offers nothing when nothing is in use', () => {
     expect(selectableFuels([])).toEqual([])
-  })
-})
-
-/**
- * The old path and the new one must say the same thing while both exist. The danh mục
- * was seeded from this very map (prisma/seed.ts, ticket 01), so the five founding nhiên
- * liệu are the proof: a screen moved onto the danh mục in ticket 05 renders character
- * for character what it renders today.
- */
-describe('the danh mục and the message bundle agree', () => {
-  const SEEDED: CatalogueFuel[] = [
-    { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
-    { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
-    { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
-    { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: true },
-    { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true, isActive: true },
-  ]
-
-  it('renders the identical tên for all five nhiên liệu', () => {
-    for (const fuel of SEEDED) {
-      expect(fuelTypeLabelFrom(SEEDED, fuel.fuelType)).toBe(fuelTypeLabel(fuel.fuelType))
-    }
   })
 })

@@ -44,17 +44,16 @@ export type CatalogueFuel = {
 }
 
 /**
- * The tên a khóa reads as, taken from the danh mục. The danh mục-backed twin of
- * `fuelTypeLabel` in lib/ui/status.ts, which answers the same question from the
- * message bundle — both exist while the call sites move over (ticket 05) and the
- * message-bundle form goes in ticket 07, and they agree because the danh mục was
- * seeded from that bundle.
+ * The tên a khóa reads as, taken from the danh mục — the only thing in the app that
+ * answers what a nhiên liệu is called, now that the message bundle's five-fuel map is
+ * gone (ticket 07). The five founding nhiên liệu are rows of the danh mục like every
+ * one added since.
  *
  * Pure, so a server component passes it the loader's danh mục and a client component
- * the provider's, and both get the same string. A khóa the danh mục does not answer
- * for renders as itself, exactly as the message-bundle form does — that is what keeps
- * an old ca, phiếu nhập or công nợ row readable. Nhiên liệu đã ngừng are in the danh
- * mục both sides carry, so they resolve to their tên like any other.
+ * the provider's, and both get the same string. A khóa the danh mục does not answer for
+ * renders as itself rather than blank — that is what keeps an old ca, phiếu nhập or
+ * công nợ row readable. Nhiên liệu đã ngừng are in the danh mục both sides carry, so
+ * they resolve to their tên like any other.
  */
 export function fuelTypeLabelFrom(catalogue: readonly CatalogueFuel[], fuelType: string): string {
   return catalogue.find((fuel) => fuel.fuelType === fuelType)?.name ?? fuelType
