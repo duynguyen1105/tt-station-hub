@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { CustomerForm } from '@/components/debts/customer-form'
+import { useFuelTypeLabel, useSelectableFuels } from '@/components/fuels/catalogue-provider'
 import { StatusBadge } from '@/components/shared/status-badge'
 import {
   AlertDialog,
@@ -49,7 +50,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatLiters, formatVND } from '@/lib/format'
-import { anomalyLabel, fuelTypeLabel, reviewStatusInfo } from '@/lib/ui/status'
+import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
@@ -79,7 +80,6 @@ export type DebtVisitCardData = {
 }
 
 const UNASSIGNED = '__none__'
-const FUEL_TYPES = ['DO', 'E0', 'DC', 'XANG_A95', 'URE'] as const
 
 async function post(url: string, body?: unknown): Promise<Response> {
   return fetch(url, {
@@ -185,6 +185,10 @@ function CustomerPicker({
 
 export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   const router = useRouter()
+  // The tên of the nhiên liệu the AI read, and the choice a reviewer corrects it to:
+  // labels resolve for every nhiên liệu, the ô chọn offers only the ones still sold.
+  const fuelLabel = useFuelTypeLabel()
+  const fuels = useSelectableFuels()
   // Which write is in flight, not merely whether one is — Duyệt and Từ chối sit
   // side by side, so only the button that was clicked should spin.
   const [action, setAction] = useState<'station' | 'approve' | 'reject' | 'correct' | null>(null)
@@ -326,7 +330,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
             <div className="flex flex-wrap items-center gap-2">
               {data.fuelType && (
                 <span className="border-brass/40 bg-brass/10 text-foreground rounded border px-2 py-0.5 text-xs font-semibold">
-                  {fuelTypeLabel(data.fuelType)}
+                  {fuelLabel(data.fuelType)}
                 </span>
               )}
               {data.aiConfidence !== null && (
@@ -451,9 +455,9 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={UNASSIGNED}>—</SelectItem>
-                      {FUEL_TYPES.map((ft) => (
-                        <SelectItem key={ft} value={ft}>
-                          {fuelTypeLabel(ft)}
+                      {fuels.map((fuel) => (
+                        <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                          {fuel.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

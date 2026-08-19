@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { useSelectableFuels } from '@/components/fuels/catalogue-provider'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,11 +27,13 @@ import {
 } from '@/components/ui/select'
 import { vi } from '@/messages/vi'
 
-const fuelOptions = Object.entries(vi.fuelType)
 const movementOptions = Object.entries(vi.movementType)
 
 export function MovementForm({ stationId }: { stationId: string }) {
   const router = useRouter()
+  // Every nhiên liệu Trường Thịnh still sells, so one added in Cài đặt MISA can be
+  // moved the moment it exists and one đã ngừng cannot be moved again.
+  const fuels = useSelectableFuels()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [fuelType, setFuelType] = useState('DO')
@@ -94,9 +97,9 @@ export function MovementForm({ stationId }: { stationId: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {fuelOptions.map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
+                  {fuels.map((fuel) => (
+                    <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                      {fuel.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

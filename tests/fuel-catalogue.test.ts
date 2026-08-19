@@ -6,6 +6,7 @@ import {
   decideFuelRemoval,
   fuelTypeLabelFrom,
   generateFuelType,
+  selectableFuels,
 } from '@/lib/fuels/catalogue'
 import { fuelTypeLabel } from '@/lib/ui/status'
 
@@ -143,6 +144,35 @@ describe('fuelTypeLabelFrom', () => {
       { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: false },
     ]
     expect(fuelTypeLabelFrom(stopped, 'DC')).toBe('Dầu DC')
+  })
+})
+
+/**
+ * What an ô chọn is allowed to offer. Every fuel picker in the app — the kho movement
+ * form, the phiếu nhập form, the công nợ picker — asks this rather than filtering for
+ * itself, so Ngừng sử dụng takes a nhiên liệu off all of them at once.
+ */
+describe('selectableFuels', () => {
+  const CATALOGUE: CatalogueFuel[] = [
+    { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+    { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: false },
+    { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+  ]
+
+  it('offers every nhiên liệu Trường Thịnh still sells, in danh mục order', () => {
+    expect(selectableFuels(CATALOGUE).map((fuel) => fuel.fuelType)).toEqual(['XANG_A95', 'DO'])
+  })
+
+  // The two halves of the same rule: unselectable for a new row, still readable on an
+  // old one, so a ca or phiếu nhập written before Trường Thịnh stopped selling it keeps
+  // showing its tên.
+  it('drops a nhiên liệu đã ngừng from the choice while its tên still resolves', () => {
+    expect(selectableFuels(CATALOGUE).some((fuel) => fuel.fuelType === 'DC')).toBe(false)
+    expect(fuelTypeLabelFrom(CATALOGUE, 'DC')).toBe('Dầu DC')
+  })
+
+  it('offers nothing when nothing is in use', () => {
+    expect(selectableFuels([])).toEqual([])
   })
 })
 

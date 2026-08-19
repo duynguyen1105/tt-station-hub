@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { type CatalogueFuel } from '@/lib/fuels/catalogue'
 import {
   type CreditCustomer,
   type CreditVisit,
@@ -72,6 +73,13 @@ function visit(overrides: Partial<DebtVisitInput> = {}): DebtVisitInput {
   }
 }
 
+// The danh mục the list reads its tên nhiên liệu out of — what the page hands it from
+// the request's own loader, standing in here for the seeded rows.
+const CATALOGUE: CatalogueFuel[] = [
+  { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+  { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+]
+
 const listCustomers = new Map<string, DebtCustomerInput>([
   ['c1', { name: 'Quang Dũng', misaCode: 'QD' }],
   ['c2', { name: 'Ngọc Hồng', misaCode: 'NGỌC HỒNG' }],
@@ -82,21 +90,23 @@ describe('buildDebtsList', () => {
   it('uses the confirmed plate over the read plate for the id', () => {
     const [row] = buildDebtsList(
       [visit({ plateRead: '50E-00000', plateConfirmed: '50E-75317' })],
-      listCustomers
+      listCustomers,
+      CATALOGUE
     )
     expect(row?.id).toBe('50E-75317')
     expect(row?.idIsMissing).toBe(false)
   })
 
   it('falls back to the read plate when there is no confirmed plate', () => {
-    const [row] = buildDebtsList([visit({ plateConfirmed: null })], listCustomers)
+    const [row] = buildDebtsList([visit({ plateConfirmed: null })], listCustomers, CATALOGUE)
     expect(row?.id).toBe('50E-75317')
   })
 
   it('uses the customer MISA code for a plate-less (walk-in) visit', () => {
     const [row] = buildDebtsList(
       [visit({ plateRead: null, plateConfirmed: null, customerId: 'c2' })],
-      listCustomers
+      listCustomers,
+      CATALOGUE
     )
     expect(row?.id).toBe('NGỌC HỒNG')
     expect(row?.idIsMissing).toBe(false)
@@ -105,7 +115,8 @@ describe('buildDebtsList', () => {
   it('flags a missing id when there is no plate and no customer MISA code', () => {
     const [row] = buildDebtsList(
       [visit({ plateRead: null, plateConfirmed: null, customerId: 'c3' })],
-      listCustomers
+      listCustomers,
+      CATALOGUE
     )
     expect(row?.id).toBe('')
     expect(row?.idIsMissing).toBe(true)
@@ -114,20 +125,25 @@ describe('buildDebtsList', () => {
   it('flags a missing id when a plate-less visit was never assigned a customer', () => {
     const [row] = buildDebtsList(
       [visit({ plateRead: null, plateConfirmed: null, customerId: null })],
-      listCustomers
+      listCustomers,
+      CATALOGUE
     )
     expect(row?.idIsMissing).toBe(true)
     expect(row?.customerName).toBe('')
   })
 
   it('resolves the customer name and Vietnamese fuel label', () => {
-    const [row] = buildDebtsList([visit({ fuelType: 'E0', customerId: 'c2' })], listCustomers)
+    const [row] = buildDebtsList(
+      [visit({ fuelType: 'E0', customerId: 'c2' })],
+      listCustomers,
+      CATALOGUE
+    )
     expect(row?.customerName).toBe('Ngọc Hồng')
     expect(row?.fuelLabel).toBe('Xăng E0')
   })
 
   it('carries the AI-read litres through', () => {
-    const [row] = buildDebtsList([visit({ litersRead: 42.5 })], listCustomers)
+    const [row] = buildDebtsList([visit({ litersRead: 42.5 })], listCustomers, CATALOGUE)
     expect(row?.liters).toBe(42.5)
   })
 
@@ -138,13 +154,14 @@ describe('buildDebtsList', () => {
         visit({ litersRead: 1, visitDate: new Date('2026-06-27T01:00:00.000Z') }),
         visit({ litersRead: 2, visitDate: new Date('2026-06-27T03:00:00.000Z') }),
       ],
-      listCustomers
+      listCustomers,
+      CATALOGUE
     )
     expect(rows.map((r) => r.liters)).toEqual([1, 2, 3])
   })
 
   it('returns an empty list for no visits', () => {
-    expect(buildDebtsList([], listCustomers)).toEqual([])
+    expect(buildDebtsList([], listCustomers, CATALOGUE)).toEqual([])
   })
 })
 
@@ -233,7 +250,8 @@ describe('buildDebtsList ↔ buildMisaSalesVoucher consistency', () => {
           plateConfirmed: null,
         })
       ),
-      listCustomersById
+      listCustomersById,
+      CATALOGUE
     )
 
     const creditRows = misa.rows.filter((r) => r.kind === 'credit')

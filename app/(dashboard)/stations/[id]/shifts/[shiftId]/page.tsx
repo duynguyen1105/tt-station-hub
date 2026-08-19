@@ -9,6 +9,7 @@ import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatLiters } from '@/lib/format'
+import { loadFuelCatalogue } from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import {
@@ -107,7 +108,9 @@ export default async function ShiftDetailPage({
       vehiclePhotoUrl: v.vehiclePhotoId ? (photoUrlById.get(v.vehiclePhotoId) ?? null) : null,
       meterPhotoUrl: v.meterPhotoId ? (photoUrlById.get(v.meterPhotoId) ?? null) : null,
     })),
-    customersById
+    customersById,
+    // The tên nhiên liệu on each bán nợ row, read from the danh mục for this request.
+    await loadFuelCatalogue()
   )
 
   const readingByDispenser = new Map(readings.map((r) => [r.dispenserId, r]))

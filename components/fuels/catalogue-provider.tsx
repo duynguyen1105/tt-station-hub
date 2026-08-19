@@ -1,8 +1,8 @@
 'use client'
 
-import { createContext, useCallback, useContext } from 'react'
+import { createContext, useCallback, useContext, useMemo } from 'react'
 
-import { type CatalogueFuel, fuelTypeLabelFrom } from '@/lib/fuels/catalogue'
+import { type CatalogueFuel, fuelTypeLabelFrom, selectableFuels } from '@/lib/fuels/catalogue'
 
 const FuelCatalogueContext = createContext<readonly CatalogueFuel[] | null>(null)
 
@@ -42,4 +42,15 @@ export function useFuelCatalogue(): readonly CatalogueFuel[] {
 export function useFuelTypeLabel(): (fuelType: string) => string {
   const catalogue = useFuelCatalogue()
   return useCallback((fuelType: string) => fuelTypeLabelFrom(catalogue, fuelType), [catalogue])
+}
+
+/**
+ * The danh mục an ô chọn offers — the nhiên liệu Trường Thịnh still sells. The client
+ * side's form of `selectableFuels`, so the kho movement form, the phiếu nhập form and
+ * the công nợ picker all draw the same list and a nhiên liệu đã ngừng leaves every one
+ * of them at once.
+ */
+export function useSelectableFuels(): readonly CatalogueFuel[] {
+  const catalogue = useFuelCatalogue()
+  return useMemo(() => selectableFuels(catalogue), [catalogue])
 }

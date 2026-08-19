@@ -6,6 +6,7 @@ import { type ChangeEvent, Fragment, useEffect, useMemo, useRef, useState } from
 
 import { useRouter } from 'next/navigation'
 
+import { useSelectableFuels } from '@/components/fuels/catalogue-provider'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -63,8 +64,6 @@ export type TankOption = {
   /** Thousands of litres — the binding ladder's veto against a printed capacity. */
   capacityK: number | null
 }
-
-const fuelOptions = Object.entries(vi.fuelType)
 
 // Every cell is a free-text string while editing (mirrors the paper form);
 // numbers are parsed once on confirm.
@@ -330,6 +329,9 @@ export function FuelImportForm({
   paperPumps: readonly PumpRosterEntry[]
 }) {
   const router = useRouter()
+  // What section (c) may name as the nhiên liệu of a hầm: the danh mục as it stands,
+  // minus what Trường Thịnh has stopped selling.
+  const fuels = useSelectableFuels()
   const bienBanRef = useRef<HTMLInputElement>(null)
   const pxkRef = useRef<HTMLInputElement>(null)
   const relatedRef = useRef<HTMLInputElement>(null)
@@ -1088,9 +1090,9 @@ export function FuelImportForm({
                                   <SelectValue placeholder={vi.inventory.fuelType} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {fuelOptions.map(([value, label]) => (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
+                                  {fuels.map((fuel) => (
+                                    <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                                      {fuel.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
