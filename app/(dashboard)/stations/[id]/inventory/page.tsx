@@ -9,7 +9,11 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
-import { fuelTypeLabeller, loadStationFuels } from '@/lib/fuels/load-catalogue'
+import {
+  fuelTypeLabeller,
+  loadStationFuelMappings,
+  loadStationFuels,
+} from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import { type BaremLookup, lookupBaremLiters } from '@/lib/inventory/barem'
@@ -79,9 +83,13 @@ export default async function StationInventoryPage({
   // Every tên nhiên liệu on this page — tồn kho, sổ sách, đo hầm, phiếu nhập — is the
   // danh mục's, read once for the request.
   const fuelLabel = await fuelTypeLabeller()
-  // What this trạm sells, for the two forms on this page. Every table below resolves
-  // whatever khóa its rows already carry; only the ô chọn narrow.
-  const stationFuels = await loadStationFuels(id)
+  // What this trạm sells, for the two forms on this page, and its mã hàng, which is
+  // what reads a goods column on a biên bản. Every table below resolves whatever khóa
+  // its rows already carry; only the ô chọn narrow.
+  const [stationFuels, fuelMappings] = await Promise.all([
+    loadStationFuels(id),
+    loadStationFuelMappings(id),
+  ])
 
   // The histories grow every day, so each lives in its own sub-tab with
   // pagination; the overview stays a fixed-size dashboard. Tab, page and the
@@ -430,6 +438,7 @@ export default async function StationInventoryPage({
             <FuelImportForm
               stationId={id}
               fuels={stationFuels}
+              fuelMappings={fuelMappings}
               tanks={tanks}
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
