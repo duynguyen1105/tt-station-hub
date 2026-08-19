@@ -16,36 +16,52 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Field, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { type CatalogueFuel } from '@/lib/fuels/catalogue'
 import { vi } from '@/messages/vi'
 
 export type MisaFuelMapEntry = {
+  fuelType: string
   productCode: string
   productName: string | null
   warehouseCode: string
   unit: string | null
 }
 
+/**
+ * One row of Map nhiên liệu, written or rewritten. With an `entry` it edits that row
+ * and the nhiên liệu is fixed; without one it is Thêm nhiên liệu and the trạm picks a
+ * nhiên liệu out of `addable` first — which is the danh mục minus what it already has,
+ * so the row it writes can only ever be a new one.
+ */
 export function MisaFuelMapForm({
   stationId,
-  fuelType,
   entry,
-}: {
-  stationId: string
-  fuelType: string
-  entry: MisaFuelMapEntry | null
-}) {
+  addable,
+}: { stationId: string } & (
+  | { entry: MisaFuelMapEntry; addable?: never }
+  | { entry?: never; addable: readonly CatalogueFuel[] }
+)) {
   const router = useRouter()
   const fuelLabel = useFuelTypeLabel()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [fuelType, setFuelType] = useState(entry?.fuelType ?? '')
   const [productCode, setProductCode] = useState(entry?.productCode ?? '')
   const [productName, setProductName] = useState(entry?.productName ?? '')
   const [warehouseCode, setWarehouseCode] = useState(entry?.warehouseCode ?? '')
   const [unit, setUnit] = useState(entry?.unit ?? '')
 
   function reset() {
+    setFuelType(entry?.fuelType ?? '')
     setProductCode(entry?.productCode ?? '')
     setProductName(entry?.productName ?? '')
     setWarehouseCode(entry?.warehouseCode ?? '')
@@ -53,7 +69,7 @@ export function MisaFuelMapForm({
   }
 
   async function submit() {
-    if (!productCode.trim() || !warehouseCode.trim()) {
+    if (!fuelType || !productCode.trim() || !warehouseCode.trim()) {
       toast.error(vi.errors.generic)
       return
     }
@@ -89,17 +105,44 @@ export function MisaFuelMapForm({
       }}
     >
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost">
-          {vi.misaSettings.edit}
-        </Button>
+        {entry ? (
+          <Button size="sm" variant="ghost">
+            {vi.misaSettings.edit}
+          </Button>
+        ) : (
+          // Nothing left to take on: every nhiên liệu Trường Thịnh sells is already
+          // declared, so the button stays rather than opening an empty ô chọn.
+          <Button size="sm" disabled={addable?.length === 0}>
+            {vi.misaSettings.addFuelMap}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {vi.misaSettings.editFuelMap} — {fuelLabel(fuelType)}
+            {entry
+              ? `${vi.misaSettings.editFuelMap} — ${fuelLabel(entry.fuelType)}`
+              : vi.misaSettings.addFuelMap}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          {!entry && (
+            <Field>
+              <FieldLabel>{vi.misaSettings.fuel}</FieldLabel>
+              <Select value={fuelType} onValueChange={setFuelType}>
+                <SelectTrigger>
+                  <SelectValue placeholder={vi.misaSettings.selectFuel} />
+                </SelectTrigger>
+                <SelectContent>
+                  {addable?.map((fuel) => (
+                    <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                      {fuel.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           <Field>
             <FieldLabel htmlFor="productCode">{vi.misaSettings.productCode}</FieldLabel>
             <Input
@@ -107,6 +150,7 @@ export function MisaFuelMapForm({
               value={productCode}
               onChange={(e) => setProductCode(e.target.value)}
             />
+            <FieldDescription>{vi.misaSettings.productCodeNote}</FieldDescription>
           </Field>
           <Field>
             <FieldLabel htmlFor="productName">{vi.misaSettings.productName}</FieldLabel>

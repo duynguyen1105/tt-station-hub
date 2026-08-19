@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type CatalogueFuel,
   type FuelUsageCounts,
+  addableFuels,
   decideFuelRemoval,
   fuelTypeLabelFrom,
   generateFuelType,
@@ -172,5 +173,47 @@ describe('selectableFuels', () => {
 
   it('offers nothing when nothing is in use', () => {
     expect(selectableFuels([])).toEqual([])
+  })
+})
+
+/**
+ * What Thêm nhiên liệu offers a trạm. A trạm handles a nhiên liệu iff its Map nhiên
+ * liệu has a row for it, so the picker is the danh mục minus the rows the trạm already
+ * has — a duplicate row cannot be created, and one đã ngừng cannot be taken on.
+ */
+describe('addableFuels', () => {
+  const CATALOGUE: CatalogueFuel[] = [
+    { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+    { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: false },
+    { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+    { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+  ]
+
+  it('offers every nhiên liệu the trạm has no row for, in danh mục order', () => {
+    expect(addableFuels(CATALOGUE, ['DO']).map((fuel) => fuel.fuelType)).toEqual(['XANG_A95', 'E0'])
+  })
+
+  it('offers the whole danh mục to a trạm that has declared nothing yet', () => {
+    expect(addableFuels(CATALOGUE, []).map((fuel) => fuel.fuelType)).toEqual([
+      'XANG_A95',
+      'DO',
+      'E0',
+    ])
+  })
+
+  it('never offers a nhiên liệu đã ngừng, whether the trạm has it or not', () => {
+    expect(addableFuels(CATALOGUE, []).some((fuel) => fuel.fuelType === 'DC')).toBe(false)
+    expect(addableFuels(CATALOGUE, ['DC']).some((fuel) => fuel.fuelType === 'DC')).toBe(false)
+  })
+
+  it('offers nothing to a trạm that already sells everything', () => {
+    expect(addableFuels(CATALOGUE, ['XANG_A95', 'DO', 'E0'])).toEqual([])
+  })
+
+  // Đăk Nông 1 gives Dầu DO one mã hàng and Đăk Nông 2 another: what one trạm has
+  // mapped says nothing about what the next one may take on.
+  it('reads only the rows of the trạm it is asked about', () => {
+    expect(addableFuels(CATALOGUE, ['DO']).map((fuel) => fuel.fuelType)).toContain('E0')
+    expect(addableFuels(CATALOGUE, ['E0']).map((fuel) => fuel.fuelType)).toContain('DO')
   })
 })

@@ -105,7 +105,7 @@ export const vi = {
     invalidPrice: 'Vui lòng nhập đơn giá hợp lệ.',
     selectDate: 'Vui lòng chọn ngày áp dụng.',
     configNote: 'Cấu hình MISA chung cho toàn công ty: các tài khoản kế toán.',
-    fuelMapNote: 'Map nhiên liệu → mã hàng và kho MISA theo trạm.',
+    fuelMapNote: 'Những nhiên liệu trạm này bán, cùng mã hàng và kho MISA của từng loại.',
     revenueAccount: 'TK doanh thu',
     costAccount: 'TK giá vốn',
     stockAccount: 'TK kho',
@@ -118,6 +118,14 @@ export const vi = {
     edit: 'Chỉnh sửa',
     editConfig: 'Chỉnh sửa cấu hình',
     editFuelMap: 'Chỉnh sửa map nhiên liệu',
+    // Thêm nhiên liệu on a trạm's Cấu hình: taking on a nhiên liệu of the danh mục, not
+    // adding one to the danh mục — vi.misaSettings.addFuel is that other button.
+    addFuelMap: 'Thêm nhiên liệu',
+    selectFuel: 'Chọn nhiên liệu',
+    fuelMapEmpty:
+      'Trạm chưa khai báo nhiên liệu nào. Bấm Thêm nhiên liệu để khai báo loại đầu tiên.',
+    productCodeNote:
+      'Mã hàng cũng là chữ in trên biển trụ bơm và biển hầm, nên hãy nhập đúng chuỗi đang in ở trạm.',
     noConfig: 'Chưa có cấu hình MISA chung.',
     fuelAreaLabel: 'Vùng',
     fuelAreaNote: 'Vùng quyết định bảng giá bán lẻ áp dụng cho trạm khi xuất MISA.',

@@ -32,8 +32,9 @@ export async function POST(req: NextRequest) {
   if (!station) return notFound()
   if (!(await canReachStation(user, station.id))) return forbidden()
 
-  // A nhiên liệu đã ngừng is off every ô chọn, so it cannot be taken on by a trạm —
-  // which nhiên liệu the danh mục offers at all is ticket 08's question, not this one.
+  // The trạm is declaring what it sells, so the nhiên liệu has to be one Trường Thịnh
+  // sells: the picker offers only those, and this refuses a khóa that reached the route
+  // any other way — one outside the danh mục, or one đã ngừng.
   const fuel = await prisma.fuel.findUnique({ where: { fuelType } })
   if (!fuel) return badRequest(vi.misaSettings.unknownFuel(fuelType))
   if (!fuel.isActive) return badRequest(vi.misaSettings.inactiveFuel(fuel.name))
