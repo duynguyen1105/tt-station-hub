@@ -189,6 +189,56 @@ export const vi = {
     fuelMapUsageLoadError: 'Không kiểm tra được nhiên liệu này ở trạm. Vui lòng thử lại.',
   },
 
+  // Trụ bơm on a trạm's Cấu hình: the trụ the trạm has, what each pumps, the hầm it
+  // draws from and the đồng hồ a ca will ask it for.
+  dispensers: {
+    title: 'Trụ bơm',
+    note: 'Những trụ đang bơm ở trạm này: nhiên liệu mỗi trụ bán, hầm nó hút lên và đồng hồ nó có.',
+    empty: 'Trạm chưa có trụ bơm nào. Bấm Thêm trụ để lắp trụ đầu tiên.',
+    emptyNoFuels:
+      'Trạm chưa có trụ bơm nào. Hãy khai báo nhiên liệu ở Map nhiên liệu trước, rồi mới lắp được trụ.',
+    add: 'Thêm trụ',
+    edit: 'Chỉnh sửa trụ',
+    actions: (name: string) => `Tùy chọn ${name}`,
+    pump: 'Trụ',
+    pumpNumber: 'Số trụ',
+    pumpNumberNote:
+      'Số in trên biển trụ. Số này sinh ra mã trụ để AI khớp ảnh chụp biển, nên lắp xong là cố định.',
+    // Ticket 13 opens this field; until then an edit here would rewrite the nhiên liệu
+    // of every chỉ số the trụ đã ghi.
+    fuelLocked:
+      'Chưa đổi được nhiên liệu của trụ — tính năng này sẽ mở ở bản sau. Cần trụ khác nhiên liệu thì tạm thời lắp trụ mới.',
+    tank: 'Hầm',
+    tankNumber: 'Số hầm',
+    tankNote:
+      'Số hầm trụ này hút lên. Trụ không khai hầm sẽ không có trong ô chọn hầm của phiếu nhập và không được đối chiếu barem.',
+    tankCapacity: 'Dung tích hầm',
+    tankCapacityK: 'Dung tích hầm (nghìn lít)',
+    tankCapacityNote: 'Nhập 25 cho hầm 25.000 lít. Dung tích được đối chiếu với barem.',
+    meters: 'Đồng hồ',
+    electronicMeter: 'Đồng hồ điện tử',
+    mechanicalMeter: 'Đồng hồ cơ',
+    metersNote:
+      'Ca chỉ đòi ảnh của đồng hồ trụ có. Bỏ tích đồng hồ cơ thì trụ này không bị báo thiếu ảnh đồng hồ cơ.',
+    noMeter: 'Không có đồng hồ',
+    inactive: 'Đã ngừng',
+    deactivate: 'Ngừng sử dụng',
+    reactivate: 'Dùng lại',
+    deactivateTitle: (name: string) => `Ngừng sử dụng ${name}?`,
+    deactivateBody:
+      'Trụ rời khỏi các ô chọn và ca không còn chờ ảnh của nó nữa. Chỉ số và lịch sử đồng hồ của trụ giữ nguyên, và trụ dùng lại được bất cứ lúc nào.',
+    reactivateTitle: (name: string) => `Dùng lại ${name}?`,
+    reactivateBody: 'Trụ trở lại các ô chọn và ca chờ ảnh của nó như trước.',
+    deactivated: 'Đã ngừng sử dụng trụ',
+    reactivated: 'Đã dùng lại trụ',
+    saved: 'Đã lưu trụ bơm',
+    numberRequired: 'Vui lòng nhập số trụ.',
+    numberTaken: (name: string) => `Trạm đã có ${name}.`,
+    fuelRequired: 'Vui lòng chọn nhiên liệu.',
+    capacityWithoutTank: 'Nhập số hầm trước, rồi mới nhập được dung tích hầm.',
+    meterRequired: 'Trụ phải có ít nhất một đồng hồ, nếu không ca sẽ không chờ ảnh nào của trụ.',
+  },
+
   misaExport: {
     action: 'Xuất MISA',
     title: 'Xuất chứng từ bán hàng MISA',

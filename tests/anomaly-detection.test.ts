@@ -89,6 +89,20 @@ describe('detectAnomalies', () => {
     const result = detectAnomalies({ ...base, hasMechanicalPhoto: false })
     expect(result.reasons).toContain(ANOMALY_REASONS.missingPhoto)
   })
+  it('expects no đồng hồ cơ photo from a trụ that has no đồng hồ cơ', () => {
+    // What the Trụ bơm form's unticked đồng hồ cơ buys: a trụ with only an electronic
+    // meter sends one photo per ca, and the ca must not ask it for a second.
+    const result = detectAnomalies({
+      ...base,
+      hasMechanicalMeter: false,
+      hasMechanicalPhoto: false,
+      mechanicalReading: null,
+      openingMechanicalReading: null,
+      mechanicalConfidence: null,
+    })
+    expect(result.reasons).not.toContain(ANOMALY_REASONS.missingPhoto)
+    expect(result.isAnomaly).toBe(false)
+  })
   it('flags a closing reading with no opening, then clears and recomputes liters once it is entered', () => {
     const missing = detectAnomalies({ ...base, openingElectronicReading: null })
     expect(missing.reasons).toContain(ANOMALY_REASONS.missingOpening)
