@@ -9,13 +9,17 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 const correctSchema = z.object({
   plateConfirmed: z.string().nullable().optional(),
   litersRead: z.number().nullable().optional(),
   unitPriceRead: z.number().nullable().optional(),
   customerId: z.string().uuid().nullable().optional(),
-  fuelType: z.enum(['DO', 'E0', 'DC', 'XANG_A95', 'URE']).nullable().optional(),
+  // Any khóa the danh mục answers for, checked below rather than frozen here: the ô
+  // chọn offers whatever Cài đặt MISA holds, so a nhiên liệu added this morning must
+  // be correctable to on the same day.
+  fuelType: z.string().min(1).nullable().optional(),
   // Reviewer can re-assign the visit when the AI could not (or wrongly) determine
   // the station from the pump plate.
   stationId: z.string().uuid().optional(),
@@ -51,7 +55,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (parsed.data.plateConfirmed !== undefined) data.plateConfirmed = parsed.data.plateConfirmed
   if (parsed.data.customerId !== undefined) data.customerId = parsed.data.customerId
-  if (parsed.data.fuelType !== undefined) data.fuelType = parsed.data.fuelType
+  if (parsed.data.fuelType !== undefined) {
+    if (parsed.data.fuelType !== null) {
+      const fuel = await prisma.fuel.findUnique({ where: { fuelType: parsed.data.fuelType } })
+      if (!fuel) return badRequest(vi.misaSettings.unknownFuel(parsed.data.fuelType))
+      if (!fuel.isActive) return badRequest(vi.misaSettings.inactiveFuel(fuel.name))
+    }
+    data.fuelType = parsed.data.fuelType
+  }
   if (parsed.data.litersRead !== undefined) data.litersRead = parsed.data.litersRead
   if (parsed.data.unitPriceRead !== undefined) data.unitPriceRead = parsed.data.unitPriceRead
   if (parsed.data.stationId !== undefined) {

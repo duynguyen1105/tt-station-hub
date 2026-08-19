@@ -13,7 +13,7 @@ import { prisma } from '@/lib/prisma'
  * Nhiên liệu đã ngừng are here too: this is what labels are resolved against, and a
  * ca, phiếu nhập or công nợ row from before Trường Thịnh stopped selling one must
  * still read its tên. Callers that offer a choice rather than read a label — the ô
- * chọn — filter on `isActive` themselves.
+ * chọn — narrow this through `selectableFuels`.
  *
  * Wrapped in React `cache()` so the danh mục is read once per request no matter how
  * many components ask for it, the way `getCurrentUser` already does for the profile.

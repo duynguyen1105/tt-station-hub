@@ -9,7 +9,7 @@ import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatLiters } from '@/lib/format'
-import { loadFuelCatalogue } from '@/lib/fuels/load-catalogue'
+import { fuelTypeLabeller, loadFuelCatalogue } from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import {
@@ -28,7 +28,8 @@ function buildTankOptionsFromDispensers(
     tankCode: string | null
     fuelType: string
     tankCapacityK: number | null
-  }[]
+  }[],
+  fuelLabel: (fuelType: string) => string
 ): TankOption[] {
   const options = new Map<string, TankOption>()
   for (const d of dispensers) {
@@ -36,7 +37,7 @@ function buildTankOptionsFromDispensers(
     const cap = d.tankCapacityK ? ` (${d.tankCapacityK}K)` : ''
     options.set(d.tankCode, {
       code: d.tankCode,
-      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${d.fuelType}${cap}`,
+      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${fuelLabel(d.fuelType)}${cap}`,
       fuelType: d.fuelType,
       capacityK: d.tankCapacityK,
     })
@@ -57,6 +58,9 @@ export default async function ShiftDetailPage({
   // Gated on the ca's own trạm rather than the address it was reached at, so a
   // ca cannot be read through the address of a trạm the kế toán does hold.
   await requireStationAccess(shift.stationId)
+  // The tên nhiên liệu this page shows — on each hầm of the nhập hàng dialog and on
+  // each bán nợ row — read from the danh mục once for the request.
+  const fuelLabel = await fuelTypeLabeller()
 
   const [station, readings, dispensers, visits] = await Promise.all([
     prisma.station.findUnique({ where: { id: shift.stationId }, select: { code: true } }),
@@ -163,7 +167,7 @@ export default async function ShiftDetailPage({
           {user.role !== 'viewer' && (
             <FuelImportForm
               stationId={shift.stationId}
-              tanks={buildTankOptionsFromDispensers(dispensers)}
+              tanks={buildTankOptionsFromDispensers(dispensers, fuelLabel)}
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
               paperPumps={paperRoster?.pumps ?? []}
