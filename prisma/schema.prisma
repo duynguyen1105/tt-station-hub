@@ -26,6 +26,28 @@ model Profile {
   @@map("profiles")
 }
 
+// === DANH MỤC NHIÊN LIỆU ===
+// The one company-global list of nhiên liệu Trường Thịnh sells. Every other
+// table stores its nhiên liệu as the plain khóa string, so this is a catalogue
+// and not a foreign key — adding it moves no existing row.
+model Fuel {
+  id              String   @id @default(uuid()) @db.Uuid
+  // Khóa nhiên liệu — "DO", "XANG_A95". Generated from the tên when the nhiên
+  // liệu is created (lib/fuels/catalogue.ts) and frozen from then on, because
+  // every historical row, MISA export and AI reading is keyed by it.
+  fuelType        String   @unique @map("fuel_type")
+  // Tên nhiên liệu — the label a kế toán reads. Correctable at any time.
+  name            String
+  // Một giá toàn quốc: priced once for the whole nước rather than per vùng.
+  areaIndependent Boolean  @default(false) @map("area_independent")
+  isActive        Boolean  @default(true) @map("is_active")
+  // The giá bán lẻ board reads xăng → dầu → phụ gia by ordering on this; there
+  // is no thứ tự field.
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("fuels")
+}
+
 // === STATIONS & DISPENSERS ===
 // Fuel area = retail price zone (Vietnam's fixed two-tier national "Vùng" scheme).
 enum FuelArea {
