@@ -6,7 +6,7 @@ import { type ChangeEvent, Fragment, useEffect, useMemo, useRef, useState } from
 
 import { useRouter } from 'next/navigation'
 
-import { useSelectableFuels } from '@/components/fuels/catalogue-provider'
+import { NoStationFuels } from '@/components/fuels/no-station-fuels'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { type CatalogueFuel } from '@/lib/fuels/catalogue'
 import { type BienBanExtraction, type TankSideCheck, parseVnNumber } from '@/lib/imports/bien-ban'
 import {
   type BindingRefusal,
@@ -311,12 +312,16 @@ function baremLitersText(liters: number): string {
  */
 export function FuelImportForm({
   stationId,
+  fuels,
   tanks,
   paperTanks,
   stationPumps,
   paperPumps,
 }: {
   stationId: string
+  /** What section (c) may name as the nhiên liệu of a Hầm: what this Trạm sells,
+   *  which is its Map nhiên liệu rows minus what Trường Thịnh stopped selling. */
+  fuels: readonly CatalogueFuel[]
   tanks: TankOption[]
   /** The Hầm this Trạm's own pre-printed biên bản lists — what the binding
    *  ladder falls back on where the database has no Hầm to check against. */
@@ -329,9 +334,6 @@ export function FuelImportForm({
   paperPumps: readonly PumpRosterEntry[]
 }) {
   const router = useRouter()
-  // What section (c) may name as the nhiên liệu of a hầm: the danh mục as it stands,
-  // minus what Trường Thịnh has stopped selling.
-  const fuels = useSelectableFuels()
   const bienBanRef = useRef<HTMLInputElement>(null)
   const pxkRef = useRef<HTMLInputElement>(null)
   const relatedRef = useRef<HTMLInputElement>(null)
@@ -939,6 +941,9 @@ export function FuelImportForm({
             {/* (c) station tanks before/after + the liters that move inventory */}
             <section className="space-y-1">
               <h4 className="text-sm font-semibold">{vi.imports.tanksTitle}</h4>
+              {/* A Trạm that has declared no nhiên liệu leaves every (c) row's ô chọn
+                  empty; said once above the table rather than once per row. */}
+              {fuels.length === 0 && <NoStationFuels stationId={stationId} />}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[56rem] text-xs">
                   <thead>

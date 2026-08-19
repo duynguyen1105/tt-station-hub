@@ -165,6 +165,12 @@ export const vi = {
     fuelDeactivated: 'Đã ngừng sử dụng nhiên liệu',
     fuelReactivated: 'Đã dùng lại nhiên liệu',
     fuelUsageLoadError: 'Không kiểm tra được nhiên liệu này. Vui lòng thử lại.',
+    // Refused because this trạm does not sell it — not because the danh mục lacks it.
+    notStationFuel: (name: string) => `Trạm này không bán ${name}.`,
+    // Shown where an ô chọn would be if the trạm had declared a nhiên liệu, so an empty
+    // dropdown never appears without saying what to do about it.
+    noStationFuels: 'Trạm chưa khai báo nhiên liệu nào.',
+    noStationFuelsLink: 'Khai báo ở Cấu hình',
     // What is still holding a nhiên liệu at one trạm, as the refusal to xóa nó khỏi
     // trạm lists them — the trụ by tên, the tồn kho by số lít, so kế toán reads what to
     // clear first.
@@ -636,6 +642,9 @@ export const vi = {
     stationChanged: 'Đã chuyển lượt xe sang trạm khác.',
     stationUnknown: 'Chưa xác định trạm',
     needStation: 'Chọn trạm trước khi duyệt.',
+    // The fuel ô chọn offers what one trạm sells, so an unidentified trạm has nothing
+    // to offer yet — and the reviewer's next move is the trạm, not the nhiên liệu.
+    fuelNeedsStation: 'Chọn trạm trước, rồi mới chọn được nhiên liệu.',
     selectStation: 'Chọn trạm…',
   },
 

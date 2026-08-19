@@ -6,6 +6,7 @@ import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { checkStationOnPaper } from '@/lib/imports/station-check'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
@@ -142,6 +143,16 @@ export async function POST(req: NextRequest) {
   })
   if (!station) return badRequest('Trạm không hợp lệ.')
   if (!(await canReachStation(user, station.id))) return forbidden()
+
+  // Section (c)'s ô chọn offers only what this Trạm sells, and so does the route: a Hầm
+  // row naming anything else would move lít into a tồn kho the Trạm has no hầm and no
+  // mã hàng for. Only the rows that book lít are held to it — a row that measures and
+  // books nothing is the paper's own record, and the biên bản is the legal document
+  // (ADR 0006 reserves refusing to save for a header naming another Trạm).
+  for (const fuelType of new Set(tankImports.map((t) => t.fuelType!))) {
+    const refusal = await stationFuelRefusal(data.stationId, fuelType)
+    if (refusal) return badRequest(refusal)
+  }
 
   // A biên bản whose header names another Trạm is refused outright (ADR 0006) —
   // the one check in this flow that blocks rather than warns, because the paper

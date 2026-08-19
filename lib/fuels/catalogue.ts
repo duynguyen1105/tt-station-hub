@@ -91,6 +91,28 @@ export function addableFuels(
 }
 
 /**
+ * The nhiên liệu a fuel picker inside a trạm may offer: what the trạm declared it sells
+ * — its Map nhiên liệu rows — minus what Trường Thịnh has stopped selling. The kho
+ * movement form, the phiếu nhập form and the công nợ picker all narrow here, so a kế
+ * toán cannot book a lít against a nhiên liệu their trạm has no hầm, no trụ and no mã
+ * hàng for.
+ *
+ * The mirror of `addableFuels`: that one offers what the trạm has yet to take on, this
+ * one what it already has. A mapped khóa the danh mục no longer holds names no nhiên
+ * liệu and so is offered by neither.
+ *
+ * Narrowing is about what may be chosen now, never about what may be read: a row
+ * already carrying a nhiên liệu the trạm has since stopped selling still reads its tên
+ * through `fuelTypeLabelFrom`, which does not filter.
+ */
+export function stationFuels(
+  catalogue: readonly CatalogueFuel[],
+  mapped: readonly string[]
+): CatalogueFuel[] {
+  return selectableFuels(catalogue).filter((fuel) => mapped.includes(fuel.fuelType))
+}
+
+/**
  * How many rows of each kind hold one nhiên liệu. Every table below stores the khóa as
  * a plain string rather than a foreign key, so nothing in the database stops a row from
  * being deleted out from under them — this count is what does.
