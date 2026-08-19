@@ -23,7 +23,7 @@ export const vi = {
     documents: 'Giấy tờ pháp lý',
     inventory: 'Hàng tồn',
     debts: 'Công nợ',
-    misa: 'MISA',
+    config: 'Cấu hình',
   },
 
   common: {
