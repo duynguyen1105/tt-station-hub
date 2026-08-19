@@ -23,7 +23,7 @@ export const vi = {
     documents: 'Giấy tờ pháp lý',
     inventory: 'Hàng tồn',
     debts: 'Công nợ',
-    misa: 'MISA',
+    config: 'Cấu hình',
   },
 
   common: {
@@ -75,14 +75,6 @@ export const vi = {
     missingOpening: 'Chưa có chỉ số đầu ca — vui lòng nhập trước khi duyệt.',
   },
 
-  fuelType: {
-    DO: 'Dầu DO',
-    E0: 'Xăng E0',
-    DC: 'Dầu DC',
-    XANG_A95: 'Xăng A95',
-    URE: 'URE (Adblue)',
-  },
-
   fuelArea: {
     FUEL_AREA_1: 'Vùng 1',
     FUEL_AREA_2: 'Vùng 2',
@@ -113,7 +105,7 @@ export const vi = {
     invalidPrice: 'Vui lòng nhập đơn giá hợp lệ.',
     selectDate: 'Vui lòng chọn ngày áp dụng.',
     configNote: 'Cấu hình MISA chung cho toàn công ty: các tài khoản kế toán.',
-    fuelMapNote: 'Map nhiên liệu → mã hàng và kho MISA theo trạm.',
+    fuelMapNote: 'Những nhiên liệu trạm này bán, cùng mã hàng và kho MISA của từng loại.',
     revenueAccount: 'TK doanh thu',
     costAccount: 'TK giá vốn',
     stockAccount: 'TK kho',
@@ -126,10 +118,131 @@ export const vi = {
     edit: 'Chỉnh sửa',
     editConfig: 'Chỉnh sửa cấu hình',
     editFuelMap: 'Chỉnh sửa map nhiên liệu',
+    // Thêm nhiên liệu on a trạm's Cấu hình: taking on a nhiên liệu of the danh mục, not
+    // adding one to the danh mục — vi.misaSettings.addFuel is that other button.
+    addFuelMap: 'Thêm nhiên liệu',
+    selectFuel: 'Chọn nhiên liệu',
+    fuelMapEmpty:
+      'Trạm chưa khai báo nhiên liệu nào. Bấm Thêm nhiên liệu để khai báo loại đầu tiên.',
+    productCodeNote:
+      'Mã hàng cũng là chữ in trên biển trụ bơm và biển hầm, nên hãy nhập đúng chuỗi đang in ở trạm.',
     noConfig: 'Chưa có cấu hình MISA chung.',
     fuelAreaLabel: 'Vùng',
     fuelAreaNote: 'Vùng quyết định bảng giá bán lẻ áp dụng cho trạm khi xuất MISA.',
     saved: 'Đã lưu',
+    addFuel: 'Thêm nhiên liệu',
+    editFuel: 'Sửa nhiên liệu',
+    fuelName: 'Tên nhiên liệu',
+    fuelActions: (fuel: string) => `Tùy chọn ${fuel}`,
+    areaIndependent: 'Một giá toàn quốc',
+    areaIndependentHint:
+      'Xăng và dầu có giá riêng theo từng vùng. Chỉ phụ gia như URE mới bán một giá cho cả nước.',
+    fuelNameRequired: 'Vui lòng nhập tên nhiên liệu.',
+    fuelNameTaken: (name: string) => `Tên đã tồn tại — trùng khóa với ${name}.`,
+    unknownFuel: (fuelType: string) => `Nhiên liệu không có trong danh mục: ${fuelType}`,
+    inactiveFuel: (name: string) => `Nhiên liệu đã ngừng sử dụng: ${name}`,
+    // What is holding a nhiên liệu, one line per kind, as the refusal to xóa lists them.
+    fuelUsage: {
+      fuelMaps: (count: number) => `${count} trạm đã map nhiên liệu`,
+      dispensers: (count: number) => `${count} trụ bơm`,
+      prices: (count: number) => `${count} kỳ giá`,
+      inventory: (count: number) => `${count} dòng tồn kho`,
+      movements: (count: number) => `${count} dòng biến động tồn kho`,
+      openingBalances: (count: number) => `${count} số đầu kỳ`,
+      imports: (count: number) => `${count} phiếu nhập`,
+      tankDips: (count: number) => `${count} lần đo hầm`,
+      debtVisits: (count: number) => `${count} lượt bán nợ`,
+    },
+    deleteFuel: 'Xóa nhiên liệu',
+    deactivateFuel: 'Ngừng sử dụng',
+    reactivateFuel: 'Dùng lại',
+    fuelInactive: 'Đã ngừng',
+    fuelUnused: (name: string) => `${name} chưa được dùng ở đâu. Xóa khỏi danh mục nhiên liệu?`,
+    fuelInUse: (name: string) => `Không thể xóa ${name} — nhiên liệu này đang được dùng bởi:`,
+    fuelDeactivateHint:
+      'Ngừng sử dụng sẽ ẩn nhiên liệu khỏi các ô chọn nhưng giữ nguyên toàn bộ dữ liệu và lịch sử giá.',
+    fuelDeleted: 'Đã xóa nhiên liệu',
+    fuelDeactivated: 'Đã ngừng sử dụng nhiên liệu',
+    fuelReactivated: 'Đã dùng lại nhiên liệu',
+    fuelUsageLoadError: 'Không kiểm tra được nhiên liệu này. Vui lòng thử lại.',
+    // Refused because this trạm does not sell it — not because the danh mục lacks it.
+    notStationFuel: (name: string) => `Trạm này không bán ${name}.`,
+    // Shown where an ô chọn would be if the trạm had declared a nhiên liệu, so an empty
+    // dropdown never appears without saying what to do about it.
+    noStationFuels: 'Trạm chưa khai báo nhiên liệu nào.',
+    noStationFuelsLink: 'Khai báo ở Cấu hình',
+    // What is still holding a nhiên liệu at one trạm, as the refusal to xóa nó khỏi
+    // trạm lists them — the trụ by tên, the tồn kho by số lít, so kế toán reads what to
+    // clear first.
+    stationFuelUsage: {
+      dispensers: (names: string) => `Trụ đang bơm nhiên liệu này: ${names}`,
+      stock: (liters: string) => `Tồn kho còn ${liters} lít`,
+    },
+    removeFuelMap: 'Xóa khỏi trạm',
+    removeFuelMapConfirm: (name: string) =>
+      `Trạm này ngừng bán ${name}? Dòng map nhiên liệu sẽ bị xóa.`,
+    removeFuelMapBlocked: (name: string) => `Chưa thể xóa ${name} khỏi trạm — vẫn còn:`,
+    removeFuelMapBlockedHint: 'Hãy ngừng trụ và đưa tồn kho về 0, rồi xóa lại.',
+    removeFuelMapExportWarning:
+      'Ca, phiếu nhập và công nợ cũ giữ nguyên, nhưng xuất lại MISA một ca cũ của nhiên liệu này sẽ lỗi vì không còn mã hàng.',
+    fuelMapRemoved: 'Đã xóa nhiên liệu khỏi trạm',
+    fuelMapUsageLoadError: 'Không kiểm tra được nhiên liệu này ở trạm. Vui lòng thử lại.',
+  },
+
+  // Trụ bơm on a trạm's Cấu hình: the trụ the trạm has, what each pumps, the hầm it
+  // draws from and the đồng hồ a ca will ask it for.
+  dispensers: {
+    title: 'Trụ bơm',
+    note: 'Những trụ đang bơm ở trạm này: nhiên liệu mỗi trụ bán, hầm nó hút lên và đồng hồ nó có.',
+    empty: 'Trạm chưa có trụ bơm nào. Bấm Thêm trụ để lắp trụ đầu tiên.',
+    emptyNoFuels:
+      'Trạm chưa có trụ bơm nào. Hãy khai báo nhiên liệu ở Map nhiên liệu trước, rồi mới lắp được trụ.',
+    add: 'Thêm trụ',
+    edit: 'Chỉnh sửa trụ',
+    actions: (name: string) => `Tùy chọn ${name}`,
+    pump: 'Trụ',
+    pumpNumber: 'Số trụ',
+    pumpNumberNote:
+      'Số in trên biển trụ. Số này sinh ra mã trụ để AI khớp ảnh chụp biển, nên lắp xong là cố định.',
+    // Đổi nhiên liệu is for a trụ hoán cải thật ngoài trạm, so the note says what the
+    // change does and does not reach.
+    fuelEditNote:
+      'Chỉ đổi khi trụ được hoán cải thật. Ca đã chốt vẫn giữ nhiên liệu lúc chốt; ca sau này ghi theo nhiên liệu mới.',
+    convert: 'Đổi nhiên liệu',
+    convertTitle: (name: string) => `Đổi nhiên liệu ${name}?`,
+    // Says the tồn kho out loud: hoán cải một trụ không chuyển lít nào giữa hai nhiên
+    // liệu — hầm được rút cạn và đổ lại ngoài thực tế, và đó là việc của kho.
+    convertBody: (from: string, to: string) =>
+      `Từ giờ ca của trụ này được ghi theo ${to}. Ca đã chốt vẫn giữ ${from}, trên mọi màn hình và khi xuất lại MISA. Tồn kho không được chuyển từ ${from} sang ${to} — hầm phải được rút cạn và đổ lại ngoài thực tế, rồi ghi bằng phiếu nhập và điều chỉnh kho.`,
+    tank: 'Hầm',
+    tankNumber: 'Số hầm',
+    tankNote:
+      'Số hầm trụ này hút lên. Trụ không khai hầm sẽ không có trong ô chọn hầm của phiếu nhập và không được đối chiếu barem.',
+    tankCapacity: 'Dung tích hầm',
+    tankCapacityK: 'Dung tích hầm (nghìn lít)',
+    tankCapacityNote: 'Nhập 25 cho hầm 25.000 lít. Dung tích được đối chiếu với barem.',
+    meters: 'Đồng hồ',
+    electronicMeter: 'Đồng hồ điện tử',
+    mechanicalMeter: 'Đồng hồ cơ',
+    metersNote:
+      'Ca chỉ đòi ảnh của đồng hồ trụ có. Bỏ tích đồng hồ cơ thì trụ này không bị báo thiếu ảnh đồng hồ cơ.',
+    noMeter: 'Không có đồng hồ',
+    inactive: 'Đã ngừng',
+    deactivate: 'Ngừng sử dụng',
+    reactivate: 'Dùng lại',
+    deactivateTitle: (name: string) => `Ngừng sử dụng ${name}?`,
+    deactivateBody:
+      'Trụ rời khỏi các ô chọn và ca không còn chờ ảnh của nó nữa. Chỉ số và lịch sử đồng hồ của trụ giữ nguyên, và trụ dùng lại được bất cứ lúc nào.',
+    reactivateTitle: (name: string) => `Dùng lại ${name}?`,
+    reactivateBody: 'Trụ trở lại các ô chọn và ca chờ ảnh của nó như trước.',
+    deactivated: 'Đã ngừng sử dụng trụ',
+    reactivated: 'Đã dùng lại trụ',
+    saved: 'Đã lưu trụ bơm',
+    numberRequired: 'Vui lòng nhập số trụ.',
+    numberTaken: (name: string) => `Trạm đã có ${name}.`,
+    fuelRequired: 'Vui lòng chọn nhiên liệu.',
+    capacityWithoutTank: 'Nhập số hầm trước, rồi mới nhập được dung tích hầm.',
+    meterRequired: 'Trụ phải có ít nhất một đồng hồ, nếu không ca sẽ không chờ ảnh nào của trụ.',
   },
 
   misaExport: {
@@ -585,6 +698,9 @@ export const vi = {
     stationChanged: 'Đã chuyển lượt xe sang trạm khác.',
     stationUnknown: 'Chưa xác định trạm',
     needStation: 'Chọn trạm trước khi duyệt.',
+    // The fuel ô chọn offers what one trạm sells, so an unidentified trạm has nothing
+    // to offer yet — and the reviewer's next move is the trạm, not the nhiên liệu.
+    fuelNeedsStation: 'Chọn trạm trước, rồi mới chọn được nhiên liệu.',
     selectStation: 'Chọn trạm…',
   },
 

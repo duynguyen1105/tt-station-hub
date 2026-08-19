@@ -119,6 +119,7 @@ migrated (and on a brand-new one, where it has nothing to do).
 
 ```bash
 pnpm db:phu-trach     # phụ trách: stations.assigned_accountant_id → station_accountants
+pnpm db:fuel-stamp    # ca readings: stamp the nhiên liệu their trụ pumps
 ```
 
 ## Running for real (production)

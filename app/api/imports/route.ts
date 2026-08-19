@@ -6,6 +6,7 @@ import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 
@@ -72,6 +73,10 @@ export async function POST(req: NextRequest) {
   })
   if (!station) return badRequest('Trạm không hợp lệ.')
   if (!(await canReachStation(user, station.id))) return forbidden()
+  // Only what the trạm sells may be nhập: a phiếu nhập of anything else moves lít into
+  // a tồn kho with no hầm behind it and no mã hàng to export it under.
+  const refusal = await stationFuelRefusal(data.stationId, data.fuelType)
+  if (refusal) return badRequest(refusal)
 
   const record = await prisma.$transaction(async (tx) => {
     const row = await tx.fuelImport.create({

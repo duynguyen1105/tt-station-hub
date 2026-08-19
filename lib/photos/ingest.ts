@@ -12,6 +12,7 @@ import {
   type RouterResult,
 } from '@/lib/ai/types'
 import { plateListContains } from '@/lib/debts/plate'
+import { resolveStationPlateFuel } from '@/lib/fuels/load-catalogue'
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { parseVnNumber } from '@/lib/imports/bien-ban'
 import { reserveDipExceedsTolerance } from '@/lib/inventory/tank-dip-rule'
@@ -296,7 +297,14 @@ async function assembleShiftReading(
 
             return tx.shiftReading.upsert({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
-              create: { shiftId: shift.id, dispenserId: dispenser.id, ...data },
+              // The nhiên liệu is stamped once, at creation: this ca sold what the
+              // trụ pumps today, and keeps saying so if the trụ is later converted.
+              create: {
+                shiftId: shift.id,
+                dispenserId: dispenser.id,
+                fuelType: dispenser.fuelType,
+                ...data,
+              },
               update: data,
             })
           },
@@ -388,15 +396,6 @@ function debtReview(meter: ExtractVisitResult): { reviewStatus: string; anomalie
   return { reviewStatus, anomalies }
 }
 
-const KNOWN_FUEL_TYPES = new Set(['DO', 'E0', 'DC', 'XANG_A95', 'URE'])
-
-/** Accepts the AI-read fuel label only if it is one of the known fuel codes, else null. */
-function normalizeFuelType(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  const code = raw.trim().toUpperCase()
-  return KNOWN_FUEL_TYPES.has(code) ? code : null
-}
-
 /**
  * The pairing key, stated once for both assembly branches: this submitter's open
  * half of a fill, inside the window, still missing the kind of photo that has just
@@ -479,11 +478,6 @@ export async function assembleDebtVisit(params: {
     })
     const { reviewStatus, anomalies } = debtReview(meter)
     const unitPriceRead = parseNumericString(meter.unitPrice)
-    // Prefer the fuel type read off the printed pump label ("TRỤ 1 – DO"): it is the
-    // ground truth and, unlike a price, is unaffected by contract/debt pricing. Fall
-    // back to inferring from the pump price via the station's fuel area retail prices, and
-    // finally to null (the accountant sets it in review).
-    const labelFuel = normalizeFuelType(meter.fuelType)
     // The pump plate often names the STATION too ("ĐAKNONG 1 / TRỤ 1 – DO") — let it
     // override the sender's station, mirroring shift photos. The reviewer can still
     // change the station manually on the review card.
@@ -502,6 +496,15 @@ export async function assembleDebtVisit(params: {
         target = { id: byLabel.id }
       }
     }
+    // Prefer the fuel word read off the printed pump label ("TRỤ 1 – DO"): it is the
+    // ground truth and, unlike a price, is unaffected by contract/debt pricing. It is
+    // resolved HERE, below the station override, because a mã hàng belongs to the pair
+    // (trạm, nhiên liệu) — reading it against the sender's trạm rather than the one the
+    // plate just moved the photo to would look up the wrong trạm's mã hàng. Pairing can
+    // still move the visit somewhere else again, which is what the second pass below the
+    // transaction is for. Fall back to inferring from the pump price via the station's
+    // fuel area retail prices, and finally to null (the accountant sets it in review).
+    const labelFuel = await resolveStationPlateFuel(target.id, meter.fuelType)
     // Retail prices are keyed by the station's fuel area (retail zone), not by station.
     const stationRow = await prisma.station.findUnique({
       where: { id: target.id },
@@ -515,12 +518,12 @@ export async function assembleDebtVisit(params: {
       effectiveDate: p.effectiveDate,
       unitPrice: p.unitPrice.toNumber(),
     }))
+    const priceFuel =
+      unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null
     const meterData = {
       litersRead: parseNumericString(meter.liters),
       unitPriceRead,
-      fuelType:
-        labelFuel ??
-        (unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null),
+      fuelType: labelFuel ?? priceFuel,
       displayedAmount: parseNumericString(meter.displayedAmount),
       computedAmount: meter.computedAmount,
       amountMatchesDisplay: meter.amountMatchesDisplay,
@@ -561,6 +564,22 @@ export async function assembleDebtVisit(params: {
       },
       { timeout: 15000 }
     )
+    // The pairing lock has the last word on the trạm, and it can disagree with the one
+    // the plate word was just read against: a photo from an unidentified sender arrives
+    // parked on the UNKNOWN trạm, and a label-less one joining an existing visit leaves
+    // that visit's trạm standing (resolveVisitStation). Either way the mã hàng consulted
+    // above were the wrong trạm's, so ask the trạm the visit actually settled on. A word
+    // that trạm cannot place falls back to the price like any unread plate.
+    if (meter.fuelType && visit.stationId !== target.id) {
+      const settledFuel =
+        (await resolveStationPlateFuel(visit.stationId, meter.fuelType)) ?? priceFuel
+      if (settledFuel !== visit.fuelType) {
+        await prisma.debtVehicleVisit.update({
+          where: { id: visit.id },
+          data: { fuelType: settledFuel },
+        })
+      }
+    }
     return { visitId: visit.id, meter, plate: null }
   }
 
@@ -644,13 +663,18 @@ export async function ingestTankDip(
   station?: { id: string } | null
 ): Promise<ExtractTankDipResult> {
   const result = precomputed ?? (await extractTankDip({ imageBuffer: buffer }))
+  // The prompt copies the fuel word off the hầm plate as printed, so it is only a khóa
+  // once this trạm's mã hàng and the danh mục have had a look at it. A plate this trạm
+  // cannot place resolves to nothing and the đo hầm lands with an empty nhiên liệu, for
+  // kế toán to set — never a guess.
+  const fuelType = station ? await resolveStationPlateFuel(station.id, result.fuelType) : null
   const photo = await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
       aiProcessedAt: new Date(),
       meterType: 'tank_dip',
       aiConfidence: result.confidence,
-      extractedFuelType: result.fuelType,
+      extractedFuelType: fuelType,
       aiRawResponse: result.raw as Prisma.InputJsonValue,
     },
   })
@@ -679,7 +703,7 @@ export async function ingestTankDip(
     data: {
       stationId: station.id,
       tankCode,
-      fuelType: result.fuelType,
+      fuelType,
       capacityK: result.capacityK,
       dipValue: dip,
       isReserve,

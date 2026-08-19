@@ -8,10 +8,11 @@ import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 const fuelMapSchema = z.object({
   stationId: z.string().uuid(),
-  fuelType: z.enum(['DO', 'E0', 'DC', 'XANG_A95', 'URE']),
+  fuelType: z.string().trim().min(1),
   productCode: z.string().trim().min(1),
   productName: z.string().trim().min(1).nullable().optional(),
   warehouseCode: z.string().trim().min(1),
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
   const station = await prisma.station.findUnique({ where: { id: stationId } })
   if (!station) return notFound()
   if (!(await canReachStation(user, station.id))) return forbidden()
+
+  // The trạm is declaring what it sells, so the nhiên liệu has to be one Trường Thịnh
+  // sells: the picker offers only those, and this refuses a khóa that reached the route
+  // any other way — one outside the danh mục, or one đã ngừng.
+  const fuel = await prisma.fuel.findUnique({ where: { fuelType } })
+  if (!fuel) return badRequest(vi.misaSettings.unknownFuel(fuelType))
+  if (!fuel.isActive) return badRequest(vi.misaSettings.inactiveFuel(fuel.name))
 
   const entry = await prisma.misaFuelMap.upsert({
     where: { stationId_fuelType: { stationId, fuelType } },

@@ -102,7 +102,7 @@ export default async function ReviewShiftsPage() {
                 dispenserId: reading.dispenserId,
                 stationName: station?.name ?? '—',
                 dispenserName: dispenser?.displayName ?? '—',
-                fuelType: dispenser?.fuelType ?? '',
+                fuelType: reading.fuelType,
                 openingElectronicReading: reading.openingElectronicReading?.toString() ?? null,
                 electronicReading: reading.electronicReading?.toString() ?? null,
                 openingMechanicalReading: reading.openingMechanicalReading?.toString() ?? null,

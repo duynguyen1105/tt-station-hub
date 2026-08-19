@@ -38,6 +38,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { sales, advances } = computeShiftSales(
     readings.map((r) => ({
       dispenserId: r.dispenserId,
+      fuelType: r.fuelType,
       openingElectronicReading:
         r.openingElectronicReading !== null ? Number(r.openingElectronicReading) : null,
       electronicReading: r.electronicReading !== null ? Number(r.electronicReading) : null,

@@ -18,15 +18,13 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { formatVND } from '@/lib/format'
+import type { CatalogueFuel } from '@/lib/fuels/catalogue'
 import type { FuelArea } from '@/lib/generated/prisma/client'
 import {
   BOARD_AREA_ORDER,
-  BOARD_FUEL_ORDER,
   type BoardPrice,
   buildRetailPriceBoard,
-  isAreaIndependent,
 } from '@/lib/misa-export/retail-price-board'
-import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 /** A kỳ is keyed one cell per nhiên liệu per vùng, so cells are addressed by both. */
@@ -35,11 +33,11 @@ function cellKey(fuelArea: FuelArea | null, fuelType: string): string {
 }
 
 /**
- * The vùng a nhiên liệu is keyed under. One priced the same everywhere is asked for
- * once — a single null cell the kỳ then writes into both vùng.
+ * The vùng a nhiên liệu is keyed under, read off its own danh mục row. One priced the
+ * same everywhere is asked for once — a single null cell the kỳ then writes into both.
  */
-function areasFor(fuelType: string): readonly (FuelArea | null)[] {
-  return isAreaIndependent(fuelType) ? [null] : BOARD_AREA_ORDER
+function areasFor(fuel: CatalogueFuel): readonly (FuelArea | null)[] {
+  return fuel.areaIndependent ? [null] : BOARD_AREA_ORDER
 }
 
 /**
@@ -48,7 +46,13 @@ function areasFor(fuelType: string): readonly (FuelArea | null)[] {
  * what a number is changing from; a cell left blank means that fuel did not move and
  * writes nothing. One announcement is one pass through one dialog.
  */
-export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
+export function RetailPriceForm({
+  fuels,
+  prices,
+}: {
+  fuels: CatalogueFuel[]
+  prices: BoardPrice[]
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -59,7 +63,7 @@ export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
   // rule, read at that date rather than at today's, so a backdated kỳ shows what was
   // actually being billed then.
   const chosenDate = effectiveDate === '' ? null : new Date(effectiveDate)
-  const board = chosenDate === null ? null : buildRetailPriceBoard(prices, chosenDate)
+  const board = chosenDate === null ? null : buildRetailPriceBoard(fuels, prices, chosenDate)
   const dateHasKy =
     chosenDate !== null &&
     prices.some((price) => price.effectiveDate.getTime() === chosenDate.getTime())
@@ -74,13 +78,18 @@ export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
       toast.error(vi.misaSettings.selectDate)
       return
     }
-    const filled = BOARD_FUEL_ORDER.flatMap((fuelType) =>
-      areasFor(fuelType).map((fuelArea) => ({
-        fuelArea,
-        fuelType,
-        entered: (cells[cellKey(fuelArea, fuelType)] ?? '').trim(),
-      }))
-    ).filter((cell) => cell.entered !== '')
+    // Walked over the danh mục the grid was rendered from, so a nhiên liệu kế toán can
+    // see and type into is a nhiên liệu that gets submitted. Iterating a list of its own
+    // would silently drop whatever the grid showed and that list did not hold.
+    const filled = fuels
+      .flatMap((fuel) =>
+        areasFor(fuel).map((fuelArea) => ({
+          fuelArea,
+          fuelType: fuel.fuelType,
+          entered: (cells[cellKey(fuelArea, fuel.fuelType)] ?? '').trim(),
+        }))
+      )
+      .filter((cell) => cell.entered !== '')
     if (filled.some((cell) => !(Number(cell.entered) > 0))) {
       toast.error(vi.misaSettings.invalidPrice)
       return
@@ -156,8 +165,8 @@ export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
               <tbody>
                 {board.map((entry) => (
                   <tr key={entry.fuelType}>
-                    <td className="p-2 font-medium">{fuelTypeLabel(entry.fuelType)}</td>
-                    {areasFor(entry.fuelType).map((area) => {
+                    <td className="p-2 font-medium">{entry.name}</td>
+                    {areasFor(entry).map((area) => {
                       const key = cellKey(area, entry.fuelType)
                       // A null vùng reads the board's vùng 1 cell — both hold the same price.
                       const inForce = entry.cells[area ?? BOARD_AREA_ORDER[0]].current
@@ -172,7 +181,7 @@ export function RetailPriceForm({ prices }: { prices: BoardPrice[] }) {
                           <Input
                             type="number"
                             inputMode="numeric"
-                            aria-label={`${fuelTypeLabel(entry.fuelType)} — ${areaLabel}`}
+                            aria-label={`${entry.name} — ${areaLabel}`}
                             value={cells[key] ?? ''}
                             onChange={(e) =>
                               setCells((prev) => ({ ...prev, [key]: e.target.value }))
