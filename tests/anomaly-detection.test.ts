@@ -16,6 +16,7 @@ function mechanicalOpeningFromPreviousCa(previousMechanicalClosing: number): num
     [
       {
         dispenserId: 'd1',
+        fuelType: 'DO',
         openingElectronicReading: 1000,
         electronicReading: 1100,
         openingMechanicalReading: 1000,

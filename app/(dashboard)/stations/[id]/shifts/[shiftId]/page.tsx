@@ -129,7 +129,9 @@ export default async function ShiftDetailPage({
       shiftId,
       dispenserId: d.id,
       dispenserName: d.displayName,
-      fuelType: d.fuelType,
+      // The nhiên liệu this ca was recorded against; a trụ with no reading yet
+      // shows what it pumps today.
+      fuelType: r?.fuelType ?? d.fuelType,
       openingElectronicReading: r?.openingElectronicReading?.toString() ?? null,
       electronicReading: r?.electronicReading?.toString() ?? null,
       openingMechanicalReading: r?.openingMechanicalReading?.toString() ?? null,

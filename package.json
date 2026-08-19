@@ -19,6 +19,7 @@
     "db:seed": "prisma db seed",
     "db:auth-users": "tsx scripts/create-auth-users.ts",
     "db:phu-trach": "tsx scripts/backfill-station-accountants.ts",
+    "db:fuel-stamp": "tsx scripts/backfill-shift-reading-fuel-type.ts",
     "barem:check": "tsx scripts/check-barem.ts",
     "roster:check": "tsx scripts/check-rosters.ts",
     "db:studio": "prisma studio"

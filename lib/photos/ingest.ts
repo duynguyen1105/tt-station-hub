@@ -296,7 +296,14 @@ async function assembleShiftReading(
 
             return tx.shiftReading.upsert({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
-              create: { shiftId: shift.id, dispenserId: dispenser.id, ...data },
+              // The nhiên liệu is stamped once, at creation: this ca sold what the
+              // trụ pumps today, and keeps saying so if the trụ is later converted.
+              create: {
+                shiftId: shift.id,
+                dispenserId: dispenser.id,
+                fuelType: dispenser.fuelType,
+                ...data,
+              },
               update: data,
             })
           },

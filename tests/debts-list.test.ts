@@ -219,7 +219,14 @@ describe('buildDebtsList ↔ buildMisaSalesVoucher consistency', () => {
       stationConfig,
       fuelMap,
       prices,
-      readings: [{ dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1300 }],
+      readings: [
+        {
+          dispenserId: 'd1',
+          fuelType: 'DO',
+          openingElectronicReading: 1000,
+          electronicReading: 1300,
+        },
+      ],
       dispensers: [{ id: 'd1', fuelType: 'DO' }],
       creditVisits: source.map(
         (s): CreditVisit => ({

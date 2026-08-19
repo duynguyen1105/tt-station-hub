@@ -79,6 +79,7 @@ export async function POST(
     create: {
       shiftId: id,
       dispenserId,
+      fuelType: dispenser.fuelType,
       openingElectronicReading: dispenser.lastElectronicReading,
       openingMechanicalReading: dispenser.lastMechanicalReading,
       reviewStatus: 'needs_review',
