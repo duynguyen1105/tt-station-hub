@@ -48,8 +48,8 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
     return entry ? [{ name: fuel.name, isActive: fuel.isActive, entry }] : []
   })
   const addable = addableFuels(catalogue, [...byFuel.keys()])
-  // A trụ pumps what the trạm declared it sells, so Thêm trụ draws its ô chọn from the
-  // Map nhiên liệu rows above and the two can never disagree.
+  // A trụ pumps what the trạm declared it sells, so Thêm trụ and Chỉnh sửa both draw
+  // their ô chọn from the Map nhiên liệu rows above and the two can never disagree.
   const sold = stationFuels(catalogue, [...byFuel.keys()])
 
   return (
@@ -179,10 +179,14 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                     <td className="p-2 text-right">
                       <DispenserForm
                         stationId={id}
+                        fuels={sold}
                         dispenser={{
                           id: dispenser.id,
                           displayName: dispenser.displayName,
-                          fuelName: fuelTypeLabelFrom(catalogue, dispenser.fuelType),
+                          fuel: {
+                            fuelType: dispenser.fuelType,
+                            name: fuelTypeLabelFrom(catalogue, dispenser.fuelType),
+                          },
                           tankNumber,
                           tankCapacityK: dispenser.tankCapacityK,
                           hasElectronicMeter: dispenser.hasElectronicMeter,

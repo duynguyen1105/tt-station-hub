@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
+import { dispenserFuelOptions, refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
 import { vi } from '@/messages/vi'
 
 /** A trụ the rules have nothing to say about — every case below bends one field of it. */
@@ -49,5 +49,27 @@ describe('refuseDispenserShape', () => {
     expect(
       refuseDispenserShape({ ...base, hasElectronicMeter: false, hasMechanicalMeter: false })
     ).toBe(vi.dispensers.meterRequired)
+  })
+})
+
+describe('dispenserFuelOptions', () => {
+  const sold = [
+    { fuelType: 'DO', name: 'Dầu DO' },
+    { fuelType: 'DC', name: 'Dầu DC' },
+  ]
+
+  it('offers what the trạm sells when the trụ is being lắp', () => {
+    expect(dispenserFuelOptions(sold)).toEqual(sold)
+  })
+
+  it('offers what the trạm sells when the trụ already pumps one of them', () => {
+    expect(dispenserFuelOptions(sold, { fuelType: 'DO', name: 'Dầu DO' })).toEqual(sold)
+  })
+
+  it('keeps the trụ’s own nhiên liệu on offer when the trạm no longer sells it', () => {
+    expect(dispenserFuelOptions(sold, { fuelType: 'E5', name: 'Xăng E5' })).toEqual([
+      ...sold,
+      { fuelType: 'E5', name: 'Xăng E5' },
+    ])
   })
 })
