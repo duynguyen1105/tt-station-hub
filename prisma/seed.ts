@@ -25,6 +25,26 @@ const PRICE_DATE = new Date('2026-06-25')
 // When the dispensers last read. Fixed so the seed stays idempotent across runs.
 const BASELINE_READING_AT = new Date('2026-06-25')
 
+// Danh mục nhiên liệu — the five Trường Thịnh sells today. The khóa are written
+// literally, not generated from the tên: every giá bán lẻ, tồn kho, đo hầm, trụ,
+// phiếu nhập and công nợ row already on disk is keyed by these exact strings, and
+// four of them predate the generation rule (see lib/fuels/catalogue.ts). The tên
+// are the ones the app shows today. Listed in the giá bán lẻ board's reading
+// order — xăng → dầu → phụ gia — because the board orders by createdAt.
+type FuelSeed = { fuelType: string; name: string; areaIndependent: boolean }
+const FUELS: FuelSeed[] = [
+  { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false },
+  { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false },
+  { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false },
+  { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false },
+  // URE (Adblue) is a phụ gia sold at one giá for the whole nước.
+  { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true },
+]
+
+// Fixed, one minute apart, so the board's reading order comes out of createdAt
+// the same way on every environment rather than depending on how fast the seed ran.
+const CATALOGUE_SEEDED_AT = new Date('2026-01-01T00:00:00.000Z')
+
 // Fuel → MISA product/warehouse map for DAKNONG1 (from the sample sales file).
 // productName (Tên hàng) is a starting default — the accountant verifies/replaces it in
 // Settings → MISA → Map nhiên liệu against the official Trường Thịnh product list.
@@ -169,6 +189,21 @@ async function main() {
     },
   })
 
+  // Danh mục nhiên liệu. Idempotent by khóa, and `update: {}` on purpose — a tên
+  // a kế toán has since corrected must survive a re-seed.
+  for (const [index, fuel] of FUELS.entries()) {
+    await prisma.fuel.upsert({
+      where: { fuelType: fuel.fuelType },
+      update: {},
+      create: {
+        fuelType: fuel.fuelType,
+        name: fuel.name,
+        areaIndependent: fuel.areaIndependent,
+        createdAt: new Date(CATALOGUE_SEEDED_AT.getTime() + index * 60_000),
+      },
+    })
+  }
+
   // Station ĐAKNONG 1.
   const station = await prisma.station.upsert({
     where: { code: 'DAKNONG1' },
@@ -298,7 +333,11 @@ async function main() {
     })
   }
 
-  console.log('Seed completed: station DAKNONG1 with %d dispensers.', DISPENSERS.length)
+  console.log(
+    'Seed completed: %d nhiên liệu, station DAKNONG1 with %d dispensers.',
+    FUELS.length,
+    DISPENSERS.length
+  )
 }
 
 main()
