@@ -73,6 +73,23 @@ export function selectableFuels(catalogue: readonly CatalogueFuel[]): CatalogueF
 }
 
 /**
+ * The nhiên liệu a trạm may take on: what it still sells, minus what the trạm already
+ * has a Map nhiên liệu row for. A trạm handles a nhiên liệu iff it has a row for it,
+ * so the row is the declaration and this is what Thêm nhiên liệu offers — the one-row
+ * per (trạm, nhiên liệu) constraint is never reached, because the picker cannot name a
+ * nhiên liệu the trạm already declared.
+ *
+ * A nhiên liệu đã ngừng is never offered, mapped or not: a trạm cannot start selling
+ * what Trường Thịnh stopped selling, and one it mapped before then keeps its row.
+ */
+export function addableFuels(
+  catalogue: readonly CatalogueFuel[],
+  mapped: readonly string[]
+): CatalogueFuel[] {
+  return selectableFuels(catalogue).filter((fuel) => !mapped.includes(fuel.fuelType))
+}
+
+/**
  * How many rows of each kind hold one nhiên liệu. Every table below stores the khóa as
  * a plain string rather than a foreign key, so nothing in the database stops a row from
  * being deleted out from under them — this count is what does.
