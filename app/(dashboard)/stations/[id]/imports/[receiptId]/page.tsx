@@ -7,9 +7,9 @@ import { ReceiptDocUpload } from '@/components/inventory/receipt-doc-upload'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDateTime, formatLiters } from '@/lib/format'
+import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { REVIEW_URL_TTL_SECONDS, signedUrlsForPaths } from '@/lib/storage/photo-storage'
-import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 // The receipt's sections are stored as JSON exactly as confirmed; a lenient
@@ -106,6 +106,7 @@ export default async function ImportReceiptPage({
 }) {
   const { id: stationId, receiptId } = await params
   const user = await requireStationAccess(stationId)
+  const fuelLabel = await fuelTypeLabeller()
 
   const receipt = await prisma.fuelImportReceipt.findUnique({ where: { id: receiptId } })
   if (!receipt || receipt.stationId !== stationId) notFound()
@@ -324,7 +325,7 @@ export default async function ImportReceiptPage({
                     <td className="border-l p-2 text-right font-mono font-semibold">
                       {t.importedLiters === null ? '—' : formatLiters(t.importedLiters)}
                     </td>
-                    <td className="p-2">{t.fuelType ? fuelTypeLabel(t.fuelType) : '—'}</td>
+                    <td className="p-2">{t.fuelType ? fuelLabel(t.fuelType) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -418,7 +419,7 @@ export default async function ImportReceiptPage({
               {childImports.map((row) => (
                 <tr key={row.id} className={`border-b ${row.canceledAt ? 'opacity-50' : ''}`}>
                   <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
-                  <td className="p-2">{fuelTypeLabel(row.fuelType)}</td>
+                  <td className="p-2">{fuelLabel(row.fuelType)}</td>
                   <td className="p-2 text-right font-mono">
                     {formatLiters(Number(row.litersActual))}
                   </td>

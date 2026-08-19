@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation'
 import { MisaFuelMapForm } from '@/components/misa-export/fuel-map-form'
 import { StationFuelAreaForm } from '@/components/stations/station-fuel-area-form'
 import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadFuelCatalogue } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
-import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export default async function StationConfigPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +17,9 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
   const entries = await prisma.misaFuelMap.findMany({ where: { stationId: id } })
   const byFuel = new Map(entries.map((e) => [e.fuelType, e]))
 
-  const fuelTypes = Object.keys(vi.fuelType)
+  // One row per nhiên liệu of the danh mục, which is what this table has always shown —
+  // which of them this trạm actually sells is ticket 08's question, not this one.
+  const fuels = await loadFuelCatalogue()
 
   return (
     <div className="space-y-8">
@@ -47,11 +49,11 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
             </tr>
           </thead>
           <tbody>
-            {fuelTypes.map((fuelType) => {
+            {fuels.map(({ fuelType, name }) => {
               const entry = byFuel.get(fuelType) ?? null
               return (
                 <tr key={fuelType} className="border-b">
-                  <td className="p-2">{fuelTypeLabel(fuelType)}</td>
+                  <td className="p-2">{name}</td>
                   <td className="readout p-2">{entry?.productCode ?? '—'}</td>
                   <td className="readout p-2">{entry?.productName ?? '—'}</td>
                   <td className="readout p-2">{entry?.warehouseCode ?? '—'}</td>

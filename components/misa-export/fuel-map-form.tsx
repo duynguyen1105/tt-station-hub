@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,7 +18,6 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export type MisaFuelMapEntry = {
@@ -37,6 +37,7 @@ export function MisaFuelMapForm({
   entry: MisaFuelMapEntry | null
 }) {
   const router = useRouter()
+  const fuelLabel = useFuelTypeLabel()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [productCode, setProductCode] = useState(entry?.productCode ?? '')
@@ -95,7 +96,7 @@ export function MisaFuelMapForm({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {vi.misaSettings.editFuelMap} — {fuelTypeLabel(fuelType)}
+            {vi.misaSettings.editFuelMap} — {fuelLabel(fuelType)}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">

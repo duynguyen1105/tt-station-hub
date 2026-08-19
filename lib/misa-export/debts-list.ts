@@ -1,5 +1,5 @@
+import { type CatalogueFuel, fuelTypeLabelFrom } from '@/lib/fuels/catalogue'
 import type { Prisma } from '@/lib/generated/prisma/client'
-import { fuelTypeLabel } from '@/lib/ui/status'
 
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000
 
@@ -76,7 +76,8 @@ export type DebtListRow = {
 /**
  * Build the read-only "Bán nợ trong ca" list from a ca's approved/corrected debt
  * visits. Pure: caller selects the visits (station + `shiftDayWindow` + status) and
- * supplies their customers. Rows are ordered by `visitDate` ascending.
+ * supplies their customers and the danh mục each visit's tên nhiên liệu is read from.
+ * Rows are ordered by `visitDate` ascending.
  *
  * Column-1 id is the truck plate (`plateConfirmed ?? plateRead`), else the customer's
  * MISA code; `idIsMissing` is true when neither yields a value — such a row still
@@ -84,7 +85,8 @@ export type DebtListRow = {
  */
 export function buildDebtsList(
   visits: DebtVisitInput[],
-  customersById: Map<string, DebtCustomerInput>
+  customersById: Map<string, DebtCustomerInput>,
+  catalogue: readonly CatalogueFuel[]
 ): DebtListRow[] {
   return [...visits]
     .sort((a, b) => a.visitDate.getTime() - b.visitDate.getTime())
@@ -95,7 +97,7 @@ export function buildDebtsList(
         id,
         idIsMissing: id === '',
         customerName: customer?.name ?? '',
-        fuelLabel: v.fuelType ? fuelTypeLabel(v.fuelType) : '',
+        fuelLabel: v.fuelType ? fuelTypeLabelFrom(catalogue, v.fuelType) : '',
         liters: v.litersRead,
         vehiclePhotoUrl: v.vehiclePhotoUrl ?? null,
         meterPhotoUrl: v.meterPhotoUrl ?? null,

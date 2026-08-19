@@ -3,7 +3,7 @@
 // page and tab underneath it.
 import { cache } from 'react'
 
-import { type CatalogueFuel } from '@/lib/fuels/catalogue'
+import { type CatalogueFuel, fuelTypeLabelFrom } from '@/lib/fuels/catalogue'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -27,3 +27,14 @@ export const loadFuelCatalogue = cache(
       select: { fuelType: true, name: true, areaIndependent: true, isActive: true },
     })
 )
+
+/**
+ * The label helper as a server component, page or route handler calls it — the twin of
+ * `useFuelTypeLabel` on the client side, reading the same danh mục through the loader
+ * above rather than through the provider. Awaited once at the top of a render, then
+ * called for each khóa the screen shows.
+ */
+export async function fuelTypeLabeller(): Promise<(fuelType: string) => string> {
+  const catalogue = await loadFuelCatalogue()
+  return (fuelType: string) => fuelTypeLabelFrom(catalogue, fuelType)
+}

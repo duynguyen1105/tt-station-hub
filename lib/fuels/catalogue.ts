@@ -61,6 +61,19 @@ export function fuelTypeLabelFrom(catalogue: readonly CatalogueFuel[], fuelType:
 }
 
 /**
+ * The nhiên liệu an ô chọn may offer: the ones Trường Thịnh still sells, in the danh
+ * mục's own order. Every fuel picker in the app asks here rather than filtering for
+ * itself, so Ngừng sử dụng removes a nhiên liệu from all of them at once.
+ *
+ * The counterpart of `fuelTypeLabelFrom`, which deliberately does not filter: a nhiên
+ * liệu đã ngừng cannot be chosen for a new row but still reads as its tên on every old
+ * one.
+ */
+export function selectableFuels(catalogue: readonly CatalogueFuel[]): CatalogueFuel[] {
+  return catalogue.filter((fuel) => fuel.isActive)
+}
+
+/**
  * How many rows of each kind hold one nhiên liệu. Every table below stores the khóa as
  * a plain string rather than a foreign key, so nothing in the database stops a row from
  * being deleted out from under them — this count is what does.
