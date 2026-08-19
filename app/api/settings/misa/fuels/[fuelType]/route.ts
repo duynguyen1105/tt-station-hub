@@ -6,6 +6,8 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
+import { decideFuelRemoval } from '@/lib/fuels/catalogue'
+import { countFuelUsage } from '@/lib/fuels/usage'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -57,4 +59,39 @@ export async function PATCH(
     },
   })
   return ok(fuel)
+}
+
+/**
+ * Xoá a nhiên liệu — only ever one added by mistake, with nothing yet pointing at it.
+ *
+ * The usage is counted here again rather than trusted from the dialog's own check: a
+ * giá or a map written between opening the dialog and pressing Xoá would otherwise be
+ * orphaned. Held by anything, the row stays and kế toán is offered Ngừng sử dụng.
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ fuelType: string }> }
+) {
+  const user = await getCurrentUser()
+  if (!user) return unauthorized()
+  if (!hasRole(user.role, ['admin', 'accountant'])) return forbidden()
+  const { fuelType } = await params
+
+  const fuel = await prisma.fuel.findUnique({ where: { fuelType } })
+  if (!fuel) return notFound()
+
+  const removal = decideFuelRemoval(await countFuelUsage(fuelType))
+  if (removal.kind === 'deactivate') {
+    return badRequest(vi.misaSettings.fuelInUse(fuel.name), removal.reasons)
+  }
+
+  await prisma.fuel.delete({ where: { fuelType } })
+  await writeAudit({
+    userId: user.id,
+    action: 'misa.fuel.delete',
+    entity: 'fuel',
+    entityId: fuel.id,
+    metadata: { fuelType, name: fuel.name },
+  })
+  return ok({ fuelType })
 }

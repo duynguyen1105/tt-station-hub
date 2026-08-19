@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { generateFuelType } from '@/lib/fuels/catalogue'
+import { type FuelUsageCounts, decideFuelRemoval, generateFuelType } from '@/lib/fuels/catalogue'
 
 describe('generateFuelType', () => {
   it('uppercases and joins the words of a tên with a single underscore', () => {
@@ -50,5 +50,57 @@ describe('the five founding nhiên liệu', () => {
     expect(generateFuelType('Xăng E0')).toBe('XANG_E0')
     expect(generateFuelType('Dầu DC')).toBe('DAU_DC')
     expect(generateFuelType('URE (Adblue)')).toBe('URE_ADBLUE')
+  })
+})
+
+/**
+ * Xoá asks one question first: is anything holding this nhiên liệu? Nothing is, and
+ * the row goes; anything is, and it cannot go — because the tên of a nhiên liệu on a
+ * past ca, phiếu nhập or công nợ is read back through the danh mục row. The counts
+ * come from the route; what they mean is decided here.
+ */
+describe('decideFuelRemoval', () => {
+  const NOTHING: FuelUsageCounts = {
+    fuelMaps: 0,
+    dispensers: 0,
+    prices: 0,
+    inventory: 0,
+    movements: 0,
+    openingBalances: 0,
+    imports: 0,
+    tankDips: 0,
+    debtVisits: 0,
+  }
+
+  it('deletes a nhiên liệu nothing uses', () => {
+    expect(decideFuelRemoval(NOTHING)).toEqual({ kind: 'delete' })
+  })
+
+  // One kind at a time: each of the eight has to block on its own, or a nhiên liệu
+  // held only by that kind would be deleted out from under it.
+  it.each([
+    ['fuelMaps', 3, '3 trạm đã map nhiên liệu'],
+    ['dispensers', 12, '12 trụ bơm'],
+    ['prices', 48, '48 kỳ giá'],
+    ['inventory', 2, '2 dòng tồn kho'],
+    ['movements', 31, '31 dòng biến động tồn kho'],
+    ['openingBalances', 1, '1 số đầu kỳ'],
+    ['imports', 7, '7 phiếu nhập'],
+    ['tankDips', 5, '5 lần đo hầm'],
+    ['debtVisits', 9, '9 lượt bán nợ'],
+  ] as const)('refuses to delete a nhiên liệu held by %s alone', (kind, count, reason) => {
+    expect(decideFuelRemoval({ ...NOTHING, [kind]: count })).toEqual({
+      kind: 'deactivate',
+      reasons: [reason],
+    })
+  })
+
+  it('names every kind of usage found, so kế toán reads the whole reason', () => {
+    expect(
+      decideFuelRemoval({ ...NOTHING, fuelMaps: 3, dispensers: 12, prices: 48, debtVisits: 9 })
+    ).toEqual({
+      kind: 'deactivate',
+      reasons: ['3 trạm đã map nhiên liệu', '12 trụ bơm', '48 kỳ giá', '9 lượt bán nợ'],
+    })
   })
 })

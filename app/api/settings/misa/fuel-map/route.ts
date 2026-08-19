@@ -8,6 +8,7 @@ import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 const fuelMapSchema = z.object({
   stationId: z.string().uuid(),
@@ -30,6 +31,12 @@ export async function POST(req: NextRequest) {
   const station = await prisma.station.findUnique({ where: { id: stationId } })
   if (!station) return notFound()
   if (!(await canReachStation(user, station.id))) return forbidden()
+
+  // A nhiên liệu đã ngừng is off every ô chọn, so it cannot be taken on by a trạm —
+  // which nhiên liệu the danh mục offers at all is ticket 08's question, not this one.
+  const fuel = await prisma.fuel.findUnique({ where: { fuelType } })
+  if (!fuel) return badRequest(vi.misaSettings.unknownFuel(fuelType))
+  if (!fuel.isActive) return badRequest(vi.misaSettings.inactiveFuel(fuel.name))
 
   const entry = await prisma.misaFuelMap.upsert({
     where: { stationId_fuelType: { stationId, fuelType } },

@@ -16,11 +16,11 @@ const TODAY = new Date('2026-08-18')
  * this rather than a constant inside the module, because the board no longer has one.
  */
 const FUELS: CatalogueFuel[] = [
-  { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false },
-  { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false },
-  { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false },
-  { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false },
-  { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true },
+  { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+  { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+  { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+  { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: true },
+  { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true, isActive: true },
 ]
 
 function fuelOf(fuelType: string): CatalogueFuel {
@@ -58,6 +58,7 @@ describe('buildRetailPriceBoard', () => {
       fuelType: 'XANG_RON_98',
       name: 'Xăng RON 98',
       areaIndependent: false,
+      isActive: true,
     }
     const board = buildRetailPriceBoard(
       [...FUELS, added],
@@ -68,6 +69,7 @@ describe('buildRetailPriceBoard', () => {
       fuelType: 'XANG_RON_98',
       name: 'Xăng RON 98',
       areaIndependent: false,
+      isActive: true,
       cells: {
         FUEL_AREA_1: { current: null, pending: null },
         FUEL_AREA_2: { current: null, pending: null },
@@ -75,9 +77,28 @@ describe('buildRetailPriceBoard', () => {
     })
   })
 
+  it('keeps a nhiên liệu đã ngừng on the board, with the giá it was last sold at', () => {
+    // Ngừng sử dụng takes a nhiên liệu off every ô chọn and changes nothing else, so
+    // the board still has a row to grey out and a lịch sử giá to open behind it. Where
+    // that row sits is the query's business — this module shows what it is handed.
+    const stopped: CatalogueFuel = {
+      fuelType: 'DC',
+      name: 'Dầu DC',
+      areaIndependent: false,
+      isActive: false,
+    }
+    const board = buildRetailPriceBoard(
+      [stopped],
+      [price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 19500)],
+      TODAY
+    )
+    expect(board[0]?.isActive).toBe(false)
+    expect(cell(board, 'DC', FuelArea.FUEL_AREA_1).current?.unitPrice).toBe(19500)
+  })
+
   it('carries the tên from the danh mục, so a corrected tên is what the board shows', () => {
     const board = buildRetailPriceBoard(
-      [{ fuelType: 'DO', name: 'Dầu DO 0,05S', areaIndependent: false }],
+      [{ fuelType: 'DO', name: 'Dầu DO 0,05S', areaIndependent: false, isActive: true }],
       [],
       TODAY
     )
@@ -187,7 +208,7 @@ describe('buildRetailPriceBoard', () => {
     // Nothing about XANG_RON_98 is known to the module; the flag on its row is all
     // that makes vùng 2 read a price only ever written into vùng 1.
     const board = buildRetailPriceBoard(
-      [{ fuelType: 'XANG_RON_98', name: 'Xăng RON 98', areaIndependent: true }],
+      [{ fuelType: 'XANG_RON_98', name: 'Xăng RON 98', areaIndependent: true, isActive: true }],
       [price(FuelArea.FUEL_AREA_1, 'XANG_RON_98', '2026-07-20', 24800)],
       TODAY
     )

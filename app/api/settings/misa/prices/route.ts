@@ -38,10 +38,21 @@ export async function POST(req: NextRequest) {
   // one added this morning has to be priceable the same afternoon. A khóa nobody sells
   // is refused rather than written, because every reader downstream would find a giá
   // for a nhiên liệu that does not exist.
-  const catalogue = await prisma.fuel.findMany({ select: { fuelType: true } })
-  const known = new Set(catalogue.map((fuel) => fuel.fuelType))
-  const unknown = cells.find((cell) => !known.has(cell.fuelType))
+  const catalogue = await prisma.fuel.findMany({
+    select: { fuelType: true, name: true, isActive: true },
+  })
+  const byFuelType = new Map(catalogue.map((fuel) => [fuel.fuelType, fuel]))
+  const unknown = cells.find((cell) => !byFuelType.has(cell.fuelType))
   if (unknown) return badRequest(vi.misaSettings.unknownFuel(unknown.fuelType))
+
+  // A nhiên liệu đã ngừng keeps every giá it ever had and gets no new one. Only a cell
+  // carrying a price is refused: a blank one writes nothing, and a kỳ keyed on a page
+  // opened before the nhiên liệu was stopped should not lose the four prices beside it.
+  const stopped = cells
+    .filter((cell) => cell.unitPrice !== null)
+    .map((cell) => byFuelType.get(cell.fuelType))
+    .find((fuel) => !fuel?.isActive)
+  if (stopped) return badRequest(vi.misaSettings.inactiveFuel(stopped.name))
 
   // A date that already carries a kỳ is edited, not rejected: the rows on that date
   // are what tells planKyPriceSave which cells update rather than create.
