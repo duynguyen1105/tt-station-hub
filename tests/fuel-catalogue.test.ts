@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { type FuelUsageCounts, decideFuelRemoval, generateFuelType } from '@/lib/fuels/catalogue'
+import {
+  type CatalogueFuel,
+  type FuelUsageCounts,
+  decideFuelRemoval,
+  fuelTypeLabelFrom,
+  generateFuelType,
+} from '@/lib/fuels/catalogue'
+import { fuelTypeLabel } from '@/lib/ui/status'
 
 describe('generateFuelType', () => {
   it('uppercases and joins the words of a tên with a single underscore', () => {
@@ -102,5 +109,61 @@ describe('decideFuelRemoval', () => {
       kind: 'deactivate',
       reasons: ['3 trạm đã map nhiên liệu', '12 trụ bơm', '48 kỳ giá', '9 lượt bán nợ'],
     })
+  })
+})
+
+/**
+ * The danh mục-backed form of the label helper. Every table stores a khóa; what a
+ * người dùng reads is the tên of the matching danh mục row. Nothing here knows about
+ * React or Prisma — the caller brings the danh mục, from the server loader or from
+ * the client provider.
+ */
+describe('fuelTypeLabelFrom', () => {
+  const CATALOGUE: CatalogueFuel[] = [
+    { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+    { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true, isActive: true },
+  ]
+
+  it('reads the tên of a nhiên liệu in the danh mục', () => {
+    expect(fuelTypeLabelFrom(CATALOGUE, 'XANG_A95')).toBe('Xăng A95')
+    expect(fuelTypeLabelFrom(CATALOGUE, 'URE')).toBe('URE (Adblue)')
+  })
+
+  // What keeps history readable: a khóa the danh mục no longer answers for still
+  // renders, as the message-bundle helper has always done.
+  it('falls back to the raw khóa when no row matches', () => {
+    expect(fuelTypeLabelFrom(CATALOGUE, 'DAU_NHON')).toBe('DAU_NHON')
+    expect(fuelTypeLabelFrom([], 'DO')).toBe('DO')
+  })
+
+  // The loader hands over ngừng sử dụng rows too, so a nhiên liệu that stopped being
+  // sold keeps its tên on the ca, phiếu nhập and công nợ rows that already carry it.
+  it('reads the tên of a nhiên liệu đã ngừng like any other', () => {
+    const stopped: CatalogueFuel[] = [
+      { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: false },
+    ]
+    expect(fuelTypeLabelFrom(stopped, 'DC')).toBe('Dầu DC')
+  })
+})
+
+/**
+ * The old path and the new one must say the same thing while both exist. The danh mục
+ * was seeded from this very map (prisma/seed.ts, ticket 01), so the five founding nhiên
+ * liệu are the proof: a screen moved onto the danh mục in ticket 05 renders character
+ * for character what it renders today.
+ */
+describe('the danh mục and the message bundle agree', () => {
+  const SEEDED: CatalogueFuel[] = [
+    { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+    { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+    { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+    { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: true },
+    { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true, isActive: true },
+  ]
+
+  it('renders the identical tên for all five nhiên liệu', () => {
+    for (const fuel of SEEDED) {
+      expect(fuelTypeLabelFrom(SEEDED, fuel.fuelType)).toBe(fuelTypeLabel(fuel.fuelType))
+    }
   })
 })
