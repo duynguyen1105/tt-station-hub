@@ -142,7 +142,12 @@ async function main() {
     await prisma.shiftReading.upsert({
       where: { shiftId_dispenserId: { shiftId: SHIFT_ID, dispenserId: dispenser.id } },
       update: data,
-      create: { shiftId: SHIFT_ID, dispenserId: dispenser.id, ...data },
+      create: {
+        shiftId: SHIFT_ID,
+        dispenserId: dispenser.id,
+        fuelType: dispenser.fuelType,
+        ...data,
+      },
     })
   }
 

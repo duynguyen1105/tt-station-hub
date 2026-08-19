@@ -6,6 +6,8 @@ import { type ChangeEvent, Fragment, useEffect, useMemo, useRef, useState } from
 
 import { useRouter } from 'next/navigation'
 
+import { useFuelCatalogue } from '@/components/fuels/catalogue-provider'
+import { NoStationFuels } from '@/components/fuels/no-station-fuels'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  type CatalogueFuel,
+  type StationFuelMapping,
+  fuelWordResolver,
+} from '@/lib/fuels/catalogue'
 import { type BienBanExtraction, type TankSideCheck, parseVnNumber } from '@/lib/imports/bien-ban'
 import {
   type BindingRefusal,
@@ -63,8 +70,6 @@ export type TankOption = {
   /** Thousands of litres — the binding ladder's veto against a printed capacity. */
   capacityK: number | null
 }
-
-const fuelOptions = Object.entries(vi.fuelType)
 
 // Every cell is a free-text string while editing (mirrors the paper form);
 // numbers are parsed once on confirm.
@@ -312,12 +317,20 @@ function baremLitersText(liters: number): string {
  */
 export function FuelImportForm({
   stationId,
+  fuels,
+  fuelMappings,
   tanks,
   paperTanks,
   stationPumps,
   paperPumps,
 }: {
   stationId: string
+  /** What section (c) may name as the nhiên liệu of a Hầm: what this Trạm sells,
+   *  which is its Map nhiên liệu rows minus what Trường Thịnh stopped selling. */
+  fuels: readonly CatalogueFuel[]
+  /** This Trạm's mã hàng — what lets a goods column printed with one be read as
+   *  the nhiên liệu it names, the same way a repainted trụ plate is. */
+  fuelMappings: readonly StationFuelMapping[]
   tanks: TankOption[]
   /** The Hầm this Trạm's own pre-printed biên bản lists — what the binding
    *  ladder falls back on where the database has no Hầm to check against. */
@@ -330,6 +343,14 @@ export function FuelImportForm({
   paperPumps: readonly PumpRosterEntry[]
 }) {
   const router = useRouter()
+  // The danh mục whole, not this Trạm's slice: a goods column is resolved by the
+  // rule that reads a trụ plate, which asks the mã hàng first and the danh mục's
+  // tên and khóa after.
+  const catalogue = useFuelCatalogue()
+  const resolveFuel = useMemo(
+    () => fuelWordResolver(catalogue, fuelMappings),
+    [catalogue, fuelMappings]
+  )
   const bienBanRef = useRef<HTMLInputElement>(null)
   const pxkRef = useRef<HTMLInputElement>(null)
   const relatedRef = useRef<HTMLInputElement>(null)
@@ -450,14 +471,14 @@ export function FuelImportForm({
           paperBaremBefore: row.before.paperBaremLiters,
           paperBaremAfter: row.after.paperBaremLiters,
         }),
-        deliveryLiters: deliveryNoteLiters(noteProducts, row.fuelType || null),
+        deliveryLiters: deliveryNoteLiters(noteProducts, row.fuelType || null, resolveFuel),
         // A height typed but not yet answered — the cells are blank for a moment.
         asking:
           (before === null && baremRequest(row, 'before') !== null) ||
           (after === null && baremRequest(row, 'after') !== null),
       }
     })
-  }, [tankRows, baremCache, products])
+  }, [tankRows, baremCache, products, resolveFuel])
 
   function reset() {
     setStep(1)
@@ -937,6 +958,9 @@ export function FuelImportForm({
             {/* (c) station tanks before/after + the liters that move inventory */}
             <section className="space-y-1">
               <h4 className="text-sm font-semibold">{vi.imports.tanksTitle}</h4>
+              {/* A Trạm that has declared no nhiên liệu leaves every (c) row's ô chọn
+                  empty; said once above the table rather than once per row. */}
+              {fuels.length === 0 && <NoStationFuels stationId={stationId} />}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[56rem] text-xs">
                   <thead>
@@ -1088,9 +1112,9 @@ export function FuelImportForm({
                                   <SelectValue placeholder={vi.inventory.fuelType} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {fuelOptions.map(([value, label]) => (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
+                                  {fuels.map((fuel) => (
+                                    <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                                      {fuel.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>

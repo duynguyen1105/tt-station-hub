@@ -9,6 +9,12 @@ import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatLiters } from '@/lib/format'
+import {
+  fuelTypeLabeller,
+  loadFuelCatalogue,
+  loadStationFuelMappings,
+  loadStationFuels,
+} from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import {
@@ -27,7 +33,8 @@ function buildTankOptionsFromDispensers(
     tankCode: string | null
     fuelType: string
     tankCapacityK: number | null
-  }[]
+  }[],
+  fuelLabel: (fuelType: string) => string
 ): TankOption[] {
   const options = new Map<string, TankOption>()
   for (const d of dispensers) {
@@ -35,7 +42,7 @@ function buildTankOptionsFromDispensers(
     const cap = d.tankCapacityK ? ` (${d.tankCapacityK}K)` : ''
     options.set(d.tankCode, {
       code: d.tankCode,
-      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${d.fuelType}${cap}`,
+      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${fuelLabel(d.fuelType)}${cap}`,
       fuelType: d.fuelType,
       capacityK: d.tankCapacityK,
     })
@@ -56,6 +63,16 @@ export default async function ShiftDetailPage({
   // Gated on the ca's own trạm rather than the address it was reached at, so a
   // ca cannot be read through the address of a trạm the kế toán does hold.
   await requireStationAccess(shift.stationId)
+  // The tên nhiên liệu this page shows — on each hầm of the nhập hàng dialog and on
+  // each bán nợ row — read from the danh mục once for the request.
+  const fuelLabel = await fuelTypeLabeller()
+  // What this trạm sells, for the nhập hàng dialog's ô chọn nhiên liệu, and its mã
+  // hàng, which is what reads a goods column on a biên bản. Labels above resolve every
+  // khóa; this narrows what a new hầm row may be given.
+  const [stationFuels, fuelMappings] = await Promise.all([
+    loadStationFuels(shift.stationId),
+    loadStationFuelMappings(shift.stationId),
+  ])
 
   const [station, readings, dispensers, visits] = await Promise.all([
     prisma.station.findUnique({ where: { id: shift.stationId }, select: { code: true } }),
@@ -107,7 +124,9 @@ export default async function ShiftDetailPage({
       vehiclePhotoUrl: v.vehiclePhotoId ? (photoUrlById.get(v.vehiclePhotoId) ?? null) : null,
       meterPhotoUrl: v.meterPhotoId ? (photoUrlById.get(v.meterPhotoId) ?? null) : null,
     })),
-    customersById
+    customersById,
+    // The tên nhiên liệu on each bán nợ row, read from the danh mục for this request.
+    await loadFuelCatalogue()
   )
 
   const readingByDispenser = new Map(readings.map((r) => [r.dispenserId, r]))
@@ -119,7 +138,9 @@ export default async function ShiftDetailPage({
       shiftId,
       dispenserId: d.id,
       dispenserName: d.displayName,
-      fuelType: d.fuelType,
+      // The nhiên liệu this ca was recorded against; a trụ with no reading yet
+      // shows what it pumps today.
+      fuelType: r?.fuelType ?? d.fuelType,
       openingElectronicReading: r?.openingElectronicReading?.toString() ?? null,
       electronicReading: r?.electronicReading?.toString() ?? null,
       openingMechanicalReading: r?.openingMechanicalReading?.toString() ?? null,
@@ -160,7 +181,9 @@ export default async function ShiftDetailPage({
           {user.role !== 'viewer' && (
             <FuelImportForm
               stationId={shift.stationId}
-              tanks={buildTankOptionsFromDispensers(dispensers)}
+              fuels={stationFuels}
+              fuelMappings={fuelMappings}
+              tanks={buildTankOptionsFromDispensers(dispensers, fuelLabel)}
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
               paperPumps={paperRoster?.pumps ?? []}

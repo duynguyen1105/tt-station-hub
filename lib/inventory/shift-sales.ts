@@ -1,11 +1,15 @@
 // When a shift is completed, the liters dispensed (electronic meter delta per
 // dispenser) become 'sale' movements that reduce estimated stock per fuel type
 // (build plan §3.2: estimated = opening + imports − sales). Each reading carries
-// its own opening, so liters are derived from the reading alone — the dispenser
-// contributes only its fuel type.
+// its own opening and its own nhiên liệu, so both the liters and the fuel they
+// count against come from the reading alone; the trụ only says which meter cache
+// to advance.
 
 export type SaleReading = {
   dispenserId: string
+  // The nhiên liệu stamped on the reading when it was created — required, so a
+  // caller cannot quietly fall back to what the trụ pumps today.
+  fuelType: string
   openingElectronicReading: number | null
   electronicReading: number | null
   // Only callers that advance the mechanical cache (ca completion) supply these;
@@ -60,7 +64,7 @@ export function computeShiftSales(
     if (reading.electronicReading !== null && reading.openingElectronicReading !== null) {
       const liters = reading.electronicReading - reading.openingElectronicReading
       if (liters > 0) {
-        litersByFuel.set(dispenser.fuelType, (litersByFuel.get(dispenser.fuelType) ?? 0) + liters)
+        litersByFuel.set(reading.fuelType, (litersByFuel.get(reading.fuelType) ?? 0) + liters)
         newElectronicReading = reading.electronicReading
       }
     }

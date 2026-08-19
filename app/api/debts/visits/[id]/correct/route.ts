@@ -7,6 +7,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
@@ -15,7 +16,10 @@ const correctSchema = z.object({
   litersRead: z.number().nullable().optional(),
   unitPriceRead: z.number().nullable().optional(),
   customerId: z.string().uuid().nullable().optional(),
-  fuelType: z.enum(['DO', 'E0', 'DC', 'XANG_A95', 'URE']).nullable().optional(),
+  // Any khóa, checked below against what the trạm sells rather than frozen here: the ô
+  // chọn offers whatever that trạm has declared, so a nhiên liệu it took on this morning
+  // must be correctable to on the same day.
+  fuelType: z.string().min(1).nullable().optional(),
   // Reviewer can re-assign the visit when the AI could not (or wrongly) determine
   // the station from the pump plate.
   stationId: z.string().uuid().optional(),
@@ -51,7 +55,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (parsed.data.plateConfirmed !== undefined) data.plateConfirmed = parsed.data.plateConfirmed
   if (parsed.data.customerId !== undefined) data.customerId = parsed.data.customerId
-  if (parsed.data.fuelType !== undefined) data.fuelType = parsed.data.fuelType
+  if (parsed.data.fuelType !== undefined) {
+    // Only a nhiên liệu the reviewer is actually *changing* is held to what the trạm
+    // sells — narrowing governs what may be chosen now, never what an old lượt xe
+    // already carries. Re-sending the fuel a visit was read with, at a trạm that has
+    // since stopped selling it, is not a choice, and refusing it would make the visit
+    // uncorrectable in every other field too.
+    //
+    // Checked against the trạm the lượt xe ends up at, which is the one this request
+    // moves it to where it moves it at all. What a trạm sells is drawn from the danh
+    // mục, so this also turns away a khóa that is unknown or đã ngừng: neither can be
+    // among what any trạm sells.
+    if (parsed.data.fuelType !== null && parsed.data.fuelType !== visit.fuelType) {
+      const refusal = await stationFuelRefusal(
+        parsed.data.stationId ?? visit.stationId,
+        parsed.data.fuelType
+      )
+      if (refusal) return badRequest(refusal)
+    }
+    data.fuelType = parsed.data.fuelType
+  }
   if (parsed.data.litersRead !== undefined) data.litersRead = parsed.data.litersRead
   if (parsed.data.unitPriceRead !== undefined) data.unitPriceRead = parsed.data.unitPriceRead
   if (parsed.data.stationId !== undefined) {

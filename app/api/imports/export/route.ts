@@ -5,8 +5,8 @@ import { type NextRequest } from 'next/server'
 import { forbidden, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation, reachableStationIds } from '@/lib/auth/station-guard'
+import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
-import { vi } from '@/messages/vi'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -81,7 +81,9 @@ export async function GET(req: NextRequest) {
   ]
   ws.getRow(1).font = { bold: true }
 
-  const fuelLabels = vi.fuelType as Record<string, string>
+  // "Loại hàng" is the tên of the danh mục row, so a nhiên liệu added in Cài đặt MISA
+  // exports under its name rather than its khóa.
+  const fuelLabel = await fuelTypeLabeller()
   for (const row of imports) {
     const station = stationById.get(row.stationId)
     ws.addRow({
@@ -89,7 +91,7 @@ export async function GET(req: NextRequest) {
       savedAt: row.createdAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       station: station?.name ?? station?.code ?? '',
       tank: row.tankCode.replace('HAM_', 'Hầm '),
-      fuel: fuelLabels[row.fuelType] ?? row.fuelType,
+      fuel: fuelLabel(row.fuelType),
       liters: Number(row.litersActual),
       litersV15: row.litersV15 === null ? '' : Number(row.litersV15),
       temp: row.temperatureC === null ? '' : Number(row.temperatureC),

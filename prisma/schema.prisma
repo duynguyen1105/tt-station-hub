@@ -26,6 +26,28 @@ model Profile {
   @@map("profiles")
 }
 
+// === DANH MỤC NHIÊN LIỆU ===
+// The one company-global list of nhiên liệu Trường Thịnh sells. Every other
+// table stores its nhiên liệu as the plain khóa string, so this is a catalogue
+// and not a foreign key — adding it moves no existing row.
+model Fuel {
+  id              String   @id @default(uuid()) @db.Uuid
+  // Khóa nhiên liệu — "DO", "XANG_A95". Generated from the tên when the nhiên
+  // liệu is created (lib/fuels/catalogue.ts) and frozen from then on, because
+  // every historical row, MISA export and AI reading is keyed by it.
+  fuelType        String   @unique @map("fuel_type")
+  // Tên nhiên liệu — the label a kế toán reads. Correctable at any time.
+  name            String
+  // Một giá toàn quốc: priced once for the whole nước rather than per vùng.
+  areaIndependent Boolean  @default(false) @map("area_independent")
+  isActive        Boolean  @default(true) @map("is_active")
+  // The giá bán lẻ board reads xăng → dầu → phụ gia by ordering on this; there
+  // is no thứ tự field.
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("fuels")
+}
+
 // === STATIONS & DISPENSERS ===
 // Fuel area = retail price zone (Vietnam's fixed two-tier national "Vùng" scheme).
 enum FuelArea {
@@ -69,7 +91,7 @@ model Dispenser {
   stationId             String    @map("station_id") @db.Uuid
   code                  String // "TRU_1"
   displayName           String    @map("display_name") // "Trụ 1"
-  fuelType              String    @map("fuel_type") // "DO" | "E0" | "DC" | "XANG_A95" | "URE"
+  fuelType              String    @map("fuel_type") // khóa nhiên liệu of a Fuel row
   tankCode              String?   @map("tank_code") // "HAM_3"
   tankCapacityK         Int?      @map("tank_capacity_k") // 25
   hasElectronicMeter    Boolean   @default(true) @map("has_electronic_meter")
@@ -113,6 +135,10 @@ model ShiftReading {
   id                        String    @id @default(uuid()) @db.Uuid
   shiftId                   String    @map("shift_id") @db.Uuid
   dispenserId               String    @map("dispenser_id") @db.Uuid
+  // Khóa nhiên liệu the trụ pumped when this ca was recorded, stamped from the
+  // trụ at creation. A ca keeps the nhiên liệu it sold even after the trụ is
+  // converted, so the MISA sales voucher re-exports a past ca unchanged.
+  fuelType                  String    @map("fuel_type")
   openingElectronicReading  Decimal?  @map("opening_electronic_reading") @db.Decimal(15, 3) // immutable once set
   openingMechanicalReading  Decimal?  @map("opening_mechanical_reading") @db.Decimal(15, 3) // immutable once set
   electronicReading         Decimal?  @map("electronic_reading") @db.Decimal(15, 3)

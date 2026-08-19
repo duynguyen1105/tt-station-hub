@@ -7,6 +7,7 @@ import { type ReactNode, useState, useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
@@ -20,7 +21,7 @@ import {
   canReviewShift,
 } from '@/lib/auth/reading-policy'
 import { type ReadingPhoto } from '@/lib/photos/reading-photos'
-import { anomalyLabel, fuelTypeLabel, reviewStatusInfo } from '@/lib/ui/status'
+import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 export type ReadingRowData = {
@@ -231,6 +232,7 @@ export function ReadingRow({
   mechanicalSlots: number
 }) {
   const router = useRouter()
+  const fuelLabel = useFuelTypeLabel()
   // Which write is in flight, not merely whether one is — the row shows Duyệt and
   // Từ chối side by side, and only the one that was clicked should spin. 'field'
   // is the inline cell edit, which greys the row without spinning any button.
@@ -311,7 +313,7 @@ export function ReadingRow({
       {data.stationName != null && <td className="p-2 align-middle">{data.stationName}</td>}
       <td className="p-2">
         <div className="font-medium">{data.dispenserName}</div>
-        <div className="text-muted-foreground text-xs">{fuelTypeLabel(data.fuelType)}</div>
+        <div className="text-muted-foreground text-xs">{fuelLabel(data.fuelType)}</div>
       </td>
       <td className="p-2 font-mono">
         <EditableReading

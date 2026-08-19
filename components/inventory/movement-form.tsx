@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { NoStationFuels } from '@/components/fuels/no-station-fuels'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,16 +25,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { type CatalogueFuel } from '@/lib/fuels/catalogue'
 import { vi } from '@/messages/vi'
 
-const fuelOptions = Object.entries(vi.fuelType)
 const movementOptions = Object.entries(vi.movementType)
 
-export function MovementForm({ stationId }: { stationId: string }) {
+/**
+ * Nhập, xuất or điều chỉnh one nhiên liệu of the kho by hand.
+ *
+ * `fuels` is what this trạm sells — its Map nhiên liệu rows, minus what Trường Thịnh
+ * stopped selling — so a movement cannot be booked against a nhiên liệu the trạm has no
+ * hầm, no trụ and no mã hàng for. Empty, the trạm has declared none, and the form says
+ * so instead of opening an ô chọn with nothing in it.
+ */
+export function MovementForm({
+  stationId,
+  fuels,
+}: {
+  stationId: string
+  fuels: readonly CatalogueFuel[]
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [fuelType, setFuelType] = useState('DO')
+  // The trạm's first nhiên liệu rather than a khóa written in here: a default the ô chọn
+  // does not offer would leave the field blank and submit anyway.
+  const [fuelType, setFuelType] = useState(fuels[0]?.fuelType ?? '')
   const [movementType, setMovementType] = useState('import')
   const [quantity, setQuantity] = useState('')
   const [movementDate, setMovementDate] = useState('')
@@ -89,18 +106,22 @@ export function MovementForm({ stationId }: { stationId: string }) {
           <div className="grid grid-cols-2 gap-3">
             <Field>
               <FieldLabel>{vi.inventory.fuelType}</FieldLabel>
-              <Select value={fuelType} onValueChange={setFuelType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {fuelOptions.map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {fuels.length === 0 ? (
+                <NoStationFuels stationId={stationId} />
+              ) : (
+                <Select value={fuelType} onValueChange={setFuelType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fuels.map((fuel) => (
+                      <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                        {fuel.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </Field>
             <Field>
               <FieldLabel>{vi.movementType.import}</FieldLabel>

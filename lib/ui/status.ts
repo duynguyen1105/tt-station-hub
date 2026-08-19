@@ -51,10 +51,6 @@ export function anomalyLabel(reason: string): string {
   return (vi.anomalyReasons as LabelMap)[reason] ?? reason
 }
 
-export function fuelTypeLabel(fuelType: string): string {
-  return (vi.fuelType as LabelMap)[fuelType] ?? fuelType
-}
-
 export function shiftTypeLabel(shiftType: string): string {
   return (vi.shiftType as LabelMap)[shiftType] ?? shiftType
 }

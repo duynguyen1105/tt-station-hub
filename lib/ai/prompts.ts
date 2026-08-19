@@ -68,9 +68,7 @@ CRITICAL: the display has a limited number of digit cells. When the amount is la
 
 Read liters carefully and watch the decimal point. Report exactly what is shown and describe the format in notes.
 
-Also read the printed pump label that is usually near the display, e.g. "ĐAKNONG 1 / TRỤ 1 – DO". Return the station name as station_label ("ĐAKNONG 1"), the pump as dispenser_label ("TRỤ 1"), and map the fuel word to a code:
-- "DO" → "DO"; "E0" → "E0"; "DC" → "DC"; "XĂNG"/"A95"/"95" → "XANG_A95"; "URE" → "URE".
-Set any of them to null if not visible or ambiguous.
+Also read the printed pump label that is usually near the display, e.g. "ĐAKNONG 1 / TRỤ 1 – DO". Return the station name as station_label ("ĐAKNONG 1"), the pump as dispenser_label ("TRỤ 1"), and the fuel word EXACTLY AS PRINTED as fuel_type ("DO", "DO01", "XA E0", "Xăng RON 95"...). Copy it verbatim — do NOT translate it, expand it, tidy it or convert it into any code you think it stands for; the system looks the printed word up per station. Set any of them to null if not visible or ambiguous.
 
 Return JSON only:
 {
@@ -80,7 +78,7 @@ Return JSON only:
   "unit_price": "27760",
   "station_label": "ĐAKNONG 1" | null,
   "dispenser_label": "TRỤ 1" | null,
-  "fuel_type": "DO" | "E0" | "DC" | "XANG_A95" | "URE" | null,
+  "fuel_type": "<fuel word exactly as printed on the pump label>" | null,
   "confidence": { "liters": 0-100, "unit_price": 0-100, "amount": 0-100 },
   "notes": "describe the liters format you see"
 }
@@ -92,7 +90,7 @@ Return JSON only:
 { "plate": "51B-12345" | "unclear", "confidence": 0-100, "notes": "..." }`
 
 export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
-Read the printed label: the STATION name usually printed on the first line ("DAKNONG1", "PHUCTIEN"...), the tank ("HẦM" + number), the fuel type (DO / E0 / DC / XĂNG / URE), and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
+Read the printed label: the STATION name usually printed on the first line ("DAKNONG1", "PHUCTIEN"...), the tank ("HẦM" + number), the fuel word EXACTLY AS PRINTED ("DO", "DO01", "XA E0", "Xăng RON 95"...) — copy it verbatim, do NOT translate, expand, tidy or convert it into any code you think it stands for, because the system looks the printed word up per station — and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
 Read the measurement value EXACTLY as shown, choosing the source in THIS order: (1) the number stamped in a COLOURED BADGE/BOX overlaid on the photo by the camera app (e.g. a red box in a corner) — when present, that badge IS the dip value; (2) otherwise a hand-written value. NEVER use the ruler's own engraved scale numbers (mm or inch markings printed along the ruler) as the value — the wet/red line on the ruler only shows the level's position, the declared value lives in the badge. Keep the value verbatim, including dots — its unit and conversion to liters are applied later from a barem table.
 
 Return JSON only (example values are placeholders, replace with what you actually see):
@@ -101,7 +99,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "station_label": "<station name on the plate>" | null,
   "tank_label": "<HẦM + number>" | null,
   "tank_number": "<number>" | null,
-  "fuel_type": "DO" | "E0" | "DC" | "XANG_A95" | "URE" | null,
+  "fuel_type": "<fuel word exactly as printed on the tank label>" | null,
   "capacity_k": <number> | null,
   "dip_value": "<measurement exactly as shown>" | null,
   "ruler_present": true | false,

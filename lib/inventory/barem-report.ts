@@ -8,6 +8,7 @@
 // a fraction, and compares two sets of numbers. It corrects nothing on either
 // side.
 import { formatDateTime } from '@/lib/format'
+import { type FuelWordResolver } from '@/lib/fuels/catalogue'
 
 import type { BaremDefect, BaremSheet, BaremTank } from './barem'
 
@@ -24,7 +25,16 @@ type SheetTank = Pick<BaremTank, 'tankCode' | 'fuel' | 'nominalCapacityLiters'>
 
 /** A disagreement between the Barem sheet and the `dispensers` table. */
 export type BaremMismatch =
-  | { kind: 'fuel'; tankCode: string; sheetFuel: string; dispenserFuels: string[] }
+  | {
+      kind: 'fuel'
+      tankCode: string
+      /** The sheet's fuel column as it is written, kept verbatim (ADR 0003). */
+      sheetFuel: string
+      /** The khóa that word resolves to, or null where the danh mục answers for
+       *  nothing — in which case the Hầm's fuel is unknown, never guessed. */
+      sheetFuelType: string | null
+      dispenserFuels: string[]
+    }
   | {
       kind: 'capacity'
       tankCode: string
@@ -50,10 +60,19 @@ export type BaremStationOutcome =
  * Lines up one Trạm's Barem against its dispensers. A Barem bound to the wrong
  * tank shows up here as a fuel or capacity disagreement — which is the point of
  * the check; neither side is corrected.
+ *
+ * The sheet writes its fuel as a word and the dispensers store a khóa, so the
+ * word is resolved before the two are compared — through the same rule that
+ * reads a trụ plate (`resolvePlateFuel`), which is why this takes a resolver
+ * rather than a danh mục: it is called with the Trạm whose sheet this is already
+ * bound in, exactly as the plate rule requires. A word nothing answers for
+ * leaves the Hầm's fuel unknown and is reported as a disagreement with the trụ
+ * drawing from it, rather than guessed into agreement.
  */
 export function compareBaremToDispensers(
   sheetTanks: SheetTank[],
-  dispensers: DispenserTank[]
+  dispensers: DispenserTank[],
+  resolveFuel: FuelWordResolver
 ): BaremMismatch[] {
   const byTank = new Map<string, DispenserTank[]>()
   for (const d of dispensers) {
@@ -72,11 +91,13 @@ export function compareBaremToDispensers(
     // Several trụ can draw from one Hầm; they should all name the same fuel, and
     // the sheet only has to agree with one of them to be consistent.
     const dispenserFuels = distinct(drawing.map((d) => d.fuelType))
-    if (!dispenserFuels.includes(tank.fuel)) {
+    const sheetFuelType = resolveFuel(tank.fuel)
+    if (sheetFuelType === null || !dispenserFuels.includes(sheetFuelType)) {
       mismatches.push({
         kind: 'fuel',
         tankCode: tank.tankCode,
         sheetFuel: tank.fuel,
+        sheetFuelType,
         dispenserFuels,
       })
     }
@@ -200,8 +221,15 @@ function describeDefect(defect: BaremDefect): string {
 function describeMismatch(mismatch: BaremMismatch): string {
   const ham = hamLabel(mismatch.tankCode)
   switch (mismatch.kind) {
-    case 'fuel':
-      return `${ham}: nhiên liệu — barem ghi ${mismatch.sheetFuel}, dispensers ghi ${mismatch.dispenserFuels.join(' / ')}`
+    case 'fuel': {
+      // A word that resolved is named by its khóa, the same vocabulary the
+      // dispensers side is printed in; one that did not is quoted as the cell
+      // writes it, so the line says which cell to go and correct.
+      const barem =
+        mismatch.sheetFuelType ??
+        `"${mismatch.sheetFuel}" (không khớp tên, khóa hay mã hàng nhiên liệu nào)`
+      return `${ham}: nhiên liệu — barem ghi ${barem}, dispensers ghi ${mismatch.dispenserFuels.join(' / ')}`
+    }
     case 'capacity':
       return (
         `${ham}: dung tích — barem ghi ` +

@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok-free.app', '*.ngrok.app', '*.ngrok.io'],
 
   experimental: {
-    // The station tabs (Tổng quan / Chốt ca / Giấy tờ / Hàng tồn / Công nợ / MISA)
+    // The station tabs (Tổng quan / Chốt ca / Giấy tờ / Hàng tồn / Công nợ / Cấu hình)
     // are separate routes, so switching tabs unmounts the segment and refetches
     // everything. Dynamic pages get a 0s client cache by default, so even going
     // back to a tab visited a second ago re-ran its Prisma queries and flashed

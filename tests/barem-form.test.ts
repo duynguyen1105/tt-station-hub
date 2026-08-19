@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
+import {
+  type CatalogueFuel,
+  type StationFuelMapping,
+  fuelWordResolver,
+} from '@/lib/fuels/catalogue'
 import { type BaremLookup, type BaremRefusal } from '@/lib/inventory/barem'
 import {
   deliveryNoteLiters,
-  fuelTypeFromProductLabel,
   resolveTankBarem,
   savedCell,
   shownCell,
@@ -104,68 +108,93 @@ describe('resolveTankBarem', () => {
   })
 })
 
-describe('fuelTypeFromProductLabel', () => {
-  it('reads the product columns the biên bản actually carries', () => {
-    expect(fuelTypeFromProductLabel('RON 95')).toBe('XANG_A95')
-    expect(fuelTypeFromProductLabel('E0')).toBe('E0')
-    expect(fuelTypeFromProductLabel('DO 0,05S-V')).toBe('DO')
-    expect(fuelTypeFromProductLabel('Dầu DC')).toBe('DC')
-    expect(fuelTypeFromProductLabel('URE')).toBe('URE')
-    expect(fuelTypeFromProductLabel('Xăng')).toBe('XANG_A95')
-  })
-
-  it('does not read E5 petrol as E0 — EA is the E5 column, a fuel it does not model', () => {
-    expect(fuelTypeFromProductLabel('E5 RON 92')).toBeNull()
-    expect(fuelTypeFromProductLabel('E5')).toBeNull()
-    expect(fuelTypeFromProductLabel('RON 92')).toBeNull()
-    expect(fuelTypeFromProductLabel('EA')).toBeNull()
-    expect(fuelTypeFromProductLabel('Xăng E5 RON 92')).toBeNull()
-  })
-
-  it('answers nothing for a column that names no fuel it knows', () => {
-    expect(fuelTypeFromProductLabel('')).toBeNull()
-    expect(fuelTypeFromProductLabel('Hàng hóa')).toBeNull()
-  })
-})
-
 describe('deliveryNoteLiters', () => {
+  // The danh mục and Đăk Nông 1's mã hàng, as seeded (prisma/seed.ts). A goods column
+  // is read by the rule that reads a trụ plate and a barem sheet — one rule, not a
+  // third — so "XA E0" resolves through the mã hàng and "Dầu DO" through the tên.
+  const CATALOGUE: CatalogueFuel[] = [
+    { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+    { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+    { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+    { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: true },
+    { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true, isActive: true },
+  ]
+  const DAKNONG1: StationFuelMapping[] = [
+    { fuelType: 'DO', productCode: 'DO' },
+    { fuelType: 'E0', productCode: 'XA E0' },
+    { fuelType: 'DC', productCode: 'DO01' },
+    { fuelType: 'XANG_A95', productCode: 'A95' },
+    { fuelType: 'URE', productCode: 'URE' },
+  ]
+  const resolveFuel = fuelWordResolver(CATALOGUE, DAKNONG1)
+
+  // The four columns the biên bản chuẩn pre-prints (`lib/imports/goods-columns.ts`).
   const products = [
-    { productLabel: 'RON 95', quantityLiters: 6000 },
-    { productLabel: 'DO 0,05S-V', quantityLiters: 4000 },
+    { productLabel: 'E0', quantityLiters: 6000 },
+    { productLabel: 'DO', quantityLiters: 4000 },
   ]
 
   it('takes the column that names the tank’s fuel', () => {
-    expect(deliveryNoteLiters(products, 'XANG_A95')).toBe(6000)
-    expect(deliveryNoteLiters(products, 'DO')).toBe(4000)
+    expect(deliveryNoteLiters(products, 'E0', resolveFuel)).toBe(6000)
+    expect(deliveryNoteLiters(products, 'DO', resolveFuel)).toBe(4000)
+  })
+
+  it('reads a column printed with the tên or the trạm mã hàng', () => {
+    expect(
+      deliveryNoteLiters([{ productLabel: 'Dầu DO', quantityLiters: 4000 }], 'DO', resolveFuel)
+    ).toBe(4000)
+    expect(
+      deliveryNoteLiters([{ productLabel: 'XA E0', quantityLiters: 6000 }], 'E0', resolveFuel)
+    ).toBe(6000)
+    // DC is filed under mã hàng "DO01" at Đăk Nông 1 — the case the two-step exists for.
+    expect(
+      deliveryNoteLiters([{ productLabel: 'DO01', quantityLiters: 2000 }], 'DC', resolveFuel)
+    ).toBe(2000)
   })
 
   it('leaves two columns of the same fuel to the reviewer', () => {
     expect(
       deliveryNoteLiters(
         [
-          { productLabel: 'DO 0,05S', quantityLiters: 4000 },
-          { productLabel: 'DO 0,001S', quantityLiters: 2000 },
+          { productLabel: 'DO', quantityLiters: 4000 },
+          { productLabel: 'Dầu DO', quantityLiters: 2000 },
         ],
-        'DO'
+        'DO',
+        resolveFuel
       )
     ).toBeNull()
   })
 
   it('has nothing to compare when no column names that fuel', () => {
-    expect(deliveryNoteLiters(products, 'URE')).toBeNull()
-    expect(deliveryNoteLiters(products, null)).toBeNull()
-    // An E5 delivery is not the E0 Hầm's, so the E0 row is offered no comparison.
+    expect(deliveryNoteLiters(products, 'URE', resolveFuel)).toBeNull()
+    expect(deliveryNoteLiters(products, null, resolveFuel)).toBeNull()
+    // EA is the E5 column of the biên bản chuẩn and no nhiên liệu answers for it, so
+    // the E0 row is offered no comparison rather than E5's litres.
     expect(
-      deliveryNoteLiters([{ productLabel: 'E5 RON 92', quantityLiters: 6000 }], 'E0')
+      deliveryNoteLiters([{ productLabel: 'EA', quantityLiters: 6000 }], 'E0', resolveFuel)
     ).toBeNull()
     expect(
-      deliveryNoteLiters([{ productLabel: 'Hàng hóa', quantityLiters: 6000 }], 'DO')
+      deliveryNoteLiters([{ productLabel: 'Hàng hóa', quantityLiters: 6000 }], 'DO', resolveFuel)
     ).toBeNull()
+  })
+
+  it('reads a nhiên liệu added after the code was written', () => {
+    const withRon98 = [
+      ...CATALOGUE,
+      { fuelType: 'XANG_RON_98', name: 'Xăng RON 98', areaIndependent: false, isActive: true },
+    ]
+    expect(
+      deliveryNoteLiters(
+        [{ productLabel: 'Xăng RON 98', quantityLiters: 6000 }],
+        'XANG_RON_98',
+        fuelWordResolver(withRon98, DAKNONG1)
+      )
+    ).toBe(6000)
   })
 
   it('ignores a column with no quantity on it', () => {
     expect(
-      deliveryNoteLiters([{ productLabel: 'RON 95', quantityLiters: null }], 'XANG_A95')
+      deliveryNoteLiters([{ productLabel: 'DO', quantityLiters: null }], 'DO', resolveFuel)
     ).toBeNull()
   })
 })

@@ -15,18 +15,42 @@ const dispensers: SaleDispenser[] = [
 describe('computeShiftSales', () => {
   it('sums liters per fuel type from positive deltas', () => {
     const readings: SaleReading[] = [
-      { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1200 }, // +200 DO
-      { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 650 }, // +150 DO
-      { dispenserId: 'd3', openingElectronicReading: null, electronicReading: 300 }, // no opening -> no sale
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+      }, // +200 DO
+      { dispenserId: 'd2', fuelType: 'DO', openingElectronicReading: 500, electronicReading: 650 }, // +150 DO
+      { dispenserId: 'd3', fuelType: 'E0', openingElectronicReading: null, electronicReading: 300 }, // no opening -> no sale
     ]
     const { sales } = computeShiftSales(readings, dispensers)
     expect(sales).toEqual([{ fuelType: 'DO', liters: 350 }])
   })
 
+  it('counts liters against the fuel stamped on the reading, not the trụ’s current one', () => {
+    // Trụ 1 was converted to DC after this ca closed; the ca still sold DO.
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+      },
+    ]
+    const { sales } = computeShiftSales(readings, [{ id: 'd1', fuelType: 'DC' }])
+    expect(sales).toEqual([{ fuelType: 'DO', liters: 200 }])
+  })
+
   it('advances only dispensers with a positive delta', () => {
     const readings: SaleReading[] = [
-      { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1200 }, // +200 -> advance
-      { dispenserId: 'd3', openingElectronicReading: null, electronicReading: 300 }, // no opening -> no advance
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+      }, // +200 -> advance
+      { dispenserId: 'd3', fuelType: 'E0', openingElectronicReading: null, electronicReading: 300 }, // no opening -> no advance
     ]
     const { advances } = computeShiftSales(readings, dispensers)
     expect(advances).toEqual([
@@ -38,6 +62,7 @@ describe('computeShiftSales', () => {
     const readings: SaleReading[] = [
       {
         dispenserId: 'd1',
+        fuelType: 'DO',
         openingElectronicReading: 1000,
         electronicReading: 1200, // +200 -> electronic advances
         openingMechanicalReading: 900,
@@ -54,6 +79,7 @@ describe('computeShiftSales', () => {
     const readings: SaleReading[] = [
       {
         dispenserId: 'd1',
+        fuelType: 'DO',
         openingElectronicReading: 1000,
         electronicReading: 1200, // +200 -> electronic advances
         openingMechanicalReading: 900,
@@ -70,6 +96,7 @@ describe('computeShiftSales', () => {
     const readings: SaleReading[] = [
       {
         dispenserId: 'd1',
+        fuelType: 'DO',
         openingElectronicReading: 1000,
         electronicReading: 900, // decrease -> electronic does not advance
         openingMechanicalReading: 900,
@@ -84,7 +111,12 @@ describe('computeShiftSales', () => {
 
   it('books zero liters and does not advance when the opening is null', () => {
     const readings: SaleReading[] = [
-      { dispenserId: 'd1', openingElectronicReading: null, electronicReading: 1200 },
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: null,
+        electronicReading: 1200,
+      },
     ]
     const { sales, advances } = computeShiftSales(readings, dispensers)
     expect(sales).toEqual([])
@@ -93,7 +125,7 @@ describe('computeShiftSales', () => {
 
   it('leaves the cache untouched on a decreased reading', () => {
     const readings: SaleReading[] = [
-      { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 400 }, // decrease -> no sale, no advance
+      { dispenserId: 'd2', fuelType: 'DO', openingElectronicReading: 500, electronicReading: 400 }, // decrease -> no sale, no advance
     ]
     const { sales, advances } = computeShiftSales(readings, dispensers)
     expect(sales).toEqual([])

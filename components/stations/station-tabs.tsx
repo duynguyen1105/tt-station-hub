@@ -16,7 +16,7 @@ export function StationTabs({ stationId }: { stationId: string }) {
     { href: `${base}/documents`, label: vi.stationTabs.documents },
     { href: `${base}/inventory`, label: vi.stationTabs.inventory },
     { href: `${base}/debts`, label: vi.stationTabs.debts },
-    { href: `${base}/misa`, label: vi.stationTabs.misa },
+    { href: `${base}/config`, label: vi.stationTabs.config },
   ]
 
   return (

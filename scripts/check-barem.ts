@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg'
 import 'dotenv/config'
 
+import { type CatalogueFuel, fuelWordResolver } from '../lib/fuels/catalogue'
 import { PrismaClient } from '../lib/generated/prisma/client'
 import { fetchBaremSheet } from '../lib/inventory/barem-fetch'
 import {
@@ -26,14 +27,17 @@ import { BAREM_SHEETS, type BaremSheetBinding } from '../lib/inventory/barem-she
 // other 11 still report. Nothing about the app changes either way — the skipped
 // Trạm's Barem is still its trang tính, and still whatever it says right now.
 
-// The `dispensers` table is the one thing here that comes from the database, and
-// it is only read: the comparison corrects neither side.
+// The database is only ever read here, and only for the two things the comparison
+// needs: the `dispensers` to line the Barem up against, and the danh mục plus each
+// Trạm's mã hàng, which are what a sheet's fuel word is resolved through. The
+// comparison corrects neither side.
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? '' })
 const prisma = new PrismaClient({ adapter })
 
 async function checkSheet(
   binding: BaremSheetBinding,
-  stations: Map<string, { id: string; name: string }>
+  stations: Map<string, { id: string; name: string }>,
+  catalogue: CatalogueFuel[]
 ): Promise<BaremStationOutcome> {
   const station = stations.get(binding.stationCode)
   if (!station) {
@@ -54,17 +58,28 @@ async function checkSheet(
   const read = await fetchBaremSheet(binding)
   if (!read.ok) return { ok: false, ...named, error: read.error }
 
-  const dispensers = await prisma.dispenser.findMany({
-    where: { stationId: station.id },
-    select: { tankCode: true, fuelType: true, tankCapacityK: true },
-  })
+  const [dispensers, mappings] = await Promise.all([
+    prisma.dispenser.findMany({
+      where: { stationId: station.id },
+      select: { tankCode: true, fuelType: true, tankCapacityK: true },
+    }),
+    // This Trạm's mã hàng, so a sheet whose fuel column carries one reads — the
+    // same two-step the plate rule uses, and it needs the Trạm bound first. Read
+    // here rather than through `loadStationFuelMappings`: that one is scoped to a
+    // request by React `cache()`, which a plain node script has none of.
+    prisma.misaFuelMap.findMany({
+      where: { stationId: station.id },
+      select: { fuelType: true, productCode: true },
+    }),
+  ])
   const mismatches = compareBaremToDispensers(
     read.sheet.tanks.map((tank) => ({
       tankCode: tank.tankCode,
       fuel: tank.fuel,
       nominalCapacityLiters: tank.nominalCapacityLiters,
     })),
-    dispensers
+    dispensers,
+    fuelWordResolver(catalogue, mappings)
   )
   return { ok: true, ...named, sheet: read.sheet, mismatches }
 }
@@ -76,11 +91,16 @@ async function main() {
     select: { id: true, code: true, name: true },
   })
   const stations = new Map(rows.map((s) => [s.code, { id: s.id, name: s.name }]))
+  // The danh mục is company-wide, so it is read once for all twelve sheets.
+  const catalogue = await prisma.fuel.findMany({
+    orderBy: { createdAt: 'asc' },
+    select: { fuelType: true, name: true, areaIndependent: true, isActive: true },
+  })
 
   const outcomes: BaremStationOutcome[] = []
   for (const binding of BAREM_SHEETS) {
     process.stderr.write(`… ${binding.tab}`)
-    const outcome = await checkSheet(binding, stations)
+    const outcome = await checkSheet(binding, stations, catalogue)
     process.stderr.write(
       outcome.ok
         ? `\r✓ ${binding.tab} — ${outcome.sheet.tanks.length} Hầm\n`

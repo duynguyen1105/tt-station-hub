@@ -76,6 +76,8 @@ export const debtMeterSchema = z.object({
   unit_price: z.string().nullable(),
   // Read from the printed pump label ("ĐAKNONG 1 / TRỤ 1 – DO") when visible — the
   // station label routes the visit, the fuel beats inferring from a contract price.
+  // `fuel_type` is the word AS PRINTED, not a khóa: only the trạm the photo ends up
+  // assigned to can say what it means (lib/fuels/catalogue.ts `resolvePlateFuel`).
   station_label: z.string().nullable().optional(),
   dispenser_label: z.string().nullable().optional(),
   fuel_type: z.string().nullable().optional(),
@@ -125,7 +127,7 @@ export const tankDipSchema = z.object({
   station_label: z.string().nullable().optional(), // "DAKNONG1" printed above the tank label
   tank_label: z.string().nullable(), // "HẦM 3"
   tank_number: z.string().nullable(), // "3"
-  fuel_type: z.string().nullable(), // "DO" | "E0" | "DC" | "XANG_A95" | "URE"
+  fuel_type: z.string().nullable(), // the fuel word as printed on the hầm plate ("DO", "DO01")
   capacity_k: z.number().nullable(), // tank capacity in thousands of liters (e.g. 25 = 25K)
   dip_value: z.string().nullable(), // raw measurement as shown (unit unknown until barem §12.6)
   ruler_present: z.boolean().optional().default(false),

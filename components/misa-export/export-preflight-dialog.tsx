@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import Link from 'next/link'
 
+import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -45,10 +46,6 @@ function fixLink(error: PreflightError, stationId: string): string {
   }
 }
 
-function fuelLabel(fuelType: string): string {
-  return vi.fuelType[fuelType as keyof typeof vi.fuelType] ?? fuelType
-}
-
 export function ExportPreflightDialog({
   shiftId,
   stationId,
@@ -58,6 +55,7 @@ export function ExportPreflightDialog({
   stationId: string
   shiftDate: string // yyyy-MM-dd — default for the voucher dates
 }) {
+  const fuelLabel = useFuelTypeLabel()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)

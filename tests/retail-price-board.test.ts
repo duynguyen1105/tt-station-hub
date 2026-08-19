@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { type CatalogueFuel } from '@/lib/fuels/catalogue'
 import { FuelArea } from '@/lib/generated/prisma/client'
 import {
   buildPriceTimeline,
@@ -8,6 +9,25 @@ import {
 } from '@/lib/misa-export/retail-price-board'
 
 const TODAY = new Date('2026-08-18')
+
+/**
+ * The danh mục as ticket 01 seeds it: the five founding nhiên liệu in creation
+ * order, which is the order the board has always shown. Every test below is handed
+ * this rather than a constant inside the module, because the board no longer has one.
+ */
+const FUELS: CatalogueFuel[] = [
+  { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+  { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+  { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+  { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: true },
+  { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true, isActive: true },
+]
+
+function fuelOf(fuelType: string): CatalogueFuel {
+  const fuel = FUELS.find((f) => f.fuelType === fuelType)
+  if (fuel === undefined) throw new Error(`no danh mục entry for ${fuelType}`)
+  return fuel
+}
 
 /** A price row as the board receives it — Prisma's Decimal already turned into a number. */
 function price(fuelArea: FuelArea, fuelType: string, effectiveDate: string, unitPrice: number) {
@@ -21,13 +41,73 @@ function cell(board: ReturnType<typeof buildRetailPriceBoard>, fuelType: string,
 }
 
 describe('buildRetailPriceBoard', () => {
-  it('shows all five nhiên liệu in business order even with no prices at all', () => {
-    const board = buildRetailPriceBoard([], TODAY)
+  it('gives every nhiên liệu of the danh mục a row, even with no prices at all', () => {
+    const board = buildRetailPriceBoard(FUELS, [], TODAY)
     expect(board.map((entry) => entry.fuelType)).toEqual(['XANG_A95', 'E0', 'DO', 'DC', 'URE'])
+  })
+
+  it('shows the danh mục in the order it is given, so creation order is the board order', () => {
+    // The same five, handed over backwards: nothing in the module re-sorts them, so
+    // what the query orders by is what kế toán reads.
+    const board = buildRetailPriceBoard([...FUELS].reverse(), [], TODAY)
+    expect(board.map((entry) => entry.fuelType)).toEqual(['URE', 'DC', 'DO', 'E0', 'XANG_A95'])
+  })
+
+  it('gives a nhiên liệu just added to the danh mục a row with no giá in either vùng', () => {
+    const added: CatalogueFuel = {
+      fuelType: 'XANG_RON_98',
+      name: 'Xăng RON 98',
+      areaIndependent: false,
+      isActive: true,
+    }
+    const board = buildRetailPriceBoard(
+      [...FUELS, added],
+      [price(FuelArea.FUEL_AREA_1, 'DO', '2026-07-20', 23900)],
+      TODAY
+    )
+    expect(board.at(-1)).toEqual({
+      fuelType: 'XANG_RON_98',
+      name: 'Xăng RON 98',
+      areaIndependent: false,
+      isActive: true,
+      cells: {
+        FUEL_AREA_1: { current: null, pending: null },
+        FUEL_AREA_2: { current: null, pending: null },
+      },
+    })
+  })
+
+  it('keeps a nhiên liệu đã ngừng on the board, with the giá it was last sold at', () => {
+    // Ngừng sử dụng takes a nhiên liệu off every ô chọn and changes nothing else, so
+    // the board still has a row to grey out and a lịch sử giá to open behind it. Where
+    // that row sits is the query's business — this module shows what it is handed.
+    const stopped: CatalogueFuel = {
+      fuelType: 'DC',
+      name: 'Dầu DC',
+      areaIndependent: false,
+      isActive: false,
+    }
+    const board = buildRetailPriceBoard(
+      [stopped],
+      [price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 19500)],
+      TODAY
+    )
+    expect(board[0]?.isActive).toBe(false)
+    expect(cell(board, 'DC', FuelArea.FUEL_AREA_1).current?.unitPrice).toBe(19500)
+  })
+
+  it('carries the tên from the danh mục, so a corrected tên is what the board shows', () => {
+    const board = buildRetailPriceBoard(
+      [{ fuelType: 'DO', name: 'Dầu DO 0,05S', areaIndependent: false, isActive: true }],
+      [],
+      TODAY
+    )
+    expect(board.map((entry) => entry.name)).toEqual(['Dầu DO 0,05S'])
   })
 
   it('shows the latest price with ngày áp dụng ≤ today, not the newest row keyed in', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [
         price(FuelArea.FUEL_AREA_1, 'DO', '2026-07-20', 23900),
         price(FuelArea.FUEL_AREA_1, 'DO', '2026-06-25', 22290),
@@ -42,6 +122,7 @@ describe('buildRetailPriceBoard', () => {
 
   it('shows a price dated after today as pending, not as the current price', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [
         price(FuelArea.FUEL_AREA_1, 'XANG_A95', '2026-08-14', 22000),
         price(FuelArea.FUEL_AREA_1, 'XANG_A95', '2026-08-25', 23100),
@@ -56,6 +137,7 @@ describe('buildRetailPriceBoard', () => {
 
   it('shows a fuel priced only in the future as pending with no current price', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [price(FuelArea.FUEL_AREA_2, 'URE', '2026-08-25', 15000)],
       TODAY
     )
@@ -67,6 +149,7 @@ describe('buildRetailPriceBoard', () => {
 
   it('shows the next kỳ as pending when several future prices are keyed in', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [
         price(FuelArea.FUEL_AREA_1, 'DC', '2026-09-10', 24500),
         price(FuelArea.FUEL_AREA_1, 'DC', '2026-08-25', 24300),
@@ -81,6 +164,7 @@ describe('buildRetailPriceBoard', () => {
 
   it('treats a price dated exactly today as in force', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [price(FuelArea.FUEL_AREA_1, 'E0', '2026-08-18', 20100)],
       TODAY
     )
@@ -92,6 +176,7 @@ describe('buildRetailPriceBoard', () => {
 
   it('marks the vùng with no price as Chưa có giá while the other shows its price', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 24300)],
       TODAY
     )
@@ -101,6 +186,7 @@ describe('buildRetailPriceBoard', () => {
 
   it('shows a nhiên liệu with no vùng at the same price in both cells', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [price(FuelArea.FUEL_AREA_2, 'URE', '2026-07-20', 15000)],
       TODAY
     )
@@ -111,15 +197,27 @@ describe('buildRetailPriceBoard', () => {
     expect(cell(board, 'URE', FuelArea.FUEL_AREA_1).current?.unitPrice).toBe(15000)
   })
 
-  it('marks only URE as priced without a vùng', () => {
-    const board = buildRetailPriceBoard([], TODAY)
+  it("reads một giá toàn quốc off the nhiên liệu's own row, not a set of khóa", () => {
+    const board = buildRetailPriceBoard(FUELS, [], TODAY)
     expect(board.filter((entry) => entry.areaIndependent).map((entry) => entry.fuelType)).toEqual([
       'URE',
     ])
   })
 
+  it('prices a newly flagged một giá toàn quốc nhiên liệu the same in both vùng', () => {
+    // Nothing about XANG_RON_98 is known to the module; the flag on its row is all
+    // that makes vùng 2 read a price only ever written into vùng 1.
+    const board = buildRetailPriceBoard(
+      [{ fuelType: 'XANG_RON_98', name: 'Xăng RON 98', areaIndependent: true, isActive: true }],
+      [price(FuelArea.FUEL_AREA_1, 'XANG_RON_98', '2026-07-20', 24800)],
+      TODAY
+    )
+    expect(cell(board, 'XANG_RON_98', FuelArea.FUEL_AREA_2).current?.unitPrice).toBe(24800)
+  })
+
   it('carries a ngày áp dụng per cell, so the two vùng can sit on different dates', () => {
     const board = buildRetailPriceBoard(
+      FUELS,
       [
         price(FuelArea.FUEL_AREA_1, 'DO', '2026-07-20', 23900),
         price(FuelArea.FUEL_AREA_2, 'DO', '2026-06-25', 24000),
@@ -135,7 +233,7 @@ describe('buildRetailPriceBoard', () => {
   })
 
   it('gives every nhiên liệu a cell for both vùng when no prices exist', () => {
-    const board = buildRetailPriceBoard([], TODAY)
+    const board = buildRetailPriceBoard(FUELS, [], TODAY)
     for (const entry of board) {
       for (const area of [FuelArea.FUEL_AREA_1, FuelArea.FUEL_AREA_2]) {
         expect(entry.cells[area]).toEqual({ current: null, pending: null })
@@ -153,7 +251,7 @@ describe('buildPriceTimeline', () => {
         price(FuelArea.FUEL_AREA_1, 'DO', '2026-05-10', 21800),
       ],
       FuelArea.FUEL_AREA_1,
-      'DO',
+      fuelOf('DO'),
       TODAY
     )
     expect(timeline.map((row) => row.effectiveDate)).toEqual([
@@ -170,7 +268,7 @@ describe('buildPriceTimeline', () => {
         price(FuelArea.FUEL_AREA_1, 'DO', '2026-07-20', 23900),
       ],
       FuelArea.FUEL_AREA_1,
-      'DO',
+      fuelOf('DO'),
       TODAY
     )
     expect(timeline).toEqual([
@@ -186,7 +284,7 @@ describe('buildPriceTimeline', () => {
         price(FuelArea.FUEL_AREA_1, 'XANG_A95', '2026-08-25', 23100),
       ],
       FuelArea.FUEL_AREA_1,
-      'XANG_A95',
+      fuelOf('XANG_A95'),
       TODAY
     )
     expect(timeline).toEqual([
@@ -203,7 +301,7 @@ describe('buildPriceTimeline', () => {
         price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 24300),
       ],
       FuelArea.FUEL_AREA_1,
-      'DO',
+      fuelOf('DO'),
       TODAY
     )
     expect(timeline).toEqual([
@@ -215,7 +313,7 @@ describe('buildPriceTimeline', () => {
     const timeline = buildPriceTimeline(
       [price(FuelArea.FUEL_AREA_1, 'DC', '2026-07-20', 24300)],
       FuelArea.FUEL_AREA_2,
-      'DC',
+      fuelOf('DC'),
       TODAY
     )
     expect(timeline).toEqual([])
@@ -230,7 +328,7 @@ describe('buildPriceTimeline', () => {
         price(FuelArea.FUEL_AREA_2, 'URE', '2026-06-25', 14500),
       ],
       FuelArea.FUEL_AREA_1,
-      'URE',
+      fuelOf('URE'),
       TODAY
     )
     expect(timeline).toEqual([
@@ -243,7 +341,7 @@ describe('buildPriceTimeline', () => {
     const timeline = buildPriceTimeline(
       [price(FuelArea.FUEL_AREA_2, 'URE', '2026-08-25', 15000)],
       FuelArea.FUEL_AREA_2,
-      'URE',
+      fuelOf('URE'),
       TODAY
     )
     expect(timeline).toEqual([

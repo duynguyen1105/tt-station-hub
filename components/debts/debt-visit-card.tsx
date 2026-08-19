@@ -8,6 +8,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { CustomerForm } from '@/components/debts/customer-form'
+import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
+import { NoStationFuels } from '@/components/fuels/no-station-fuels'
 import { StatusBadge } from '@/components/shared/status-badge'
 import {
   AlertDialog,
@@ -49,7 +51,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatLiters, formatVND } from '@/lib/format'
-import { anomalyLabel, fuelTypeLabel, reviewStatusInfo } from '@/lib/ui/status'
+import { type CatalogueFuel } from '@/lib/fuels/catalogue'
+import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
@@ -65,6 +68,10 @@ export type DebtVisitCardData = {
   displayedAmount: number | null
   amountMatchesDisplay: boolean | null
   fuelType: string | null
+  // What the trạm this lượt xe belongs to sells — the only nhiên liệu a correction may
+  // name. Empty means that trạm has declared none, and the ô chọn says so. The tên of
+  // whatever the AI already read still renders, sold here or not.
+  fuels: readonly CatalogueFuel[]
   customerId: string | null
   autoMatched: boolean
   anomalyReasons: string[]
@@ -79,7 +86,6 @@ export type DebtVisitCardData = {
 }
 
 const UNASSIGNED = '__none__'
-const FUEL_TYPES = ['DO', 'E0', 'DC', 'XANG_A95', 'URE'] as const
 
 async function post(url: string, body?: unknown): Promise<Response> {
   return fetch(url, {
@@ -185,6 +191,9 @@ function CustomerPicker({
 
 export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   const router = useRouter()
+  // The tên of the nhiên liệu the AI read: labels resolve for every nhiên liệu, while
+  // the ô chọn beside them offers only the ones this trạm sells.
+  const fuelLabel = useFuelTypeLabel()
   // Which write is in flight, not merely whether one is — Duyệt and Từ chối sit
   // side by side, so only the button that was clicked should spin.
   const [action, setAction] = useState<'station' | 'approve' | 'reject' | 'correct' | null>(null)
@@ -208,7 +217,9 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   const stationKnown = data.stations.some((s) => s.id === stationId)
 
   // Moving the visit to another station persists immediately — it changes which
-  // station's ledger/shift the charge belongs to, so it must not wait for Duyệt.
+  // station's ledger/shift the charge belongs to, so it must not wait for Duyệt. The
+  // refresh that follows re-renders the card with the new trạm's nhiên liệu, which is
+  // what the fuel ô chọn then offers.
   async function changeStation(next: string) {
     const prev = stationId
     setStationId(next)
@@ -263,7 +274,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
     if (res.ok) {
       setOpenCorrect(false)
       router.refresh()
-    } else toast.error(vi.errors.generic)
+    } else toast.error((await res.json().catch(() => null))?.error ?? vi.errors.generic)
   }
 
   return (
@@ -326,7 +337,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
             <div className="flex flex-wrap items-center gap-2">
               {data.fuelType && (
                 <span className="border-brass/40 bg-brass/10 text-foreground rounded border px-2 py-0.5 text-xs font-semibold">
-                  {fuelTypeLabel(data.fuelType)}
+                  {fuelLabel(data.fuelType)}
                 </span>
               )}
               {data.aiConfidence !== null && (
@@ -445,19 +456,27 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
                 </div>
                 <Field>
                   <FieldLabel htmlFor="fuelType">{vi.debts.fuelType}</FieldLabel>
-                  <Select value={fuelType} onValueChange={setFuelType}>
-                    <SelectTrigger id="fuelType">
-                      <SelectValue placeholder={vi.debts.fuelType} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={UNASSIGNED}>—</SelectItem>
-                      {FUEL_TYPES.map((ft) => (
-                        <SelectItem key={ft} value={ft}>
-                          {fuelTypeLabel(ft)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {!stationKnown ? (
+                    <p className="text-muted-foreground text-sm">
+                      {vi.debtReview.fuelNeedsStation}
+                    </p>
+                  ) : data.fuels.length === 0 ? (
+                    <NoStationFuels stationId={stationId} />
+                  ) : (
+                    <Select value={fuelType} onValueChange={setFuelType}>
+                      <SelectTrigger id="fuelType">
+                        <SelectValue placeholder={vi.debts.fuelType} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>—</SelectItem>
+                        {data.fuels.map((fuel) => (
+                          <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                            {fuel.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </Field>
               </div>
               <DialogFooter>

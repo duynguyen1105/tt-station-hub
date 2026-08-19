@@ -9,6 +9,11 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
+import {
+  fuelTypeLabeller,
+  loadStationFuelMappings,
+  loadStationFuels,
+} from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import { type BaremLookup, lookupBaremLiters } from '@/lib/inventory/barem'
@@ -20,7 +25,6 @@ import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
-import { fuelTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 // Hoisted so the react-compiler purity lint doesn't see Date.now() inside the
@@ -31,10 +35,12 @@ function todayShiftDate(): Date {
 }
 
 /** Tank choices for the import form: every tank a dispenser draws from, plus
- * tanks only seen via dip records (reserve tanks carry no dispenser). */
+ * tanks only seen via dip records (reserve tanks carry no dispenser). Each label names
+ * the hầm's nhiên liệu, so the page hands in the danh mục's answer for a khóa. */
 function buildTankOptions(
   dispensers: { tankCode: string | null; fuelType: string; tankCapacityK: number | null }[],
-  dipTanks: { tankCode: string; fuelType: string | null }[]
+  dipTanks: { tankCode: string; fuelType: string | null }[],
+  fuelLabel: (fuelType: string) => string
 ): TankOption[] {
   const options = new Map<string, TankOption>()
   for (const d of dispensers) {
@@ -42,7 +48,7 @@ function buildTankOptions(
     const cap = d.tankCapacityK ? ` (${d.tankCapacityK}K)` : ''
     options.set(d.tankCode, {
       code: d.tankCode,
-      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${fuelTypeLabel(d.fuelType)}${cap}`,
+      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${fuelLabel(d.fuelType)}${cap}`,
       fuelType: d.fuelType,
       capacityK: d.tankCapacityK,
     })
@@ -51,7 +57,7 @@ function buildTankOptions(
     if (options.has(t.tankCode)) continue
     options.set(t.tankCode, {
       code: t.tankCode,
-      label: `${t.tankCode.replace('HAM_', 'Hầm ')}${t.fuelType ? ` — ${fuelTypeLabel(t.fuelType)}` : ''}`,
+      label: `${t.tankCode.replace('HAM_', 'Hầm ')}${t.fuelType ? ` — ${fuelLabel(t.fuelType)}` : ''}`,
       fuelType: t.fuelType,
       // A Hầm seen only through its dips: nothing says how big it is.
       capacityK: null,
@@ -74,6 +80,16 @@ export default async function StationInventoryPage({
   const { id } = await params
   const user = await requireStationAccess(id)
   const today = todayShiftDate()
+  // Every tên nhiên liệu on this page — tồn kho, sổ sách, đo hầm, phiếu nhập — is the
+  // danh mục's, read once for the request.
+  const fuelLabel = await fuelTypeLabeller()
+  // What this trạm sells, for the two forms on this page, and its mã hàng, which is
+  // what reads a goods column on a biên bản. Every table below resolves whatever khóa
+  // its rows already carry; only the ô chọn narrow.
+  const [stationFuels, fuelMappings] = await Promise.all([
+    loadStationFuels(id),
+    loadStationFuelMappings(id),
+  ])
 
   // The histories grow every day, so each lives in its own sub-tab with
   // pagination; the overview stays a fixed-size dashboard. Tab, page and the
@@ -189,7 +205,8 @@ export default async function StationInventoryPage({
 
   const tanks = buildTankOptions(
     dispensers,
-    [...latestByTank.values()].map((d) => ({ tankCode: d.tankCode, fuelType: d.fuelType }))
+    [...latestByTank.values()].map((d) => ({ tankCode: d.tankCode, fuelType: d.fuelType })),
+    fuelLabel
   )
 
   // Signed links for each import's documents so the reviewer can open the
@@ -336,7 +353,7 @@ export default async function StationInventoryPage({
     const opening = openingByFuel.get(fuel)
     return {
       fuelType: fuel,
-      fuelLabel: fuelTypeLabel(fuel),
+      fuelLabel: fuelLabel(fuel),
       openingLiters: opening ? Number(opening.openingLiters) : null,
       effectiveDate: opening ? opening.effectiveDate.toISOString().slice(0, 10) : null,
     }
@@ -420,13 +437,15 @@ export default async function StationInventoryPage({
           {canEdit && (
             <FuelImportForm
               stationId={id}
+              fuels={stationFuels}
+              fuelMappings={fuelMappings}
               tanks={tanks}
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
               paperPumps={paperRoster?.pumps ?? []}
             />
           )}
-          <MovementForm stationId={id} />
+          <MovementForm stationId={id} fuels={stationFuels} />
         </div>
       </div>
 
@@ -485,7 +504,7 @@ export default async function StationInventoryPage({
                     const low = isLowStock(book.summary.bookStock, threshold)
                     return (
                       <tr key={fuel} className="border-b">
-                        <td className="p-2 font-medium">{fuelTypeLabel(fuel)}</td>
+                        <td className="p-2 font-medium">{fuelLabel(fuel)}</td>
                         <td className="p-2 text-right">
                           {book.opening ? (
                             <span className="font-mono">
@@ -556,7 +575,7 @@ export default async function StationInventoryPage({
                 {ledgerPage.map((row) => (
                   <tr key={`${row.date}-${row.fuel}`} className="border-b">
                     <td className="p-2">{row.date.split('-').reverse().join('/')}</td>
-                    <td className="p-2">{fuelTypeLabel(row.fuel)}</td>
+                    <td className="p-2">{fuelLabel(row.fuel)}</td>
                     <td className="p-2 text-right font-mono">{formatLiters(row.openingOfDay)}</td>
                     <td className="p-2 text-right font-mono">
                       {row.importedLiters === 0 ? '—' : formatLiters(row.importedLiters)}
@@ -612,9 +631,9 @@ export default async function StationInventoryPage({
                       <td className="p-2 font-medium">{tankCode.replace('HAM_', 'Hầm ')}</td>
                       <td className="p-2">
                         {dip?.fuelType
-                          ? fuelTypeLabel(dip.fuelType)
+                          ? fuelLabel(dip.fuelType)
                           : fuelForTank.get(tankCode)
-                            ? fuelTypeLabel(fuelForTank.get(tankCode)!)
+                            ? fuelLabel(fuelForTank.get(tankCode)!)
                             : '—'}
                       </td>
                       <td className="p-2 text-right font-mono">
@@ -681,7 +700,7 @@ export default async function StationInventoryPage({
                 const diff = comparable ? theoretical - actual : null
                 return (
                   <tr key={fuel} className="border-b">
-                    <td className="p-2 font-medium">{fuelTypeLabel(fuel)}</td>
+                    <td className="p-2 font-medium">{fuelLabel(fuel)}</td>
                     <td className="p-2 text-right font-mono">{formatLiters(theoretical)}</td>
                     <td className="p-2 text-right font-mono">
                       {actual === undefined ? '—' : formatLiters(actual)}
@@ -740,7 +759,7 @@ export default async function StationInventoryPage({
                       <tr key={dip.id} className="border-b">
                         <td className="p-2">{formatDateTime(dip.measuredAt)}</td>
                         <td className="p-2 font-medium">{dip.tankCode.replace('HAM_', 'Hầm ')}</td>
-                        <td className="p-2">{dip.fuelType ? fuelTypeLabel(dip.fuelType) : '—'}</td>
+                        <td className="p-2">{dip.fuelType ? fuelLabel(dip.fuelType) : '—'}</td>
                         <td className="p-2 text-right font-mono">{dip.dipValue.toString()}</td>
                         <td className="p-2 text-right font-mono">
                           {lookup?.ok ? (
@@ -847,7 +866,7 @@ export default async function StationInventoryPage({
                         beside it can be days older than the data entry. */}
                     <td className="p-2">{formatDateTime(row.createdAt)}</td>
                     <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
-                    <td className="p-2">{fuelTypeLabel(row.fuelType)}</td>
+                    <td className="p-2">{fuelLabel(row.fuelType)}</td>
                     <td className="p-2 text-right font-mono">
                       {formatLiters(Number(row.litersActual))}
                     </td>
