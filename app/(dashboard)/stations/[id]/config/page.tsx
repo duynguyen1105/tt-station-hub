@@ -23,8 +23,9 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
   // The trạm's declaration of what it sells: one row per nhiên liệu it has a mã hàng
   // for, in danh mục order. A nhiên liệu đã ngừng the trạm mapped before Trường Thịnh
   // stopped selling it keeps its row, so what the trạm sold still reads — the row is
-  // marked Đã ngừng and offers no Chỉnh sửa, because the route refuses to write a
-  // nhiên liệu that is ngừng and a button that can only fail is worse than none.
+  // marked Đã ngừng and its menu offers no Chỉnh sửa, because the route refuses to write
+  // a nhiên liệu that is ngừng and a button that can only fail is worse than none. Xóa
+  // khỏi trạm it still offers: that row is exactly the one a trạm wants cleared.
   const catalogue = await loadFuelCatalogue()
   const rows = catalogue.flatMap((fuel) => {
     const entry = byFuel.get(fuel.fuelType)
@@ -84,18 +85,17 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                   <td className="readout p-2">{entry.warehouseCode}</td>
                   <td className="readout p-2">{entry.unit ?? '—'}</td>
                   <td className="p-2 text-right">
-                    {isActive && (
-                      <MisaFuelMapForm
-                        stationId={id}
-                        entry={{
-                          fuelType: entry.fuelType,
-                          productCode: entry.productCode,
-                          productName: entry.productName,
-                          warehouseCode: entry.warehouseCode,
-                          unit: entry.unit,
-                        }}
-                      />
-                    )}
+                    <MisaFuelMapForm
+                      stationId={id}
+                      isActive={isActive}
+                      entry={{
+                        fuelType: entry.fuelType,
+                        productCode: entry.productCode,
+                        productName: entry.productName,
+                        warehouseCode: entry.warehouseCode,
+                        unit: entry.unit,
+                      }}
+                    />
                   </td>
                 </tr>
               ))}

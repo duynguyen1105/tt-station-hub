@@ -4,6 +4,7 @@
 //
 // The refusal to xoá is written here rather than in the route, so the Vietnamese it
 // speaks is a fact of the rule and not of the screen that shows it.
+import { formatLiters } from '@/lib/format'
 import { vi } from '@/messages/vi'
 
 /**
@@ -144,4 +145,59 @@ export function decideFuelRemoval(counts: FuelUsageCounts): FuelRemoval {
     reason(counts[kind])
   )
   return reasons.length === 0 ? { kind: 'delete' } : { kind: 'deactivate', reasons }
+}
+
+/**
+ * One trụ of a trạm, as the removal guard reads it: what it is called, and whether it
+ * is still pumping.
+ */
+export type StationDispenser = { displayName: string; isActive: boolean }
+
+/**
+ * What one trạm still has for one nhiên liệu at the moment kế toán asks to stop selling
+ * it: its trụ for that nhiên liệu, active or not, and the lít its tồn kho says are in
+ * the hầm. Nothing historical is in here — a past ca, phiếu nhập or công nợ never
+ * blocks a removal.
+ */
+export type StationFuelUsage = {
+  dispensers: readonly StationDispenser[]
+  stock: number
+}
+
+/** Remove the row, or refuse and say what is still in the way. */
+export type StationFuelRemoval = { kind: 'remove' } | { kind: 'blocked'; reasons: string[] }
+
+/**
+ * Whether a trạm may stop selling a nhiên liệu — that is, whether its Map nhiên liệu
+ * row may go, because the row is the declaration.
+ *
+ * Two things block it, and both are things kế toán can clear: an **active trụ** pumping
+ * the nhiên liệu (ngừng the trụ), and a **tồn kho** that is not zero (run the stock
+ * down). Each names itself with what it is — the trụ by tên, the tồn kho by số lít — so
+ * the refusal says what to go and fix rather than only that something is wrong.
+ *
+ * An inactive trụ pumps nothing and does not block: keeping its row is how a trạm
+ * remembers a trụ it retired. A tồn kho âm blocks like a positive one — it is drift
+ * that has to be settled before the nhiên liệu leaves the trạm.
+ *
+ * What this deliberately does not weigh is history. Ca, phiếu nhập, đo hầm and công nợ
+ * store the khóa and read their tên back through the danh mục, which a removal never
+ * touches — so they survive it intact. The one accepted loss is re-exporting an old ca:
+ * without the row there is no mã hàng, and that export fails.
+ */
+export function decideStationFuelRemoval(usage: StationFuelUsage): StationFuelRemoval {
+  const pumping = usage.dispensers.filter((dispenser) => dispenser.isActive)
+  const reasons = [
+    ...(pumping.length > 0
+      ? [
+          vi.misaSettings.stationFuelUsage.dispensers(
+            pumping.map((dispenser) => dispenser.displayName).join(', ')
+          ),
+        ]
+      : []),
+    ...(usage.stock !== 0
+      ? [vi.misaSettings.stationFuelUsage.stock(formatLiters(usage.stock))]
+      : []),
+  ]
+  return reasons.length === 0 ? { kind: 'remove' } : { kind: 'blocked', reasons }
 }

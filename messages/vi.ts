@@ -165,6 +165,22 @@ export const vi = {
     fuelDeactivated: 'Đã ngừng sử dụng nhiên liệu',
     fuelReactivated: 'Đã dùng lại nhiên liệu',
     fuelUsageLoadError: 'Không kiểm tra được nhiên liệu này. Vui lòng thử lại.',
+    // What is still holding a nhiên liệu at one trạm, as the refusal to xóa nó khỏi
+    // trạm lists them — the trụ by tên, the tồn kho by số lít, so kế toán reads what to
+    // clear first.
+    stationFuelUsage: {
+      dispensers: (names: string) => `Trụ đang bơm nhiên liệu này: ${names}`,
+      stock: (liters: string) => `Tồn kho còn ${liters} lít`,
+    },
+    removeFuelMap: 'Xóa khỏi trạm',
+    removeFuelMapConfirm: (name: string) =>
+      `Trạm này ngừng bán ${name}? Dòng map nhiên liệu sẽ bị xóa.`,
+    removeFuelMapBlocked: (name: string) => `Chưa thể xóa ${name} khỏi trạm — vẫn còn:`,
+    removeFuelMapBlockedHint: 'Hãy ngừng trụ và đưa tồn kho về 0, rồi xóa lại.',
+    removeFuelMapExportWarning:
+      'Ca, phiếu nhập và công nợ cũ giữ nguyên, nhưng xuất lại MISA một ca cũ của nhiên liệu này sẽ lỗi vì không còn mã hàng.',
+    fuelMapRemoved: 'Đã xóa nhiên liệu khỏi trạm',
+    fuelMapUsageLoadError: 'Không kiểm tra được nhiên liệu này ở trạm. Vui lòng thử lại.',
   },
 
   misaExport: {
