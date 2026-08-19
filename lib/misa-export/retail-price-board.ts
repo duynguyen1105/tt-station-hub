@@ -5,31 +5,15 @@
 // FuelArea is imported as a *type* only: the Thêm giá dialog pre-fills its cells with
 // this module's in-force rule, and importing the Prisma enum's value would drag the
 // Prisma runtime into the client bundle. The two vùng are listed here instead.
+import type { CatalogueFuel } from '../fuels/catalogue'
 import type { FuelArea } from '../generated/prisma/client'
 import { type RetailPrice, priceRowOnDate } from './build-sales-voucher'
-
-// Business order xăng → dầu → phụ gia. The board is driven by this list, not by
-// what happens to be in the database, so a fuel with no price still gets a row.
-export const BOARD_FUEL_ORDER = ['XANG_A95', 'E0', 'DO', 'DC', 'URE'] as const
 
 /** Both vùng, in the order the board columns and the Thêm giá grid show them. */
 export const BOARD_AREA_ORDER = [
   'FUEL_AREA_1',
   'FUEL_AREA_2',
 ] as const satisfies readonly FuelArea[]
-
-/**
- * Nhiên liệu whose giá bán lẻ carries no vùng. URE (Adblue) is a phụ gia sold at one
- * price nationally, so the board shows it once and a kỳ writes that one number into
- * both vùng — the rows on disk stay per-vùng, because every reader downstream still
- * filters by the trạm's own vùng and must find a row there.
- */
-const AREA_INDEPENDENT_FUELS = new Set<string>(['URE'])
-
-/** Whether this nhiên liệu is priced once for both vùng rather than per vùng. */
-export function isAreaIndependent(fuelType: string): boolean {
-  return AREA_INDEPENDENT_FUELS.has(fuelType)
-}
 
 /** A giá bán lẻ row as the board receives it (Prisma's Decimal already a number). */
 export type BoardPrice = RetailPrice & { fuelArea: FuelArea }
@@ -44,24 +28,31 @@ export type BoardCell = {
   pending: BoardPriceAt | null
 }
 
-export type BoardEntry = {
-  fuelType: string
-  /** True when one price covers both vùng, so the board merges the entry's two cells. */
-  areaIndependent: boolean
+/**
+ * A board row: the nhiên liệu's own danh mục entry — khóa, tên and whether one giá
+ * covers both vùng, which is what tells the board to merge the row's two cells — with
+ * the price in force in each vùng hung off it.
+ */
+export type BoardEntry = CatalogueFuel & {
   cells: Record<FuelArea, BoardCell>
 }
 
 /**
- * The five-row view model behind Cài đặt MISA → Giá bán lẻ: every nhiên liệu in
- * business order, with the price in force on `today` for each vùng.
+ * The view model behind Cài đặt MISA → Giá bán lẻ: one row per nhiên liệu of the
+ * danh mục it is handed, in the order it is handed them, with the price in force on
+ * `today` for each vùng. Nothing here knows which nhiên liệu exist, so one added to
+ * the danh mục this morning gets a row with Chưa có giá in both vùng.
  */
-export function buildRetailPriceBoard(prices: BoardPrice[], today: Date): BoardEntry[] {
-  return BOARD_FUEL_ORDER.map((fuelType) => ({
-    fuelType,
-    areaIndependent: isAreaIndependent(fuelType),
+export function buildRetailPriceBoard(
+  fuels: readonly CatalogueFuel[],
+  prices: BoardPrice[],
+  today: Date
+): BoardEntry[] {
+  return fuels.map((fuel) => ({
+    ...fuel,
     cells: {
-      FUEL_AREA_1: buildCell(prices, 'FUEL_AREA_1', fuelType, today),
-      FUEL_AREA_2: buildCell(prices, 'FUEL_AREA_2', fuelType, today),
+      FUEL_AREA_1: buildCell(prices, 'FUEL_AREA_1', fuel, today),
+      FUEL_AREA_2: buildCell(prices, 'FUEL_AREA_2', fuel, today),
     },
   }))
 }
@@ -69,11 +60,11 @@ export function buildRetailPriceBoard(prices: BoardPrice[], today: Date): BoardE
 function buildCell(
   prices: BoardPrice[],
   fuelArea: FuelArea,
-  fuelType: string,
+  fuel: CatalogueFuel,
   today: Date
 ): BoardCell {
-  const inArea = pricesForCell(prices, fuelArea, fuelType)
-  const current = priceRowOnDate(inArea, fuelType, today)
+  const inArea = pricesForCell(prices, fuelArea, fuel)
+  const current = priceRowOnDate(inArea, fuel.fuelType, today)
   // The next kỳ to take effect — the earliest ngày áp dụng still ahead of today.
   const pending = inArea
     .filter((p) => p.effectiveDate.getTime() > today.getTime())
@@ -89,9 +80,13 @@ function priceAt(price: RetailPrice | null | undefined): BoardPriceAt | null {
  * Every price ever recorded for one cell of the board — one nhiên liệu in one vùng, or
  * both vùng at once when the nhiên liệu is priced the same everywhere.
  */
-function pricesForCell(prices: BoardPrice[], fuelArea: FuelArea, fuelType: string): BoardPrice[] {
-  const ofFuel = prices.filter((p) => p.fuelType === fuelType)
-  if (!isAreaIndependent(fuelType)) return ofFuel.filter((p) => p.fuelArea === fuelArea)
+function pricesForCell(
+  prices: BoardPrice[],
+  fuelArea: FuelArea,
+  fuel: CatalogueFuel
+): BoardPrice[] {
+  const ofFuel = prices.filter((p) => p.fuelType === fuel.fuelType)
+  if (!fuel.areaIndependent) return ofFuel.filter((p) => p.fuelArea === fuelArea)
 
   // A kỳ writes this nhiên liệu into both vùng, so each ngày áp dụng holds two rows of
   // the same price. Collapse them onto the date — otherwise the Lịch sử would list every
@@ -115,11 +110,11 @@ export type TimelineRow = BoardPriceAt & { isCurrent: boolean }
 export function buildPriceTimeline(
   prices: BoardPrice[],
   fuelArea: FuelArea,
-  fuelType: string,
+  fuel: CatalogueFuel,
   today: Date
 ): TimelineRow[] {
-  const inCell = pricesForCell(prices, fuelArea, fuelType)
-  const current = priceRowOnDate(inCell, fuelType, today)
+  const inCell = pricesForCell(prices, fuelArea, fuel)
+  const current = priceRowOnDate(inCell, fuel.fuelType, today)
   // priceRowOnDate returns a row out of inCell, so identity marks the very row the
   // board's cell is showing rather than one that merely looks like it.
   return inCell

@@ -130,6 +130,16 @@ export const vi = {
     fuelAreaLabel: 'Vùng',
     fuelAreaNote: 'Vùng quyết định bảng giá bán lẻ áp dụng cho trạm khi xuất MISA.',
     saved: 'Đã lưu',
+    addFuel: 'Thêm nhiên liệu',
+    editFuel: 'Sửa nhiên liệu',
+    fuelName: 'Tên nhiên liệu',
+    fuelActions: (fuel: string) => `Tùy chọn ${fuel}`,
+    areaIndependent: 'Một giá toàn quốc',
+    areaIndependentHint:
+      'Xăng và dầu có giá riêng theo từng vùng. Chỉ phụ gia như URE mới bán một giá cho cả nước.',
+    fuelNameRequired: 'Vui lòng nhập tên nhiên liệu.',
+    fuelNameTaken: (name: string) => `Tên đã tồn tại — trùng khóa với ${name}.`,
+    unknownFuel: (fuelType: string) => `Nhiên liệu không có trong danh mục: ${fuelType}`,
   },
 
   misaExport: {
