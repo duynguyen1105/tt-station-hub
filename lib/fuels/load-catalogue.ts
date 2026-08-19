@@ -3,7 +3,13 @@
 // page and tab underneath it.
 import { cache } from 'react'
 
-import { type CatalogueFuel, fuelTypeLabelFrom, stationFuels } from '@/lib/fuels/catalogue'
+import {
+  type CatalogueFuel,
+  type StationFuelMapping,
+  fuelTypeLabelFrom,
+  resolvePlateFuel,
+  stationFuels,
+} from '@/lib/fuels/catalogue'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -78,4 +84,38 @@ export async function stationFuelRefusal(
   return sold.some((fuel) => fuel.fuelType === fuelType)
     ? null
     : vi.misaSettings.notStationFuel(fuelTypeLabelFrom(catalogue, fuelType))
+}
+
+/**
+ * One trạm's mã hàng, one row per nhiên liệu it sells — its Map nhiên liệu rows as the
+ * plate resolver reads them. Separate from `loadStationFuels` because that one answers
+ * what may be chosen and this one what a printed word means, and the second needs the
+ * mã hàng the first has no use for.
+ */
+export const loadStationFuelMappings = cache(
+  async (stationId: string): Promise<StationFuelMapping[]> =>
+    prisma.misaFuelMap.findMany({
+      where: { stationId },
+      select: { fuelType: true, productCode: true },
+    })
+)
+
+/**
+ * What a fuel word printed on a trụ or hầm plate means at one trạm — the database half
+ * of `resolvePlateFuel`, reading the danh mục and that trạm's mã hàng.
+ *
+ * The ingest pipeline calls this with the trạm the photo is FINALLY assigned to, after
+ * a printed plate has had its chance to override the sender's trạm. Both queries are
+ * cached per request, so the photos of one burst pay for them once.
+ */
+export async function resolveStationPlateFuel(
+  stationId: string,
+  word: string | null | undefined
+): Promise<string | null> {
+  if (!word) return null
+  const [catalogue, mappings] = await Promise.all([
+    loadFuelCatalogue(),
+    loadStationFuelMappings(stationId),
+  ])
+  return resolvePlateFuel(catalogue, mappings, word)
 }

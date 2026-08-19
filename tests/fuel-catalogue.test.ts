@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest'
 import {
   type CatalogueFuel,
   type FuelUsageCounts,
+  type StationFuelMapping,
   type StationFuelUsage,
   addableFuels,
   decideFuelRemoval,
   decideStationFuelRemoval,
   fuelTypeLabelFrom,
   generateFuelType,
+  resolvePlateFuel,
   selectableFuels,
   stationFuels,
 } from '@/lib/fuels/catalogue'
@@ -328,5 +330,124 @@ describe('stationFuels', () => {
   // offer; it must not become an ô chọn entry with no tên.
   it('ignores a mapped khóa the danh mục no longer holds', () => {
     expect(stationFuels(CATALOGUE, ['DO', 'GONE']).map((fuel) => fuel.fuelType)).toEqual(['DO'])
+  })
+})
+
+/**
+ * What the AI reads off a trụ or hầm plate, turned into a khóa. The prompt no longer
+ * carries a list of codes — it copies the fuel word as printed — so this is the one
+ * place that decides what that word means, and it decides it per trạm.
+ *
+ * The fixture is Đăk Nông 1's real Map nhiên liệu (prisma/seed.ts): it files Dầu DC
+ * under mã hàng "DO01", which is exactly the case the two-step fallback exists for.
+ */
+describe('resolvePlateFuel', () => {
+  const CATALOGUE: CatalogueFuel[] = [
+    { fuelType: 'XANG_A95', name: 'Xăng A95', areaIndependent: false, isActive: true },
+    { fuelType: 'E0', name: 'Xăng E0', areaIndependent: false, isActive: true },
+    { fuelType: 'DO', name: 'Dầu DO', areaIndependent: false, isActive: true },
+    { fuelType: 'DC', name: 'Dầu DC', areaIndependent: false, isActive: true },
+    { fuelType: 'URE', name: 'URE (Adblue)', areaIndependent: true, isActive: true },
+  ]
+  // Đăk Nông 1's mã hàng, as seeded.
+  const DAKNONG1: StationFuelMapping[] = [
+    { fuelType: 'DO', productCode: 'DO' },
+    { fuelType: 'E0', productCode: 'XA E0' },
+    { fuelType: 'DC', productCode: 'DO01' },
+    { fuelType: 'XANG_A95', productCode: 'A95' },
+    { fuelType: 'URE', productCode: 'URE' },
+  ]
+
+  it('resolves a repainted plate through the trạm mã hàng', () => {
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'DO01')).toBe('DC')
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'A95')).toBe('XANG_A95')
+  })
+
+  // The whole point of the fallback: the plate rollout is gradual, so a trụ still
+  // painted "DC" reads at the same trạm and on the same day as one painted "DO01".
+  it('resolves a plate that has not been repainted through the khóa', () => {
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'DC')).toBe('DC')
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'E0')).toBe('E0')
+  })
+
+  it('resolves a plate printed with the tên', () => {
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'Dầu DO')).toBe('DO')
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'URE (Adblue)')).toBe('URE')
+  })
+
+  it('ignores case, diacritics and surrounding whitespace', () => {
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, '  do01  ')).toBe('DC')
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'xăng a95')).toBe('XANG_A95')
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'XANG E0')).toBe('E0')
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, ' xa e0 ')).toBe('E0')
+  })
+
+  // Phúc Tiến files Xăng A95 under "XA95"; Đăk Nông 1 files it under "A95". A plate
+  // carrying the other trạm's mã hàng means nothing here — the mã hàng belongs to the
+  // pair (trạm, nhiên liệu), so only this trạm's rows are read.
+  it('does not resolve another trạm mã hàng', () => {
+    const phucTien: StationFuelMapping[] = [{ fuelType: 'XANG_A95', productCode: 'XA95' }]
+    expect(resolvePlateFuel(CATALOGUE, phucTien, 'A95')).toBeNull()
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'XA95')).toBeNull()
+  })
+
+  // ...unless the word happens to be a tên or khóa as well, which is company-global
+  // and so reads at every trạm whatever its mã hàng.
+  it('still resolves another trạm mã hàng that is also a khóa', () => {
+    const phucTien: StationFuelMapping[] = [{ fuelType: 'XANG_A95', productCode: 'XA95' }]
+    expect(resolvePlateFuel(CATALOGUE, phucTien, 'DO')).toBe('DO')
+  })
+
+  // A nhiên liệu Trường Thịnh has stopped selling never comes back through a photo —
+  // not through the trạm's leftover Map nhiên liệu row, and not through the danh mục.
+  it('does not resolve a nhiên liệu đã ngừng', () => {
+    const stopped = CATALOGUE.map((fuel) =>
+      fuel.fuelType === 'DC' ? { ...fuel, isActive: false } : fuel
+    )
+    expect(resolvePlateFuel(stopped, DAKNONG1, 'DO01')).toBeNull()
+    expect(resolvePlateFuel(stopped, DAKNONG1, 'DC')).toBeNull()
+    expect(resolvePlateFuel(stopped, DAKNONG1, 'Dầu DC')).toBeNull()
+  })
+
+  // Ticket 14's own story: Xăng RON 98 did not exist when the prompt was written, and
+  // reads off a plate the day Đăk Nông 1 gives it a mã hàng.
+  it('resolves a nhiên liệu added today', () => {
+    const withRon98: CatalogueFuel[] = [
+      ...CATALOGUE,
+      { fuelType: 'XANG_RON_98', name: 'Xăng RON 98', areaIndependent: false, isActive: true },
+    ]
+    expect(resolvePlateFuel(withRon98, DAKNONG1, 'A98')).toBeNull()
+    const mapped: StationFuelMapping[] = [
+      ...DAKNONG1,
+      { fuelType: 'XANG_RON_98', productCode: 'A98' },
+    ]
+    expect(resolvePlateFuel(withRon98, mapped, 'A98')).toBe('XANG_RON_98')
+    // And through the danh mục even before the mã hàng exists, if the plate says so.
+    expect(resolvePlateFuel(withRon98, DAKNONG1, 'Xăng RON 98')).toBe('XANG_RON_98')
+  })
+
+  // Never guess: a wrong nhiên liệu that looks confident is worse than an empty field
+  // waiting in a review queue.
+  it('yields nothing for a word it cannot place', () => {
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'A98')).toBeNull()
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, 'HẦM 3')).toBeNull()
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, null)).toBeNull()
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, undefined)).toBeNull()
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, '')).toBeNull()
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, '   ')).toBeNull()
+    expect(resolvePlateFuel(CATALOGUE, DAKNONG1, '---')).toBeNull()
+  })
+
+  // A trạm with no Map nhiên liệu row yet still reads its plates: the danh mục is
+  // company-global and needs no declaration.
+  it('reads the danh mục for a trạm that has declared nothing', () => {
+    expect(resolvePlateFuel(CATALOGUE, [], 'DO')).toBe('DO')
+    expect(resolvePlateFuel(CATALOGUE, [], 'DO01')).toBeNull()
+  })
+
+  // A Map nhiên liệu row left pointing at a khóa the danh mục no longer holds resolves
+  // to nothing — the same rule as every other picker.
+  it('ignores a mã hàng whose khóa the danh mục no longer holds', () => {
+    expect(resolvePlateFuel(CATALOGUE, [{ fuelType: 'GONE', productCode: 'G1' }], 'G1')).toBeNull()
   })
 })
