@@ -140,6 +140,31 @@ export const vi = {
     fuelNameRequired: 'Vui lòng nhập tên nhiên liệu.',
     fuelNameTaken: (name: string) => `Tên đã tồn tại — trùng khóa với ${name}.`,
     unknownFuel: (fuelType: string) => `Nhiên liệu không có trong danh mục: ${fuelType}`,
+    inactiveFuel: (name: string) => `Nhiên liệu đã ngừng sử dụng: ${name}`,
+    // What is holding a nhiên liệu, one line per kind, as the refusal to xóa lists them.
+    fuelUsage: {
+      fuelMaps: (count: number) => `${count} trạm đã map nhiên liệu`,
+      dispensers: (count: number) => `${count} trụ bơm`,
+      prices: (count: number) => `${count} kỳ giá`,
+      inventory: (count: number) => `${count} dòng tồn kho`,
+      movements: (count: number) => `${count} dòng biến động tồn kho`,
+      openingBalances: (count: number) => `${count} số đầu kỳ`,
+      imports: (count: number) => `${count} phiếu nhập`,
+      tankDips: (count: number) => `${count} lần đo hầm`,
+      debtVisits: (count: number) => `${count} lượt bán nợ`,
+    },
+    deleteFuel: 'Xóa nhiên liệu',
+    deactivateFuel: 'Ngừng sử dụng',
+    reactivateFuel: 'Dùng lại',
+    fuelInactive: 'Đã ngừng',
+    fuelUnused: (name: string) => `${name} chưa được dùng ở đâu. Xóa khỏi danh mục nhiên liệu?`,
+    fuelInUse: (name: string) => `Không thể xóa ${name} — nhiên liệu này đang được dùng bởi:`,
+    fuelDeactivateHint:
+      'Ngừng sử dụng sẽ ẩn nhiên liệu khỏi các ô chọn nhưng giữ nguyên toàn bộ dữ liệu và lịch sử giá.',
+    fuelDeleted: 'Đã xóa nhiên liệu',
+    fuelDeactivated: 'Đã ngừng sử dụng nhiên liệu',
+    fuelReactivated: 'Đã dùng lại nhiên liệu',
+    fuelUsageLoadError: 'Không kiểm tra được nhiên liệu này. Vui lòng thử lại.',
   },
 
   misaExport: {
