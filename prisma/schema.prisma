@@ -135,6 +135,10 @@ model ShiftReading {
   id                        String    @id @default(uuid()) @db.Uuid
   shiftId                   String    @map("shift_id") @db.Uuid
   dispenserId               String    @map("dispenser_id") @db.Uuid
+  // Khóa nhiên liệu the trụ pumped when this ca was recorded, stamped from the
+  // trụ at creation. A ca keeps the nhiên liệu it sold even after the trụ is
+  // converted, so the MISA sales voucher re-exports a past ca unchanged.
+  fuelType                  String    @map("fuel_type")
   openingElectronicReading  Decimal?  @map("opening_electronic_reading") @db.Decimal(15, 3) // immutable once set
   openingMechanicalReading  Decimal?  @map("opening_mechanical_reading") @db.Decimal(15, 3) // immutable once set
   electronicReading         Decimal?  @map("electronic_reading") @db.Decimal(15, 3)

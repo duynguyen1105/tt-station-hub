@@ -49,15 +49,15 @@ const prices = [
   { fuelType: 'URE', effectiveDate: PRICE_DATE, unitPrice: 15000 },
 ]
 
-// Metered: DO 300 (d1: 1000→1300), E0 200 (d2: 500→700). The opening lives on
-// the reading; the dispenser contributes only its fuel type.
+// Metered: DO 300 (d1: 1000→1300), E0 200 (d2: 500→700). Both the opening and
+// the nhiên liệu live on the reading; the trụ is only carried for the meter cache.
 const dispensers: SaleDispenser[] = [
   { id: 'd1', fuelType: 'DO' },
   { id: 'd2', fuelType: 'E0' },
 ]
 const readings: SaleReading[] = [
-  { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1300 },
-  { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 700 },
+  { dispenserId: 'd1', fuelType: 'DO', openingElectronicReading: 1000, electronicReading: 1300 },
+  { dispenserId: 'd2', fuelType: 'E0', openingElectronicReading: 500, electronicReading: 700 },
 ]
 
 const customers: CreditCustomer[] = [
@@ -289,14 +289,42 @@ describe('buildMisaSalesVoucher — cash rows (bán lẻ)', () => {
     const { rows } = buildMisaSalesVoucher(
       baseInput({
         readings: [
-          { dispenserId: 'd1', openingElectronicReading: 1000, electronicReading: 1250 },
-          { dispenserId: 'd2', openingElectronicReading: 500, electronicReading: 700 },
+          {
+            dispenserId: 'd1',
+            fuelType: 'DO',
+            openingElectronicReading: 1000,
+            electronicReading: 1250,
+          },
+          {
+            dispenserId: 'd2',
+            fuelType: 'E0',
+            openingElectronicReading: 500,
+            electronicReading: 700,
+          },
         ],
       })
     )
     const doCash = rows.find((r) => r.kind === 'cash' && r.productCode === 'DO')
     expect(doCash?.quantity).toBe(150) // metered 250 − credit 100
     expect(doCash?.amount).toBe(3343500) // 150 × 22290
+  })
+
+  it('prices a ca from the nhiên liệu stamped on its reading, not the trụ’s current one', () => {
+    // Trụ 1 is converted from DO to DC after this ca closed. The ca sold DO and
+    // must keep exporting as DO, at the DO price, on any later re-export.
+    const { rows, errors } = buildMisaSalesVoucher(
+      baseInput({
+        dispensers: [
+          { id: 'd1', fuelType: 'DC' }, // converted
+          { id: 'd2', fuelType: 'E0' },
+        ],
+      })
+    )
+    expect(errors).toEqual([])
+    const doCash = rows.find((r) => r.kind === 'cash' && r.productCode === 'DO')
+    expect(doCash?.quantity).toBe(200) // metered 300 − credit 100, still DO
+    expect(doCash?.unitPrice).toBe(22290) // DO price, not DC's 24430
+    expect(rows.some((r) => r.productCode === 'DO01')).toBe(false) // nothing exported as DC
   })
 })
 
