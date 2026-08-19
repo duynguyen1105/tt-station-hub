@@ -33,6 +33,11 @@ export type BaremColumn = {
 
 export type BaremTank = BaremColumn & {
   tankCode: string
+  /** The sheet's fuel column as it is written — a word, not a khóa, and imported
+   *  verbatim like everything else here (ADR 0003). Whoever prepared the
+   *  spreadsheet typed it, so it may be a tên, a khóa or a mã hàng. Anything
+   *  comparing it against a `fuelType` must resolve it first, against the Trạm
+   *  whose sheet this is (`compareBaremToDispensers`). */
   fuel: string
   /** What the sheet labels the tank. Provenance only — full height legitimately
    *  exceeds it (DO 25,000 → 25,507 L), so it never validates a lookup. */

@@ -235,6 +235,27 @@ export function decideStationFuelRemoval(usage: StationFuelUsage): StationFuelRe
 export type StationFuelMapping = { fuelType: string; productCode: string }
 
 /**
+ * A fuel word read out of a document, resolved to a khóa — `resolvePlateFuel` with its
+ * danh mục and its trạm already bound. A module that reads a fuel word off a barem
+ * sheet or a biên bản takes one of these rather than a danh mục, so it stays pure and
+ * there is one rule behind every fuel word in the app rather than one per document.
+ */
+export type FuelWordResolver = (word: string) => string | null
+
+/**
+ * The resolver for one trạm — `resolvePlateFuel` with its danh mục and that trạm's mã
+ * hàng bound in. The two lists always travel together and only ever go to the one
+ * function, so they are tied off here rather than threaded through every module that
+ * reads a fuel word off a document.
+ */
+export function fuelWordResolver(
+  catalogue: readonly CatalogueFuel[],
+  mappings: readonly StationFuelMapping[]
+): FuelWordResolver {
+  return (word) => resolvePlateFuel(catalogue, mappings, word)
+}
+
+/**
  * What a fuel word printed on a trụ or hầm plate means at one trạm. The vision prompt
  * no longer carries a list of codes — it copies the word as printed — so this is the
  * one place that turns "DO01" into a khóa, and it needs a trạm to do it.
