@@ -7,7 +7,9 @@ import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { plateListContains } from '@/lib/debts/plate'
+import { chargeAmountOf } from '@/lib/debts/visit-amount'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 const approveSchema = z.object({ customerId: z.string().uuid().optional() })
 
@@ -27,8 +29,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const customerId = parsed.data.customerId ?? visit.customerId
   if (!customerId) return badRequest('Chưa gán khách hàng cho lượt xe này.')
-  if (visit.computedAmount === null) return badRequest('Chưa có thành tiền để ghi nợ.')
-  const amount = Number(visit.computedAmount)
+  // Duyệt writes a charge that nothing reverses, so a second click must not post a
+  // second one. Corrected visits now stay in the queue, so a card lives long enough
+  // for two kế toán sharing a trạm to reach it.
+  if (visit.reviewStatus === 'approved') return badRequest(vi.debtReview.alreadyApproved)
+  // What the trạm charged: the reviewer's typed thành tiền when there is one, else
+  // số lít × đơn giá.
+  const amount = chargeAmountOf({
+    litersRead: visit.litersRead !== null ? Number(visit.litersRead) : null,
+    unitPriceRead: visit.unitPriceRead !== null ? Number(visit.unitPriceRead) : null,
+    amountOverride: visit.amountOverride !== null ? Number(visit.amountOverride) : null,
+  })
+  if (amount === null) return badRequest('Chưa có thành tiền để ghi nợ.')
 
   // Approving a visit charges the customer's debt ledger.
   const updated = await prisma.$transaction(async (db) => {
@@ -74,7 +86,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     action: 'debt_visit.approve',
     entity: 'debt_vehicle_visit',
     entityId: id,
-    metadata: { customerId, amount },
+    // `override` marks a charge a human decided rather than one derived from the read.
+    metadata: { customerId, amount, override: visit.amountOverride !== null },
   })
   return ok(updated)
 }

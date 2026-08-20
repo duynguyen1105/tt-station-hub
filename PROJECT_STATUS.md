@@ -118,9 +118,9 @@ station-specific sheets keep working alongside it — not a cutover.
 
 - **Zalo webhook** (`app/api/zalo/webhook/route.ts` + `lib/zalo/*`): signature verify,
   event parse, download → Storage, find/create shift, classify shift-vs-debt, fire-and-forget AI.
-- **Manual photo upload** (`app/api/photos/route.ts` + `/upload` page): the non-Zalo entry
-  point into the same pipeline (see §"Manual upload" below). The shared store → AI → review
-  core lives in **`lib/photos/ingest.ts`**, used by both the webhook and the upload route.
+  The store → AI → review core lives in **`lib/photos/ingest.ts`**. Zalo is the only
+  intake door: the manual `/upload` page and its `app/api/photos` route were removed once
+  the OA became the delivery channel.
 
 ### API routes (zod + auth/role + audit log)
 
@@ -161,22 +161,6 @@ trạm the biên bản header names.
 
 > The direct DB host (`db.<ref>.supabase.co`) is IPv6-only → use the **Session pooler**
 > (IPv4). All secrets live in the gitignored `.env` — never committed.
-
-### Manual upload (test the pipeline without Zalo)
-
-Zalo is only the delivery channel — the **store → AI-read → review** pipeline is independent.
-Until the OA is live (Zalo review can take hours/days), use the manual entry point:
-
-- **`/upload`** (sidebar → "Tải ảnh") — pick a station, drop a real meter photo, and the AI
-  reading comes back inline (reading / dispenser / fuel / confidence; for debt photos:
-  liters / unit price / computed amount + the anti-truncation match check).
-- It stores to the same Storage bucket, creates the same `shift_photos` row, finds/creates
-  the shift, and runs the **same** `extractMeter` / `extractVisitMeter` as the webhook —
-  via the shared `lib/photos/ingest.ts`. So a shift photo lands in the normal review queue.
-- Requires `ANTHROPIC_API_KEY` + `AI_MOCK=false` for a real read (or `AI_MOCK=true` for a
-  fixture). HEIC may not decode — JPEG/PNG/WebP recommended.
-
----
 
 ## 4. BLOCKED on clarification (questions for Trường Thịnh)
 
@@ -274,8 +258,6 @@ console" theme (bone paper · petroleum-teal · brass), inked sidebar with a gau
   original AI value) + **Complete shift** (deducts inventory; guarded while reviews pending).
 - **Review queues** (`/review/shifts`, `/review/debts`, with assign-customer + approve/correct).
 - **Data-entry forms** — add document, add inventory movement, record payment.
-- **Photo upload** (`/upload`) — drag-and-drop a meter photo → AI reading shown inline; links
-  through to the created shift. Runs the real pipeline without Zalo (see §"Manual upload").
 - **MISA export** page (download links). **Settings** pages (admin-gated).
 
 ### Remaining UI polish (not blocked)

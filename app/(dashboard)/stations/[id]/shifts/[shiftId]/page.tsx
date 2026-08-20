@@ -24,6 +24,8 @@ import {
 } from '@/lib/misa-export/debts-list'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
+import { refuseShiftCompletion } from '@/lib/shifts/completion'
+import { hasLateDebtApproval } from '@/lib/shifts/late-debt-approval'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -162,9 +164,15 @@ export default async function ShiftDetailPage({
   const mechanicalSlots = Math.max(1, ...rows.map((r) => r.mechanicalPhotos?.length ?? 0))
 
   const status = shiftStatusInfo(shift.status)
-  const pendingCount = readings.filter(
-    (r) => r.reviewStatus === 'pending' || r.reviewStatus === 'needs_review'
-  ).length
+  // Why Chốt ca is refused, read from the same rule the endpoint applies, so the
+  // button never offers a chốt the request would turn away.
+  const completionRefusal = refuseShiftCompletion(readings)
+  const completed = shift.status === 'completed'
+  // A bán nợ duyệt'd after this ca was chốt'd is in the Bán nợ trong ca list below but
+  // not in the MISA file already downloaded, so the ca says so where the kế toán reads
+  // it. Fed the rows this page already read — the check narrows them itself, so the
+  // warning costs no second query.
+  const lateDebtApproval = hasLateDebtApproval(shift, visits)
 
   return (
     <div className="space-y-4">
@@ -173,7 +181,10 @@ export default async function ShiftDetailPage({
           <h2 className="text-lg font-semibold">
             {vi.shifts.title} — {formatDate(shift.shiftDate)} · {shiftTypeLabel(shift.shiftType)}
           </h2>
-          <StatusBadge label={status.label} tone={status.tone} />
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge label={status.label} tone={status.tone} />
+            {lateDebtApproval && <StatusBadge label={vi.shifts.lateDebtApproval} tone="warning" />}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {/* Nhập hàng lives beside the shift controls: deliveries happen the
@@ -189,12 +200,19 @@ export default async function ShiftDetailPage({
               paperPumps={paperRoster?.pumps ?? []}
             />
           )}
-          {/* Chốt ca follows canReviewShift; a viewer never sees the control. */}
+          {/* Chốt ca follows canReviewShift; a viewer never sees the control. The
+              refusal is spoken beside the disabled button, so what the ca is
+              waiting for is on the page rather than only in a failed request. */}
           {canReviewShift(user.role, shift.status as ShiftStatus) && (
-            <ShiftCompleteButton
-              shiftId={shift.id}
-              disabled={shift.status === 'completed' || pendingCount > 0}
-            />
+            <div className="flex items-center gap-2">
+              {!completed && completionRefusal && (
+                <p className="text-muted-foreground text-sm">{completionRefusal}</p>
+              )}
+              <ShiftCompleteButton
+                shiftId={shift.id}
+                disabled={completed || completionRefusal !== null}
+              />
+            </div>
           )}
         </div>
       </div>

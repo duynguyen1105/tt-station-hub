@@ -7,6 +7,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { nextAmountFields, refuseAmountOverride } from '@/lib/debts/visit-amount'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -15,6 +16,8 @@ const correctSchema = z.object({
   plateConfirmed: z.string().nullable().optional(),
   litersRead: z.number().nullable().optional(),
   unitPriceRead: z.number().nullable().optional(),
+  // The thành tiền the reviewer typed; null puts the lượt xe back on số lít × đơn giá.
+  amountOverride: z.number().nullable().optional(),
   customerId: z.string().uuid().nullable().optional(),
   // Any khóa, checked below against what the trạm sells rather than frozen here: the ô
   // chọn offers whatever that trạm has declared, so a nhiên liệu it took on this morning
@@ -37,21 +40,54 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!visit) return notFound()
   if (!(await canReachStation(user, visit.stationId))) return forbidden()
 
-  const liters =
-    parsed.data.litersRead ?? (visit.litersRead !== null ? Number(visit.litersRead) : null)
-  const unitPrice =
-    parsed.data.unitPriceRead ?? (visit.unitPriceRead !== null ? Number(visit.unitPriceRead) : null)
-  const computedAmount =
-    liters !== null && unitPrice !== null ? Math.round(liters * unitPrice) : null
+  const num = (d: Prisma.Decimal | null) => (d !== null ? Number(d) : null)
+  // `undefined` (field absent — the trạm ô chọn posts only a stationId) and `null`
+  // (box cleared) mean different things, so the merge is handed the parsed patch as-is.
+  const amounts = nextAmountFields(
+    {
+      litersRead: num(visit.litersRead),
+      unitPriceRead: num(visit.unitPriceRead),
+      amountOverride: num(visit.amountOverride),
+      originalLitersRead: num(visit.originalLitersRead),
+      originalUnitPriceRead: num(visit.originalUnitPriceRead),
+    },
+    {
+      litersRead: parsed.data.litersRead,
+      unitPriceRead: parsed.data.unitPriceRead,
+      amountOverride: parsed.data.amountOverride,
+    }
+  )
+  const amountRefusal = refuseAmountOverride(amounts)
+  if (amountRefusal) return badRequest(amountRefusal)
+
   const displayed = visit.displayedAmount !== null ? visit.displayedAmount.toString() : null
+  const { computedAmount } = amounts
+  // Khớp/Lệch keeps comparing the *derived* amount against the pump display: it is a
+  // statement about what the AI read, which a typed thành tiền does not change.
+  const matchesDisplay =
+    computedAmount !== null ? checkAmountMatch(computedAmount, displayed) : null
 
   const data: Prisma.DebtVehicleVisitUpdateInput = {
     reviewStatus: 'corrected',
     reviewedBy: user.id,
     reviewedAt: new Date(),
     computedAmount,
-    amountMatchesDisplay:
-      computedAmount !== null ? checkAmountMatch(computedAmount, displayed) : null,
+    amountMatchesDisplay: matchesDisplay,
+    litersRead: amounts.litersRead,
+    unitPriceRead: amounts.unitPriceRead,
+    amountOverride: amounts.amountOverride,
+    // "Lệch số tiền" asks a human to look; a reviewer who has typed the thành tiền, or
+    // whose corrected figures now reconcile, has looked. No other reason is ever set.
+    anomalyReasons:
+      amounts.amountOverride !== null || matchesDisplay !== false
+        ? visit.anomalyReasons.filter((r) => r !== 'amount_mismatch')
+        : visit.anomalyReasons,
+  }
+  if (amounts.originalLitersRead !== undefined) {
+    data.originalLitersRead = amounts.originalLitersRead
+  }
+  if (amounts.originalUnitPriceRead !== undefined) {
+    data.originalUnitPriceRead = amounts.originalUnitPriceRead
   }
   if (parsed.data.plateConfirmed !== undefined) data.plateConfirmed = parsed.data.plateConfirmed
   if (parsed.data.customerId !== undefined) data.customerId = parsed.data.customerId
@@ -75,8 +111,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     data.fuelType = parsed.data.fuelType
   }
-  if (parsed.data.litersRead !== undefined) data.litersRead = parsed.data.litersRead
-  if (parsed.data.unitPriceRead !== undefined) data.unitPriceRead = parsed.data.unitPriceRead
   if (parsed.data.stationId !== undefined) {
     const station = await prisma.station.findFirst({
       where: { id: parsed.data.stationId, isActive: true },
@@ -95,7 +129,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     action: 'debt_visit.correct',
     entity: 'debt_vehicle_visit',
     entityId: id,
-    metadata: parsed.data,
+    // The patch alone says what was written but not what it displaced, and once the
+    // original* columns are stamped the previous values are unrecoverable from the row.
+    metadata: {
+      ...parsed.data,
+      previous: {
+        litersRead: num(visit.litersRead),
+        unitPriceRead: num(visit.unitPriceRead),
+        amountOverride: num(visit.amountOverride),
+        computedAmount: num(visit.computedAmount),
+      },
+    },
   })
   return ok(updated)
 }
