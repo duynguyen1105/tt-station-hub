@@ -1,10 +1,13 @@
+import { ApprovedTodayList } from '@/components/debts/approved-today-list'
 import { DebtVisitCard } from '@/components/debts/debt-visit-card'
 import { ReviewTabs } from '@/components/review/review-tabs'
 import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
+import { approvedTodaySelection, buildApprovedTodayList } from '@/lib/debts/approved-today'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { vnTime } from '@/lib/format'
 import { loadStationFuels } from '@/lib/fuels/load-catalogue'
+import { shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
@@ -20,12 +23,16 @@ export default async function ReviewDebtsPage() {
   // trạm they are phụ trách of, and is offered no other trạm to move one to.
   const stationIds = await reachableStationIds(user)
 
-  const [visits, customers, stations] = await Promise.all([
+  const [visits, approved, customers, stations] = await Promise.all([
     prisma.debtVehicleVisit.findMany({
       where: { reviewStatus: { in: ['pending', 'needs_review'] }, stationId: { in: stationIds } },
       orderBy: { visitDate: 'desc' },
       take: 100,
     }),
+    // What left the hàng đợi today, so a duyệt'd lượt xe stops vanishing without
+    // trace. Selected by thời điểm duyệt, so yesterday's lượt xe duyệt'd this
+    // morning is here — pointing at yesterday's ca.
+    prisma.debtVehicleVisit.findMany(approvedTodaySelection(stationIds, new Date())),
     prisma.debtCustomer.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
@@ -49,6 +56,55 @@ export default async function ReviewDebtsPage() {
         async (stationId) => [stationId, await loadStationFuels(stationId)] as const
       )
     )
+  )
+
+  // Where each lượt xe duyệt'd today went: the ca of the lượt xe's own ngày, and the
+  // khách hàng it was charged to. Both are looked up per row rather than reused from
+  // the queue above — a lượt xe duyệt'd today can be of an earlier ngày, and of a
+  // khách hàng no longer active.
+  const approvedDays = [
+    ...new Map(
+      approved.map((v) => {
+        const shiftDate = shiftDateFor(v.visitDate.getTime())
+        return [shiftDate.toISOString(), shiftDate] as const
+      })
+    ).values(),
+  ]
+  const approvedCustomerIds = [
+    ...new Set(approved.map((v) => v.customerId).filter((cid): cid is string => cid !== null)),
+  ]
+  const [approvedShifts, approvedCustomers] = await Promise.all([
+    approvedDays.length > 0
+      ? prisma.shift.findMany({
+          where: {
+            stationId: { in: stationIds },
+            shiftType: shiftTypeFor(),
+            shiftDate: { in: approvedDays },
+          },
+          select: { id: true, stationId: true, shiftDate: true },
+        })
+      : [],
+    approvedCustomerIds.length > 0
+      ? prisma.debtCustomer.findMany({
+          where: { id: { in: approvedCustomerIds } },
+          select: { id: true, name: true },
+        })
+      : [],
+  ])
+  const approvedRows = buildApprovedTodayList(
+    approved.map((v) => ({
+      id: v.id,
+      stationId: v.stationId,
+      visitDate: v.visitDate,
+      // The selection filters on reviewedAt, so no row here has a null one.
+      reviewedAt: v.reviewedAt!,
+      plateRead: v.plateRead,
+      plateConfirmed: v.plateConfirmed,
+      litersRead: v.litersRead !== null ? Number(v.litersRead) : null,
+      customerId: v.customerId,
+    })),
+    approvedShifts,
+    new Map(approvedCustomers.map((c) => [c.id, c.name]))
   )
 
   // Sign the paired photos so the reviewer can check the AI reading against them.
@@ -117,6 +173,8 @@ export default async function ReviewDebtsPage() {
           ))}
         </div>
       )}
+
+      <ApprovedTodayList rows={approvedRows} />
     </div>
   )
 }

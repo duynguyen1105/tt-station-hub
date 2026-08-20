@@ -707,6 +707,14 @@ export const vi = {
     // to offer yet — and the reviewer's next move is the trạm, not the nhiên liệu.
     fuelNeedsStation: 'Chọn trạm trước, rồi mới chọn được nhiên liệu.',
     selectStation: 'Chọn trạm…',
+    // "Đã duyệt hôm nay" — where a lượt xe went once it left the hàng đợi.
+    approvedToday: 'Đã duyệt hôm nay',
+    approvedTodayEmpty: 'Chưa duyệt lượt xe nào hôm nay.',
+    // The giờ of the lượt xe itself, not of the duyệt — the rows are ordered by the
+    // latter, so the column has to say which clock it shows.
+    approvedTodayTime: 'Giờ bán',
+    approvedTodayShift: 'Ca',
+    approvedTodayNoShift: 'Chưa có ca',
   },
 
   overview: {
