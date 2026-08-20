@@ -55,13 +55,13 @@ Việt Nam "6.000" / "34,5") và tự điền vào form. Nếu không muốn dù
 - **c. Kiểm tra hầm:** trước/sau nhập (nhiệt độ, chiều cao mm, SL sổ sách, SL
   barem) + cột **"Nhập vào hầm (lít)"** — chính số này được cộng vào tồn kho,
   mỗi hầm có nhận hàng sinh một phiếu nhập riêng. **SL barem và Nhập vào hầm
-  do app tự tra từ Barem của Trường Thịnh**, xem mục *Barem: từ chiều cao ra số
-  lít* bên dưới. Dòng nào thuộc hầm nào: xem *Dòng trên giấy thuộc hầm nào*.
+  do app tự tra từ Barem của Trường Thịnh**, xem mục _Barem: từ chiều cao ra số
+  lít_ bên dưới. Dòng nào thuộc hầm nào: xem _Dòng trên giấy thuộc hầm nào_.
 - **d. Trụ bơm:** **mỗi trụ của trạm một dòng** (kể cả trụ AI đọc không ra —
   dòng trống vẫn hiện, vì thiếu một dòng là mất luôn bằng chứng trụ đó đứng yên),
   total điện tử + cơ trước/sau, kèm cột **chênh lệch tự tính** — phải bằng 0
   (không bán trong lúc nhập); khác 0 hiện đỏ để soát lại ngay, **và báo lên đúng
-  dòng hầm ở mục (c)** mà trụ đó hút, xem *Trụ chạy thì số đo hầm đáng ngờ*.
+  dòng hầm ở mục (c)** mà trụ đó hút, xem _Trụ chạy thì số đo hầm đáng ngờ_.
 - **e. Ghi chú.**
 
 Sửa chỗ AI đọc chưa đúng rồi bấm **"Xác nhận & lưu phiếu"** → biên bản + các
@@ -145,9 +145,9 @@ nhiên liệu + dung tích khi giấy không đánh số. Danh sách hầm để
 - **Khớp được** → đúng dòng của hầm đó: tra Barem, điền SL barem và Nhập vào hầm,
   xác nhận thì sinh phiếu nhập và tồn kho tăng.
 - **Không khớp được** → dòng vẫn giữ nguyên chiều cao, nhiệt độ, SL sổ sách và
-  hiện lý do tiếng Việt: *"Số hầm trùng trên biên bản"* (hai hầm cùng ghi `3.` như
-  HTGDONGNAI), *"Nhiên liệu / dung tích không khớp cấu hình hầm"*, *"Không xác
-  định được hầm"*. Dòng đó **không tra Barem, không sinh phiếu nhập** — nhưng
+  hiện lý do tiếng Việt: _"Số hầm trùng trên biên bản"_ (hai hầm cùng ghi `3.` như
+  HTGDONGNAI), _"Nhiên liệu / dung tích không khớp cấu hình hầm"_, _"Không xác
+  định được hầm"_. Dòng đó **không tra Barem, không sinh phiếu nhập** — nhưng
   **biên bản vẫn lưu được**: giấy là chứng từ pháp lý, một dòng chưa quy được về
   hầm không được chặn cả chuyến hàng.
 
@@ -162,8 +162,8 @@ khi trạm chưa cấu hình), không phải chỉ những trụ AI đọc ra: t
 vẫn hiện thành **dòng trống** để nhân viên điền, chứ không biến mất.
 
 `dispensers.tank_code` cho biết mỗi trụ hút từ hầm nào. Nên khi một trụ có chênh
-lệch khác 0, app báo ngay **trên dòng hầm đó ở mục (c)**: *"Trụ 2 chạy 12 L trong
-lúc nhập — số đo hầm này có thể sai"*. Nghĩa là trong lúc đo chiều cao thì xăng
+lệch khác 0, app báo ngay **trên dòng hầm đó ở mục (c)**: _"Trụ 2 chạy 12 L trong
+lúc nhập — số đo hầm này có thể sai"_. Nghĩa là trong lúc đo chiều cao thì xăng
 dầu vẫn đang ra khỏi hầm, nên **số "Nhập vào hầm" của dòng đó không đáng tin**.
 
 Đây là **cảnh báo, không phải khóa**: biên bản vẫn xác nhận và lưu được, vẫn sinh
@@ -199,14 +199,14 @@ tra, hoặc mở lại form.)
   không báo lỗi. **Giảm** thì để trống ô và hiện số chênh **màu đỏ** — hầm tụt
   trong khi chênh lệch trụ bơm (mục d) bằng 0 là bất thường, phải dừng lại xem.
 - **Chiều cao Barem không trả lời được** thì ô để trống kèm lý do tiếng Việt trên
-  dòng: *"Ngoài phạm vi barem"*, *"Không có barem cho chiều cao này"*, *"Chưa có
-  barem cho hầm này"* (trạm chưa gán tab trang tính cũng rơi vào trường hợp cuối).
+  dòng: _"Ngoài phạm vi barem"_, _"Không có barem cho chiều cao này"_, _"Chưa có
+  barem cho hầm này"_ (trạm chưa gán tab trang tính cũng rơi vào trường hợp cuối).
   Biên bản **vẫn lưu được** — kế toán tự gõ số lít.
 - **Không đọc được cả trang tính** — file bị siết chia sẻ, bị xóa, Google lỗi, hay
   một lần sửa làm vỡ cấu trúc (chèn cột) — thì mất Barem của **cả trạm** cùng lúc,
-  nên form báo một dòng chung: *"Không đọc được trang tính barem — nhập tay và báo
-  quản trị viên"*. Các ô SL barem để trống, kế toán tự gõ số lít, **biên bản vẫn
-  lưu được**. Câu này khác *"Chưa có barem cho hầm này"* có chủ đích: lỗi ở tài
+  nên form báo một dòng chung: _"Không đọc được trang tính barem — nhập tay và báo
+  quản trị viên"_. Các ô SL barem để trống, kế toán tự gõ số lít, **biên bản vẫn
+  lưu được**. Câu này khác _"Chưa có barem cho hầm này"_ có chủ đích: lỗi ở tài
   liệu, việc của quản trị viên, không phải ở cái hầm.
 - **Sửa chiều cao thì cả dòng tra lại**: hai ô SL barem và ô Nhập vào hầm. Nhờ vậy
   một lần đọc trang tính lỗi tạm thời tự hết khi kế toán sửa lại chiều cao.
@@ -292,15 +292,15 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 
 ### API
 
-| Route                                  | Method | Chức năng                                                       |
-| -------------------------------------- | ------ | --------------------------------------------------------------- |
+| Route                                  | Method | Chức năng                                                                                             |
+| -------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
 | `/api/imports/extract`                 | POST   | AI đọc hình biên bản (`photos` + `stationId`) → JSON điền form + kết quả đối chiếu trạm (chưa lưu gì) |
-| `/api/barem/lookup`                    | POST   | Tra một lô (mã hầm, chiều cao mm) → số lít hoặc lý do từ chối   |
-| `/api/imports/receipts`                | POST   | Xác nhận biên bản: lưu receipt + phiếu theo hầm + hình biên bản |
-| `/api/imports/receipts/[id]/documents` | POST   | Bước 3: lưu trữ toàn bộ hình liên quan ca nhập (`photos`)       |
-| `/api/imports`                         | POST   | (Kiểu cũ) tạo phiếu đơn lẻ — vẫn hoạt động                      |
-| `/api/imports/[id]/cancel`             | POST   | Hủy phiếu + bút toán trừ lại                                    |
-| `/api/imports/export`                  | GET    | Excel theo `stationId` + `from`/`to` (mặc định 31 ngày)         |
+| `/api/barem/lookup`                    | POST   | Tra một lô (mã hầm, chiều cao mm) → số lít hoặc lý do từ chối                                         |
+| `/api/imports/receipts`                | POST   | Xác nhận biên bản: lưu receipt + phiếu theo hầm + hình biên bản                                       |
+| `/api/imports/receipts/[id]/documents` | POST   | Bước 3: lưu trữ toàn bộ hình liên quan ca nhập (`photos`)                                             |
+| `/api/imports`                         | POST   | (Kiểu cũ) tạo phiếu đơn lẻ — vẫn hoạt động                                                            |
+| `/api/imports/[id]/cancel`             | POST   | Hủy phiếu + bút toán trừ lại                                                                          |
+| `/api/imports/export`                  | GET    | Excel theo `stationId` + `from`/`to` (mặc định 31 ngày)                                               |
 
 ### Code chính
 

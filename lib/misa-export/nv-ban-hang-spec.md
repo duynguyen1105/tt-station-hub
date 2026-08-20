@@ -4,8 +4,7 @@ Status: agreed (grilling session 2026-07-23). Not yet implemented.
 
 ## Context
 
-In the exported MISA sales voucher, column **U — `NV bán hàng`** (0-based index
-20) is meant to identify *who* a credit line belongs to. Today it holds only a
+In the exported MISA sales voucher, column **U — `NV bán hàng`** (0-based index 20) is meant to identify _who_ a credit line belongs to. Today it holds only a
 **trimmed** plate: `plateDigits(visit.plate)` returns the tail after the last
 `-`, so `50E-753.17` → `753.17` and the `50E-` prefix is dropped. Walk-in debt
 customers (no plate) get a **blank** cell.
@@ -40,11 +39,11 @@ This is byte-for-byte the same identifier `buildDebtsList` puts in its column-1
 
 ### Behavior table
 
-| Row kind          | `Mã khách hàng` (col O) | `NV bán hàng` (col U)         |
-| ----------------- | ----------------------- | ----------------------------- |
-| Credit — truck    | customer `misaCode`     | full plate `50E-753.17`       |
-| Credit — walk-in  | customer `misaCode`     | same `misaCode` (e.g. `KH001`)|
-| Cash (bán lẻ)     | `bl`                    | blank                         |
+| Row kind         | `Mã khách hàng` (col O) | `NV bán hàng` (col U)          |
+| ---------------- | ----------------------- | ------------------------------ |
+| Credit — truck   | customer `misaCode`     | full plate `50E-753.17`        |
+| Credit — walk-in | customer `misaCode`     | same `misaCode` (e.g. `KH001`) |
+| Cash (bán lẻ)    | `bl`                    | blank                          |
 
 ### Decisions locked during grilling
 
@@ -54,7 +53,7 @@ This is byte-for-byte the same identifier `buildDebtsList` puts in its column-1
 3. **Walk-in rows repeat `misaCode` in both `Mã khách hàng` and `NV bán hàng`.**
    The duplication is intended; do **not** special-case it to blank.
 4. **The plate is written verbatim** — exactly the stored `plateConfirmed ??
-   plateRead` string, with prefix and dot (`50E-753.17`). No uppercasing, no
+plateRead` string, with prefix and dot (`50E-753.17`). No uppercasing, no
    stripping of dots/spaces, no reformatting.
 
 ### Edge cases (no new handling needed)
