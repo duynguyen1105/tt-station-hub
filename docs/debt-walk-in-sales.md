@@ -31,9 +31,6 @@ Lưu ý caption:
   vào công nợ), nhưng **caption là bảo hiểm** + là thông tin cho kế toán → bắt buộc theo quy trình.
 - Caption được lưu vào lượt xe (`debt_vehicle_visits.zalo_caption`) và hiện trên thẻ duyệt.
 
-Đường tải web (`/upload`) tương đương: chọn **Loại ảnh = Lượt xe / công nợ**, loại con
-**Ảnh đồng hồ (lít + đơn giá)**, nhập **Ghi chú**.
-
 ## 3. Hướng dẫn KẾ TOÁN (duyệt)
 
 Vào **Cần duyệt → Duyệt công nợ**. Thẻ lượt "mang can" có dạng:

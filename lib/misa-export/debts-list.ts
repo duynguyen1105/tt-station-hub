@@ -42,6 +42,22 @@ export function debtVisitSelection(
   }
 }
 
+/**
+ * Whether this lượt xe is one of the ca's — the in-memory twin of `debtVisitSelection`,
+ * for the callers holding visits already read rather than a query still to run. Same
+ * trạm, same đã duyệt / đã sửa, same half-open ngày window, so a lượt xe this accepts
+ * is exactly a lượt xe the query would have selected.
+ */
+export function isVisitOfShiftDay(
+  shift: { stationId: string; shiftDate: Date },
+  visit: { stationId: string; visitDate: Date; reviewStatus: string }
+): boolean {
+  if (visit.stationId !== shift.stationId) return false
+  if (!APPROVED_VISIT_STATUSES.includes(visit.reviewStatus)) return false
+  const { start, end } = shiftDayWindow(shift.shiftDate)
+  return visit.visitDate >= start && visit.visitDate < end
+}
+
 /** One debt visit as consumed by the on-page bán-nợ list (a projection of DebtVehicleVisit). */
 export type DebtVisitInput = {
   customerId: string | null

@@ -17,7 +17,7 @@ const calculateTotal = (items: Item[]): number => {
 }
 
 // ✅ OK - Arrow functions for callbacks
-items.map(item => item.price)
+items.map((item) => item.price)
 ```
 
 ## Type Definitions

@@ -23,7 +23,12 @@ import {
 } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
-import { classifyZaloMessage, explicitCaptionKind, routePhoto } from '@/lib/zalo/classify'
+import {
+  classifyZaloMessage,
+  explicitCaptionKind,
+  routeOpensShift,
+  routePhoto,
+} from '@/lib/zalo/classify'
 import { downloadZaloAttachment, sendZaloMessage } from '@/lib/zalo/client'
 
 // How far back a label-less photo looks for its sender's other labeled photos
@@ -457,7 +462,14 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       const path = `${target.code}/${route}/${msg.messageId}-${i}.jpg`
       await uploadPhoto(path, buffer)
 
-      const shift = route === 'shift' ? await findOrCreateShift(target.id, msg.timestamp) : null
+      // The first photo of the day opens that day's ca, whether it is an ảnh trụ bơm
+      // or an ảnh công nợ. `msg.timestamp` is the same instant assembleDebtVisit
+      // stamps the lượt xe with below, so the ca's ngày and the lượt xe's ngày can
+      // never disagree; findOrCreateShift settles the race when a burst of photos
+      // arrives at once.
+      const shift = routeOpensShift(route)
+        ? await findOrCreateShift(target.id, msg.timestamp)
+        : null
 
       const photo = await prisma.shiftPhoto.create({
         data: {

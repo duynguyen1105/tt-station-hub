@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { computeShiftSales } from '@/lib/inventory/shift-sales'
 import { prisma } from '@/lib/prisma'
+import { isApprovedReading, refuseShiftCompletion } from '@/lib/shifts/completion'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -19,21 +20,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!canReviewShift(user.role, shift.status as ShiftStatus)) return forbidden()
   if (shift.status === 'completed') return badRequest('Ca này đã được chốt.')
 
-  // Block completion while readings still need review.
-  const pending = await prisma.shiftReading.count({
-    where: { shiftId: id, reviewStatus: { in: ['pending', 'needs_review'] } },
-  })
-  if (pending > 0) {
-    return badRequest('Vẫn còn số liệu chưa được duyệt trong ca này.')
-  }
-
-  // Approved readings drive the inventory deduction (sold liters per fuel type).
-  const [readings, dispensers] = await Promise.all([
-    prisma.shiftReading.findMany({
-      where: { shiftId: id, reviewStatus: { in: ['approved', 'auto_approved', 'corrected'] } },
-    }),
+  // Chốt stands on số liệu: none that counts, or any still awaiting duyệt, refuses it —
+  // the same rule the disabled Chốt ca button on the ca page reads.
+  const [allReadings, dispensers] = await Promise.all([
+    prisma.shiftReading.findMany({ where: { shiftId: id } }),
     prisma.dispenser.findMany({ where: { stationId: shift.stationId } }),
   ])
+  const refusal = refuseShiftCompletion(allReadings)
+  if (refusal) return badRequest(refusal)
+
+  // Approved readings drive the inventory deduction (sold liters per fuel type).
+  const readings = allReadings.filter(isApprovedReading)
 
   const { sales, advances } = computeShiftSales(
     readings.map((r) => ({

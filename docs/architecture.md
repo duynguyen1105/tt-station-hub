@@ -36,7 +36,7 @@ app/api/zalo/webhook  ──►  Supabase Storage    Dashboard (server component
 
 **Key rule:** AI produces a _draft_; the accountant is the final approver
 (human-in-the-loop). Zalo is only the delivery channel — the store → AI → review
-pipeline is independent (testable via a manual upload, see PROJECT_STATUS §"manual upload").
+pipeline is independent of it.
 
 ## Request lifecycle & auth
 
