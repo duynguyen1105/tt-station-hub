@@ -5,10 +5,10 @@
 // The flag is derived, never stored: nothing records that a ca was exported, so a
 // re-exported ca keeps showing it. That is honest — the flag describes the ca, not
 // the file someone happens to be holding.
-import { APPROVED_VISIT_STATUSES, shiftDayWindow } from '@/lib/misa-export/debts-list'
+import { isVisitOfShiftDay, shiftDayWindow } from '@/lib/misa-export/debts-list'
 
 /** A ca as this check reads it: whether it was chốt'd, when, and for which ngày. */
-export type ChotShift = {
+export type CompletedShift = {
   stationId: string
   /** UTC midnight labelled with the Vietnam calendar day, as `shifts.shift_date` stores it. */
   shiftDate: Date
@@ -34,30 +34,26 @@ export type ReviewedVisit = {
  * lượt xe is selected into a ca by its ngày, not attached to one — and it is the
  * silence that is wrong, not the debt.
  *
- * `visits` may be any pool; this narrows it to exactly what the Bán nợ trong ca list
- * and the MISA export select — đã duyệt and đã sửa, this trạm, this ngày — so the
- * flag cannot fire on a lượt xe that was never in the file. Late is strictly after:
- * a duyệt at the chốt instant is already in the file.
+ * `visits` may be any pool: `isVisitOfShiftDay` narrows it to exactly what the Bán nợ
+ * trong ca list and the MISA export select, so the flag cannot fire on a lượt xe that
+ * was never in the file. Late is strictly after — a duyệt at the chốt instant is
+ * already in it.
  */
-export function hasLateDebtApproval(shift: ChotShift, visits: readonly ReviewedVisit[]): boolean {
+export function hasLateDebtApproval(
+  shift: CompletedShift,
+  visits: readonly ReviewedVisit[]
+): boolean {
   const chotAt = shift.completedAt
   if (shift.status !== 'completed' || chotAt === null) return false
 
-  const { start, end } = shiftDayWindow(shift.shiftDate)
   return visits.some(
-    (v) =>
-      v.stationId === shift.stationId &&
-      APPROVED_VISIT_STATUSES.includes(v.reviewStatus) &&
-      v.visitDate >= start &&
-      v.visitDate < end &&
-      v.reviewedAt !== null &&
-      v.reviewedAt > chotAt
+    (v) => isVisitOfShiftDay(shift, v) && v.reviewedAt !== null && v.reviewedAt > chotAt
   )
 }
 
 /** The ids of the ca in `shifts` that gained a bán nợ after chốt — for a list of ca. */
 export function shiftIdsWithLateDebtApproval(
-  shifts: readonly (ChotShift & { id: string })[],
+  shifts: readonly (CompletedShift & { id: string })[],
   visits: readonly ReviewedVisit[]
 ): Set<string> {
   return new Set(shifts.filter((s) => hasLateDebtApproval(s, visits)).map((s) => s.id))

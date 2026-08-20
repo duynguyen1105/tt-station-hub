@@ -10,6 +10,7 @@ import {
   type DebtCustomerInput,
   type DebtVisitInput,
   buildDebtsList,
+  isVisitOfShiftDay,
   shiftDayWindow,
 } from '@/lib/misa-export/debts-list'
 
@@ -273,6 +274,49 @@ describe('buildDebtsList ↔ buildMisaSalesVoucher consistency', () => {
       expect(listRow?.fuelLabel).toBe(fuelTypeLabelFor(creditRow?.productCode))
       expect(listRow?.liters).toBe(creditRow?.quantity)
     }
+  })
+})
+
+// The in-memory twin of debtVisitSelection: it must accept exactly the lượt xe the
+// query selects, since a caller that holds rows already read has no query to run.
+describe('isVisitOfShiftDay', () => {
+  const shift = { stationId: 'station-1', shiftDate: SHIFT_DATE }
+  const visit = (over: Partial<Parameters<typeof isVisitOfShiftDay>[1]> = {}) => ({
+    stationId: 'station-1',
+    // 27/06 10:00 giờ Việt Nam.
+    visitDate: new Date('2026-06-27T03:00:00.000Z'),
+    reviewStatus: 'approved',
+    ...over,
+  })
+
+  it('accepts a lượt xe đã duyệt of this trạm on this ngày', () => {
+    expect(isVisitOfShiftDay(shift, visit())).toBe(true)
+  })
+
+  it('accepts đã sửa beside đã duyệt', () => {
+    expect(isVisitOfShiftDay(shift, visit({ reviewStatus: 'corrected' }))).toBe(true)
+  })
+
+  it('rejects a lượt xe chưa duyệt or đã từ chối', () => {
+    expect(isVisitOfShiftDay(shift, visit({ reviewStatus: 'pending' }))).toBe(false)
+    expect(isVisitOfShiftDay(shift, visit({ reviewStatus: 'needs_review' }))).toBe(false)
+    expect(isVisitOfShiftDay(shift, visit({ reviewStatus: 'rejected' }))).toBe(false)
+  })
+
+  it('rejects a lượt xe of another trạm', () => {
+    expect(isVisitOfShiftDay(shift, visit({ stationId: 'station-2' }))).toBe(false)
+  })
+
+  // The same half-open window shiftDayWindow draws: 17:00Z the day before, up to but
+  // not including 17:00Z of the ngày itself.
+  it('keeps the ngày boundary where shiftDayWindow puts it', () => {
+    const { start, end } = shiftDayWindow(SHIFT_DATE)
+    expect(isVisitOfShiftDay(shift, visit({ visitDate: start }))).toBe(true)
+    expect(isVisitOfShiftDay(shift, visit({ visitDate: new Date(start.getTime() - 1) }))).toBe(
+      false
+    )
+    expect(isVisitOfShiftDay(shift, visit({ visitDate: new Date(end.getTime() - 1) }))).toBe(true)
+    expect(isVisitOfShiftDay(shift, visit({ visitDate: end }))).toBe(false)
   })
 })
 
