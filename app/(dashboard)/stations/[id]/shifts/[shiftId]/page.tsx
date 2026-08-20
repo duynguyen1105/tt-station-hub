@@ -168,9 +168,10 @@ export default async function ShiftDetailPage({
   // button never offers a chốt the request would turn away.
   const completionRefusal = refuseShiftCompletion(readings)
   const completed = shift.status === 'completed'
-  // A bán nợ duyệt'd after this ca was chốt'd is in the list above but not in the
-  // MISA file already downloaded, so the ca says so where the kế toán reads it.
-  // `visits` is the same selection the list and the export use, so the two agree.
+  // A bán nợ duyệt'd after this ca was chốt'd is in the Bán nợ trong ca list below but
+  // not in the MISA file already downloaded, so the ca says so where the kế toán reads
+  // it. Fed the rows this page already read — the check narrows them itself, so the
+  // warning costs no second query.
   const lateDebtApproval = hasLateDebtApproval(shift, visits)
 
   return (

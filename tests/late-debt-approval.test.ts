@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  type ChotShift,
+  type CompletedShift,
   type ReviewedVisit,
   hasLateDebtApproval,
   shiftIdsWithLateDebtApproval,
@@ -13,7 +13,7 @@ const STATION = 'station-1'
 const SHIFT_DATE = new Date('2026-08-19T00:00:00.000Z')
 
 /** A ca of 19/08 chốt'd at 15:30 giờ Việt Nam. */
-const chotted: ChotShift = {
+const chotted: CompletedShift = {
   stationId: STATION,
   shiftDate: SHIFT_DATE,
   status: 'completed',
@@ -47,7 +47,7 @@ describe('hasLateDebtApproval', () => {
   })
 
   it('leaves a ca that was never chốt alone, however late its duyệt', () => {
-    const open: ChotShift = { ...chotted, status: 'pending_review', completedAt: null }
+    const open: CompletedShift = { ...chotted, status: 'pending_review', completedAt: null }
     expect(hasLateDebtApproval(open, [visit('2026-08-19T12:00:00.000Z')])).toBe(false)
   })
 
