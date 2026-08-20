@@ -399,6 +399,15 @@ model DebtVehicleVisit {
   displayedAmount      Decimal?  @map("displayed_amount") @db.Decimal(15, 0) // DISPLAYED total (may be truncated)
   computedAmount       Decimal?  @map("computed_amount") @db.Decimal(15, 0) // = liters × unitPrice (CORRECT)
   amountMatchesDisplay Boolean?  @map("amount_matches_display") // does computed match displayed after truncation rule?
+  // The thành tiền a người duyệt typed, when what the trạm actually charged is not
+  // liters × unitPrice. This — not computedAmount — is what the ledger charges, so
+  // computedAmount stays strictly derived and the Khớp/Lệch check keeps describing
+  // the AI read rather than a human decision.
+  amountOverride       Decimal?  @map("amount_override") @db.Decimal(15, 0)
+  // What the AI read, kept from the first correction that actually changed it —
+  // same idea as ShiftReading.originalElectronicReading. Null means never changed.
+  originalLitersRead    Decimal? @map("original_liters_read") @db.Decimal(15, 4)
+  originalUnitPriceRead Decimal? @map("original_unit_price_read") @db.Decimal(15, 0)
   // Vehicle plate
   plateRead            String?   @map("plate_read") // AI-read plate
   plateConfirmed       String?   @map("plate_confirmed") // accountant-confirmed plate

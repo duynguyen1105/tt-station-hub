@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Command,
   CommandEmpty,
@@ -40,7 +41,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Field, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -50,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { chargeAmountOf, computedAmountOf, refuseAmountOverride } from '@/lib/debts/visit-amount'
 import { formatLiters, formatVND } from '@/lib/format'
 import { type CatalogueFuel } from '@/lib/fuels/catalogue'
 import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
@@ -65,6 +67,11 @@ export type DebtVisitCardData = {
   liters: string | null
   unitPrice: string | null
   computedAmount: number | null
+  // What the reviewer typed when the trạm charged something other than lít × đơn giá.
+  amountOverride: number | null
+  // What the AI read, before a correction moved it. Null means it was never moved.
+  originalLiters: number | null
+  originalUnitPrice: number | null
   displayedAmount: number | null
   amountMatchesDisplay: boolean | null
   fuelType: string | null
@@ -86,6 +93,14 @@ export type DebtVisitCardData = {
 }
 
 const UNASSIGNED = '__none__'
+
+/** A blank box is "không khai", not zero. */
+function numberOrNull(text: string): number | null {
+  const trimmed = text.trim()
+  if (trimmed === '') return null
+  const value = Number(trimmed)
+  return Number.isFinite(value) ? value : NaN
+}
 
 async function post(url: string, body?: unknown): Promise<Response> {
   return fetch(url, {
@@ -207,10 +222,21 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
   const [liters, setLiters] = useState(data.liters ?? '')
   const [unitPrice, setUnitPrice] = useState(data.unitPrice ?? '')
   const [fuelType, setFuelType] = useState(data.fuelType || UNASSIGNED)
+  const [overrideOn, setOverrideOn] = useState(data.amountOverride !== null)
+  const [overrideAmount, setOverrideAmount] = useState(
+    data.amountOverride !== null ? String(data.amountOverride) : ''
+  )
   const [stationId, setStationId] = useState(data.stationId)
 
   const info = reviewStatusInfo(data.reviewStatus)
   const mismatch = data.amountMatchesDisplay === false
+  // What this lượt xe will charge, which is the typed thành tiền when there is one.
+  const charged = chargeAmountOf({
+    litersRead: data.liters !== null ? Number(data.liters) : null,
+    unitPriceRead: data.unitPrice !== null ? Number(data.unitPrice) : null,
+    amountOverride: data.amountOverride,
+  })
+  const overridden = data.amountOverride !== null
   // Visits whose station could not be identified are parked on the (inactive)
   // UNKNOWN station — it is not in the active list, so the picker shows a
   // placeholder and approval is blocked until a real station is chosen.
@@ -261,12 +287,28 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
     } else toast.error(vi.errors.generic)
   }
 
+  // What the boxes currently say, so the dialog can show the tự tính figure and refuse
+  // a bad thành tiền against the numbers the reviewer is looking at — not the stored ones.
+  const draft = {
+    litersRead: numberOrNull(liters),
+    unitPriceRead: numberOrNull(unitPrice),
+    amountOverride: overrideOn ? numberOrNull(overrideAmount) : null,
+  }
+  const draftComputed = computedAmountOf(draft)
+
   async function saveCorrection() {
+    // Same rule the route re-runs, so the two cannot drift on what a thành tiền may be.
+    const refusal = refuseAmountOverride(draft)
+    if (refusal) {
+      toast.error(refusal)
+      return
+    }
     setAction('correct')
     const res = await post(`/api/debts/visits/${data.visitId}/correct`, {
       plateConfirmed: plate || null,
-      litersRead: liters ? Number(liters) : null,
-      unitPriceRead: unitPrice ? Number(unitPrice) : null,
+      litersRead: draft.litersRead,
+      unitPriceRead: draft.unitPriceRead,
+      amountOverride: draft.amountOverride,
       customerId: customerId ?? null,
       fuelType: fuelType === UNASSIGNED ? null : fuelType,
     })
@@ -333,21 +375,24 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
 
         {/* Transaction */}
         <div className="bg-muted/40 space-y-2 rounded-lg border p-3">
+          {/* The thành tiền is the number read before pressing Duyệt, so it never wraps:
+              the chips and the confidence beside it give up the width instead. */}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {data.fuelType && (
                 <span className="border-brass/40 bg-brass/10 text-foreground rounded border px-2 py-0.5 text-xs font-semibold">
                   {fuelLabel(data.fuelType)}
                 </span>
               )}
+              {overridden && <StatusBadge label={vi.debtReview.amountManual} tone="info" />}
               {data.aiConfidence !== null && (
                 <span className="text-muted-foreground text-xs">
                   {vi.debtReview.confidence} {data.aiConfidence}%
                 </span>
               )}
             </div>
-            <span className="readout text-foreground text-2xl font-bold">
-              {data.computedAmount !== null ? formatVND(data.computedAmount) : '—'}
+            <span className="readout text-foreground shrink-0 text-2xl font-bold whitespace-nowrap">
+              {charged !== null ? formatVND(charged) : '—'}
             </span>
           </div>
           <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
@@ -359,6 +404,25 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
               {data.unitPrice ? formatVND(Number(data.unitPrice)) : '—'}
             </span>
           </div>
+          {overridden && data.computedAmount !== null && (
+            <div className="text-muted-foreground text-xs">
+              {vi.debtReview.amountComputed}:{' '}
+              <span className="readout">{formatVND(data.computedAmount)}</span>
+            </div>
+          )}
+          {/* Preserving what the AI read is only worth it if the reviewer can see it. */}
+          {(data.originalLiters !== null || data.originalUnitPrice !== null) && (
+            <div className="text-muted-foreground text-xs">
+              {vi.debtReview.aiRead}:{' '}
+              <span className="readout">
+                {data.originalLiters !== null ? formatLiters(data.originalLiters) : '—'}
+              </span>{' '}
+              ×{' '}
+              <span className="readout">
+                {data.originalUnitPrice !== null ? formatVND(data.originalUnitPrice) : '—'}
+              </span>
+            </div>
+          )}
           {data.displayedAmount !== null && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">
@@ -427,7 +491,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{vi.debtReview.title}</DialogTitle>
+                <DialogTitle>{vi.common.correct}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <Field>
@@ -454,6 +518,29 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
                     />
                   </Field>
                 </div>
+                <Field>
+                  <FieldLabel>{vi.debts.amount}</FieldLabel>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={overrideOn}
+                      onCheckedChange={(state) => setOverrideOn(state === true)}
+                    />
+                    <span>{vi.debtReview.amountManualToggle}</span>
+                  </label>
+                  {overrideOn && (
+                    <Input
+                      id="amountOverride"
+                      inputMode="numeric"
+                      value={overrideAmount}
+                      onChange={(e) => setOverrideAmount(e.target.value)}
+                    />
+                  )}
+                  <FieldDescription>
+                    {vi.debtReview.amountComputed}:{' '}
+                    {draftComputed !== null ? formatVND(draftComputed) : '—'}
+                    {overrideOn ? ` — ${vi.debtReview.amountManualHint}` : ''}
+                  </FieldDescription>
+                </Field>
                 <Field>
                   <FieldLabel htmlFor="fuelType">{vi.debts.fuelType}</FieldLabel>
                   {!stationKnown ? (
