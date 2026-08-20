@@ -27,7 +27,7 @@ Station is a conclusion each Photo reaches separately and can reach differently.
 ## Consequences
 
 - **The Station becomes a conclusion, not an identity.** A Photo joining an
-  existing Debt Visit must never change its Station — *except* a Pump Photo that
+  existing Debt Visit must never change its Station — _except_ a Pump Photo that
   read a Station off its printed plate, which always overrides. This is safe
   because inherited guesses cannot disagree with each other (both halves ask the
   same question of the same Submitter), so plate-versus-guess is the only conflict
@@ -39,8 +39,13 @@ Station is a conclusion each Photo reaches separately and can reach differently.
 - **Submitter spans both intake doors.** Zalo sends and in-app uploads use one
   namespaced value, so the two can never collide and an absent Submitter can never
   match another absent Submitter.
+  - _Amendment, 2026-08-20:_ the in-app door (`/upload`) was retired — photos now
+    arrive through Zalo only, so `zalo:` is the sole namespace written from here on.
+    The decision stands unchanged: `app:`-keyed Visits already in the table keep
+    pairing correctly, and the namespacing is what lets both eras coexist in one
+    column. `SubmitterDoor` keeps its `'app'` variant for exactly that reason.
 - **The global pairing advisory lock is still required.** Pairing on the Submitter
   removes the disagreement, not the race: both halves still arrive concurrently
   and would each see "no open visit" without it.
 - **The window keeps its five minutes.** Under this key its only remaining job is
-  to stop one Submitter's two *different* fills from merging.
+  to stop one Submitter's two _different_ fills from merging.

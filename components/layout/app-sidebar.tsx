@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   type LucideIcon,
   Settings,
-  Upload,
   Users,
 } from 'lucide-react'
 
@@ -42,7 +41,6 @@ const NAV_ITEMS: {
   { href: '/', label: vi.nav.overview, icon: LayoutDashboard },
   { href: '/stations', label: vi.nav.stations, icon: Building2 },
   { href: '/review/shifts', label: vi.nav.review, icon: ClipboardCheck },
-  { href: '/upload', label: vi.nav.upload, icon: Upload },
   { href: '/reports/misa-export', label: vi.nav.misaReport, icon: FileSpreadsheet },
   { href: '/settings/misa', label: vi.nav.settings, icon: Settings },
   { href: '/admin/accountants', label: vi.nav.admin, icon: Users, roles: ['admin'] },
