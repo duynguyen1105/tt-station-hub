@@ -398,6 +398,9 @@ export const vi = {
     completing: 'Đang chốt...',
     cannotCompletePending: 'Vẫn còn số liệu chưa được duyệt trong ca này.',
     cannotCompleteNoReadings: 'Ca này chưa có số liệu trụ bơm.',
+    // A ca is chốt'd around 15:00 but its ngày runs to midnight, so an evening duyệt
+    // joins it afterwards and the MISA file already downloaded no longer matches.
+    lateDebtApproval: 'Có bán nợ duyệt sau khi chốt — cần xuất lại MISA.',
     empty: 'Chưa có ca nào.',
     noReadings: 'Chưa có số liệu cho ca này.',
     viewDetail: 'Xem / Duyệt',
