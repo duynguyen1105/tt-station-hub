@@ -1,5 +1,3 @@
-import { randomUUID } from 'crypto'
-
 import { classifyDebt } from '@/lib/ai/confidence'
 import { extractMeter } from '@/lib/ai/extract-meter'
 import { extractTankDip } from '@/lib/ai/extract-tank-dip'
@@ -30,13 +28,10 @@ import {
 } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
-import { submitterKey } from '@/lib/matching/submitter'
 import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
 import { resolveVisitStation } from '@/lib/matching/visit-station'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
-import { uploadPhoto } from '@/lib/storage/photo-storage'
-import { type ZaloMessageKind, classifyZaloMessage } from '@/lib/zalo/classify'
 
 type ShiftRef = { id: string; stationId: string }
 
@@ -721,111 +716,4 @@ export async function ingestTankDip(
     )
   }
   return result
-}
-
-const EXT_BY_TYPE: Record<string, string> = {
-  'image/png': 'png',
-  'image/webp': 'webp',
-}
-
-// Manual upload categories: shift/debt come from Zalo classification; inventory
-// (tank dip) is an explicit web-upload choice only.
-export type ManualPhotoKind = ZaloMessageKind | 'inventory'
-
-export type ManualIngestResult = {
-  photoId: string
-  kind: ManualPhotoKind
-  storagePath: string
-  shiftId: string | null
-  shift: ExtractMeterResult | null
-  debt: ExtractVisitResult | null
-  plate: ExtractPlateResult | null
-  tankDip: ExtractTankDipResult | null
-  visitId: string | null
-  extractionError: string | null
-}
-
-/**
- * Manual (web) counterpart to the Zalo webhook: stores an uploaded photo and runs
- * the same AI extraction pipeline, so the store -> AI -> review flow can be
- * exercised without Zalo. Extraction is awaited (the caller wants the result),
- * and a failed read never discards the already-stored photo.
- */
-export async function ingestManualPhoto(params: {
-  station: { id: string; code: string }
-  buffer: Buffer
-  contentType: string
-  caption: string | null
-  // The signed-in uploader — the submitter for this door, and so the key that
-  // pairs the two halves of a debt fill uploaded by hand.
-  userId: string
-  kind?: ManualPhotoKind
-  override?: ManualOverride
-  debtType?: DebtPhotoType
-}): Promise<ManualIngestResult> {
-  const kind = params.kind ?? classifyZaloMessage(params.caption)
-  const ext = EXT_BY_TYPE[params.contentType] ?? 'jpg'
-  const path = `${params.station.code}/${kind}/upload-${randomUUID()}.${ext}`
-  await uploadPhoto(path, params.buffer, params.contentType)
-
-  const shift = kind === 'shift' ? await findOrCreateShift(params.station.id, Date.now()) : null
-
-  const photo = await prisma.shiftPhoto.create({
-    data: {
-      shiftId: shift?.id ?? null,
-      source: 'web_upload',
-      storageUrl: path,
-      storagePath: path,
-      fileSizeBytes: params.buffer.byteLength,
-      matchStatus: 'unmatched',
-    },
-  })
-
-  let shift_result: ExtractMeterResult | null = null
-  let debt_result: ExtractVisitResult | null = null
-  let plate_result: ExtractPlateResult | null = null
-  let tank_result: ExtractTankDipResult | null = null
-  let visitId: string | null = null
-  let extractionError: string | null = null
-  try {
-    if (kind === 'shift' && shift) {
-      shift_result = await runShiftExtraction(
-        photo.id,
-        params.buffer,
-        { id: shift.id, stationId: params.station.id },
-        params.override
-      )
-    } else if (kind === 'inventory') {
-      tank_result = await ingestTankDip(photo.id, params.buffer, undefined, params.station)
-    } else {
-      const visit = await assembleDebtVisit({
-        photoId: photo.id,
-        station: { id: params.station.id },
-        timestamp: Date.now(),
-        type: params.debtType ?? 'debt_meter',
-        buffer: params.buffer,
-        caption: params.caption,
-        submittedBy: submitterKey('app', params.userId),
-      })
-      debt_result = visit.meter
-      plate_result = visit.plate
-      visitId = visit.visitId
-    }
-  } catch (error) {
-    logger.error({ error, photoId: photo.id }, 'Manual upload extraction failed')
-    extractionError = error instanceof Error ? error.message : 'extraction failed'
-  }
-
-  return {
-    photoId: photo.id,
-    kind,
-    storagePath: path,
-    shiftId: shift?.id ?? null,
-    shift: shift_result,
-    debt: debt_result,
-    plate: plate_result,
-    tankDip: tank_result,
-    visitId,
-    extractionError,
-  }
 }
