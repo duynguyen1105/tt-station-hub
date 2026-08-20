@@ -25,7 +25,13 @@ export default async function ReviewDebtsPage() {
 
   const [visits, approved, customers, stations] = await Promise.all([
     prisma.debtVehicleVisit.findMany({
-      where: { reviewStatus: { in: ['pending', 'needs_review'] }, stationId: { in: stationIds } },
+      // 'corrected' belongs here: Sửa số stamps that status, so leaving it out made a
+      // corrected lượt xe vanish from the only screen that can duyệt it — saved, and
+      // never charged.
+      where: {
+        reviewStatus: { in: ['pending', 'needs_review', 'corrected'] },
+        stationId: { in: stationIds },
+      },
       orderBy: { visitDate: 'desc' },
       take: 100,
     }),
@@ -155,6 +161,10 @@ export default async function ReviewDebtsPage() {
                 liters: v.litersRead !== null ? v.litersRead.toString() : null,
                 unitPrice: v.unitPriceRead !== null ? v.unitPriceRead.toString() : null,
                 computedAmount: v.computedAmount !== null ? Number(v.computedAmount) : null,
+                amountOverride: v.amountOverride !== null ? Number(v.amountOverride) : null,
+                originalLiters: v.originalLitersRead !== null ? Number(v.originalLitersRead) : null,
+                originalUnitPrice:
+                  v.originalUnitPriceRead !== null ? Number(v.originalUnitPriceRead) : null,
                 displayedAmount: v.displayedAmount !== null ? Number(v.displayedAmount) : null,
                 amountMatchesDisplay: v.amountMatchesDisplay,
                 fuelType: v.fuelType,
