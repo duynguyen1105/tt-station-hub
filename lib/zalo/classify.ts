@@ -1,5 +1,6 @@
-// Decides whether an incoming Zalo photo is a shift-closing photo or a per-trip
-// debt fill, based on its caption (build plan §6). Default is shift.
+// Decides which route an incoming Zalo photo takes — a shift-closing photo, a
+// per-trip debt fill or an inventory dip (build plan §6) — and what that route
+// implies for the day's ca. Default is shift.
 import type { RouterResult } from '@/lib/ai/types'
 
 export type ZaloMessageKind = 'shift' | 'debt'
@@ -85,4 +86,17 @@ export function routePhoto(
       // 'label_only' | 'not_relevant' — trust the declared intent (defaults to shift).
       return declaredFallback ?? captionKind
   }
+}
+
+/**
+ * Whether a photo on this route opens the day's ca (GMT+7) when the trạm has none
+ * yet. An ảnh trụ bơm always has; an ảnh công nợ does too, so a morning of bán nợ
+ * before any meter photo produces lượt xe that have a ca to be listed in — the
+ * charge is written the moment a kế toán duyệt, and it must be viewable.
+ *
+ * Ảnh nhập hàng are deliberately left out: a đo hầm photo on a day with no other
+ * photos still opens nothing.
+ */
+export function routeOpensShift(route: PhotoRoute): boolean {
+  return route === 'shift' || route === 'debt'
 }

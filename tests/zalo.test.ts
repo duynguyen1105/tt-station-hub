@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { pickStationByDeclaration, pickStationByLabel } from '@/lib/matching/station-label'
-import { classifyZaloMessage, explicitCaptionKind, routePhoto } from '@/lib/zalo/classify'
+import {
+  classifyZaloMessage,
+  explicitCaptionKind,
+  routeOpensShift,
+  routePhoto,
+} from '@/lib/zalo/classify'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
 import { parseZaloEvent, parseZaloTextEvent } from '@/lib/zalo/webhook-handler'
 
@@ -35,6 +40,22 @@ describe('routePhoto', () => {
     expect(routePhoto('label_only', 'shift')).toBe('shift')
     expect(routePhoto('label_only', 'debt')).toBe('debt')
     expect(routePhoto('not_relevant', 'shift')).toBe('shift')
+  })
+})
+
+describe('routeOpensShift', () => {
+  it('opens the day’s ca for the first ảnh trụ bơm, as it always has', () => {
+    expect(routeOpensShift('shift')).toBe(true)
+  })
+
+  it('opens the day’s ca for an ảnh công nợ too', () => {
+    // A morning of bán nợ before any meter photo used to produce lượt xe with no
+    // ca to live in; the first photo of the day now opens the ca whichever it is.
+    expect(routeOpensShift('debt')).toBe(true)
+  })
+
+  it('opens no ca for an ảnh nhập hàng', () => {
+    expect(routeOpensShift('inventory')).toBe(false)
   })
 })
 
