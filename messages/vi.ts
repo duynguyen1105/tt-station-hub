@@ -396,6 +396,8 @@ export const vi = {
     dispenser: 'Trụ',
     complete: 'Chốt ca',
     completing: 'Đang chốt...',
+    cannotCompletePending: 'Vẫn còn số liệu chưa được duyệt trong ca này.',
+    cannotCompleteNoReadings: 'Ca này chưa có số liệu trụ bơm.',
     empty: 'Chưa có ca nào.',
     noReadings: 'Chưa có số liệu cho ca này.',
     viewDetail: 'Xem / Duyệt',
