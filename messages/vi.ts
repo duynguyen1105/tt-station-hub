@@ -436,6 +436,16 @@ export const vi = {
     // joins it afterwards and the MISA file already downloaded no longer matches.
     lateDebtApproval: 'Có bán nợ duyệt sau khi chốt — cần xuất lại MISA.',
     empty: 'Chưa có ca nào.',
+    // How many ca the Chốt ca list holds across all its pages, so the page on screen
+    // never has to stand for the whole list.
+    total: (count: number) => `${count} ca`,
+    // More than one trạng thái ticked, where naming them all would not fit on a chip.
+    statusCount: (count: number) => `${count} trạng thái`,
+    // Dropping the trạng thái half of the bộ lọc and leaving the ngày, from its chip.
+    clearStatuses: 'Bỏ lọc theo trạng thái',
+    // An empty filtered list, which is the filter matching nothing and never the trạm
+    // holding no ca — a ca is never removed from this list once it exists.
+    emptyFiltered: 'Không có ca nào khớp bộ lọc.',
     noReadings: 'Chưa có số liệu cho ca này.',
     viewDetail: 'Xem / Duyệt',
     debtsSectionTitle: 'Bán nợ trong ca',
