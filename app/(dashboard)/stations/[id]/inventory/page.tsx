@@ -1,14 +1,17 @@
 import Link from 'next/link'
 
+import { DipFilterForm } from '@/components/inventory/dip-filter-form'
 import { DipRow } from '@/components/inventory/dip-row'
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { ImportFilterForm } from '@/components/inventory/import-filter-form'
+import { LedgerFilterForm } from '@/components/inventory/ledger-filter-form'
 import { MovementForm } from '@/components/inventory/movement-form'
 import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { requireStationAccess } from '@/lib/auth/station-guard'
+import { matchingDatePreset } from '@/lib/filters/date-presets'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
 import {
   fuelTypeLabeller,
@@ -22,11 +25,21 @@ import { fetchBaremSheet } from '@/lib/inventory/barem-fetch'
 import { baremSheetFor } from '@/lib/inventory/barem-sheets'
 import { type BookMovement, bookSummary, dailyLedger } from '@/lib/inventory/book-stock'
 import { countableDipWhere } from '@/lib/inventory/dip-review'
+import { DIP_STATUSES, dipSelection, hasDipFilter } from '@/lib/inventory/dip-selection'
+import { loadImportFilterOptions } from '@/lib/inventory/import-filter-options'
+import {
+  IMPORT_PAGE_SIZE,
+  hasImportFilter,
+  importSelection,
+} from '@/lib/inventory/import-selection'
+import { hasLedgerFilter, ledgerSelection } from '@/lib/inventory/ledger-selection'
+import { loadStationTankCodes } from '@/lib/inventory/station-tanks'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
+import { reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
 // Hoisted so the react-compiler purity lint doesn't see Date.now() inside the
@@ -89,14 +102,25 @@ function buildDipTankOptions(tanks: TankOption[], pageDips: { tankCode: string }
 
 const TABS = ['tong-quan', 'so-sach', 'do-bon', 'nhap-hang'] as const
 type InventoryTab = (typeof TABS)[number]
-const PAGE_SIZE = 20
+// One page size for all four tabs. Tied to the imports one so the pager, which sizes
+// itself from here, can't disagree with the page the selection actually took.
+const PAGE_SIZE = IMPORT_PAGE_SIZE
 
 export default async function StationInventoryPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ from?: string; to?: string; tab?: string; page?: string }>
+  searchParams: Promise<{
+    from?: string
+    to?: string
+    tab?: string
+    page?: string
+    tank?: string
+    fuel?: string
+    status?: string
+    creator?: string
+  }>
 }) {
   const { id } = await params
   const user = await requireStationAccess(id)
@@ -115,23 +139,27 @@ export default async function StationInventoryPage({
   // The histories grow every day, so each lives in its own sub-tab with
   // pagination; the overview stays a fixed-size dashboard. Tab, page and the
   // import-history date filter all live in the URL (plain GET navigation).
-  const { from, to, tab: rawTab, page: rawPage } = await searchParams
+  const {
+    from,
+    to,
+    tab: rawTab,
+    page: rawPage,
+    tank: rawTank,
+    fuel: rawFuel,
+    status: rawStatus,
+    creator: rawCreator,
+  } = await searchParams
   const tab: InventoryTab = (TABS as readonly string[]).includes(rawTab ?? '')
     ? (rawTab as InventoryTab)
     : 'tong-quan'
-  const pageNum = Math.max(1, Number.parseInt(rawPage ?? '1', 10) || 1)
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-  const fromDate = from && DATE_RE.test(from) ? new Date(`${from}T00:00:00+07:00`) : null
-  const toDate = to && DATE_RE.test(to) ? new Date(`${to}T23:59:59+07:00`) : null
-  const importFilter = {
-    ...(fromDate ? { gte: fromDate } : {}),
-    ...(toDate ? { lte: toDate } : {}),
-  }
-  const hasDateFilter = fromDate !== null || toDate !== null
-  const importsWhere = {
-    stationId: id,
-    ...(hasDateFilter ? { importedAt: importFilter } : {}),
-  }
+  // Every hầm this trạm has — what the Đo bồn bộ lọc offers and what it narrows the URL
+  // against. Started here and awaited after the batch below, so it runs alongside it rather
+  // than in front of it, and only the tab that asks pays for it at all.
+  const tankCodesPromise = tab === 'do-bon' ? loadStationTankCodes(id) : null
+  // What the Nhập hàng bộ lọc offers, read off the phiếu nhập themselves. Started here and
+  // awaited below so it runs alongside the trạm lookup rather than in front of it, and only
+  // the tab that asks pays for it.
+  const importOptionsPromise = tab === 'nhap-hang' ? loadImportFilterOptions(id) : null
   // Which of the heavy sources this tab actually renders. The Barem is a LIVE
   // Google Sheet fetch (~1s, uncached by ADR 0005) — only the tabs that show
   // litres pay for it, and it runs concurrently with the DB batch below.
@@ -140,6 +168,16 @@ export default async function StationInventoryPage({
   const station = await prisma.station.findUnique({ where: { id }, select: { code: true } })
   const binding = baremSheetFor(station?.code)
   const baremPromise = needsBarem && binding ? fetchBaremSheet(binding) : null
+  // The criteria and the page are read by the one function the Xuất Excel route reads them
+  // with, so the file kế toán downloads holds what this table is showing. Off the Nhập hàng
+  // tab nothing is on offer, so nothing narrows: `tank` and `fuel` belong to Đo bồn there,
+  // and the overview's own phiếu nhập must not be cut by another tab's bộ lọc.
+  const importOptions = (await importOptionsPromise) ?? { tanks: [], fuels: [], creators: [] }
+  const selection = importSelection(
+    { from, to, tank: rawTank, fuel: rawFuel, creator: rawCreator, page: rawPage },
+    id,
+    { ...importOptions, creators: importOptions.creators.map((creator) => creator.id) }
+  )
   const [balances, dips, dispensers, imports, openings, movements, importsTotal] =
     await Promise.all([
       prisma.inventoryBalance.findMany({
@@ -156,10 +194,10 @@ export default async function StationInventoryPage({
       }),
       prisma.dispenser.findMany({ where: { stationId: id, isActive: true } }),
       prisma.fuelImport.findMany({
-        where: importsWhere,
-        orderBy: { importedAt: 'desc' },
-        skip: tab === 'nhap-hang' ? (pageNum - 1) * PAGE_SIZE : 0,
-        take: PAGE_SIZE,
+        where: selection.where,
+        orderBy: selection.orderBy,
+        skip: tab === 'nhap-hang' ? selection.skip : 0,
+        take: selection.take,
       }),
       prisma.inventoryOpeningBalance.findMany({ where: { stationId: id } }),
       // The whole movement history feeds the book ledger — skipped on the
@@ -175,22 +213,34 @@ export default async function StationInventoryPage({
             movementDate: Date
             fuelType: string
           }[]),
-      tab === 'nhap-hang' ? prisma.fuelImport.count({ where: importsWhere }) : 0,
+      tab === 'nhap-hang' ? prisma.fuelImport.count({ where: selection.where }) : 0,
     ])
 
-  // Dip history page — only fetched on its own tab. Nothing is filtered out: a từ
-  // chối read stays listed, badged, because this history is the audit trail of what
-  // was decided and not just of what counts.
+  // What the Đo bồn bộ lọc is asking for. Narrowed only by what this trạm actually has, so
+  // a stale link naming a hầm it doesn't own narrows less than it asked for and never more.
+  // The two paginated tabs share `from`/`to`: moving between them drops the query string
+  // anyway, so one khoảng ngày can never mean two things at once.
+  const stationTankCodes = (await tankCodesPromise) ?? []
+  const dipSel = dipSelection(
+    { from, to, tank: rawTank, fuel: rawFuel, status: rawStatus, page: rawPage },
+    id,
+    { tanks: stationTankCodes, fuels: stationFuels.map((fuel) => fuel.fuelType) }
+  )
+  const pageNum = tab === 'do-bon' ? dipSel.page : selection.page
+
+  // Dip history page — only fetched on its own tab. Nothing is filtered out by default: a
+  // từ chối read stays listed, badged, because this history is the audit trail of what was
+  // decided and not just of what counts. Only the bộ lọc narrows it.
   const [dipsPage, dipsTotal] =
     tab === 'do-bon'
       ? await Promise.all([
           prisma.tankDipRecord.findMany({
-            where: { stationId: id },
-            orderBy: { measuredAt: 'desc' },
-            skip: (pageNum - 1) * PAGE_SIZE,
-            take: PAGE_SIZE,
+            where: dipSel.where,
+            orderBy: dipSel.orderBy,
+            skip: dipSel.skip,
+            take: dipSel.take,
           }),
-          prisma.tankDipRecord.count({ where: { stationId: id } }),
+          prisma.tankDipRecord.count({ where: dipSel.where }),
         ])
       : [[], 0]
 
@@ -241,6 +291,36 @@ export default async function StationInventoryPage({
   const dipFuelOptions = stationFuels.map((fuel) => ({
     value: fuel.fuelType,
     label: fuel.name,
+  }))
+  // What the Đo bồn bộ lọc offers. The hầm come from the trạm rather than from this page of
+  // rows, or a filter could only ever narrow to a hầm that happened to be on screen; the
+  // nhiên liệu are `dipFuelOptions`, the same list the cells edit against. Both are in the
+  // order `dipSelection` narrows the URL against, so a tick and its parameter agree.
+  const dipFilterTankOptions = stationTankCodes.map((code) => ({
+    value: code,
+    label: code.replace('HAM_', 'Hầm '),
+  }))
+  // Only the three a đo hầm is ever written with, named by the badge's own labels.
+  const dipStatusOptions = DIP_STATUSES.map((status) => ({
+    value: status,
+    label: reviewStatusInfo(status).label,
+  }))
+
+  // What the Nhập hàng bộ lọc offers. Every option comes off a phiếu nhập of this trạm, so
+  // a mã hầm typed by hand on a slip and a nhiên liệu the trạm has stopped selling both
+  // stay filterable — and nothing is offered that could only ever match nothing. In the
+  // order `importSelection` narrows the URL against, so a tick and its parameter agree.
+  const importTankOptions = importOptions.tanks.map((code) => ({
+    value: code,
+    label: code.replace('HAM_', 'Hầm '),
+  }))
+  const importFuelOptions = importOptions.fuels.map((fuelType) => ({
+    value: fuelType,
+    label: fuelLabel(fuelType),
+  }))
+  const importCreatorOptions = importOptions.creators.map((creator) => ({
+    value: creator.id,
+    label: creator.name,
   }))
 
   // Signed links for each import's documents so the reviewer can open the
@@ -370,7 +450,11 @@ export default async function StationInventoryPage({
       ] as const
     })
   )
-  // Day-by-day ledger across fuels, newest first, capped for display.
+  // Day-by-day ledger across fuels, newest first. Built over the whole history and
+  // narrowed afterwards, never at the query: each row's Tồn đầu ngày is the previous
+  // row's Tồn cuối ngày running from the số đầu kỳ, so a từ ngày that reached the
+  // movements would restart every chain at the anchor and put a wrong — but entirely
+  // plausible — number on screen.
   const ledgerRows = bookFuels
     .flatMap((fuel) => {
       const opening = openingByFuel.get(fuel)
@@ -381,8 +465,21 @@ export default async function StationInventoryPage({
       ).map((row) => ({ fuel, ...row }))
     })
     .sort((a, b) => b.date.localeCompare(a.date) || a.fuel.localeCompare(b.fuel))
-  const ledgerTotal = ledgerRows.length
-  const ledgerPage = ledgerRows.slice((pageNum - 1) * PAGE_SIZE, pageNum * PAGE_SIZE)
+  const ledger = ledgerSelection({ from, to, fuel: rawFuel, page: rawPage }, ledgerRows)
+  // The khoảng ngày this tab is actually showing. Each list parses `from`/`to` for itself —
+  // the tabs share the two parameters because moving between them drops the query string, so
+  // one khoảng ngày can never mean two things at once — and both the pager and the preset
+  // tick have to read the one that applies here. Which preset, if any, those two ngày are is
+  // worked out on the server rather than in the browser, so the tick beside Tháng này can't
+  // disagree with itself across midnight.
+  const applied = tab === 'do-bon' ? dipSel : tab === 'so-sach' ? ledger : selection
+  const activePreset = matchingDatePreset(applied.from, applied.to, new Date())
+  // The nhiên liệu the Sổ sách bộ lọc offers, named as kế toán reads them. Only the two
+  // strings the menu renders cross to the browser, never the danh mục rows.
+  const ledgerFuelOptions = ledger.options.map((fuel) => ({
+    value: fuel,
+    label: fuelLabel(fuel),
+  }))
   const openingEntries: OpeningEntry[] = bookFuels.map((fuel) => {
     const opening = openingByFuel.get(fuel)
     return {
@@ -429,10 +526,36 @@ export default async function StationInventoryPage({
     const query = new URLSearchParams()
     if (tab !== 'tong-quan') query.set('tab', tab)
     if (p > 1) query.set('page', String(p))
-    if (from && fromDate) query.set('from', from)
-    if (to && toDate) query.set('to', to)
+    if (applied.from) query.set('from', applied.from)
+    if (applied.to) query.set('to', applied.to)
+    // The Sổ sách nhiên liệu, so paging keeps the filter it was paging through.
+    if (tab === 'so-sach' && ledger.fuels.length) query.set('fuel', ledger.fuels.join(','))
+    // The Đo bồn criteria, for the same reason.
+    if (tab === 'do-bon') {
+      if (dipSel.tanks.length) query.set('tank', dipSel.tanks.join(','))
+      if (dipSel.fuels.length) query.set('fuel', dipSel.fuels.join(','))
+      if (dipSel.statuses.length) query.set('status', dipSel.statuses.join(','))
+    }
+    // The Nhập hàng criteria, for the same reason.
+    if (tab === 'nhap-hang') {
+      if (selection.tanks.length) query.set('tank', selection.tanks.join(','))
+      if (selection.fuels.length) query.set('fuel', selection.fuels.join(','))
+      if (selection.creators.length) query.set('creator', selection.creators.join(','))
+    }
     const qs = query.toString()
     return qs ? `${base}?${qs}` : base
+  }
+  // The Xuất Excel link carries the bộ lọc as applied, so the file holds exactly the phiếu
+  // nhập this table is showing. Built the same way the pager builds its own URL, rather
+  // than by stringing ternaries together, now that there are four criteria to carry.
+  const importExportHref = () => {
+    const query = new URLSearchParams({ stationId: id })
+    if (selection.from) query.set('from', selection.from)
+    if (selection.to) query.set('to', selection.to)
+    if (selection.tanks.length) query.set('tank', selection.tanks.join(','))
+    if (selection.fuels.length) query.set('fuel', selection.fuels.join(','))
+    if (selection.creators.length) query.set('creator', selection.creators.join(','))
+    return `/api/imports/export?${query}`
   }
   const pager = (total: number) => {
     const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -594,7 +717,15 @@ export default async function StationInventoryPage({
 
       {tab === 'so-sach' && (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold">{vi.inventory.dailyLedgerTitle}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <LedgerFilterForm
+              from={ledger.from}
+              to={ledger.to}
+              fuels={ledger.fuels}
+              fuelOptions={ledgerFuelOptions}
+              activePreset={activePreset}
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[44rem] text-sm">
               <thead>
@@ -609,7 +740,16 @@ export default async function StationInventoryPage({
                 </tr>
               </thead>
               <tbody>
-                {ledgerPage.map((row) => (
+                {ledger.total === 0 && (
+                  <tr>
+                    <td className="text-muted-foreground p-2" colSpan={7}>
+                      {hasLedgerFilter(ledger)
+                        ? vi.inventory.ledgerEmptyFiltered
+                        : vi.inventory.empty}
+                    </td>
+                  </tr>
+                )}
+                {ledger.rows.map((row) => (
                   <tr key={`${row.date}-${row.fuel}`} className="border-b">
                     <td className="p-2">{row.date.split('-').reverse().join('/')}</td>
                     <td className="p-2">{fuelLabel(row.fuel)}</td>
@@ -631,7 +771,7 @@ export default async function StationInventoryPage({
               </tbody>
             </table>
           </div>
-          {pager(ledgerTotal)}
+          {pager(ledger.total)}
         </section>
       )}
 
@@ -765,9 +905,26 @@ export default async function StationInventoryPage({
 
       {tab === 'do-bon' && (
         <section className="space-y-2">
-          <h3 className="text-sm font-semibold">{vi.inventory.dipHistory}</h3>
-          {dipsPage.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{vi.inventory.noDips}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <DipFilterForm
+              from={dipSel.from}
+              to={dipSel.to}
+              tanks={dipSel.tanks}
+              fuels={dipSel.fuels}
+              statuses={dipSel.statuses}
+              tankOptions={dipFilterTankOptions}
+              fuelOptions={dipFuelOptions}
+              statusOptions={dipStatusOptions}
+              activePreset={activePreset}
+            />
+          </div>
+          {dipsTotal === 0 ? (
+            // A filtered history that matched nothing says so. It is the total that decides,
+            // not this page: a stale link past the last page of a filter that matched plenty
+            // would otherwise deny the pager sitting right below it.
+            <p className="text-muted-foreground text-sm">
+              {hasDipFilter(dipSel) ? vi.inventory.noDipsFiltered : vi.inventory.noDips}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[40rem] text-sm">
@@ -830,25 +987,30 @@ export default async function StationInventoryPage({
       {tab === 'nhap-hang' && (
         <section id="lich-su-nhap-hang" className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-muted-foreground text-sm font-medium">{vi.imports.recent}</h3>
-            <div className="flex flex-wrap items-center gap-2">
-              <ImportFilterForm
-                from={from && fromDate ? from : undefined}
-                to={to && toDate ? to : undefined}
-              />
-              <Button asChild size="sm" variant="outline">
-                <a
-                  href={`/api/imports/export?stationId=${id}${
-                    from && fromDate ? `&from=${from}` : ''
-                  }${to && toDate ? `&to=${to}` : ''}`}
-                >
-                  {vi.imports.exportExcel}
-                </a>
-              </Button>
-            </div>
+            <ImportFilterForm
+              from={selection.from}
+              to={selection.to}
+              tanks={selection.tanks}
+              fuels={selection.fuels}
+              creators={selection.creators}
+              tankOptions={importTankOptions}
+              fuelOptions={importFuelOptions}
+              creatorOptions={importCreatorOptions}
+              activePreset={activePreset}
+            />
+            <Button asChild size="sm" variant="outline">
+              <a href={importExportHref()}>{vi.imports.exportExcel}</a>
+            </Button>
           </div>
           {imports.length === 0 ? (
-            <p className="text-muted-foreground text-sm">{vi.imports.none}</p>
+            // A filtered list that matched nothing says so. It is the total that
+            // decides, not this page: a stale link past the last page of a filter that
+            // matched plenty would otherwise deny the pager sitting right below it.
+            <p className="text-muted-foreground text-sm">
+              {importsTotal === 0 && hasImportFilter(selection)
+                ? vi.imports.noneFiltered
+                : vi.imports.none}
+            </p>
           ) : (
             <table className="w-full text-sm">
               <thead>

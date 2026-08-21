@@ -6,14 +6,19 @@ import { forbidden, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation, reachableStationIds } from '@/lib/auth/station-guard'
 import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
+import { loadImportFilterOptions } from '@/lib/inventory/import-filter-options'
+import { importSelection } from '@/lib/inventory/import-selection'
 import { prisma } from '@/lib/prisma'
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /**
- * Archive/check Excel of fuel-import slips: one row per delivery, filterable by
- * station and date range (defaults to the last 31 days). Plain formatting on
- * purpose — this file is for record-keeping, not an accounting template.
+ * Archive/check Excel of fuel-import slips: one row per delivery, filterable by station,
+ * date range, hầm, nhiên liệu and người nhập. Plain formatting on purpose — this file is
+ * for record-keeping, not an accounting template.
+ *
+ * The bộ lọc is read by the same function the Lịch sử nhập hàng tab reads it with, and
+ * narrowed against the same options, so the file holds exactly the phiếu nhập the screen
+ * says it is showing — no filter means every one of them, not a window this route picked
+ * on its own.
  */
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -21,20 +26,28 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const stationId = searchParams.get('stationId')
-  const to = searchParams.get('to')
-    ? new Date(`${searchParams.get('to')}T23:59:59+07:00`)
-    : new Date()
-  const from = searchParams.get('from')
-    ? new Date(`${searchParams.get('from')}T00:00:00+07:00`)
-    : new Date(to.getTime() - 31 * DAY_MS)
 
   if (stationId && !(await canReachStation(user, stationId))) return forbidden()
 
-  const imports = await prisma.fuelImport.findMany({
-    where: {
-      stationId: stationId ?? { in: await reachableStationIds(user) },
-      importedAt: { gte: from, lte: to },
+  // One trạm by its parameter, or every trạm the viewer can reach — worked out once, since
+  // both the options and the selection are scoped by it.
+  const scope = stationId ?? { in: await reachableStationIds(user) }
+  const offered = await loadImportFilterOptions(scope)
+  const selection = importSelection(
+    {
+      from: searchParams.get('from') ?? undefined,
+      to: searchParams.get('to') ?? undefined,
+      tank: searchParams.get('tank') ?? undefined,
+      fuel: searchParams.get('fuel') ?? undefined,
+      creator: searchParams.get('creator') ?? undefined,
     },
+    scope,
+    { ...offered, creators: offered.creators.map((creator) => creator.id) }
+  )
+  // Oldest first, and every matching row rather than a page: an archive is read from
+  // the top and is not paged.
+  const imports = await prisma.fuelImport.findMany({
+    where: selection.where,
     orderBy: { importedAt: 'asc' },
   })
   const [stations, docs, profiles] = await Promise.all([
@@ -109,7 +122,12 @@ export async function GET(req: NextRequest) {
 
   const buffer = await wb.xlsx.writeBuffer()
   const code = stationId ? (stationById.get(stationId)?.code ?? 'tram') : 'tat-ca'
-  const filename = `nhap-hang-${code}-${from.toISOString().slice(0, 10)}-${to.toISOString().slice(0, 10)}.xlsx`
+  // Named from the ngày as applied rather than from the instants they parsed to: a
+  // `+07:00` bound renders as the previous UTC day, which is not the ngày kế toán
+  // asked for. An unfiltered export is named for what it is. Only the ngày make the
+  // name — three multi-selects spelled out would not be a filename anyone could read.
+  const span = [selection.from, selection.to].filter(Boolean).join('-') || 'tat-ca'
+  const filename = `nhap-hang-${code}-${span}.xlsx`
   return new Response(new Uint8Array(buffer as ArrayBuffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

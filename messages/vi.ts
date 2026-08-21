@@ -42,7 +42,6 @@ export const vi = {
     correct: 'Sửa số',
     fromDate: 'Từ ngày',
     toDate: 'Đến ngày',
-    filter: 'Lọc',
     // The bộ lọc itself, which is an icon and so needs saying out loud for anyone
     // who can't see it, and the two things every bộ lọc offers.
     filterMenu: 'Bộ lọc',
@@ -505,6 +504,10 @@ export const vi = {
     reserve: 'Hầm dự phòng',
     reserveChanged: 'Hầm dự phòng bị chênh lệch bất thường',
     noDips: 'Chưa có lần đo hầm nào.',
+    // A filtered history that matched nothing says so: "Chưa có lần đo hầm nào." would read
+    // as nobody ever having measured this trạm, which is wrong and alarming when the truth
+    // is only that the bộ lọc is too narrow.
+    noDipsFiltered: 'Không có lần đo hầm nào khớp bộ lọc.',
     importedToday: 'Nhập hôm nay',
     soldToday: 'Bán hôm nay',
     // Hàng tồn 2 phần: lý thuyết (movements) vs thực tế (đo bồn qua Barem)
@@ -532,11 +535,14 @@ export const vi = {
     bookAdjusted: 'Điều chỉnh',
     bookStock: 'Tồn sổ sách',
     bookSoldNote: 'Xuất ra = tổng bán theo chốt ca (đã bao gồm công nợ).',
-    dailyLedgerTitle: 'Sổ sách theo ngày',
     date: 'Ngày',
     dayOpening: 'Tồn đầu ngày',
     dayClosing: 'Tồn cuối ngày',
-    dipHistory: 'Lịch sử đo bồn',
+    // An empty filtered sổ sách, which is the filter matching nothing and never the
+    // trạm holding no hàng — that case is `empty`, and reads quite differently. The
+    // nhiên liệu half of this bộ lọc shares `allFuels` / `fuelCount` / `clearFuelFilter`
+    // with Lịch sử đo bồn below: same criterion, same page, same words.
+    ledgerEmptyFiltered: 'Không có ngày nào khớp bộ lọc.',
     photo: 'Ảnh',
     // Duyệt / từ chối số đo bồn — nhãn trạng thái dùng chung vi.reviewStatus.
     status: 'Trạng thái',
@@ -546,8 +552,21 @@ export const vi = {
     // its own tab with pagination instead of one ever-longer page.
     tabOverview: 'Tổng quan',
     tabLedger: 'Sổ sách theo ngày',
-    tabDips: 'Lịch sử đo bồn',
-    tabImports: 'Lịch sử nhập hàng',
+    tabDips: 'Đo bồn',
+    tabImports: 'Nhập hàng',
+    // Bộ lọc của Lịch sử đo bồn. Each criterion needs the same four things: its name, what
+    // "tất cả" reads as, how several of them read at once, and how to drop it from a chip.
+    // Nhãn trạng thái are vi.reviewStatus's — the same ones the badge in the row shows.
+    dipMeasuredDate: 'Ngày đo',
+    allTanks: 'Tất cả hầm',
+    allFuels: 'Tất cả nhiên liệu',
+    allStatuses: 'Tất cả trạng thái',
+    tankCount: (count: number) => `${count} hầm`,
+    fuelCount: (count: number) => `${count} nhiên liệu`,
+    statusCount: (count: number) => `${count} trạng thái`,
+    clearTankFilter: 'Bỏ lọc theo hầm',
+    clearFuelFilter: 'Bỏ lọc theo nhiên liệu',
+    clearStatusFilter: 'Bỏ lọc theo trạng thái',
   },
 
   imports: {
@@ -565,8 +584,11 @@ export const vi = {
     truckPlate: 'Xe bồn',
     note: 'Ghi chú',
     documents: 'Chứng từ đính kèm',
-    recent: 'Lịch sử nhập hàng',
     none: 'Chưa có phiếu nhập nào.',
+    // A filtered list that matched nothing says so: "Chưa có phiếu nhập nào." would
+    // read as the trạm never having taken a delivery, which is wrong and alarming
+    // when the truth is only that the khoảng ngày is too narrow.
+    noneFiltered: 'Không có phiếu nhập nào khớp bộ lọc.',
     exportExcel: 'Xuất Excel',
     canceled: 'Đã hủy',
     cancelAction: 'Hủy phiếu',
@@ -577,6 +599,11 @@ export const vi = {
     invalidLiters: 'Vui lòng nhập số lít hợp lệ.',
     selectDate: 'Vui lòng chọn ngày giờ nhập.',
     creator: 'Người nhập',
+    // Bộ lọc của Lịch sử nhập hàng. Hầm and nhiên liệu borrow vi.inventory's words — same
+    // criterion, same page, same page's other bộ lọc — so only người nhập needs its own.
+    allCreators: 'Tất cả người nhập',
+    creatorCount: (count: number) => `${count} người nhập`,
+    clearCreatorFilter: 'Bỏ lọc theo người nhập',
     // Biên bản giao nhận wizard
     bienBanTitle: 'Biên bản giao nhận xăng dầu',
     step1: 'Bước 1 — Hình biên bản',
