@@ -40,6 +40,9 @@ export const vi = {
     approve: 'Duyệt',
     reject: 'Từ chối',
     correct: 'Sửa số',
+    pagePrev: '← Trước',
+    pageNext: 'Sau →',
+    pageOf: 'Trang',
   },
 
   auth: {
@@ -246,6 +249,9 @@ export const vi = {
 
   misaExport: {
     action: 'Xuất MISA',
+    // How many ca the Báo cáo MISA list is showing across all its pages, so kế
+    // toán can tell whether the period holds what they expect before exporting.
+    reportTotal: (count: number) => `${count} ca`,
     title: 'Xuất chứng từ bán hàng MISA',
     loading: 'Đang kiểm tra dữ liệu...',
     loadError: 'Không kiểm tra được dữ liệu. Vui lòng thử lại.',
@@ -491,9 +497,6 @@ export const vi = {
     tabLedger: 'Sổ sách theo ngày',
     tabDips: 'Lịch sử đo bồn',
     tabImports: 'Lịch sử nhập hàng',
-    pagePrev: '← Trước',
-    pageNext: 'Sau →',
-    pageOf: 'Trang',
   },
 
   imports: {
