@@ -6,6 +6,7 @@ import {
   canEditClosing,
   canEditOpening,
   canReviewShift,
+  isReadingDecided,
 } from '@/lib/auth/reading-policy'
 
 // A representative pre-completed status and the one status that locks the ca.
@@ -93,5 +94,24 @@ describe('canCreateReading', () => {
     for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
       expect(canCreateReading('viewer', status)).toBe(false)
     }
+  })
+})
+
+describe('isReadingDecided', () => {
+  // Duyệt / Từ chối freeze the row's values for every role — including the admin,
+  // who keeps only the button that reverses the call.
+  it('treats a duyệt or từ chối row as decided', () => {
+    expect(isReadingDecided('approved')).toBe(true)
+    expect(isReadingDecided('rejected')).toBe(true)
+  })
+
+  // Tự duyệt is the AI's own high-confidence pass, not a human call, so it leaves
+  // the row editable — repairing an AI misread before chốt is the daily work.
+  it('leaves every undecided status editable', () => {
+    expect(isReadingDecided('auto_approved')).toBe(false)
+    expect(isReadingDecided('pending')).toBe(false)
+    expect(isReadingDecided('needs_review')).toBe(false)
+    expect(isReadingDecided('corrected')).toBe(false)
+    expect(isReadingDecided(null)).toBe(false)
   })
 })
