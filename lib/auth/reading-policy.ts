@@ -57,3 +57,14 @@ export function canReviewShift(role: AppRole, shiftStatus: ShiftStatus): boolean
 export function canCreateReading(role: AppRole, shiftStatus: ShiftStatus): boolean {
   return canEditClosing(role, shiftStatus)
 }
+
+/**
+ * Whether a row's Duyệt / Từ chối call has been made. A decided row's values are
+ * frozen for every role — the numbers are what the decision was made on, so
+ * changing them behind the decision would silently un-decide the row. Note
+ * `auto_approved` is the AI's own high-confidence pass, not a human decision, so
+ * it does not freeze the row: correcting an AI misread before chốt is routine.
+ */
+export function isReadingDecided(reviewStatus: string | null): boolean {
+  return reviewStatus === 'approved' || reviewStatus === 'rejected'
+}
