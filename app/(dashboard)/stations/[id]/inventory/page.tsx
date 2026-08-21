@@ -404,20 +404,20 @@ export default async function StationInventoryPage({
       <div className="flex items-center justify-end gap-3 text-sm">
         {pageNum > 1 ? (
           <Link href={pageHref(pageNum - 1)} className="text-primary underline underline-offset-2">
-            {vi.inventory.pagePrev}
+            {vi.common.pagePrev}
           </Link>
         ) : (
-          <span className="text-muted-foreground">{vi.inventory.pagePrev}</span>
+          <span className="text-muted-foreground">{vi.common.pagePrev}</span>
         )}
         <span className="text-muted-foreground">
-          {vi.inventory.pageOf} {Math.min(pageNum, lastPage)}/{lastPage}
+          {vi.common.pageOf} {Math.min(pageNum, lastPage)}/{lastPage}
         </span>
         {pageNum < lastPage ? (
           <Link href={pageHref(pageNum + 1)} className="text-primary underline underline-offset-2">
-            {vi.inventory.pageNext}
+            {vi.common.pageNext}
           </Link>
         ) : (
-          <span className="text-muted-foreground">{vi.inventory.pageNext}</span>
+          <span className="text-muted-foreground">{vi.common.pageNext}</span>
         )}
       </div>
     )
