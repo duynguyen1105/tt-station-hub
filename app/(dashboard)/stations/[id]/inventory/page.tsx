@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { DipRow } from '@/components/inventory/dip-row'
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { ImportFilterForm } from '@/components/inventory/import-filter-form'
@@ -20,6 +21,7 @@ import { type BaremLookup, lookupBaremLiters } from '@/lib/inventory/barem'
 import { fetchBaremSheet } from '@/lib/inventory/barem-fetch'
 import { baremSheetFor } from '@/lib/inventory/barem-sheets'
 import { type BookMovement, bookSummary, dailyLedger } from '@/lib/inventory/book-stock'
+import { countableDipWhere } from '@/lib/inventory/dip-review'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
@@ -64,6 +66,25 @@ function buildTankOptions(
     })
   }
   return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
+}
+
+/** Hầm choices for the Đo bồn cells: short-labelled, because the row shows
+ * the nhiên liệu in its own column right beside them.
+ *
+ * `buildTankOptions` reads the trạm's recent countable dips, so a từ chối or older
+ * đo hầm further back in the history can name a hầm it never listed — and a hầm
+ * missing from the ô chọn would render that row's cell blank. Every hầm on the page
+ * is added back for exactly that reason. */
+function buildDipTankOptions(tanks: TankOption[], pageDips: { tankCode: string }[]) {
+  const codes = new Map(tanks.map((tank) => [tank.code, tank.fuelType]))
+  for (const dip of pageDips) if (!codes.has(dip.tankCode)) codes.set(dip.tankCode, null)
+  return [...codes.entries()]
+    .map(([code, fuelType]) => ({
+      value: code,
+      label: code.replace('HAM_', 'Hầm '),
+      fuelType,
+    }))
+    .sort((a, b) => a.value.localeCompare(b.value))
 }
 
 const TABS = ['tong-quan', 'so-sach', 'do-bon', 'nhap-hang'] as const
@@ -126,8 +147,10 @@ export default async function StationInventoryPage({
         orderBy: { fuelType: 'asc' },
       }),
       // Latest-per-tank for the overview; the do-bon tab paginates separately.
+      // A từ chối read is skipped, so the previous good dip becomes the hầm's
+      // Thực tế instead of a misread dip-stick skewing the đối chiếu.
       prisma.tankDipRecord.findMany({
-        where: { stationId: id },
+        where: countableDipWhere(id),
         orderBy: { measuredAt: 'desc' },
         take: 120,
       }),
@@ -155,7 +178,9 @@ export default async function StationInventoryPage({
       tab === 'nhap-hang' ? prisma.fuelImport.count({ where: importsWhere }) : 0,
     ])
 
-  // Dip history page — only fetched on its own tab.
+  // Dip history page — only fetched on its own tab. Nothing is filtered out: a từ
+  // chối read stays listed, badged, because this history is the audit trail of what
+  // was decided and not just of what counts.
   const [dipsPage, dipsTotal] =
     tab === 'do-bon'
       ? await Promise.all([
@@ -208,6 +233,15 @@ export default async function StationInventoryPage({
     [...latestByTank.values()].map((d) => ({ tankCode: d.tankCode, fuelType: d.fuelType })),
     fuelLabel
   )
+
+  // Built once and handed to every row, so the RSC payload carries each list a
+  // single time. `stationFuels` is what this trạm sells — the same narrowing the
+  // nhập hàng forms below draw, and the same one the correct route enforces.
+  const dipTankOptions = buildDipTankOptions(tanks, dipsPage)
+  const dipFuelOptions = stationFuels.map((fuel) => ({
+    value: fuel.fuelType,
+    label: fuel.name,
+  }))
 
   // Signed links for each import's documents so the reviewer can open the
   // originals straight from the list: docs attached to the import itself plus
@@ -365,7 +399,7 @@ export default async function StationInventoryPage({
   const dipPhotos = dipPhotoIds.length
     ? await prisma.shiftPhoto.findMany({
         where: { id: { in: dipPhotoIds } },
-        select: { id: true, storagePath: true },
+        select: { id: true, storagePath: true, aiConfidence: true },
       })
     : []
   const dipPhotoPathUrl = await signedUrlsForPaths(dipPhotos.map((p) => p.storagePath))
@@ -375,6 +409,9 @@ export default async function StationInventoryPage({
       return url ? [[p.id, url] as const] : []
     })
   )
+  // How sure the AI was of this số đo. Read off the photo rather than copied onto
+  // the đo hầm row, so there is only ever one number to trust.
+  const dipConfidence = new Map(dipPhotos.map((p) => [p.id, p.aiConfidence] as const))
 
   // The Hầm and Trụ this Trạm's own pre-printed biên bản lists — resolved here
   // rather than in the form, so the 13 rosters stay out of the browser bundle.
@@ -742,7 +779,7 @@ export default async function StationInventoryPage({
                     <th className="p-2 text-right">{vi.inventory.dipValue}</th>
                     <th className="p-2 text-right">{vi.inventory.actualLiters}</th>
                     <th className="p-2 text-right">{vi.inventory.dipDelta}</th>
-                    <th className="p-2">{vi.inventory.photo}</th>
+                    <th className="p-2">{vi.inventory.status}</th>
                     <th className="p-2"></th>
                   </tr>
                 </thead>
@@ -754,50 +791,32 @@ export default async function StationInventoryPage({
                           Math.round(Number(dip.dipValue))
                         )
                       : null
-                    const url = dip.photoId ? dipPhotoUrl.get(dip.photoId) : undefined
                     return (
-                      <tr key={dip.id} className="border-b">
-                        <td className="p-2">{formatDateTime(dip.measuredAt)}</td>
-                        <td className="p-2 font-medium">{dip.tankCode.replace('HAM_', 'Hầm ')}</td>
-                        <td className="p-2">{dip.fuelType ? fuelLabel(dip.fuelType) : '—'}</td>
-                        <td className="p-2 text-right font-mono">{dip.dipValue.toString()}</td>
-                        <td className="p-2 text-right font-mono">
-                          {lookup?.ok ? (
-                            formatLiters(lookup.liters)
-                          ) : lookup ? (
-                            <span className="text-muted-foreground text-xs">
-                              {refusalLabel[lookup.reason]}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td className="p-2 text-right font-mono">
-                          {dip.deltaFromPrevious?.toString() ?? '—'}
-                        </td>
-                        <td className="p-2">
-                          {url ? (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-primary underline underline-offset-2"
-                            >
-                              {vi.inventory.photo}
-                            </a>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td className="space-x-1 p-2">
-                          {dip.isReserve && (
-                            <StatusBadge label={vi.inventory.reserve} tone="muted" />
-                          )}
-                          {dip.isAnomaly && (
-                            <StatusBadge label={vi.inventory.reserveChanged} tone="danger" />
-                          )}
-                        </td>
-                      </tr>
+                      <DipRow
+                        key={dip.id}
+                        tankOptions={dipTankOptions}
+                        fuelOptions={dipFuelOptions}
+                        data={{
+                          id: dip.id,
+                          measuredAt: formatDateTime(dip.measuredAt),
+                          tankCode: dip.tankCode,
+                          tankLabel: dip.tankCode.replace('HAM_', 'Hầm '),
+                          fuelType: dip.fuelType,
+                          fuelLabel: dip.fuelType ? fuelLabel(dip.fuelType) : '—',
+                          dipValue: dip.dipValue.toString(),
+                          liters: lookup?.ok ? formatLiters(lookup.liters) : null,
+                          litersRefusal:
+                            (lookup && !lookup.ok ? refusalLabel[lookup.reason] : null) ?? null,
+                          delta: dip.deltaFromPrevious?.toString() ?? null,
+                          photoUrl: (dip.photoId ? dipPhotoUrl.get(dip.photoId) : null) ?? null,
+                          confidence: (dip.photoId ? dipConfidence.get(dip.photoId) : null) ?? null,
+                          originalDipValue: dip.originalDipValue?.toString() ?? null,
+                          reviewStatus: dip.reviewStatus,
+                          isReserve: dip.isReserve,
+                          isAnomaly: dip.isAnomaly,
+                          role: user.role,
+                        }}
+                      />
                     )
                   })}
                 </tbody>

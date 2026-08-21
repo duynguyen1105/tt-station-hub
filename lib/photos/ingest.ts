@@ -13,7 +13,8 @@ import { plateListContains } from '@/lib/debts/plate'
 import { resolveStationPlateFuel } from '@/lib/fuels/load-catalogue'
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { parseVnNumber } from '@/lib/imports/bien-ban'
-import { reserveDipExceedsTolerance } from '@/lib/inventory/tank-dip-rule'
+import { countableDipWhere } from '@/lib/inventory/dip-review'
+import { compareDipToPrevious } from '@/lib/inventory/tank-dip-rule'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import {
@@ -686,13 +687,21 @@ export async function ingestTankDip(
     where: { stationId: station.id, tankCode, isActive: true },
   })
   const isReserve = attachedDispensers === 0
+  // The last dip anyone still stands behind. A read kế toán từ chối is skipped:
+  // comparing against it would put a bogus "So với lần trước" on this row and
+  // could fire a false reserve_stock_changed on a hầm that never moved.
   const previous = await prisma.tankDipRecord.findFirst({
-    where: { stationId: station.id, tankCode },
-    orderBy: { measuredAt: 'desc' },
+    where: { ...countableDipWhere(station.id), tankCode },
+    // createdAt breaks a measuredAt tie — two shots of the same stick in one Zalo
+    // burst share a timestamp — so this picks the same neighbour a later
+    // correction of the row would (lib/inventory/apply-dip-correction.ts).
+    orderBy: [{ measuredAt: 'desc' }, { createdAt: 'desc' }],
   })
-  const delta = previous ? dip - Number(previous.dipValue) : null
-  const isAnomaly =
-    isReserve && previous !== null && reserveDipExceedsTolerance(Number(previous.dipValue), dip)
+  const comparison = compareDipToPrevious({
+    dipValue: dip,
+    previousDipValue: previous ? Number(previous.dipValue) : null,
+    isReserve,
+  })
 
   await prisma.tankDipRecord.create({
     data: {
@@ -702,16 +711,24 @@ export async function ingestTankDip(
       capacityK: result.capacityK,
       dipValue: dip,
       isReserve,
-      deltaFromPrevious: delta,
-      isAnomaly,
-      anomalyReason: isAnomaly ? 'reserve_stock_changed' : null,
+      ...comparison,
+      // Every đo hầm waits for a người duyệt, whatever the AI's confidence —
+      // stated here rather than left to the column default so the write site reads
+      // the same as the rule.
+      reviewStatus: 'pending',
       photoId,
       measuredAt: photo.zaloReceivedAt ?? photo.createdAt,
     },
   })
-  if (isAnomaly) {
+  if (comparison.isAnomaly) {
     logger.warn(
-      { stationId: station.id, tankCode, dip, previous: previous?.dipValue?.toString(), delta },
+      {
+        stationId: station.id,
+        tankCode,
+        dip,
+        previous: previous?.dipValue?.toString(),
+        delta: comparison.deltaFromPrevious,
+      },
       'Reserve tank dip moved beyond tolerance'
     )
   }
