@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { ExportPreflightDialog } from '@/components/misa-export/export-preflight-dialog'
+import { ReportFilterForm } from '@/components/misa-export/report-filter-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
@@ -15,7 +16,7 @@ import { vi } from '@/messages/vi'
 export default async function MisaExportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ from?: string; to?: string; page?: string }>
 }) {
   const user = await requireUser()
   // A kế toán is offered the ca of the trạm they are phụ trách of, and the
@@ -23,7 +24,8 @@ export default async function MisaExportPage({
   // rather than whatever survives someone else's more recent ca. Phụ trách of
   // none is the empty table, not an error.
   const stationIds = await reachableStationIds(user)
-  const { where, orderBy, skip, take, page } = misaReportSelection(await searchParams, stationIds)
+  const selection = misaReportSelection(await searchParams, stationIds)
+  const { where, orderBy, skip, take, page } = selection
   // The count rides along with the page it describes: a list that hides rows is
   // the bug this screen had, so what is on screen says how much there is.
   const [shifts, total, stations] = await Promise.all([
@@ -56,8 +58,12 @@ export default async function MisaExportPage({
   const lateDebtShiftIds = shiftIdsWithLateDebtApproval(shifts, reviewedVisits)
 
   const base = '/reports/misa-export'
+  // Paging keeps the filter: stepping to page 2 must not silently widen what
+  // kế toán is looking at. Only the bounds that actually applied are carried.
   const pageHref = (p: number) => {
     const query = new URLSearchParams()
+    if (selection.from) query.set('from', selection.from)
+    if (selection.to) query.set('to', selection.to)
     if (p > 1) query.set('page', String(p))
     const qs = query.toString()
     return qs ? `${base}?${qs}` : base
@@ -69,6 +75,7 @@ export default async function MisaExportPage({
         <h1 className="text-2xl font-semibold">{vi.nav.misaReport}</h1>
         <span className="text-muted-foreground text-sm">{vi.misaExport.reportTotal(total)}</span>
       </div>
+      <ReportFilterForm from={selection.from} to={selection.to} />
       {shifts.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.shifts.empty}</p>
       ) : (
