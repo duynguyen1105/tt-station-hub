@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { ShiftFilterForm } from '@/components/shifts/shift-filter-form'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { matchingDatePreset } from '@/lib/filters/date-presets'
+import { filterHref } from '@/lib/filters/params'
 import { formatDate } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import {
@@ -41,15 +42,8 @@ export default async function StationShiftsPage({
   const base = `/stations/${id}/shifts`
   // Paging keeps the filter: stepping to page 2 must not silently widen what is being
   // looked at. Only the criteria that actually applied are carried.
-  const pageHref = (p: number) => {
-    const query = new URLSearchParams()
-    if (selection.from) query.set('from', selection.from)
-    if (selection.to) query.set('to', selection.to)
-    if (selection.statuses.length) query.set('status', selection.statuses.join(','))
-    if (p > 1) query.set('page', String(p))
-    const qs = query.toString()
-    return qs ? `${base}?${qs}` : base
-  }
+  const pageHref = (p: number) =>
+    filterHref(base, { from: selection.from, to: selection.to, status: selection.statuses }, p)
 
   return (
     <div className="space-y-3">

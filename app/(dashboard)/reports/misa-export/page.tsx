@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
 import { matchingDatePreset } from '@/lib/filters/date-presets'
+import { filterHref } from '@/lib/filters/params'
 import { formatDate } from '@/lib/format'
 import { APPROVED_VISIT_STATUSES } from '@/lib/misa-export/debts-list'
 import {
@@ -71,15 +72,8 @@ export default async function MisaExportPage({
   const base = '/reports/misa-export'
   // Paging keeps the filter: stepping to page 2 must not silently widen what
   // kế toán is looking at. Only the bounds that actually applied are carried.
-  const pageHref = (p: number) => {
-    const query = new URLSearchParams()
-    if (selection.from) query.set('from', selection.from)
-    if (selection.to) query.set('to', selection.to)
-    if (selection.stations.length) query.set('station', selection.stations.join(','))
-    if (p > 1) query.set('page', String(p))
-    const qs = query.toString()
-    return qs ? `${base}?${qs}` : base
-  }
+  const pageHref = (p: number) =>
+    filterHref(base, { from: selection.from, to: selection.to, station: selection.stations }, p)
 
   return (
     <div className="space-y-4">

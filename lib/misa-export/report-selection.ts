@@ -1,7 +1,8 @@
+import { FILTER_PAGE_SIZE, readDayBound, readPage, readPicks } from '@/lib/filters/params'
 import type { Prisma } from '@/lib/generated/prisma/client'
 
 /** Rows per page of the Báo cáo MISA list, following the Hàng tồn histories. */
-export const MISA_REPORT_PAGE_SIZE = 20
+export const MISA_REPORT_PAGE_SIZE = FILTER_PAGE_SIZE
 
 /** What the Báo cáo MISA URL carries, exactly as it carries it — untrusted, all optional. */
 export type MisaReportParams = {
@@ -37,47 +38,6 @@ export type MisaReportSelection = {
   stations: string[]
 }
 
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
-
-/**
- * A ngày bound from the URL as the column stores it: UTC midnight *labelled with*
- * the Vietnam calendar day, since `shifts.shift_date` is a date and not an instant.
- *
- * Parsing at `+07:00` — the way the Hàng tồn import filter parses `importedAt`, which
- * really is an instant — would drag every bound 17:00 into the day before and select
- * the neighbouring ca. Anything that isn't a real `YYYY-MM-DD` is ignored, so a
- * mistyped or stale link still gives kế toán a usable screen. The round-trip is what
- * rejects a ngày that doesn't exist: `Date` rolls 30/02 forward to 02/03 rather than
- * refusing it, and filtering by a ngày nobody typed is worse than not filtering.
- */
-function readDay(raw: string | undefined): Date | undefined {
-  if (!raw || !ISO_DAY.test(raw)) return undefined
-  const day = new Date(`${raw}T00:00:00.000Z`)
-  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== raw) return undefined
-  return day
-}
-
-/**
- * The trạm named in the URL that this viewer can actually reach, in the reachable
- * set's own order.
- *
- * Filtering the reachable set rather than mapping over what the URL asked for is what
- * makes the result canonical: it drops repeats and unreachable identifiers on the way
- * through, so `b,a`, `a,b` and `a,b,a` all come back as the same list and the pager
- * re-serialises one query string rather than whichever one was pasted in.
- */
-function readStations(raw: string | undefined, stationIds: string[]): string[] {
-  if (!raw) return []
-  const asked = new Set(raw.split(','))
-  return stationIds.filter((id) => asked.has(id))
-}
-
-/** The page in the URL, or 1 for anything that isn't a whole number of at least one. */
-function readPage(raw: string | undefined): number {
-  const parsed = Number.parseInt(raw ?? '', 10)
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
-}
-
 /**
  * What the Báo cáo MISA list shows: the chốt'd ca of the trạm this viewer can reach,
  * newest ngày bán first, one page at a time.
@@ -110,9 +70,12 @@ export function misaReportSelection(
   stationIds: string[]
 ): MisaReportSelection {
   const page = readPage(params.page)
-  const from = readDay(params.from)
-  const to = readDay(params.to)
-  const stations = readStations(params.station, stationIds)
+  // `shift_date` is the ngày a ca belongs to — a label, not a moment — so both bounds are
+  // read at UTC midnight. Reading them at +07:00, right for an instant like `imported_at`,
+  // would drag each one 17:00 into the ngày before and select the neighbouring ca.
+  const from = readDayBound(params.from)
+  const to = readDayBound(params.to)
+  const stations = readPicks(params.station, stationIds)
   const shiftDate = {
     ...(from ? { gte: from } : {}),
     ...(to ? { lte: to } : {}),

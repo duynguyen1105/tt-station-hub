@@ -1,11 +1,10 @@
+import { VN_OFFSET_MS } from '@/lib/filters/params'
+
 /** The khoảng ngày a preset button fills in, named after what kế toán calls it. */
 export type DatePreset = 'today' | 'thisMonth' | 'lastMonth'
 
 /** Từ ngày and đến ngày as the date inputs and the URL carry them, `YYYY-MM-DD`. */
 type DatePresetRange = { from: string; to: string }
-
-/** Vietnam runs at GMT+7 all year, so the shift to its calendar ngày is a constant. */
-const VN_OFFSET_MS = 7 * 60 * 60 * 1000
 
 /**
  * The Vietnam calendar ngày a moment falls in, as year / month index / day.

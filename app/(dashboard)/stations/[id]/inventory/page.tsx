@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { matchingDatePreset } from '@/lib/filters/date-presets'
+import { filterHref } from '@/lib/filters/params'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
 import {
   fuelTypeLabeller,
@@ -522,41 +523,37 @@ export default async function StationInventoryPage({
 
   const base = `/stations/${id}/inventory`
   const tabHref = (t: InventoryTab) => (t === 'tong-quan' ? base : `${base}?tab=${t}`)
-  const pageHref = (p: number) => {
-    const query = new URLSearchParams()
-    if (tab !== 'tong-quan') query.set('tab', tab)
-    if (p > 1) query.set('page', String(p))
-    if (applied.from) query.set('from', applied.from)
-    if (applied.to) query.set('to', applied.to)
-    // The Sổ sách nhiên liệu, so paging keeps the filter it was paging through.
-    if (tab === 'so-sach' && ledger.fuels.length) query.set('fuel', ledger.fuels.join(','))
-    // The Đo bồn criteria, for the same reason.
-    if (tab === 'do-bon') {
-      if (dipSel.tanks.length) query.set('tank', dipSel.tanks.join(','))
-      if (dipSel.fuels.length) query.set('fuel', dipSel.fuels.join(','))
-      if (dipSel.statuses.length) query.set('status', dipSel.statuses.join(','))
-    }
-    // The Nhập hàng criteria, for the same reason.
-    if (tab === 'nhap-hang') {
-      if (selection.tanks.length) query.set('tank', selection.tanks.join(','))
-      if (selection.fuels.length) query.set('fuel', selection.fuels.join(','))
-      if (selection.creators.length) query.set('creator', selection.creators.join(','))
-    }
-    const qs = query.toString()
-    return qs ? `${base}?${qs}` : base
-  }
+  const pageHref = (p: number) =>
+    filterHref(
+      base,
+      {
+        ...(tab !== 'tong-quan' ? { tab } : {}),
+        from: applied.from,
+        to: applied.to,
+        // Only the criteria of the tab being paged through: each tab carries its own, and
+        // a criterion left over from another would narrow a list it was never applied to.
+        ...(tab === 'so-sach' ? { fuel: ledger.fuels } : {}),
+        ...(tab === 'do-bon'
+          ? { tank: dipSel.tanks, fuel: dipSel.fuels, status: dipSel.statuses }
+          : {}),
+        ...(tab === 'nhap-hang'
+          ? { tank: selection.tanks, fuel: selection.fuels, creator: selection.creators }
+          : {}),
+      },
+      p
+    )
   // The Xuất Excel link carries the bộ lọc as applied, so the file holds exactly the phiếu
   // nhập this table is showing. Built the same way the pager builds its own URL, rather
   // than by stringing ternaries together, now that there are four criteria to carry.
-  const importExportHref = () => {
-    const query = new URLSearchParams({ stationId: id })
-    if (selection.from) query.set('from', selection.from)
-    if (selection.to) query.set('to', selection.to)
-    if (selection.tanks.length) query.set('tank', selection.tanks.join(','))
-    if (selection.fuels.length) query.set('fuel', selection.fuels.join(','))
-    if (selection.creators.length) query.set('creator', selection.creators.join(','))
-    return `/api/imports/export?${query}`
-  }
+  const importExportHref = () =>
+    filterHref('/api/imports/export', {
+      stationId: id,
+      from: selection.from,
+      to: selection.to,
+      tank: selection.tanks,
+      fuel: selection.fuels,
+      creator: selection.creators,
+    })
   const pager = (total: number) => {
     const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
     if (lastPage <= 1) return null
