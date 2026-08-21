@@ -7,7 +7,11 @@ import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
 import { formatDate } from '@/lib/format'
 import { APPROVED_VISIT_STATUSES } from '@/lib/misa-export/debts-list'
-import { MISA_REPORT_PAGE_SIZE, misaReportSelection } from '@/lib/misa-export/report-selection'
+import {
+  MISA_REPORT_PAGE_SIZE,
+  hasMisaReportFilter,
+  misaReportSelection,
+} from '@/lib/misa-export/report-selection'
 import { prisma } from '@/lib/prisma'
 import { shiftIdsWithLateDebtApproval, visitDateSpan } from '@/lib/shifts/late-debt-approval'
 import { shiftTypeLabel } from '@/lib/ui/status'
@@ -90,7 +94,19 @@ export default async function MisaExportPage({
         stations={stations}
       />
       {shifts.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{vi.shifts.empty}</p>
+        // A filtered list that matched nothing says so: "Chưa có ca nào." would read
+        // as the system holding no ca at all, which is alarming and wrong when the
+        // truth is that the filter is too narrow. A ca is never removed from this
+        // list, so a filter matching none of them is the only thing this can mean.
+        //
+        // It is the total that decides, not this page: a stale link past the last
+        // page of a filter that matched plenty would otherwise deny the count sitting
+        // right above it.
+        <p className="text-muted-foreground text-sm">
+          {total === 0 && hasMisaReportFilter(selection)
+            ? vi.misaExport.reportEmptyFiltered
+            : vi.shifts.empty}
+        </p>
       ) : (
         <table className="w-full text-sm">
           <thead>

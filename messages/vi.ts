@@ -43,6 +43,9 @@ export const vi = {
     fromDate: 'Từ ngày',
     toDate: 'Đến ngày',
     filter: 'Lọc',
+    // Back to everything outstanding in one action, rather than emptying each
+    // control by hand or editing the URL.
+    clearFilter: 'Xóa bộ lọc',
     // The ready-made khoảng ngày, each of which only fills the two ngày inputs above.
     today: 'Hôm nay',
     thisMonth: 'Tháng này',
@@ -262,6 +265,10 @@ export const vi = {
     // The Báo cáo MISA trạm dropdown left as it opens: the screen still answers
     // "what is outstanding everywhere" for anyone with no one trạm in mind.
     reportAllStations: 'Tất cả trạm',
+    // An empty filtered list, which is the filter matching nothing and never the
+    // system holding no ca — a ca is never removed from this list, and exporting
+    // one changes nothing about it.
+    reportEmptyFiltered: 'Không có ca nào khớp bộ lọc.',
     title: 'Xuất chứng từ bán hàng MISA',
     loading: 'Đang kiểm tra dữ liệu...',
     loadError: 'Không kiểm tra được dữ liệu. Vui lòng thử lại.',

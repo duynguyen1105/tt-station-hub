@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { type ReportPreset, reportPresetRange } from '@/lib/misa-export/report-presets'
+import { hasMisaReportFilter } from '@/lib/misa-export/report-selection'
 import { vi } from '@/messages/vi'
 
 /** What "Tất cả trạm" is worth in the dropdown; it leaves no `station` in the URL. */
@@ -41,6 +42,10 @@ const PRESETS: { preset: ReportPreset; label: string }[] = [
  *
  * Hôm nay / Tháng này / Tháng trước write into those same two ngày inputs and do
  * nothing else, so the URL stays the only record of what is on screen.
+ *
+ * Xóa bộ lọc is offered only once something is actually narrowing the list, and puts
+ * kế toán back on the full outstanding list in one action — trạm, both ngày and the
+ * page at once.
  */
 export function ReportFilterForm({
   from,
@@ -56,6 +61,7 @@ export function ReportFilterForm({
   const pathname = usePathname()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [isClearing, startClearing] = useTransition()
   // The trạm is held here rather than read off the form: a Radix select is not a
   // native control, and the value is only ever one this dropdown offered.
   const [selectedStation, setSelectedStation] = useState(station ?? ALL_STATIONS)
@@ -84,6 +90,13 @@ export function ReportFilterForm({
     // starts again at the top of what it matched.
     const qs = params.toString()
     startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname))
+  }
+
+  // Nothing to put back in the URL: the bare path is the unfiltered list, and the
+  // page goes with the filter that made it meaningful. The re-render remounts these
+  // inputs empty, since the page keys this form by the filter it applied.
+  function onClear() {
+    startClearing(() => router.push(pathname))
   }
 
   return (
@@ -123,6 +136,11 @@ export function ReportFilterForm({
       <Button type="submit" size="sm" variant="outline" loading={isPending}>
         {vi.common.filter}
       </Button>
+      {hasMisaReportFilter({ from, to, station }) && (
+        <Button type="button" size="sm" variant="ghost" loading={isClearing} onClick={onClear}>
+          {vi.common.clearFilter}
+        </Button>
+      )}
     </form>
   )
 }
