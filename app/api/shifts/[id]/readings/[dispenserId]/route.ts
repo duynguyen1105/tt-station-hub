@@ -8,6 +8,7 @@ import {
   canCreateReading,
   canEditClosing,
   canEditOpening,
+  isReadingDecided,
 } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
@@ -31,7 +32,9 @@ const readingSchema = z.object({
  * The gates are per field, so this route can never be looser than the cells it
  * serves: an opening still asks `canEditOpening` (admin only), a closing
  * `canEditClosing`, and conjuring a reading no photo backs asks
- * `canCreateReading`. See docs/adr/0001.
+ * `canCreateReading`. A row that already exists and has been duyệt/từ chối is
+ * closed to every role, exactly as the correction endpoints close it. See
+ * docs/adr/0001.
  */
 export async function POST(
   req: NextRequest,
@@ -69,6 +72,7 @@ export async function POST(
     where: { shiftId_dispenserId: { shiftId: id, dispenserId } },
   })
   if (!existing && !canCreateReading(user.role, status)) return forbidden()
+  if (existing && isReadingDecided(existing.reviewStatus)) return forbidden()
 
   // Upsert rather than create: a photo for this Trụ may land between the lookup
   // above and the write, and the compound unique would otherwise collide.

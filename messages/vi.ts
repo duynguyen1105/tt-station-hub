@@ -461,6 +461,7 @@ export const vi = {
     closingTitle: 'Sửa số cuối',
     adminOnly: 'Chỉ admin',
     closingLocked: 'Ca đã chốt — chỉ admin',
+    decisionLocked: 'Đã duyệt/từ chối — không sửa được',
     openingElectronicLabel: 'Chỉ số đầu ca — điện tử',
     closingElectronicLabel: 'Chỉ số cuối ca — điện tử',
     openingMechanicalLabel: 'Chỉ số đầu ca — cơ',

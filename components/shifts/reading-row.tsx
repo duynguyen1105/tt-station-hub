@@ -19,6 +19,7 @@ import {
   canEditClosing,
   canEditOpening,
   canReviewShift,
+  isReadingDecided,
 } from '@/lib/auth/reading-policy'
 import { type ReadingPhoto } from '@/lib/photos/reading-photos'
 import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
@@ -254,8 +255,13 @@ export function ReadingRow({
   const canReverse = data.role === 'admin'
   const approveDisabled = !canAct || busy || alreadyApproved || (alreadyRejected && !canReverse)
   const rejectDisabled = !canAct || busy || alreadyRejected || (alreadyApproved && !canReverse)
-  const adminOpening = canEditOpening(data.role)
-  const mayEditClosing = canEditClosing(data.role, data.shiftStatus)
+  // The call has been made, so the values it was made on are frozen — for the
+  // admin too, otherwise a correction would silently un-decide the row (the
+  // correction endpoints re-derive reviewStatus). Tự duyệt is the AI's own pass,
+  // not a human decision, so it leaves the row editable.
+  const decided = isReadingDecided(data.reviewStatus)
+  const adminOpening = canEditOpening(data.role) && !decided
+  const mayEditClosing = canEditClosing(data.role, data.shiftStatus) && !decided
   const mayReview = canReviewShift(data.role, data.shiftStatus)
   // A viewer sees plain read-only values with no lock hints; the lock cue is for
   // a kế toán who edits closings in the same row but is barred from openings.
@@ -319,7 +325,13 @@ export function ReadingRow({
         <EditableReading
           value={data.openingElectronicReading}
           canEdit={adminOpening}
-          lockHint={showLocks ? vi.correction.adminOnly : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.adminOnly
+              : undefined
+          }
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingElectronicReading', next)}
         />
@@ -328,7 +340,13 @@ export function ReadingRow({
         <EditableReading
           value={data.electronicReading}
           canEdit={mayEditClosing}
-          lockHint={showLocks ? vi.correction.closingLocked : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.closingLocked
+              : undefined
+          }
           confidence={data.electronicConfidence}
           busy={busy}
           leading={
@@ -345,7 +363,13 @@ export function ReadingRow({
         <EditableReading
           value={data.openingMechanicalReading}
           canEdit={adminOpening}
-          lockHint={showLocks ? vi.correction.adminOnly : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.adminOnly
+              : undefined
+          }
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingMechanicalReading', next)}
         />
@@ -354,7 +378,13 @@ export function ReadingRow({
         <EditableReading
           value={data.mechanicalReading}
           canEdit={mayEditClosing}
-          lockHint={showLocks ? vi.correction.closingLocked : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.closingLocked
+              : undefined
+          }
           confidence={data.mechanicalConfidence}
           busy={busy}
           leading={
