@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MISA_REPORT_PAGE_SIZE,
   type MisaReportSelection,
+  hasMisaReportFilter,
   misaReportSelection,
 } from '@/lib/misa-export/report-selection'
 
@@ -252,5 +253,34 @@ describe('misaReportSelection — lọc theo trạm', () => {
     ])
     expect(skip).toBe(40)
     expect(take).toBe(MISA_REPORT_PAGE_SIZE)
+  })
+})
+
+describe('hasMisaReportFilter', () => {
+  it('is false for the list as it opens, so the empty table reads as "no ca yet"', () => {
+    expect(hasMisaReportFilter(misaReportSelection({}, [STATION_A]))).toBe(false)
+  })
+
+  it('is false when only the page is carried, since paging narrows nothing', () => {
+    expect(hasMisaReportFilter(misaReportSelection({ page: '4' }, [STATION_A]))).toBe(false)
+  })
+
+  it('is true for a từ ngày', () => {
+    expect(hasMisaReportFilter(misaReportSelection({ from: '2026-08-01' }, [STATION_A]))).toBe(true)
+  })
+
+  it('is true for an đến ngày', () => {
+    expect(hasMisaReportFilter(misaReportSelection({ to: '2026-08-31' }, [STATION_A]))).toBe(true)
+  })
+
+  it('is true for a trạm', () => {
+    expect(hasMisaReportFilter(misaReportSelection({ station: STATION_A }, [STATION_A]))).toBe(true)
+  })
+
+  it('is false for input that was ignored, so kế toán is not told a filter applied', () => {
+    // A mistyped ngày and a trạm outside the reachable set both narrow nothing;
+    // the screen shows the full list, and must say so.
+    const selection = misaReportSelection({ from: '2026-13-40', station: STATION_B }, [STATION_A])
+    expect(hasMisaReportFilter(selection)).toBe(false)
   })
 })

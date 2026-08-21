@@ -113,3 +113,17 @@ export function misaReportSelection(
     ...(station ? { station } : {}),
   }
 }
+
+/**
+ * Whether kế toán is looking at a narrowed list rather than everything outstanding.
+ *
+ * Read off the filter *as applied*, not as typed, so a mistyped ngày or a trạm the
+ * viewer can't reach — both of which narrow nothing — leaves the screen saying it is
+ * showing the full list, and leaves Xóa bộ lọc out of the way when there is nothing
+ * to clear.
+ */
+export function hasMisaReportFilter(
+  filter: Pick<MisaReportSelection, 'from' | 'to' | 'station'>
+): boolean {
+  return Boolean(filter.from || filter.to || filter.station)
+}
