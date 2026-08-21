@@ -71,3 +71,110 @@ describe('misaReportSelection', () => {
     expect(skip).toBe(199_960)
   })
 })
+
+/** The `shiftDate` window the selection applies, or undefined when it applies none. */
+function dayWindow(params: { from?: string; to?: string }): { gte?: Date; lte?: Date } | undefined {
+  return misaReportSelection(params, [STATION_A]).where.shiftDate as
+    | { gte?: Date; lte?: Date }
+    | undefined
+}
+
+describe('misaReportSelection — lọc theo khoảng ngày', () => {
+  it('selects one Vietnam calendar day and no neighbour', () => {
+    // `shiftDate` is a date column holding UTC midnight *labelled with* the
+    // Vietnam day — not an instant — so 18/08 is exactly 2026-08-18T00:00:00Z,
+    // and the ca of 17/08 and 19/08 sit a whole day either side of it.
+    const window = dayWindow({ from: '2026-08-18', to: '2026-08-18' })
+    expect(window?.gte?.toISOString()).toBe('2026-08-18T00:00:00.000Z')
+    expect(window?.lte?.toISOString()).toBe('2026-08-18T00:00:00.000Z')
+  })
+
+  it('includes both endpoints of a month', () => {
+    // 01/08 → 31/08 holds the ca of both 01/08 and 31/08: `lte` at the ngày
+    // itself, since the stored value is midnight and nothing sits after it.
+    const window = dayWindow({ from: '2026-08-01', to: '2026-08-31' })
+    expect(window?.gte?.toISOString()).toBe('2026-08-01T00:00:00.000Z')
+    expect(window?.lte?.toISOString()).toBe('2026-08-31T00:00:00.000Z')
+  })
+
+  it('reads the bounds at UTC midnight, not at a +07:00 offset', () => {
+    // The Hàng tồn import filter parses `+07:00` because `importedAt` is a true
+    // instant. Copying that here would land the bounds on 17:00 of the ngày
+    // before and select the wrong ca — so both are pinned to UTC midnight on
+    // the nose, whatever ngày they carry.
+    const window = dayWindow({ from: '2026-01-31', to: '2026-12-01' })
+    for (const bound of [window?.gte, window?.lte]) {
+      expect(bound?.getUTCHours()).toBe(0)
+      expect(bound?.getUTCMinutes()).toBe(0)
+      expect(bound?.getUTCSeconds()).toBe(0)
+      expect(bound?.getUTCMilliseconds()).toBe(0)
+    }
+    expect(window?.gte?.toISOString()).toBe('2026-01-31T00:00:00.000Z')
+    expect(window?.lte?.toISOString()).toBe('2026-12-01T00:00:00.000Z')
+  })
+
+  it('leaves the end open when only từ ngày is given', () => {
+    const window = dayWindow({ from: '2026-08-01' })
+    expect(window?.gte?.toISOString()).toBe('2026-08-01T00:00:00.000Z')
+    expect(window?.lte).toBeUndefined()
+  })
+
+  it('leaves the start open when only đến ngày is given', () => {
+    const window = dayWindow({ to: '2026-08-31' })
+    expect(window?.gte).toBeUndefined()
+    expect(window?.lte?.toISOString()).toBe('2026-08-31T00:00:00.000Z')
+  })
+
+  it('constrains the ngày not at all when neither is given', () => {
+    expect(dayWindow({})).toBeUndefined()
+  })
+
+  it('selects nothing for a range that runs backwards, rather than erroring', () => {
+    // Nothing is both on or after 31/08 and on or before 01/08, so a typo comes
+    // back empty and is recoverable by editing the dates.
+    const window = dayWindow({ from: '2026-08-31', to: '2026-08-01' })
+    expect(window?.gte?.getTime()).toBeGreaterThan(window!.lte!.getTime())
+  })
+
+  it.each([
+    ['18/08/2026', 'a Vietnamese-looking date'],
+    ['2026-8-18', 'an unpadded month'],
+    ['2026-13-01', 'a month that does not exist'],
+    ['2026-02-30', 'a day that does not exist'],
+    ['hôm nay', 'words'],
+    ['', 'empty'],
+  ])('ignores %s (%s) rather than erroring the page', (raw) => {
+    const selection = misaReportSelection({ from: raw, to: raw }, [STATION_A])
+    expect(selection.where.shiftDate).toBeUndefined()
+    expect(selection.from).toBeUndefined()
+    expect(selection.to).toBeUndefined()
+  })
+
+  it('ignores a malformed bound while keeping the one that parses', () => {
+    const selection = misaReportSelection({ from: '2026-08-01', to: 'sai' }, [STATION_A])
+    expect(selection.from).toBe('2026-08-01')
+    expect(selection.to).toBeUndefined()
+    expect((selection.where.shiftDate as { lte?: Date }).lte).toBeUndefined()
+  })
+
+  it('hands back the bounds as applied, so the form re-renders what it filtered by', () => {
+    const selection = misaReportSelection({ from: '2026-08-01', to: '2026-08-31' }, [STATION_A])
+    expect(selection.from).toBe('2026-08-01')
+    expect(selection.to).toBe('2026-08-31')
+  })
+
+  it('still selects chốt’d ca of the reachable trạm, newest ngày first, when filtered', () => {
+    const { where, orderBy } = misaReportSelection({ from: '2026-08-01', to: '2026-08-31' }, [
+      STATION_A,
+    ])
+    expect(where.status).toBe('completed')
+    expect(where.stationId).toEqual({ in: [STATION_A] })
+    expect(orderBy[0]).toEqual({ shiftDate: 'desc' })
+  })
+
+  it('pages a filtered list the same way it pages an unfiltered one', () => {
+    const { skip, take } = misaReportSelection({ from: '2026-08-01', page: '2' }, [STATION_A])
+    expect(skip).toBe(20)
+    expect(take).toBe(MISA_REPORT_PAGE_SIZE)
+  })
+})

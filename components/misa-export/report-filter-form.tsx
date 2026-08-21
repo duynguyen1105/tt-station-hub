@@ -2,17 +2,22 @@
 
 import { useTransition } from 'react'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { vi } from '@/messages/vi'
 
 /**
- * The filter still lives in the URL, so it survives a refresh and can be shared.
- * The submit goes through the router rather than a native GET so `isPending`
- * spans the RSC round-trip — the button spins until the new rows commit.
+ * The khoảng ngày kế toán is closing, over the ca's own ngày bán.
+ *
+ * The filter lives in the URL, so a filtered view survives a refresh and can be sent
+ * to a colleague. The submit goes through the router rather than as a native GET so
+ * `isPending` spans the RSC round-trip — the Lọc button stays busy until the new rows
+ * commit. Follows the Hàng tồn import filter, which exists for exactly this reason.
  */
-export function ImportFilterForm({ from, to }: { from?: string; to?: string }) {
+export function ReportFilterForm({ from, to }: { from?: string; to?: string }) {
+  const pathname = usePathname()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -24,30 +29,21 @@ export function ImportFilterForm({ from, to }: { from?: string; to?: string }) {
       // instead of leaving `?from=` behind.
       if (typeof value === 'string' && value) params.set(key, value)
     }
-    startTransition(() => router.push(`?${params}`))
+    // No page: a narrower filter makes page 3 meaningless, so applying one
+    // starts again at the top of what it matched.
+    const qs = params.toString()
+    startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname))
   }
 
   return (
     <form onSubmit={onSubmit} className="flex flex-wrap items-center gap-2 text-sm">
-      {/* Submitting resets the query string; keep the tab (page resets to 1 on purpose). */}
-      <input type="hidden" name="tab" value="nhap-hang" />
       <label className="text-muted-foreground flex items-center gap-1">
         {vi.common.fromDate}
-        <input
-          type="date"
-          name="from"
-          defaultValue={from}
-          className="border-input bg-background h-8 rounded-md border px-2"
-        />
+        <Input type="date" name="from" defaultValue={from} className="h-8 w-auto" />
       </label>
       <label className="text-muted-foreground flex items-center gap-1">
         {vi.common.toDate}
-        <input
-          type="date"
-          name="to"
-          defaultValue={to}
-          className="border-input bg-background h-8 rounded-md border px-2"
-        />
+        <Input type="date" name="to" defaultValue={to} className="h-8 w-auto" />
       </label>
       <Button type="submit" size="sm" variant="outline" loading={isPending}>
         {vi.common.filter}
