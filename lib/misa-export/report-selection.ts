@@ -9,6 +9,8 @@ export type MisaReportParams = {
   from?: string
   /** Đến ngày, as `YYYY-MM-DD`. */
   to?: string
+  /** The one trạm to narrow to, as its identifier; absent means tất cả trạm. */
+  station?: string
   page?: string
 }
 
@@ -28,6 +30,8 @@ export type MisaReportSelection = {
   from?: string
   /** Đến ngày as applied, `YYYY-MM-DD`, or absent — what the form re-renders with. */
   to?: string
+  /** The trạm as applied, or absent for tất cả trạm — what the dropdown re-renders with. */
+  station?: string
 }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -67,6 +71,11 @@ function readPage(raw: string | undefined): number {
  * Trạm access narrows and never widens: the reachable set is the whole of it, and a
  * kế toán phụ trách of no trạm selects nothing rather than everything.
  *
+ * The trạm picked in the URL narrows that set further and can only ever be one of its
+ * members, so hand-editing the query string is not a way to read another trạm's ca: an
+ * identifier outside the reachable set — unreachable, unknown, or not an identifier at
+ * all — is no filter, and the viewer keeps exactly the trạm they already had.
+ *
  * The ngày range is over `shiftDate` — the ngày the fuel was sold and the one MISA
  * books revenue against — so a ca sold on 31/07 and chốt'd on 02/08 belongs to tháng
  * 7, where kế toán closing the period looks for it. Both bounds are inclusive, either
@@ -84,6 +93,7 @@ export function misaReportSelection(
   const page = readPage(params.page)
   const from = readDay(params.from)
   const to = readDay(params.to)
+  const station = params.station && stationIds.includes(params.station) ? params.station : undefined
   const shiftDate = {
     ...(from ? { gte: from } : {}),
     ...(to ? { lte: to } : {}),
@@ -91,7 +101,7 @@ export function misaReportSelection(
   return {
     where: {
       status: 'completed',
-      stationId: { in: stationIds },
+      stationId: { in: station ? [station] : stationIds },
       ...(from || to ? { shiftDate } : {}),
     },
     orderBy: [{ shiftDate: 'desc' }, { id: 'asc' }],
@@ -100,5 +110,6 @@ export function misaReportSelection(
     page,
     ...(from ? { from: params.from } : {}),
     ...(to ? { to: params.to } : {}),
+    ...(station ? { station } : {}),
   }
 }

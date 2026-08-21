@@ -255,6 +255,9 @@ export const vi = {
     // How many ca the Báo cáo MISA list is showing across all its pages, so kế
     // toán can tell whether the period holds what they expect before exporting.
     reportTotal: (count: number) => `${count} ca`,
+    // The Báo cáo MISA trạm dropdown left as it opens: the screen still answers
+    // "what is outstanding everywhere" for anyone with no one trạm in mind.
+    reportAllStations: 'Tất cả trạm',
     title: 'Xuất chứng từ bán hàng MISA',
     loading: 'Đang kiểm tra dữ liệu...',
     loadError: 'Không kiểm tra được dữ liệu. Vui lòng thử lại.',
