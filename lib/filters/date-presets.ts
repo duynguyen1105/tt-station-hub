@@ -1,8 +1,8 @@
 /** The khoảng ngày a preset button fills in, named after what kế toán calls it. */
-export type ReportPreset = 'today' | 'thisMonth' | 'lastMonth'
+export type DatePreset = 'today' | 'thisMonth' | 'lastMonth'
 
 /** Từ ngày and đến ngày as the date inputs and the URL carry them, `YYYY-MM-DD`. */
-type ReportPresetRange = { from: string; to: string }
+type DatePresetRange = { from: string; to: string }
 
 /** Vietnam runs at GMT+7 all year, so the shift to its calendar ngày is a constant. */
 const VN_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -45,7 +45,7 @@ function isoDay(year: number, month: number, day: number): string {
  * Tháng trước is the one that earns its place: kế toán closes the previous month's
  * books in the first days of the new one.
  */
-export function reportPresetRange(preset: ReportPreset, now: Date): ReportPresetRange {
+export function datePresetRange(preset: DatePreset, now: Date): DatePresetRange {
   const { year, month, day } = vietnamDay(now)
   switch (preset) {
     case 'today':
@@ -55,4 +55,30 @@ export function reportPresetRange(preset: ReportPreset, now: Date): ReportPreset
     case 'lastMonth':
       return { from: isoDay(year, month - 1, 1), to: isoDay(year, month, 0) }
   }
+}
+
+/** Every preset, in the order the bộ lọc offers them and this module tries them. */
+const PRESETS: DatePreset[] = ['today', 'thisMonth', 'lastMonth']
+
+/**
+ * Which preset, if any, the khoảng ngày currently applied is exactly.
+ *
+ * A preset is not stored anywhere — it only ever writes the two ngày — so the only way
+ * to tick the one in force, or to name it on a chip, is to work backwards from those
+ * two ngày. Both bounds have to match: a range with one end missing, or one kế toán
+ * typed by hand, is nobody's preset and shows as itself.
+ *
+ * The presets can coincide — on ngày 1 of a month, hôm nay and tháng này share a từ
+ * ngày — so the order above decides, and it is the order kế toán reads them in.
+ */
+export function matchingDatePreset(
+  from: string | undefined,
+  to: string | undefined,
+  now: Date
+): DatePreset | undefined {
+  if (!from || !to) return undefined
+  return PRESETS.find((preset) => {
+    const range = datePresetRange(preset, now)
+    return range.from === from && range.to === to
+  })
 }

@@ -9,6 +9,7 @@ import {
 
 const STATION_A = 'aaaaaaaa-0000-0000-0000-000000000001'
 const STATION_B = 'bbbbbbbb-0000-0000-0000-000000000002'
+const STATION_C = 'cccccccc-0000-0000-0000-000000000003'
 
 describe('misaReportSelection', () => {
   it('selects only chốt’d ca, whatever the page', () => {
@@ -196,6 +197,51 @@ describe('misaReportSelection — lọc theo trạm', () => {
     ).toEqual([STATION_A])
   })
 
+  it('narrows to every trạm kế toán picked, so two neighbouring trạm close in one pass', () => {
+    expect(
+      allowedStations(
+        misaReportSelection({ station: `${STATION_A},${STATION_C}` }, [
+          STATION_A,
+          STATION_B,
+          STATION_C,
+        ])
+      )
+    ).toEqual([STATION_A, STATION_C])
+  })
+
+  it('keeps the reachable trạm of a mixed list and drops the rest', () => {
+    // Half a hand-edited query string is not permission for the other half.
+    expect(
+      allowedStations(misaReportSelection({ station: `${STATION_A},${STATION_B}` }, [STATION_A]))
+    ).toEqual([STATION_A])
+  })
+
+  it('degrades a list of nothing but unreachable trạm to no filter', () => {
+    const selection = misaReportSelection({ station: `${STATION_B},${STATION_C}` }, [STATION_A])
+    expect(allowedStations(selection)).toEqual([STATION_A])
+    expect(selection.stations).toEqual([])
+  })
+
+  it('collapses a repeated trạm, so the same trạm twice is the same filter as once', () => {
+    expect(
+      misaReportSelection({ station: `${STATION_A},${STATION_A}` }, [STATION_A, STATION_B]).stations
+    ).toEqual([STATION_A])
+  })
+
+  it('hands the trạm back in one settled order, however the URL ordered them', () => {
+    // The pager re-serialises this list, so `b,a` and `a,b` must be one query
+    // string rather than two links onto the same rows.
+    expect(
+      misaReportSelection({ station: `${STATION_B},${STATION_A}` }, [STATION_A, STATION_B]).stations
+    ).toEqual([STATION_A, STATION_B])
+  })
+
+  it('ignores the blanks around a stray comma rather than erroring', () => {
+    expect(
+      misaReportSelection({ station: `,${STATION_A},` }, [STATION_A, STATION_B]).stations
+    ).toEqual([STATION_A])
+  })
+
   it('leaves every reachable trạm in when none is picked', () => {
     expect(allowedStations(misaReportSelection({}, [STATION_A, STATION_B]))).toEqual([
       STATION_A,
@@ -219,19 +265,19 @@ describe('misaReportSelection — lọc theo trạm', () => {
   ])('degrades %s (%s) to no trạm filter rather than erroring', (raw) => {
     const selection = misaReportSelection({ station: raw }, [STATION_A, STATION_B])
     expect(allowedStations(selection)).toEqual([STATION_A, STATION_B])
-    expect(selection.station).toBeUndefined()
+    expect(selection.stations).toEqual([])
   })
 
   it('still selects nothing for a kế toán phụ trách of no trạm, whatever the URL says', () => {
     const selection = misaReportSelection({ station: STATION_A }, [])
     expect(allowedStations(selection)).toEqual([])
-    expect(selection.station).toBeUndefined()
+    expect(selection.stations).toEqual([])
   })
 
-  it('hands back the trạm as applied, so the dropdown re-renders what it filtered by', () => {
-    expect(misaReportSelection({ station: STATION_A }, [STATION_A, STATION_B]).station).toBe(
-      STATION_A
-    )
+  it('hands back the trạm as applied, so the bộ lọc re-renders what it filtered by', () => {
+    expect(misaReportSelection({ station: STATION_A }, [STATION_A, STATION_B]).stations).toEqual([
+      STATION_A,
+    ])
   })
 
   it('applies the trạm and the khoảng ngày together', () => {

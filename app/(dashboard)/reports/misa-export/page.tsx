@@ -5,6 +5,7 @@ import { ReportFilterForm } from '@/components/misa-export/report-filter-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
+import { matchingDatePreset } from '@/lib/filters/date-presets'
 import { formatDate } from '@/lib/format'
 import { APPROVED_VISIT_STATUSES } from '@/lib/misa-export/debts-list'
 import {
@@ -44,6 +45,9 @@ export default async function MisaExportPage({
     }),
   ])
   const stationNameById = new Map(stations.map((s) => [s.id, s.name]))
+  // Which preset, if any, these two ngày are — read here rather than in the browser,
+  // so the tick beside Tháng này can't disagree with itself across midnight.
+  const activePreset = matchingDatePreset(selection.from, selection.to, new Date())
   const lastPage = Math.max(1, Math.ceil(total / MISA_REPORT_PAGE_SIZE))
 
   // Which of these ca gained a bán nợ after it was chốt'd — read here, where the ca
@@ -71,7 +75,7 @@ export default async function MisaExportPage({
     const query = new URLSearchParams()
     if (selection.from) query.set('from', selection.from)
     if (selection.to) query.set('to', selection.to)
-    if (selection.station) query.set('station', selection.station)
+    if (selection.stations.length) query.set('station', selection.stations.join(','))
     if (p > 1) query.set('page', String(p))
     const qs = query.toString()
     return qs ? `${base}?${qs}` : base
@@ -83,15 +87,15 @@ export default async function MisaExportPage({
         <h1 className="text-2xl font-semibold">{vi.nav.misaReport}</h1>
         <span className="text-muted-foreground text-sm">{vi.misaExport.reportTotal(total)}</span>
       </div>
-      {/* Keyed by the filter as applied, so the URL stays the one source of truth:
-          stepping Back onto a different filter remounts the inputs onto it rather
-          than leaving a trạm on screen that the rows below are no longer of. */}
+      {/* Not keyed by the filter: applying one must leave the menu where kế toán
+          left it, and the bộ lọc already falls back to what the server applied. The
+          trạm on offer are the same read the table prints names from. */}
       <ReportFilterForm
-        key={`${selection.from ?? ''}|${selection.to ?? ''}|${selection.station ?? ''}`}
         from={selection.from}
         to={selection.to}
-        station={selection.station}
-        stations={stations}
+        stations={selection.stations}
+        stationOptions={stations}
+        activePreset={activePreset}
       />
       {shifts.length === 0 ? (
         // A filtered list that matched nothing says so: "Chưa có ca nào." would read

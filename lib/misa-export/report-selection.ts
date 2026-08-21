@@ -9,7 +9,10 @@ export type MisaReportParams = {
   from?: string
   /** Đến ngày, as `YYYY-MM-DD`. */
   to?: string
-  /** The one trạm to narrow to, as its identifier; absent means tất cả trạm. */
+  /**
+   * The trạm to narrow to, as their identifiers separated by commas. Absent — or
+   * naming nothing the viewer can reach — means tất cả trạm.
+   */
   station?: string
   page?: string
 }
@@ -30,8 +33,8 @@ export type MisaReportSelection = {
   from?: string
   /** Đến ngày as applied, `YYYY-MM-DD`, or absent — what the form re-renders with. */
   to?: string
-  /** The trạm as applied, or absent for tất cả trạm — what the dropdown re-renders with. */
-  station?: string
+  /** The trạm as applied, empty for tất cả trạm — what the bộ lọc re-renders with. */
+  stations: string[]
 }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -54,6 +57,21 @@ function readDay(raw: string | undefined): Date | undefined {
   return day
 }
 
+/**
+ * The trạm named in the URL that this viewer can actually reach, in the reachable
+ * set's own order.
+ *
+ * Filtering the reachable set rather than mapping over what the URL asked for is what
+ * makes the result canonical: it drops repeats and unreachable identifiers on the way
+ * through, so `b,a`, `a,b` and `a,b,a` all come back as the same list and the pager
+ * re-serialises one query string rather than whichever one was pasted in.
+ */
+function readStations(raw: string | undefined, stationIds: string[]): string[] {
+  if (!raw) return []
+  const asked = new Set(raw.split(','))
+  return stationIds.filter((id) => asked.has(id))
+}
+
 /** The page in the URL, or 1 for anything that isn't a whole number of at least one. */
 function readPage(raw: string | undefined): number {
   const parsed = Number.parseInt(raw ?? '', 10)
@@ -71,10 +89,11 @@ function readPage(raw: string | undefined): number {
  * Trạm access narrows and never widens: the reachable set is the whole of it, and a
  * kế toán phụ trách of no trạm selects nothing rather than everything.
  *
- * The trạm picked in the URL narrows that set further and can only ever be one of its
- * members, so hand-editing the query string is not a way to read another trạm's ca: an
- * identifier outside the reachable set — unreachable, unknown, or not an identifier at
- * all — is no filter, and the viewer keeps exactly the trạm they already had.
+ * The trạm picked in the URL narrow that set further and can only ever be members of
+ * it, so hand-editing the query string is not a way to read another trạm's ca:
+ * identifiers outside the reachable set — unreachable, unknown, or not identifiers at
+ * all — are dropped, and a list left holding none of them is no filter at all, leaving
+ * the viewer exactly the trạm they already had.
  *
  * The ngày range is over `shiftDate` — the ngày the fuel was sold and the one MISA
  * books revenue against — so a ca sold on 31/07 and chốt'd on 02/08 belongs to tháng
@@ -93,7 +112,7 @@ export function misaReportSelection(
   const page = readPage(params.page)
   const from = readDay(params.from)
   const to = readDay(params.to)
-  const station = params.station && stationIds.includes(params.station) ? params.station : undefined
+  const stations = readStations(params.station, stationIds)
   const shiftDate = {
     ...(from ? { gte: from } : {}),
     ...(to ? { lte: to } : {}),
@@ -101,29 +120,29 @@ export function misaReportSelection(
   return {
     where: {
       status: 'completed',
-      stationId: { in: station ? [station] : stationIds },
+      stationId: { in: stations.length ? stations : stationIds },
       ...(from || to ? { shiftDate } : {}),
     },
     orderBy: [{ shiftDate: 'desc' }, { id: 'asc' }],
     skip: (page - 1) * MISA_REPORT_PAGE_SIZE,
     take: MISA_REPORT_PAGE_SIZE,
     page,
+    stations,
     ...(from ? { from: params.from } : {}),
     ...(to ? { to: params.to } : {}),
-    ...(station ? { station } : {}),
   }
 }
 
 /**
  * Whether kế toán is looking at a narrowed list rather than everything outstanding.
  *
- * Read off the filter *as applied*, not as typed, so a mistyped ngày or a trạm the
+ * Read off the filter *as applied*, not as typed, so a mistyped ngày or trạm the
  * viewer can't reach — both of which narrow nothing — leaves the screen saying it is
  * showing the full list, and leaves Xóa bộ lọc out of the way when there is nothing
  * to clear.
  */
 export function hasMisaReportFilter(
-  filter: Pick<MisaReportSelection, 'from' | 'to' | 'station'>
+  filter: Pick<MisaReportSelection, 'from' | 'to' | 'stations'>
 ): boolean {
-  return Boolean(filter.from || filter.to || filter.station)
+  return Boolean(filter.from || filter.to || filter.stations.length)
 }

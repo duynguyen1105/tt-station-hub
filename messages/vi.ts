@@ -43,10 +43,15 @@ export const vi = {
     fromDate: 'Từ ngày',
     toDate: 'Đến ngày',
     filter: 'Lọc',
+    // The bộ lọc itself, which is an icon and so needs saying out loud for anyone
+    // who can't see it, and the two things every bộ lọc offers.
+    filterMenu: 'Bộ lọc',
+    filterAll: 'Tất cả',
+    clearDateFilter: 'Bỏ lọc theo ngày',
     // Back to everything outstanding in one action, rather than emptying each
     // control by hand or editing the URL.
     clearFilter: 'Xóa bộ lọc',
-    // The ready-made khoảng ngày, each of which only fills the two ngày inputs above.
+    // The ready-made khoảng ngày, each of which is worth exactly the two ngày it sets.
     today: 'Hôm nay',
     thisMonth: 'Tháng này',
     lastMonth: 'Tháng trước',
@@ -262,9 +267,16 @@ export const vi = {
     // How many ca the Báo cáo MISA list is showing across all its pages, so kế
     // toán can tell whether the period holds what they expect before exporting.
     reportTotal: (count: number) => `${count} ca`,
-    // The Báo cáo MISA trạm dropdown left as it opens: the screen still answers
-    // "what is outstanding everywhere" for anyone with no one trạm in mind.
+    // No trạm ticked in the Báo cáo MISA bộ lọc: the screen still answers "what is
+    // outstanding everywhere" for anyone with no one trạm in mind.
     reportAllStations: 'Tất cả trạm',
+    // The two things kế toán can narrow by, as the bộ lọc menu lists them.
+    reportStation: 'Trạm',
+    reportSaleDate: 'Ngày bán',
+    // More than one trạm ticked, where naming them all would not fit on a chip.
+    reportStationCount: (count: number) => `${count} trạm`,
+    // Dropping the trạm half of the bộ lọc and leaving the ngày, from its chip.
+    reportClearStations: 'Bỏ lọc theo trạm',
     // An empty filtered list, which is the filter matching nothing and never the
     // system holding no ca — a ca is never removed from this list, and exporting
     // one changes nothing about it.
