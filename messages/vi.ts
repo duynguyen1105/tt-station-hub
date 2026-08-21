@@ -743,6 +743,15 @@ export const vi = {
     misaCode: 'Mã MISA',
     fuelType: 'Nhiên liệu',
     empty: 'Chưa có công nợ.',
+    // One box for the three columns worth searching: whoever is looking has exactly
+    // one of them to hand and shouldn't have to say which kind it is first.
+    searchPlaceholder: 'Tìm khách hàng, biển số, mã MISA…',
+    // Most khách hàng sit at 0 đ, so collecting starts by hiding them.
+    onlyOwing: 'Chỉ khách còn nợ',
+    clearSearch: 'Bỏ tìm kiếm',
+    clearOwing: 'Bỏ lọc còn nợ',
+    // A filter that matched nothing, as opposed to a trạm with no khách hàng at all.
+    emptyFiltered: 'Không có khách hàng nào khớp bộ lọc.',
   },
 
   debtReview: {
