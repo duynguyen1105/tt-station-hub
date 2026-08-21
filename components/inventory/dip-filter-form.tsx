@@ -25,17 +25,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { type DatePreset, datePresetRange, matchingDatePreset } from '@/lib/filters/date-presets'
-import { hasImportFilter } from '@/lib/inventory/import-selection'
+import { hasDipFilter } from '@/lib/inventory/dip-selection'
 import { vi } from '@/messages/vi'
 
 /** The tab this bộ lọc belongs to; every URL it pushes has to land back on it. */
-const TAB = 'nhap-hang'
+const TAB = 'do-bon'
 
 /** One thing that may be ticked: what goes in the URL, and what kế toán reads. */
-export type ImportFilterOption = { value: string; label: string }
+export type DipFilterOption = { value: string; label: string }
 
 /** The three multi-select criteria, each held as the values ticked. */
-type Picks = { tanks: string[]; fuels: string[]; creators: string[] }
+type Picks = { tanks: string[]; fuels: string[]; statuses: string[] }
 
 /**
  * The bộ lọc as the screen holds it: what is in the URL, plus the preset those two ngày
@@ -53,7 +53,7 @@ type AppliedFilter = DateFilter & Picks
  */
 function picksLabel(
   picks: string[],
-  options: ImportFilterOption[],
+  options: DipFilterOption[],
   all: string,
   count: (n: number) => string
 ): string {
@@ -66,61 +66,61 @@ function picksLabel(
 }
 
 /**
- * Which phiếu nhập kế toán is looking at: the hầm the xe bồn discharged into, the nhiên
- * liệu, whoever recorded the slip, and the khoảng ngày it was discharged over.
+ * Which đo hầm kế toán is looking at: the hầm, the nhiên liệu, the trạng thái, and the
+ * khoảng ngày the dip-stick was photographed over.
  *
  * A single icon opening a menu of criteria, rather than a row of controls: the bộ lọc is
- * reached now and then and the list is what the screen is for, so the criteria stay folded
- * away until asked for. What *is* applied never hides — it reads as a chip beside the icon,
- * and each chip drops its own criterion without touching the others.
+ * reached now and then and the history is what the screen is for, so the criteria stay
+ * folded away until asked for. What *is* applied never hides — it reads as a chip beside
+ * the icon, and each chip drops its own criterion without touching the others.
  *
  * The filter lives in the URL, so a filtered view survives a refresh and can be sent to a
  * colleague. Every pick applies straight away through the router: there is no Lọc button to
  * remember, and `useOptimistic` ticks the box on the click rather than a round-trip later,
  * so the menu can be worked down at the speed it is read.
  *
- * Ticking none of a criterion means tất cả, including a phiếu đã hủy: this list is the
- * record of every delivery taken, and narrowing it is something kế toán asks for rather
- * than something it does by default.
+ * Ticking none of a criterion means tất cả — including trạng thái, so the unfiltered table
+ * still lists a từ chối read, badged. This history is the audit trail of what was decided,
+ * and narrowing it is something kế toán asks for rather than something it does by default.
  *
  * Every URL this pushes carries the tab, including the one Xóa bộ lọc pushes: the bare path
  * is Tổng quan, and clearing a filter must not move kế toán off the list they are reading.
  * The page is always dropped, since a different filter makes page 3 meaningless.
  */
-export function ImportFilterForm({
+export function DipFilterForm({
   from,
   to,
   tanks,
   fuels,
-  creators,
+  statuses,
   tankOptions,
   fuelOptions,
-  creatorOptions,
+  statusOptions,
   activePreset,
 }: {
   from?: string
   to?: string
   tanks: string[]
   fuels: string[]
-  creators: string[]
-  tankOptions: ImportFilterOption[]
-  fuelOptions: ImportFilterOption[]
-  creatorOptions: ImportFilterOption[]
+  statuses: string[]
+  tankOptions: DipFilterOption[]
+  fuelOptions: DipFilterOption[]
+  statusOptions: DipFilterOption[]
   activePreset?: DatePreset
 }) {
   const pathname = usePathname()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isClearing, startClearing] = useTransition()
-  // What the menu shows while the list behind it is still catching up. It falls back to the
+  // What the menu shows while the table behind it is still catching up. It falls back to the
   // filter the server applied the moment the new rows commit, so a pick the server refused —
-  // a hầm no phiếu nhập names — un-ticks itself.
+  // a hầm this trạm doesn't have — un-ticks itself.
   const [shown, showOptimistic] = useOptimistic<AppliedFilter>({
     from,
     to,
     tanks,
     fuels,
-    creators,
+    statuses,
     preset: activePreset,
   })
 
@@ -132,7 +132,7 @@ export function ImportFilterForm({
     if (next.to) params.set('to', next.to)
     if (next.tanks.length) params.set('tank', next.tanks.join(','))
     if (next.fuels.length) params.set('fuel', next.fuels.join(','))
-    if (next.creators.length) params.set('creator', next.creators.join(','))
+    if (next.statuses.length) params.set('status', next.statuses.join(','))
     start(() => {
       showOptimistic(next)
       router.push(`${pathname}?${params}`)
@@ -142,7 +142,7 @@ export function ImportFilterForm({
   // Ticking a value rebuilds the list from what is on offer rather than appending to it, so
   // what goes in the URL is in one settled order however it was clicked — the same order
   // the server reads it back in.
-  function toggle(key: keyof Picks, options: ImportFilterOption[], value: string, ticked: boolean) {
+  function toggle(key: keyof Picks, options: DipFilterOption[], value: string, ticked: boolean) {
     const next = options
       .filter((option) => (option.value === value ? ticked : shown[key].includes(option.value)))
       .map((option) => option.value)
@@ -171,9 +171,9 @@ export function ImportFilterForm({
     push({ ...shown, from: undefined, to: undefined, preset: undefined }, startTransition)
   }
 
-  // Back to the whole list in one action — every criterion and the page at once.
+  // Back to the whole history in one action — every criterion and the page at once.
   function onClear() {
-    push({ tanks: [], fuels: [], creators: [] }, startClearing)
+    push({ tanks: [], fuels: [], statuses: [] }, startClearing)
   }
 
   // The three multi-selects differ only in their strings, so they are described once and
@@ -196,12 +196,12 @@ export function ImportFilterForm({
       removeLabel: vi.inventory.clearFuelFilter,
     },
     {
-      key: 'creators' as const,
-      name: vi.imports.creator,
-      options: creatorOptions,
-      all: vi.imports.allCreators,
-      count: vi.imports.creatorCount,
-      removeLabel: vi.imports.clearCreatorFilter,
+      key: 'statuses' as const,
+      name: vi.inventory.status,
+      options: statusOptions,
+      all: vi.inventory.allStatuses,
+      count: vi.inventory.statusCount,
+      removeLabel: vi.inventory.clearStatusFilter,
     },
   ]
 
@@ -254,7 +254,7 @@ export function ImportFilterForm({
           ))}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              <span className="flex-1">{vi.imports.importedAt}</span>
+              <span className="flex-1">{vi.inventory.dipMeasuredDate}</span>
               <span className="text-muted-foreground ml-2 truncate text-xs">
                 {dateFilterLabel(shown)}
               </span>
@@ -289,7 +289,7 @@ export function ImportFilterForm({
           onRemove={clearDates}
         />
       )}
-      {hasImportFilter(shown) ? (
+      {hasDipFilter(shown) ? (
         <Button type="button" size="sm" variant="ghost" loading={isClearing} onClick={onClear}>
           {vi.common.clearFilter}
         </Button>
