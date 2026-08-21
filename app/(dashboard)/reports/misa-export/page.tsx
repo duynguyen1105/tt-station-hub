@@ -16,7 +16,7 @@ import { vi } from '@/messages/vi'
 export default async function MisaExportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; page?: string }>
+  searchParams: Promise<{ from?: string; to?: string; station?: string; page?: string }>
 }) {
   const user = await requireUser()
   // A kế toán is offered the ca of the trạm they are phụ trách of, and the
@@ -31,9 +31,12 @@ export default async function MisaExportPage({
   const [shifts, total, stations] = await Promise.all([
     prisma.shift.findMany({ where, orderBy, skip, take }),
     prisma.shift.count({ where }),
+    // Every trạm the viewer can reach, closed ones included — the names the table
+    // prints and, in the same read, the options the trạm dropdown offers.
     prisma.station.findMany({
       where: { id: { in: stationIds } },
       select: { id: true, name: true },
+      orderBy: { name: 'asc' },
     }),
   ])
   const stationNameById = new Map(stations.map((s) => [s.id, s.name]))
@@ -64,6 +67,7 @@ export default async function MisaExportPage({
     const query = new URLSearchParams()
     if (selection.from) query.set('from', selection.from)
     if (selection.to) query.set('to', selection.to)
+    if (selection.station) query.set('station', selection.station)
     if (p > 1) query.set('page', String(p))
     const qs = query.toString()
     return qs ? `${base}?${qs}` : base
@@ -75,7 +79,16 @@ export default async function MisaExportPage({
         <h1 className="text-2xl font-semibold">{vi.nav.misaReport}</h1>
         <span className="text-muted-foreground text-sm">{vi.misaExport.reportTotal(total)}</span>
       </div>
-      <ReportFilterForm from={selection.from} to={selection.to} />
+      {/* Keyed by the filter as applied, so the URL stays the one source of truth:
+          stepping Back onto a different filter remounts the inputs onto it rather
+          than leaving a trạm on screen that the rows below are no longer of. */}
+      <ReportFilterForm
+        key={`${selection.from ?? ''}|${selection.to ?? ''}|${selection.station ?? ''}`}
+        from={selection.from}
+        to={selection.to}
+        station={selection.station}
+        stations={stations}
+      />
       {shifts.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.shifts.empty}</p>
       ) : (

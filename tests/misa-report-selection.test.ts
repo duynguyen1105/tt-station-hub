@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { MISA_REPORT_PAGE_SIZE, misaReportSelection } from '@/lib/misa-export/report-selection'
+import {
+  MISA_REPORT_PAGE_SIZE,
+  type MisaReportSelection,
+  misaReportSelection,
+} from '@/lib/misa-export/report-selection'
 
 const STATION_A = 'aaaaaaaa-0000-0000-0000-000000000001'
 const STATION_B = 'bbbbbbbb-0000-0000-0000-000000000002'
@@ -175,6 +179,78 @@ describe('misaReportSelection — lọc theo khoảng ngày', () => {
   it('pages a filtered list the same way it pages an unfiltered one', () => {
     const { skip, take } = misaReportSelection({ from: '2026-08-01', page: '2' }, [STATION_A])
     expect(skip).toBe(20)
+    expect(take).toBe(MISA_REPORT_PAGE_SIZE)
+  })
+})
+
+/** What `stationId` a selection narrows to, as the list of identifiers it allows. */
+function allowedStations(selection: MisaReportSelection): string[] {
+  return (selection.where.stationId as { in: string[] }).in
+}
+
+describe('misaReportSelection — lọc theo trạm', () => {
+  it('narrows to the one trạm kế toán picked', () => {
+    expect(
+      allowedStations(misaReportSelection({ station: STATION_A }, [STATION_A, STATION_B]))
+    ).toEqual([STATION_A])
+  })
+
+  it('leaves every reachable trạm in when none is picked', () => {
+    expect(allowedStations(misaReportSelection({}, [STATION_A, STATION_B]))).toEqual([
+      STATION_A,
+      STATION_B,
+    ])
+  })
+
+  it('narrows and never widens: a trạm the viewer cannot reach falls back to the reachable set', () => {
+    // Hand-editing the query string must not become a way to read another
+    // trạm's ca, so an identifier outside the reachable set is simply not a
+    // filter — the viewer keeps the trạm they already had.
+    expect(allowedStations(misaReportSelection({ station: STATION_B }, [STATION_A]))).toEqual([
+      STATION_A,
+    ])
+  })
+
+  it.each([
+    ['khong-phai-uuid', 'malformed'],
+    ['', 'empty'],
+    ['00000000-0000-0000-0000-000000000000', 'naming no trạm'],
+  ])('degrades %s (%s) to no trạm filter rather than erroring', (raw) => {
+    const selection = misaReportSelection({ station: raw }, [STATION_A, STATION_B])
+    expect(allowedStations(selection)).toEqual([STATION_A, STATION_B])
+    expect(selection.station).toBeUndefined()
+  })
+
+  it('still selects nothing for a kế toán phụ trách of no trạm, whatever the URL says', () => {
+    const selection = misaReportSelection({ station: STATION_A }, [])
+    expect(allowedStations(selection)).toEqual([])
+    expect(selection.station).toBeUndefined()
+  })
+
+  it('hands back the trạm as applied, so the dropdown re-renders what it filtered by', () => {
+    expect(misaReportSelection({ station: STATION_A }, [STATION_A, STATION_B]).station).toBe(
+      STATION_A
+    )
+  })
+
+  it('applies the trạm and the khoảng ngày together', () => {
+    const selection = misaReportSelection(
+      { station: STATION_A, from: '2026-08-01', to: '2026-08-31' },
+      [STATION_A, STATION_B]
+    )
+    expect(selection.where.stationId).toEqual({ in: [STATION_A] })
+    const window = selection.where.shiftDate as { gte?: Date; lte?: Date }
+    expect(window.gte?.toISOString()).toBe('2026-08-01T00:00:00.000Z')
+    expect(window.lte?.toISOString()).toBe('2026-08-31T00:00:00.000Z')
+    expect(selection.where.status).toBe('completed')
+  })
+
+  it('pages a trạm-filtered list the same way it pages an unfiltered one', () => {
+    const { skip, take } = misaReportSelection({ station: STATION_A, page: '3' }, [
+      STATION_A,
+      STATION_B,
+    ])
+    expect(skip).toBe(40)
     expect(take).toBe(MISA_REPORT_PAGE_SIZE)
   })
 })
