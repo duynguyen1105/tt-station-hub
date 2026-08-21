@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -13,10 +13,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { type ReportPreset, reportPresetRange } from '@/lib/misa-export/report-presets'
 import { vi } from '@/messages/vi'
 
 /** What "Tất cả trạm" is worth in the dropdown; it leaves no `station` in the URL. */
 const ALL_STATIONS = 'all'
+
+/** The khoảng ngày worth a button of their own, in the order kế toán reaches for them. */
+const PRESETS: { preset: ReportPreset; label: string }[] = [
+  { preset: 'today', label: vi.common.today },
+  { preset: 'thisMonth', label: vi.common.thisMonth },
+  { preset: 'lastMonth', label: vi.common.lastMonth },
+]
 
 /**
  * The khoảng ngày kế toán is closing and, optionally, the one trạm whose books they
@@ -30,6 +38,9 @@ const ALL_STATIONS = 'all'
  * The trạm offered are the ones the viewer can reach and no others, closed ones
  * included: this is a historical report, and a trạm that stopped trading in tháng 6
  * still has tháng 6 ca to export.
+ *
+ * Hôm nay / Tháng này / Tháng trước write into those same two ngày inputs and do
+ * nothing else, so the URL stays the only record of what is on screen.
  */
 export function ReportFilterForm({
   from,
@@ -48,6 +59,16 @@ export function ReportFilterForm({
   // The trạm is held here rather than read off the form: a Radix select is not a
   // native control, and the value is only ever one this dropdown offered.
   const [selectedStation, setSelectedStation] = useState(station ?? ALL_STATIONS)
+  const fromRef = useRef<HTMLInputElement>(null)
+  const toRef = useRef<HTMLInputElement>(null)
+
+  // Kế toán reads the ngày a preset wrote, can edit either one, and presses Lọc as
+  // they would for ngày they typed by hand.
+  function applyPreset(preset: ReportPreset) {
+    const range = reportPresetRange(preset, new Date())
+    if (fromRef.current) fromRef.current.value = range.from
+    if (toRef.current) toRef.current.value = range.to
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -69,12 +90,23 @@ export function ReportFilterForm({
     <form onSubmit={onSubmit} className="flex flex-wrap items-center gap-2 text-sm">
       <label className="text-muted-foreground flex items-center gap-1">
         {vi.common.fromDate}
-        <Input type="date" name="from" defaultValue={from} className="h-8 w-auto" />
+        <Input type="date" name="from" ref={fromRef} defaultValue={from} className="h-8 w-auto" />
       </label>
       <label className="text-muted-foreground flex items-center gap-1">
         {vi.common.toDate}
-        <Input type="date" name="to" defaultValue={to} className="h-8 w-auto" />
+        <Input type="date" name="to" ref={toRef} defaultValue={to} className="h-8 w-auto" />
       </label>
+      {PRESETS.map(({ preset, label }) => (
+        <Button
+          key={preset}
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => applyPreset(preset)}
+        >
+          {label}
+        </Button>
+      ))}
       <Select value={selectedStation} onValueChange={setSelectedStation}>
         <SelectTrigger size="sm" className="w-56" aria-label={vi.shifts.station}>
           <SelectValue />

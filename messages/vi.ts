@@ -43,6 +43,10 @@ export const vi = {
     fromDate: 'Từ ngày',
     toDate: 'Đến ngày',
     filter: 'Lọc',
+    // The ready-made khoảng ngày, each of which only fills the two ngày inputs above.
+    today: 'Hôm nay',
+    thisMonth: 'Tháng này',
+    lastMonth: 'Tháng trước',
     pagePrev: '← Trước',
     pageNext: 'Sau →',
     pageOf: 'Trang',
