@@ -249,22 +249,36 @@ model InventoryOpeningBalance {
 // lets consecutive dips be compared: a RESERVE tank (no dispenser draws from it)
 // must stay stable, so a large change between dips is flagged for review.
 model TankDipRecord {
-  id                String   @id @default(uuid()) @db.Uuid
-  stationId         String   @map("station_id") @db.Uuid
-  tankCode          String   @map("tank_code") // normalized, e.g. "HAM_3"
-  fuelType          String?  @map("fuel_type")
-  capacityK         Int?     @map("capacity_k")
-  dipValue          Decimal  @map("dip_value") @db.Decimal(15, 3)
+  id                String    @id @default(uuid()) @db.Uuid
+  stationId         String    @map("station_id") @db.Uuid
+  tankCode          String    @map("tank_code") // normalized, e.g. "HAM_3"
+  fuelType          String?   @map("fuel_type")
+  capacityK         Int?      @map("capacity_k")
+  dipValue          Decimal   @map("dip_value") @db.Decimal(15, 3)
   // Derived at ingest: no active dispenser references this tank.
-  isReserve         Boolean  @default(false) @map("is_reserve")
-  deltaFromPrevious Decimal? @map("delta_from_previous") @db.Decimal(15, 3)
-  isAnomaly         Boolean  @default(false) @map("is_anomaly")
-  anomalyReason     String?  @map("anomaly_reason") // 'reserve_stock_changed'
-  photoId           String?  @map("photo_id") @db.Uuid
-  measuredAt        DateTime @map("measured_at")
-  createdAt         DateTime @default(now()) @map("created_at")
+  isReserve         Boolean   @default(false) @map("is_reserve")
+  deltaFromPrevious Decimal?  @map("delta_from_previous") @db.Decimal(15, 3)
+  isAnomaly         Boolean   @default(false) @map("is_anomaly")
+  anomalyReason     String?   @map("anomaly_reason") // 'reserve_stock_changed'
+  photoId           String?   @map("photo_id") @db.Uuid
+  measuredAt        DateTime  @map("measured_at")
+  // A đo hầm is an AI read of a dip-stick photo, so it waits for a người duyệt
+  // like every other AI-read number. Only a từ chối read stops counting as the
+  // hầm's tồn thực tế — a chờ duyệt one still does, or Tổng quan would go stale
+  // between the Zalo photo and the click. The AI's confidence is NOT copied here:
+  // it lives on the ShiftPhoto this row points at, so one copy cannot disagree.
+  reviewStatus      String    @default("pending") @map("review_status") // 'pending'|'approved'|'rejected'
+  // What the AI read, kept from the first correction that actually moved it — the
+  // same idea as ShiftReading.originalElectronicReading. Null means nobody has
+  // retyped this dip, which is also what tells the row whether the AI's
+  // confidence still describes the number standing in the Số đo column.
+  originalDipValue  Decimal?  @map("original_dip_value") @db.Decimal(15, 3)
+  reviewedBy        String?   @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime? @map("reviewed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   @@index([stationId, tankCode, measuredAt(sort: Desc)], map: "idx_tank_dips_tank")
+  @@index([reviewStatus], map: "idx_tank_dips_review")
   @@map("tank_dip_records")
 }
 

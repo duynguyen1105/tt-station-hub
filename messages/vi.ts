@@ -483,6 +483,13 @@ export const vi = {
     tankDips: 'Đo hầm (barem)',
     tank: 'Hầm',
     dipValue: 'Số đo',
+    dipCorrected: 'Đã cập nhật số đo bồn.',
+    tankCorrected: 'Đã cập nhật hầm.',
+    fuelCorrected: 'Đã cập nhật nhiên liệu.',
+    invalidDipValue: 'Số đo không hợp lệ.',
+    // Refused because this trạm has no such hầm — the twin of notStationFuel for
+    // the other half of a hầm plate.
+    notStationTank: (tank: string) => `Trạm này không có ${tank}.`,
     dipDelta: 'So với lần trước',
     measuredAt: 'Đo lúc',
     reserve: 'Hầm dự phòng',
@@ -521,6 +528,10 @@ export const vi = {
     dayClosing: 'Tồn cuối ngày',
     dipHistory: 'Lịch sử đo bồn',
     photo: 'Ảnh',
+    // Duyệt / từ chối số đo bồn — nhãn trạng thái dùng chung vi.reviewStatus.
+    status: 'Trạng thái',
+    dipApproved: 'Đã duyệt số đo bồn.',
+    dipRejected: 'Đã từ chối số đo bồn.',
     // Sub-tabs of the Hàng tồn page — the histories grow daily, so each gets
     // its own tab with pagination instead of one ever-longer page.
     tabOverview: 'Tổng quan',
