@@ -40,6 +40,23 @@ export const vi = {
     approve: 'Duyệt',
     reject: 'Từ chối',
     correct: 'Sửa số',
+    fromDate: 'Từ ngày',
+    toDate: 'Đến ngày',
+    // The bộ lọc itself, which is an icon and so needs saying out loud for anyone
+    // who can't see it, and the two things every bộ lọc offers.
+    filterMenu: 'Bộ lọc',
+    filterAll: 'Tất cả',
+    clearDateFilter: 'Bỏ lọc theo ngày',
+    // Back to everything outstanding in one action, rather than emptying each
+    // control by hand or editing the URL.
+    clearFilter: 'Xóa bộ lọc',
+    // The ready-made khoảng ngày, each of which is worth exactly the two ngày it sets.
+    today: 'Hôm nay',
+    thisMonth: 'Tháng này',
+    lastMonth: 'Tháng trước',
+    pagePrev: '← Trước',
+    pageNext: 'Sau →',
+    pageOf: 'Trang',
   },
 
   auth: {
@@ -246,6 +263,23 @@ export const vi = {
 
   misaExport: {
     action: 'Xuất MISA',
+    // How many ca the Báo cáo MISA list is showing across all its pages, so kế
+    // toán can tell whether the period holds what they expect before exporting.
+    reportTotal: (count: number) => `${count} ca`,
+    // No trạm ticked in the Báo cáo MISA bộ lọc: the screen still answers "what is
+    // outstanding everywhere" for anyone with no one trạm in mind.
+    reportAllStations: 'Tất cả trạm',
+    // The two things kế toán can narrow by, as the bộ lọc menu lists them.
+    reportStation: 'Trạm',
+    reportSaleDate: 'Ngày bán',
+    // More than one trạm ticked, where naming them all would not fit on a chip.
+    reportStationCount: (count: number) => `${count} trạm`,
+    // Dropping the trạm half of the bộ lọc and leaving the ngày, from its chip.
+    reportClearStations: 'Bỏ lọc theo trạm',
+    // An empty filtered list, which is the filter matching nothing and never the
+    // system holding no ca — a ca is never removed from this list, and exporting
+    // one changes nothing about it.
+    reportEmptyFiltered: 'Không có ca nào khớp bộ lọc.',
     title: 'Xuất chứng từ bán hàng MISA',
     loading: 'Đang kiểm tra dữ liệu...',
     loadError: 'Không kiểm tra được dữ liệu. Vui lòng thử lại.',
@@ -401,6 +435,16 @@ export const vi = {
     // joins it afterwards and the MISA file already downloaded no longer matches.
     lateDebtApproval: 'Có bán nợ duyệt sau khi chốt — cần xuất lại MISA.',
     empty: 'Chưa có ca nào.',
+    // How many ca the Chốt ca list holds across all its pages, so the page on screen
+    // never has to stand for the whole list.
+    total: (count: number) => `${count} ca`,
+    // More than one trạng thái ticked, where naming them all would not fit on a chip.
+    statusCount: (count: number) => `${count} trạng thái`,
+    // Dropping the trạng thái half of the bộ lọc and leaving the ngày, from its chip.
+    clearStatuses: 'Bỏ lọc theo trạng thái',
+    // An empty filtered list, which is the filter matching nothing and never the trạm
+    // holding no ca — a ca is never removed from this list once it exists.
+    emptyFiltered: 'Không có ca nào khớp bộ lọc.',
     noReadings: 'Chưa có số liệu cho ca này.',
     viewDetail: 'Xem / Duyệt',
     debtsSectionTitle: 'Bán nợ trong ca',
@@ -426,6 +470,7 @@ export const vi = {
     closingTitle: 'Sửa số cuối',
     adminOnly: 'Chỉ admin',
     closingLocked: 'Ca đã chốt — chỉ admin',
+    decisionLocked: 'Đã duyệt/từ chối — không sửa được',
     openingElectronicLabel: 'Chỉ số đầu ca — điện tử',
     closingElectronicLabel: 'Chỉ số cuối ca — điện tử',
     openingMechanicalLabel: 'Chỉ số đầu ca — cơ',
@@ -447,11 +492,22 @@ export const vi = {
     tankDips: 'Đo hầm (barem)',
     tank: 'Hầm',
     dipValue: 'Số đo',
+    dipCorrected: 'Đã cập nhật số đo bồn.',
+    tankCorrected: 'Đã cập nhật hầm.',
+    fuelCorrected: 'Đã cập nhật nhiên liệu.',
+    invalidDipValue: 'Số đo không hợp lệ.',
+    // Refused because this trạm has no such hầm — the twin of notStationFuel for
+    // the other half of a hầm plate.
+    notStationTank: (tank: string) => `Trạm này không có ${tank}.`,
     dipDelta: 'So với lần trước',
     measuredAt: 'Đo lúc',
     reserve: 'Hầm dự phòng',
     reserveChanged: 'Hầm dự phòng bị chênh lệch bất thường',
     noDips: 'Chưa có lần đo hầm nào.',
+    // A filtered history that matched nothing says so: "Chưa có lần đo hầm nào." would read
+    // as nobody ever having measured this trạm, which is wrong and alarming when the truth
+    // is only that the bộ lọc is too narrow.
+    noDipsFiltered: 'Không có lần đo hầm nào khớp bộ lọc.',
     importedToday: 'Nhập hôm nay',
     soldToday: 'Bán hôm nay',
     // Hàng tồn 2 phần: lý thuyết (movements) vs thực tế (đo bồn qua Barem)
@@ -479,21 +535,38 @@ export const vi = {
     bookAdjusted: 'Điều chỉnh',
     bookStock: 'Tồn sổ sách',
     bookSoldNote: 'Xuất ra = tổng bán theo chốt ca (đã bao gồm công nợ).',
-    dailyLedgerTitle: 'Sổ sách theo ngày',
     date: 'Ngày',
     dayOpening: 'Tồn đầu ngày',
     dayClosing: 'Tồn cuối ngày',
-    dipHistory: 'Lịch sử đo bồn',
+    // An empty filtered sổ sách, which is the filter matching nothing and never the
+    // trạm holding no hàng — that case is `empty`, and reads quite differently. The
+    // nhiên liệu half of this bộ lọc shares `allFuels` / `fuelCount` / `clearFuelFilter`
+    // with Lịch sử đo bồn below: same criterion, same page, same words.
+    ledgerEmptyFiltered: 'Không có ngày nào khớp bộ lọc.',
     photo: 'Ảnh',
+    // Duyệt / từ chối số đo bồn — nhãn trạng thái dùng chung vi.reviewStatus.
+    status: 'Trạng thái',
+    dipApproved: 'Đã duyệt số đo bồn.',
+    dipRejected: 'Đã từ chối số đo bồn.',
     // Sub-tabs of the Hàng tồn page — the histories grow daily, so each gets
     // its own tab with pagination instead of one ever-longer page.
     tabOverview: 'Tổng quan',
     tabLedger: 'Sổ sách theo ngày',
-    tabDips: 'Lịch sử đo bồn',
-    tabImports: 'Lịch sử nhập hàng',
-    pagePrev: '← Trước',
-    pageNext: 'Sau →',
-    pageOf: 'Trang',
+    tabDips: 'Đo bồn',
+    tabImports: 'Nhập hàng',
+    // Bộ lọc của Lịch sử đo bồn. Each criterion needs the same four things: its name, what
+    // "tất cả" reads as, how several of them read at once, and how to drop it from a chip.
+    // Nhãn trạng thái are vi.reviewStatus's — the same ones the badge in the row shows.
+    dipMeasuredDate: 'Ngày đo',
+    allTanks: 'Tất cả hầm',
+    allFuels: 'Tất cả nhiên liệu',
+    allStatuses: 'Tất cả trạng thái',
+    tankCount: (count: number) => `${count} hầm`,
+    fuelCount: (count: number) => `${count} nhiên liệu`,
+    statusCount: (count: number) => `${count} trạng thái`,
+    clearTankFilter: 'Bỏ lọc theo hầm',
+    clearFuelFilter: 'Bỏ lọc theo nhiên liệu',
+    clearStatusFilter: 'Bỏ lọc theo trạng thái',
   },
 
   imports: {
@@ -511,11 +584,11 @@ export const vi = {
     truckPlate: 'Xe bồn',
     note: 'Ghi chú',
     documents: 'Chứng từ đính kèm',
-    recent: 'Lịch sử nhập hàng',
-    fromDate: 'Từ ngày',
-    toDate: 'Đến ngày',
-    filter: 'Lọc',
     none: 'Chưa có phiếu nhập nào.',
+    // A filtered list that matched nothing says so: "Chưa có phiếu nhập nào." would
+    // read as the trạm never having taken a delivery, which is wrong and alarming
+    // when the truth is only that the khoảng ngày is too narrow.
+    noneFiltered: 'Không có phiếu nhập nào khớp bộ lọc.',
     exportExcel: 'Xuất Excel',
     canceled: 'Đã hủy',
     cancelAction: 'Hủy phiếu',
@@ -526,6 +599,11 @@ export const vi = {
     invalidLiters: 'Vui lòng nhập số lít hợp lệ.',
     selectDate: 'Vui lòng chọn ngày giờ nhập.',
     creator: 'Người nhập',
+    // Bộ lọc của Lịch sử nhập hàng. Hầm and nhiên liệu borrow vi.inventory's words — same
+    // criterion, same page, same page's other bộ lọc — so only người nhập needs its own.
+    allCreators: 'Tất cả người nhập',
+    creatorCount: (count: number) => `${count} người nhập`,
+    clearCreatorFilter: 'Bỏ lọc theo người nhập',
     // Biên bản giao nhận wizard
     bienBanTitle: 'Biên bản giao nhận xăng dầu',
     step1: 'Bước 1 — Hình biên bản',
@@ -665,6 +743,15 @@ export const vi = {
     misaCode: 'Mã MISA',
     fuelType: 'Nhiên liệu',
     empty: 'Chưa có công nợ.',
+    // One box for the three columns worth searching: whoever is looking has exactly
+    // one of them to hand and shouldn't have to say which kind it is first.
+    searchPlaceholder: 'Tìm khách hàng, biển số, mã MISA…',
+    // Most khách hàng sit at 0 đ, so collecting starts by hiding them.
+    onlyOwing: 'Chỉ khách còn nợ',
+    clearSearch: 'Bỏ tìm kiếm',
+    clearOwing: 'Bỏ lọc còn nợ',
+    // A filter that matched nothing, as opposed to a trạm with no khách hàng at all.
+    emptyFiltered: 'Không có khách hàng nào khớp bộ lọc.',
   },
 
   debtReview: {

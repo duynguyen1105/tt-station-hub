@@ -1,24 +1,23 @@
 'use client'
 
-import { LockIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { type ReactNode, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
 import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
+import { EditableReading } from '@/components/shared/editable-reading'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type AppRole } from '@/lib/auth/permissions'
 import {
   type ShiftStatus,
   canEditClosing,
   canEditOpening,
   canReviewShift,
+  isReadingDecided,
 } from '@/lib/auth/reading-policy'
 import { type ReadingPhoto } from '@/lib/photos/reading-photos'
 import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
@@ -66,125 +65,6 @@ async function postAction(url: string, body?: unknown): Promise<ActionResult> {
     .then((data) => (data as { error?: string }).error)
     .catch(() => undefined)
   return { ok: false, error }
-}
-
-/**
- * One meter-reading value cell. When `canEdit`, clicking the number turns it into
- * an inline input that saves on Enter/blur and reverts on Escape. When editing is
- * denied but `lockHint` is set (a kế toán on an opening or a chốt-locked closing),
- * a lock icon + tooltip explains why; a viewer just sees the plain value.
- */
-function EditableReading({
-  value,
-  canEdit,
-  lockHint,
-  onSave,
-  busy,
-  leading,
-  confidence,
-}: {
-  value: string | null
-  canEdit: boolean
-  lockHint?: string
-  onSave: (next: string) => Promise<boolean>
-  busy: boolean
-  leading?: ReactNode
-  confidence?: number | null
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-  // The just-typed value, shown immediately so the user doesn't wait for the
-  // server round-trip + router.refresh. Reverted if the save fails, and dropped
-  // the moment the fresh `value` prop arrives (adjust-state-during-render).
-  const [optimistic, setOptimistic] = useState<string | null>(null)
-  const [prevValue, setPrevValue] = useState(value)
-  if (value !== prevValue) {
-    setPrevValue(value)
-    setOptimistic(null)
-  }
-  const shown = optimistic ?? value
-
-  function begin() {
-    setDraft(shown ?? '')
-    setEditing(true)
-  }
-
-  async function commit() {
-    setEditing(false)
-    const next = draft
-    if (next === (shown ?? '')) return
-    setOptimistic(next)
-    const ok = await onSave(next)
-    if (!ok) setOptimistic(null)
-  }
-
-  const confidenceSuffix =
-    confidence !== null && confidence !== undefined ? (
-      <span className="text-muted-foreground ml-1 text-xs">({confidence}%)</span>
-    ) : null
-
-  let body: ReactNode
-  if (editing) {
-    body = (
-      <Input
-        className="h-7 w-24"
-        value={draft}
-        inputMode="decimal"
-        autoFocus
-        disabled={busy}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            void commit()
-          } else if (e.key === 'Escape') {
-            e.preventDefault()
-            setEditing(false)
-          }
-        }}
-      />
-    )
-  } else if (canEdit) {
-    body = (
-      <button
-        type="button"
-        onClick={begin}
-        disabled={busy}
-        className="hover:border-input hover:bg-accent cursor-pointer rounded-md border border-transparent px-1.5 py-0.5 transition-colors"
-      >
-        {shown ?? '—'}
-        {confidenceSuffix}
-      </button>
-    )
-  } else if (lockHint) {
-    body = (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="text-muted-foreground inline-flex items-center gap-1">
-            <LockIcon className="size-3" />
-            {shown ?? '—'}
-            {confidenceSuffix}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>{lockHint}</TooltipContent>
-      </Tooltip>
-    )
-  } else {
-    body = (
-      <span>
-        {shown ?? '—'}
-        {confidenceSuffix}
-      </span>
-    )
-  }
-
-  return (
-    <span className="inline-flex items-center gap-2">
-      {leading}
-      {body}
-    </span>
-  )
 }
 
 /**
@@ -254,8 +134,13 @@ export function ReadingRow({
   const canReverse = data.role === 'admin'
   const approveDisabled = !canAct || busy || alreadyApproved || (alreadyRejected && !canReverse)
   const rejectDisabled = !canAct || busy || alreadyRejected || (alreadyApproved && !canReverse)
-  const adminOpening = canEditOpening(data.role)
-  const mayEditClosing = canEditClosing(data.role, data.shiftStatus)
+  // The call has been made, so the values it was made on are frozen — for the
+  // admin too, otherwise a correction would silently un-decide the row (the
+  // correction endpoints re-derive reviewStatus). Tự duyệt is the AI's own pass,
+  // not a human decision, so it leaves the row editable.
+  const decided = isReadingDecided(data.reviewStatus)
+  const adminOpening = canEditOpening(data.role) && !decided
+  const mayEditClosing = canEditClosing(data.role, data.shiftStatus) && !decided
   const mayReview = canReviewShift(data.role, data.shiftStatus)
   // A viewer sees plain read-only values with no lock hints; the lock cue is for
   // a kế toán who edits closings in the same row but is barred from openings.
@@ -319,7 +204,13 @@ export function ReadingRow({
         <EditableReading
           value={data.openingElectronicReading}
           canEdit={adminOpening}
-          lockHint={showLocks ? vi.correction.adminOnly : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.adminOnly
+              : undefined
+          }
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingElectronicReading', next)}
         />
@@ -328,7 +219,13 @@ export function ReadingRow({
         <EditableReading
           value={data.electronicReading}
           canEdit={mayEditClosing}
-          lockHint={showLocks ? vi.correction.closingLocked : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.closingLocked
+              : undefined
+          }
           confidence={data.electronicConfidence}
           busy={busy}
           leading={
@@ -345,7 +242,13 @@ export function ReadingRow({
         <EditableReading
           value={data.openingMechanicalReading}
           canEdit={adminOpening}
-          lockHint={showLocks ? vi.correction.adminOnly : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.adminOnly
+              : undefined
+          }
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingMechanicalReading', next)}
         />
@@ -354,7 +257,13 @@ export function ReadingRow({
         <EditableReading
           value={data.mechanicalReading}
           canEdit={mayEditClosing}
-          lockHint={showLocks ? vi.correction.closingLocked : undefined}
+          lockHint={
+            showLocks
+              ? decided
+                ? vi.correction.decisionLocked
+                : vi.correction.closingLocked
+              : undefined
+          }
           confidence={data.mechanicalConfidence}
           busy={busy}
           leading={

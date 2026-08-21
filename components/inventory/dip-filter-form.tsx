@@ -5,44 +5,44 @@ import type { DatePreset } from '@/lib/filters/date-presets'
 import { vi } from '@/messages/vi'
 
 /** The tab this bộ lọc belongs to; every URL it pushes has to land back on it. */
-const TAB = 'nhap-hang'
+const TAB = 'do-bon'
 
 /**
- * Which phiếu nhập kế toán is looking at: the hầm the xe bồn discharged into, the nhiên
- * liệu, whoever recorded the slip, and the khoảng ngày it was discharged over.
+ * Which đo hầm kế toán is looking at: the hầm, the nhiên liệu, the trạng thái, and the
+ * khoảng ngày the dip-stick was photographed over.
  *
- * Ticking none of a criterion means tất cả, including a phiếu đã hủy: this list is the
- * record of every delivery taken, and narrowing it is something kế toán asks for rather
- * than something it does by default.
+ * Ticking none of a criterion means tất cả — including trạng thái, so the unfiltered table
+ * still lists a từ chối read, badged. This history is the audit trail of what was decided,
+ * and narrowing it is something kế toán asks for rather than something it does by default.
  *
  * Every URL this pushes carries the tab, including the one Xóa bộ lọc pushes: the bare
- * path is Tổng quan, and clearing a filter must not move kế toán off the list they are
+ * path is Tổng quan, and clearing a filter must not move kế toán off the history they are
  * reading.
  *
  * The menu itself is `FilterMenu`, which every bộ lọc in the app shares — the folded
  * criteria, the chips, the ngày presets and Xóa bộ lọc all live there. What is left here
- * is only what Lịch sử nhập hàng knows: which three criteria there are, what kế toán
- * calls them, which parameter each rides in, and that the URL has to keep the tab.
+ * is only what Lịch sử đo bồn knows: which three criteria there are, what kế toán calls
+ * them, which parameter each rides in, and that the URL has to keep the tab.
  */
-export function ImportFilterForm({
+export function DipFilterForm({
   from,
   to,
   tanks,
   fuels,
-  creators,
+  statuses,
   tankOptions,
   fuelOptions,
-  creatorOptions,
+  statusOptions,
   activePreset,
 }: {
   from?: string
   to?: string
   tanks: string[]
   fuels: string[]
-  creators: string[]
+  statuses: string[]
   tankOptions: FilterOption[]
   fuelOptions: FilterOption[]
-  creatorOptions: FilterOption[]
+  statusOptions: FilterOption[]
   activePreset?: DatePreset
 }) {
   return (
@@ -50,7 +50,7 @@ export function ImportFilterForm({
       from={from}
       to={to}
       activePreset={activePreset}
-      dateName={vi.imports.importedAt}
+      dateName={vi.inventory.dipMeasuredDate}
       fixedParams={{ tab: TAB }}
       criteria={[
         {
@@ -72,13 +72,13 @@ export function ImportFilterForm({
           removeLabel: vi.inventory.clearFuelFilter,
         },
         {
-          param: 'creator',
-          name: vi.imports.creator,
-          options: creatorOptions,
-          picks: creators,
-          all: vi.imports.allCreators,
-          count: vi.imports.creatorCount,
-          removeLabel: vi.imports.clearCreatorFilter,
+          param: 'status',
+          name: vi.inventory.status,
+          options: statusOptions,
+          picks: statuses,
+          all: vi.inventory.allStatuses,
+          count: vi.inventory.statusCount,
+          removeLabel: vi.inventory.clearStatusFilter,
         },
       ]}
     />

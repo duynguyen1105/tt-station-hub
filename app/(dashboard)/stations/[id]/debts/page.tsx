@@ -1,17 +1,31 @@
 import { CustomerForm } from '@/components/debts/customer-form'
-import { PaymentForm } from '@/components/debts/payment-form'
-import { StatusBadge } from '@/components/shared/status-badge'
+import { CustomerList } from '@/components/debts/customer-list'
 import { Button } from '@/components/ui/button'
 import { requireStationAccess } from '@/lib/auth/station-guard'
-import { formatVND } from '@/lib/format'
+import { debtCustomerFilter } from '@/lib/debts/customer-search'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
-export default async function StationDebtsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StationDebtsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ q?: string; owing?: string }>
+}) {
   const { id } = await params
   await requireStationAccess(id)
   const customers = await prisma.debtCustomer.findMany({
     where: { stationId: id, isActive: true },
+    // Only what the table prints: everything selected here crosses to the browser.
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      misaCode: true,
+      knownPlates: true,
+      currentBalance: true,
+    },
     orderBy: { name: 'asc' },
   })
 
@@ -22,6 +36,8 @@ export default async function StationDebtsPage({ params }: { params: Promise<{ i
     />
   )
 
+  // A trạm with no khách hàng at all has nothing to filter, so it keeps its own
+  // empty state rather than reading as a bộ lọc that matched nothing.
   if (customers.length === 0) {
     return (
       <div className="space-y-3">
@@ -34,57 +50,15 @@ export default async function StationDebtsPage({ params }: { params: Promise<{ i
   return (
     <div className="space-y-3">
       <div className="flex justify-end">{addButton}</div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-muted-foreground border-b text-left">
-            <th className="p-2">{vi.debts.customer}</th>
-            <th className="p-2">{vi.debts.plate}</th>
-            <th className="p-2">{vi.debts.misaCode}</th>
-            <th className="p-2 text-right">{vi.debts.balance}</th>
-            <th className="p-2"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {customers.map((customer) => (
-            <tr key={customer.id} className="border-b">
-              <td className="p-2">
-                <div className="font-medium">{customer.name}</div>
-                {customer.phone && (
-                  <div className="text-muted-foreground text-xs">{customer.phone}</div>
-                )}
-              </td>
-              <td className="p-2 font-mono text-xs">
-                {customer.knownPlates.length ? customer.knownPlates.join(', ') : '—'}
-              </td>
-              <td className="p-2 font-mono">
-                {customer.misaCode ?? (
-                  <StatusBadge label={vi.debtReview.missingCode} tone="danger" />
-                )}
-              </td>
-              <td className="p-2 text-right font-mono">
-                {formatVND(Number(customer.currentBalance))}
-              </td>
-              <td className="p-2 text-right whitespace-nowrap">
-                <CustomerForm
-                  customer={{
-                    id: customer.id,
-                    name: customer.name,
-                    phone: customer.phone,
-                    misaCode: customer.misaCode,
-                    knownPlates: customer.knownPlates,
-                  }}
-                  trigger={
-                    <Button size="sm" variant="ghost">
-                      {vi.common.edit}
-                    </Button>
-                  }
-                />
-                <PaymentForm customerId={customer.id} customerName={customer.name} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <CustomerList
+        // Dư nợ is a Decimal, which doesn't cross to a client component — and the
+        // table wants a number anyway.
+        customers={customers.map(({ currentBalance, ...rest }) => ({
+          ...rest,
+          balance: Number(currentBalance),
+        }))}
+        initialFilter={debtCustomerFilter(await searchParams)}
+      />
     </div>
   )
 }
