@@ -29,8 +29,7 @@ export default async function StationsPage() {
             <Link key={station.id} href={`/stations/${station.id}`}>
               <Card className="hover:border-primary/50 transition-colors">
                 <CardHeader>
-                  <CardTitle className="text-base">{station.name}</CardTitle>
-                  <p className="text-muted-foreground text-xs">{station.code}</p>
+                  <CardTitle className="text-base">{station.code}</CardTitle>
                 </CardHeader>
                 <CardContent className="text-muted-foreground text-sm">
                   {[station.branch, station.address].filter(Boolean).join(' · ') || '—'}
