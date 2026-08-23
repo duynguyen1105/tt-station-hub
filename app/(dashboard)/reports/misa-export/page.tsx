@@ -37,15 +37,15 @@ export default async function MisaExportPage({
   const [shifts, total, stations] = await Promise.all([
     prisma.shift.findMany({ where, orderBy, skip, take }),
     prisma.shift.count({ where }),
-    // Every trạm the viewer can reach, closed ones included — the names the table
+    // Every trạm the viewer can reach, closed ones included — the mã the table
     // prints and, in the same read, the options the trạm dropdown offers.
     prisma.station.findMany({
       where: { id: { in: stationIds } },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
+      select: { id: true, code: true },
+      orderBy: { code: 'asc' },
     }),
   ])
-  const stationNameById = new Map(stations.map((s) => [s.id, s.name]))
+  const stationCodeById = new Map(stations.map((s) => [s.id, s.code]))
   // Which preset, if any, these two ngày are — read here rather than in the browser,
   // so the tick beside Tháng này can't disagree with itself across midnight.
   const activePreset = matchingDatePreset(selection.from, selection.to, new Date())
@@ -119,7 +119,7 @@ export default async function MisaExportPage({
           <tbody>
             {shifts.map((shift) => (
               <tr key={shift.id} className="border-b">
-                <td className="p-2">{stationNameById.get(shift.stationId) ?? '—'}</td>
+                <td className="p-2">{stationCodeById.get(shift.stationId) ?? '—'}</td>
                 <td className="p-2">{formatDate(shift.shiftDate)}</td>
                 <td className="p-2">{shiftTypeLabel(shift.shiftType)}</td>
                 <td className="p-2">

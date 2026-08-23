@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     orderBy: { importedAt: 'asc' },
   })
   const [stations, docs, profiles] = await Promise.all([
-    prisma.station.findMany({ select: { id: true, code: true, name: true } }),
+    prisma.station.findMany({ select: { id: true, code: true } }),
     prisma.fuelImportDocument.findMany({
       where: {
         OR: [
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
     ws.addRow({
       importedAt: row.importedAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       savedAt: row.createdAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-      station: station?.name ?? station?.code ?? '',
+      station: station?.code ?? '',
       tank: row.tankCode.replace('HAM_', 'Hầm '),
       fuel: fuelLabel(row.fuelType),
       liters: Number(row.litersActual),

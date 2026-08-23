@@ -30,7 +30,7 @@ export default async function AccountantsPage() {
   for (const station of stations) {
     for (const holder of station.heldBy) {
       const held = stationsHeldBy.get(holder.id) ?? []
-      held.push(station.name)
+      held.push(station.code)
       stationsHeldBy.set(holder.id, held)
     }
   }
@@ -65,7 +65,7 @@ export default async function AccountantsPage() {
             </span>
             <span className="text-muted-foreground">
               {' — '}
-              {uncovered.map((station) => station.name).join(', ')}
+              {uncovered.map((station) => station.code).join(', ')}
             </span>
           </>
         )}
@@ -124,7 +124,7 @@ export default async function AccountantsPage() {
                     ) : (
                       <span className="inline-flex items-baseline gap-1.5">
                         {held.slice(0, VISIBLE_STATIONS).join(', ')}
-                        {hidden.length > 0 ? <StationOverflow names={hidden} /> : null}
+                        {hidden.length > 0 ? <StationOverflow codes={hidden} /> : null}
                       </span>
                     )}
                   </td>

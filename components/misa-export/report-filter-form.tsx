@@ -27,7 +27,7 @@ export function ReportFilterForm({
   from?: string
   to?: string
   stations: string[]
-  stationOptions: { id: string; name: string }[]
+  stationOptions: { id: string; code: string }[]
   activePreset?: DatePreset
 }) {
   return (
@@ -42,7 +42,7 @@ export function ReportFilterForm({
           name: vi.misaExport.reportStation,
           options: stationOptions.map((station) => ({
             value: station.id,
-            label: station.name,
+            label: station.code,
           })),
           picks: stations,
           all: vi.misaExport.reportAllStations,

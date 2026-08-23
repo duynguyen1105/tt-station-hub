@@ -29,7 +29,7 @@ export type ReadingRowData = {
   // photo arrived for is filled in by hand through them.
   shiftId: string
   dispenserId: string
-  stationName?: string | null
+  stationCode?: string | null
   dispenserName: string
   fuelType: string
   openingElectronicReading: string | null
@@ -195,7 +195,7 @@ export function ReadingRow({
 
   return (
     <tr className="border-b align-top">
-      {data.stationName != null && <td className="p-2 align-middle">{data.stationName}</td>}
+      {data.stationCode != null && <td className="p-2 align-middle">{data.stationCode}</td>}
       <td className="p-2">
         <div className="font-medium">{data.dispenserName}</div>
         <div className="text-muted-foreground text-xs">{fuelLabel(data.fuelType)}</div>

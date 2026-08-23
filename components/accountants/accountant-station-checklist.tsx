@@ -76,7 +76,7 @@ export function AccountantStationChecklist({
                   checked={selectedIds.has(station.id)}
                   onCheckedChange={(state) => toggle(station.id, state === true)}
                 />
-                {station.name}
+                {station.code}
               </label>
             ))}
           </div>

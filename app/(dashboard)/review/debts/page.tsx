@@ -46,8 +46,8 @@ export default async function ReviewDebtsPage() {
     }),
     prisma.station.findMany({
       where: { isActive: true, id: { in: stationIds } },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true },
+      orderBy: { code: 'asc' },
+      select: { id: true, code: true },
     }),
   ])
 
