@@ -6,7 +6,7 @@ export const zaloTemplates = {
     `✅ ${label}: đọc được số ${reading}. Kế toán sẽ kiểm tra lại.`,
   needsReview: (label: string) => `⚠️ ${label}: ảnh chưa rõ, kế toán sẽ kiểm tra thủ công.`,
   missingDispensers: (missing: string[]) => `⏳ Còn thiếu ảnh các trụ: ${missing.join(', ')}.`,
-  shiftSummary: (stationName: string, count: number) =>
-    `📋 Trạm ${stationName}: đã nhận đủ ${count} ảnh cho ca này. Cảm ơn!`,
+  shiftSummary: (stationCode: string, count: number) =>
+    `📋 Trạm ${stationCode}: đã nhận đủ ${count} ảnh cho ca này. Cảm ơn!`,
   notRecognized: () => `❓ Ảnh chưa nhận diện được. Vui lòng chụp rõ đồng hồ và gửi lại.`,
 }

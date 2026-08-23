@@ -14,7 +14,7 @@ import { vi } from '@/messages/vi'
  * five is exactly what opening it shows. Sending all of them would be the same
  * names twice down the wire to say the same thing once.
  */
-export function StationOverflow({ names }: { names: readonly string[] }) {
+export function StationOverflow({ codes }: { codes: readonly string[] }) {
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -22,7 +22,7 @@ export function StationOverflow({ names }: { names: readonly string[] }) {
         {/* The house button rather than a styled span: this is something the
             reader tabs to and presses, and Radix says so on it. */}
         <Button variant="ghost" size="xs" className="text-muted-foreground font-normal">
-          {vi.accountants.moreStations(names.length)}
+          {vi.accountants.moreStations(codes.length)}
         </Button>
       </PopoverTrigger>
       {/* Tighter than the panel's own gap-4: that spacing is for a panel of
@@ -32,8 +32,8 @@ export function StationOverflow({ names }: { names: readonly string[] }) {
         {/* Capped rather than however tall the list is: a kế toán phụ trách of
             forty trạm would otherwise open a panel taller than the screen. */}
         <ul className="max-h-64 space-y-0.5 overflow-y-auto text-sm">
-          {names.map((name) => (
-            <li key={name}>{name}</li>
+          {codes.map((code) => (
+            <li key={code}>{code}</li>
           ))}
         </ul>
       </PopoverContent>

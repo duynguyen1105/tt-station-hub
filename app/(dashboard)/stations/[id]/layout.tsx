@@ -22,11 +22,11 @@ export default async function StationLayout({
     <div className="space-y-4">
       <header>
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">{station.name}</h1>
+          <h1 className="text-2xl font-semibold">{station.code}</h1>
           <Badge variant="secondary">{vi.fuelArea[station.fuelArea]}</Badge>
         </div>
         <p className="text-muted-foreground text-sm">
-          {[station.branch, station.address].filter(Boolean).join(' · ') || station.code}
+          {[station.branch, station.address].filter(Boolean).join(' · ') || '—'}
         </p>
       </header>
       <StationTabs stationId={id} />

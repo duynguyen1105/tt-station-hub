@@ -89,7 +89,7 @@ export type DebtVisitCardData = {
   customers: { id: string; name: string }[]
   // Active stations for the manual station picker (AI routes by the pump plate;
   // the reviewer can override when it couldn't tell or got it wrong).
-  stations: { id: string; name: string }[]
+  stations: { id: string; code: string }[]
 }
 
 const UNASSIGNED = '__none__'
@@ -351,7 +351,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
             <SelectContent>
               {data.stations.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.name}
+                  {s.code}
                 </SelectItem>
               ))}
             </SelectContent>

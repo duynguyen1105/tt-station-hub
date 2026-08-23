@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 /** An active trạm and the kế toán phụ trách of it — any number of them, all equals. */
 export type StationWithHolders = {
   id: string
-  name: string
+  code: string
   heldBy: { id: string; fullName: string }[]
 }
 
@@ -27,7 +27,7 @@ export async function activeStationsWithHolders(): Promise<StationWithHolders[]>
     prisma.profile.findMany({ select: { id: true, fullName: true } }),
     prisma.station.findMany({
       where: { isActive: true },
-      select: { id: true, name: true },
+      select: { id: true, code: true },
       orderBy: { code: 'asc' },
     }),
     activeStationAccess(),
@@ -38,7 +38,7 @@ export async function activeStationsWithHolders(): Promise<StationWithHolders[]>
   )
   return stations.map((station) => ({
     id: station.id,
-    name: station.name,
+    code: station.code,
     heldBy: (accountantIdsByStation.get(station.id) ?? []).flatMap((holderId) => {
       const holder = profiles.find((profile) => profile.id === holderId)
       return holder ? [{ id: holder.id, fullName: holder.fullName }] : []

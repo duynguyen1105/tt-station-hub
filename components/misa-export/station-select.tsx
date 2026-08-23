@@ -24,7 +24,7 @@ export function StationSelect({ stations, value }: { stations: Station[]; value:
       <SelectContent>
         {stations.map((s) => (
           <SelectItem key={s.id} value={s.id}>
-            {s.name}
+            {s.code}
           </SelectItem>
         ))}
       </SelectContent>

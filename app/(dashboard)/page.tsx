@@ -143,7 +143,7 @@ export default async function OverviewPage() {
                         href={`/stations/${station.id}`}
                         className="text-primary font-medium hover:underline"
                       >
-                        {station.name}
+                        {station.code}
                       </Link>
                     </td>
                     <td

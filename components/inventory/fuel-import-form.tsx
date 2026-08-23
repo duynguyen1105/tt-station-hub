@@ -297,12 +297,6 @@ function bindingText(reason: BindingRefusal): string {
   return vi.imports.bindingUnidentified
 }
 
-/** How the mismatch alert names a Trạm. A Trạm known only from the printed
- *  rosters has no name, so the code stands alone rather than in brackets. */
-function stationLabel(name: string | null, code: string): string {
-  return name ? `${name} (${code})` : code
-}
-
 /** Litres beside a cell, grouped and without forced decimals — the Barem deals
  *  in whole litres, so `formatLiters`' fixed "12,358.00" would only add noise. */
 function baremLitersText(liters: number): string {
@@ -767,12 +761,10 @@ export function FuelImportForm({
                 <AlertTitle>{vi.imports.stationMismatchTitle}</AlertTitle>
                 <AlertDescription className="space-y-1">
                   <div>
-                    {vi.imports.stationMismatchPaper}:{' '}
-                    {stationLabel(stationMismatch.paperName, stationMismatch.paperCode)}
+                    {vi.imports.stationMismatchPaper}: {stationMismatch.paperCode}
                   </div>
                   <div>
-                    {vi.imports.stationMismatchCurrent}:{' '}
-                    {stationLabel(stationMismatch.currentName, stationMismatch.currentCode)}
+                    {vi.imports.stationMismatchCurrent}: {stationMismatch.currentCode}
                   </div>
                   {/* The header verbatim. There is no override, so a misread has
                       to be visible rather than leave the reviewer guessing. */}
