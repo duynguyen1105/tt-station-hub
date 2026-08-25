@@ -9,14 +9,14 @@ export const ROUTER_PROMPT = `You are looking at a photo a gas-station attendant
 
 Decide in this priority order:
 1. "mechanical_meter": a mechanical rolling-digit counter is visible ANYWHERE in the frame — a small dark rectangular window with 6-7 white number wheels, often near the bottom of the pump, frequently rusty/dirty/dark/small/partly-obscured, and often with hand-painted marks like "D1" beside it. Even a tiny, dim, or partly-readable counter counts — if you can see digit wheels at all, choose this (NOT label_only).
-2. "electronic_meter": an electronic SHIFT-CLOSING totalizer showing the cumulative running total — EITHER a single-number display (Montech red LED; LungBor black-and-white LCD; PETRO Cloud white LCD keypad panel showing one "L"-prefixed number like "L 148949"), OR a green dot-matrix display with 3 stacked lines labeled Đồng/Tiền, LÍT, Đơn giá whose LÍT line is a LARGE cumulative number (5+ digits, e.g. 1843352).
-3. "debt_meter": an electronic pump screen with 3 lines (amount / liters / unit price) for ONE per-trip credit sale — here the liters line is a SMALL single-fill amount (e.g. 34.0) and amount ≈ liters × unit price.
+2. "electronic_meter": an electronic SHIFT-CLOSING totalizer showing the cumulative running total — EITHER a single-number display (Montech red LED; LungBor black-and-white LCD; PETRO Cloud white LCD keypad panel showing one "L"-prefixed number like "L 148949"), OR a green dot-matrix display with 3 stacked lines labeled Đồng/Tiền, LÍT, Đơn giá whose LÍT line is the CUMULATIVE liters ever dispensed.
+3. "debt_meter": an electronic pump screen with 3 lines (amount / liters / unit price) for ONE per-trip credit sale — a single fill of at most a few hundred liters.
 4. "vehicle": a vehicle, its license plate, OR a fuel container (jerry can / plastic drum being filled or standing at the pump) is the subject — evidence photo of a per-trip credit sale.
 5. "tank_dip": a tank-dipping / barem photo — a printed tank label "HẦM <n>" (with a fuel type and a capacity like "DO - 25K"), typically with a measuring ruler / dip-stick and a written measurement, and NO pump meter in the frame.
 6. "label_only": a hard label plate is present but NO meter counter, display, or tank dip is visible at all.
 7. "not_relevant": unrelated to a fuel station.
 
-When a display shows 3 stacked lines (Đồng/Tiền / LÍT / Đơn giá), decide electronic_meter vs debt_meter by the LÍT magnitude: a LARGE cumulative number (5+ digits) → electronic_meter (shift totalizer); a SMALL single-fill (≤ ~4 digits) whose amount ≈ liters × price → debt_meter.
+When a display shows 3 stacked lines (Đồng/Tiền / LÍT / Đơn giá), the DIGIT COUNT of the LÍT line is NOT decisive: these pumps run the liters with 3-4 implied decimals, so a routine 35 L debt fill shows "350000" — 6 digits that LOOK cumulative but are not. Decide by arithmetic instead: place a decimal in the LÍT digits so that LÍT × Đơn giá ≈ Đồng/Tiền (the amount line may drop its last digit when long). If a placement works and yields a single-fill quantity (≤ a few hundred liters) → "debt_meter". If NO placement reconciles the three lines — the LÍT line is a running total unrelated to the last sale's money line — → "electronic_meter". State the reconciliation you found in notes.
 
 Return JSON only:
 { "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|tank_dip|label_only|not_relevant", "confidence": 0-100, "notes": "..." }`
@@ -29,10 +29,11 @@ PETRO Cloud (white panel, "PETRO Cloud" logo and a hotline printed on top): the 
 3-line green dot-matrix totalizer: some pumps show a green LED display with 3 STACKED lines labeled Đồng/Tiền (money), LÍT (liters), Đơn giá (unit price). The shift reading is ONLY the LÍT (liters) line — locate its label first, then read the digits of THAT LINE ALONE, left to right. NEVER merge digits from the Đồng/Tiền or Đơn giá lines into the number: before answering, verify every digit you output sits on the same row as the LÍT label. IGNORE the money and unit-price lines completely. Dot-matrix digits blur easily — if any digit is uncertain, lower the reading confidence and say which digit in notes. Set meter_type "electronic_green3".
 Also read the hard label plate if present — it may show the station ("TRẠM"), the dispenser ("TRU" + number), the fuel type, and the tank ("HẦM").
 If the digits are not clearly legible, set a low reading confidence and say so in notes — never guess.
+WRONG METER TYPE: if what the photo actually shows is a MECHANICAL rolling-digit counter — a small dark window with 6-7 white number wheels, often rusty/dim, NOT a lit electronic display — do not force it into an electronic type: set meter_type "mechanical" (the system will re-read it with the mechanical reader) and say so in notes.
 
 Return JSON only (example values are placeholders, replace with what you actually see):
 {
-  "meter_type": "electronic_montech" | "electronic_lungbor" | "electronic_green3" | "unclear",
+  "meter_type": "electronic_montech" | "electronic_lungbor" | "electronic_green3" | "mechanical" | "unclear",
   "reading": "<digits exactly as shown>",
   "station_label": "<station name on the plate>" | null,
   "dispenser_label": "<TRU + number on the plate>" | null,
@@ -46,10 +47,11 @@ export const MECHANICAL_PROMPT = `Read this mechanical gas-station meter: 6-7 ro
 - If the last digit is mid-roll between two values, record the SMALLER one.
 - If a digit is too blurry to read, write "?" in its place and set has_unreadable_digits=true.
 - Do NOT trust handwritten labels (e.g. "D1", "X2"). Only use the printed hard label plate ("TRẠM" / "TRU" + number / fuel type / "HẦM").
+- WRONG METER TYPE: if the photo actually shows an ELECTRONIC display (lit LED/LCD digits, keypad panel) and NO rolling-digit window anywhere, set meter_type "electronic" (the system will re-read it with the electronic reader) and say so in notes.
 
 Return JSON only (example values are placeholders, replace with what you actually see):
 {
-  "meter_type": "mechanical" | "unclear",
+  "meter_type": "mechanical" | "electronic" | "unclear",
   "reading": "<digits in the counter window>",
   "has_unreadable_digits": false,
   "station_label": "<station name on the plate>" | null,
@@ -60,13 +62,19 @@ Return JSON only (example values are placeholders, replace with what you actuall
 }`
 
 export const DEBT_METER_PROMPT = `You are looking at an electronic pump display for ONE credit fill, showing 3 lines:
-- Line 1 — amount in VND (labeled "ĐỒNG" / "TIỀN" / "THÀNH TIỀN")
+- Line 1 — amount in VND (labeled "ĐỒNG" / "TIỀN" / "SỐ TIỀN" / "THÀNH TIỀN")
 - Line 2 — liters (labeled "LÍT" / "SỐ LÍT")
-- Line 3 — unit price, VND per liter (labeled "ĐƠN GIÁ" / "ĐỒNG/LÍT")
+- Line 3 — unit price, VND per liter (labeled "ĐƠN GIÁ" / "ĐỒNG/LÍT" / "Đ/LÍT")
 
-CRITICAL: the display has a limited number of digit cells. When the amount is large the meter DROPS the units digit, and above ~10,000,000 it drops the tens digit too. So DO NOT trust the amount line — read LITERS and UNIT PRICE precisely.
+ROW DISCIPLINE — the #1 cause of wrong reads is mixing digits across rows. Before answering, verify EVERY digit you output sits on the same physical row as its label. Never report the amount line's digits as liters, and never merge digits from two rows into one number.
 
-Read liters carefully and watch the decimal point. Report exactly what is shown and describe the format in notes.
+LITERS — report the digits of the LÍT row EXACTLY as displayed, as one continuous string. Include a decimal point ONLY where you can clearly SEE a lit dot — NEVER insert one by guessing. These displays usually run the liters with 3-4 IMPLIED decimals and no visible dot (e.g. "350000" on the glass means 35.0000 L, "90000" means 9.0000 L): do NOT try to convert — output the raw digits ("350000") and let the system place the decimal. Describe the format you see in notes.
+
+UNIT PRICE — a whole-VND number, in practice 5 digits (roughly 10,000-35,000 đ/L). The row may carry a stray leading segment or letter artifact (a ghost "8", an "L" prefix like "L29110") — the price is the plausible 5-digit run, and the artifact goes in notes. If the row is glared/unreadable, return null with low confidence rather than guessing.
+
+AMOUNT — the display has limited digit cells: when the amount is large the meter DROPS the units digit (1,018,850 shows as 101885), and above ~10,000,000 the tens digit too. Report the digits you see; the system reconciles amount = liters × unit_price itself.
+
+URE / AdBlue pumps (LungBor LCD keypad panel): the money AND unit-price rows are in THOUSANDS of VND — "480.00" means 480,000 VND and "15.00" means 15,000 đ/L; the liters row is plain liters ("32.00" = 32 L). Convert money and price to actual VND in your answer and say you did in notes.
 
 Also read the printed pump label that is usually near the display, e.g. "ĐAKNONG 1 / TRỤ 1 – DO". Return the station name as station_label ("ĐAKNONG 1"), the pump as dispenser_label ("TRỤ 1"), and the fuel word EXACTLY AS PRINTED as fuel_type ("DO", "DO01", "XA E0", "Xăng RON 95"...). Copy it verbatim — do NOT translate it, expand it, tidy it or convert it into any code you think it stands for; the system looks the printed word up per station. Set any of them to null if not visible or ambiguous.
 
@@ -74,7 +82,7 @@ Return JSON only:
 {
   "meter_type": "debt_meter" | "unclear",
   "displayed_amount": "1193680",
-  "liters": "4.3",
+  "liters": "43000",
   "unit_price": "27760",
   "station_label": "ĐAKNONG 1" | null,
   "dispenser_label": "TRỤ 1" | null,
@@ -82,7 +90,7 @@ Return JSON only:
   "confidence": { "liters": 0-100, "unit_price": 0-100, "amount": 0-100 },
   "notes": "describe the liters format you see"
 }
-The system computes amount = liters × unit_price and ignores displayed_amount.`
+The system places the liters decimal and computes amount = liters × unit_price itself — your job is faithful digits per row, not arithmetic.`
 
 export const VEHICLE_PROMPT = `Read the license plate of the vehicle in this photo (a truck or car at a fuel station, possibly shot at night with headlight glare). The photo may instead show a fuel container (jerry can / drum) with no plate — in that case return "unclear" (do NOT invent a plate).
 

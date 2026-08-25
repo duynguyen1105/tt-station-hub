@@ -23,7 +23,9 @@ type ExtractMeterInput = {
 
 function normalizeElectronic(result: ElectronicResult, router: RouterResult): ExtractMeterResult {
   return {
-    meterType: result.meter_type,
+    // 'mechanical' arriving here is a contradictory escape (the two readers
+    // pointed at each other) — park as 'unclear' for a human, never mislabel.
+    meterType: result.meter_type === 'mechanical' ? 'unclear' : result.meter_type,
     reading: result.reading,
     stationLabel: result.station_label ?? null,
     dispenserLabel: result.dispenser_label ?? null,
@@ -44,7 +46,14 @@ function normalizeMechanical(result: MechanicalResult, router: RouterResult): Ex
   const routerSaysMechanical = router.image_type === 'mechanical_meter'
   const trustDespiteHedge = routerSaysMechanical && result.reading !== null
   return {
-    meterType: result.meter_type === 'unclear' && !trustDespiteHedge ? 'unclear' : 'mechanical',
+    meterType:
+      // A contradictory escape ('electronic' arriving here means the two readers
+      // pointed at each other) parks as 'unclear' for a human — never mislabel.
+      result.meter_type === 'electronic'
+        ? 'unclear'
+        : result.meter_type === 'unclear' && !trustDespiteHedge
+          ? 'unclear'
+          : 'mechanical',
     reading: result.reading,
     stationLabel: result.station_label ?? null,
     dispenserLabel: result.dispenser_label ?? null,
@@ -102,12 +111,25 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
 
   if (router.image_type === 'electronic_meter') {
     const text = await callClaudeVision({ prompt: ELECTRONIC_PROMPT, images: [image] })
-    return normalizeElectronic(electronicSchema.parse(parseJsonFromText(text)), router)
+    const elec = electronicSchema.parse(parseJsonFromText(text))
+    if (elec.meter_type !== 'mechanical') return normalizeElectronic(elec, router)
+    // The reader escaped: the router misclassified a mechanical rolling-digit
+    // counter as electronic (the 24/08 "cơ vào slot điện tử" bug). Re-read with
+    // the mechanical prompt so the number lands in the mechanical slot with the
+    // wheel semantics (mid-roll rule, "?" digits). One hop only — a mechanical
+    // read never bounces back.
+    const mechText = await callClaudeVision({ prompt: MECHANICAL_PROMPT, images: [image] })
+    return normalizeMechanical(mechanicalSchema.parse(parseJsonFromText(mechText)), router)
   }
 
   if (router.image_type === 'mechanical_meter') {
     const text = await callClaudeVision({ prompt: MECHANICAL_PROMPT, images: [image] })
-    return normalizeMechanical(mechanicalSchema.parse(parseJsonFromText(text)), router)
+    const mech = mechanicalSchema.parse(parseJsonFromText(text))
+    if (mech.meter_type !== 'electronic') return normalizeMechanical(mech, router)
+    // Symmetric escape: an electronic display forced through the mechanical
+    // reader — re-read with the electronic prompt.
+    const elecText = await callClaudeVision({ prompt: ELECTRONIC_PROMPT, images: [image] })
+    return normalizeElectronic(electronicSchema.parse(parseJsonFromText(elecText)), router)
   }
 
   // The router saw only the plate ('label_only') — a recurring blind spot when
@@ -126,7 +148,7 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
     const elec = await callClaudeVision({ prompt: ELECTRONIC_PROMPT, images: [image] })
       .then((text) => electronicSchema.parse(parseJsonFromText(text)))
       .catch(() => null)
-    if (elec && elec.meter_type !== 'unclear' && elec.reading) {
+    if (elec && elec.meter_type !== 'unclear' && elec.meter_type !== 'mechanical' && elec.reading) {
       return normalizeElectronic(elec, router)
     }
 
