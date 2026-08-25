@@ -31,7 +31,7 @@ import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
 import { resolveVisitStation } from '@/lib/matching/visit-station'
-import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
+import { inferFuelTypeFromPrice, priceRowOnDate } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 
 type ShiftRef = { id: string; stationId: string }
@@ -376,14 +376,32 @@ export async function runShiftExtraction(
   return result
 }
 
-/** Debt review status from the weakest of liters/unit-price confidence + the §5.6 amount check. */
-function debtReview(meter: ExtractVisitResult): { reviewStatus: string; anomalies: string[] } {
-  const anomalies: string[] = []
-  if (meter.amountMatchesDisplay === false) anomalies.push('amount_mismatch')
+/** The weakest of the two numbers the charge is actually computed from. */
+function debtConfidence(meter: ExtractVisitResult): number | null {
   const confs = [meter.litersConfidence, meter.unitPriceConfidence].filter(
     (c): c is number => c != null
   )
-  const conf = confs.length ? Math.min(...confs) : null
+  return confs.length ? Math.min(...confs) : null
+}
+
+// Plausibility bounds for a single credit fill. Anything outside is a misread
+// (a 15 đ URE price, a 2,619 L "fill"), not a real sale — flag, never post.
+const LITERS_MAX = 2000
+const UNIT_PRICE_MIN = 1000
+const UNIT_PRICE_MAX = 100000
+
+/**
+ * Debt review status from the weakest of liters/unit-price confidence, the §5.6
+ * amount check, and the plausibility anomalies collected by the caller (bounds,
+ * retail-price cross-check, unresolved liters scale).
+ */
+function debtReview(
+  meter: ExtractVisitResult,
+  extraAnomalies: string[] = []
+): { reviewStatus: string; anomalies: string[] } {
+  const anomalies: string[] = [...extraAnomalies]
+  if (meter.amountMatchesDisplay === false) anomalies.push('amount_mismatch')
+  const conf = debtConfidence(meter)
   if (anomalies.length || conf == null) return { reviewStatus: 'needs_review', anomalies }
   // A debt visit always needs a human to assign the customer + approve (that is what
   // posts the charge), so never auto-approve — a confident read still waits in the
@@ -468,12 +486,12 @@ export async function assembleDebtVisit(params: {
       data: {
         aiProcessedAt: new Date(),
         meterType: meter.meterType,
-        aiConfidence: meter.amountConfidence,
+        aiConfidence: debtConfidence(meter),
         aiRawResponse: meter.raw as Prisma.InputJsonValue,
       },
     })
-    const { reviewStatus, anomalies } = debtReview(meter)
     const unitPriceRead = parseNumericString(meter.unitPrice)
+    const litersRead = meter.litersResolved
     // The pump plate often names the STATION too ("ĐAKNONG 1 / TRỤ 1 – DO") — let it
     // override the sender's station, mirroring shift photos. The reviewer can still
     // change the station manually on the review card.
@@ -516,15 +534,39 @@ export async function assembleDebtVisit(params: {
     }))
     const priceFuel =
       unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null
+    // Guardrails the AI numbers must pass before they can sit quietly in the
+    // queue: physical bounds, an unresolved liters decimal, and the pump price
+    // matching SOME configured retail price of the station's fuel area. Any
+    // hit forces needs_review — the reviewer sees exactly why on the card.
+    const guardAnomalies: string[] = []
+    if (litersRead != null && (litersRead <= 0 || litersRead > LITERS_MAX)) {
+      guardAnomalies.push('liters_implausible')
+    }
+    if (litersRead != null && meter.litersResolution === 'unverified') {
+      guardAnomalies.push('liters_unverified')
+    }
+    if (
+      unitPriceRead != null &&
+      (unitPriceRead < UNIT_PRICE_MIN || unitPriceRead > UNIT_PRICE_MAX)
+    ) {
+      guardAnomalies.push('price_implausible')
+    } else if (unitPriceRead != null && prices.length > 0) {
+      const fuels = new Set(prices.map((p) => p.fuelType))
+      const listed = [...fuels].some(
+        (f) => priceRowOnDate(prices, f, visitDate)?.unitPrice === unitPriceRead
+      )
+      if (!listed) guardAnomalies.push('price_mismatch')
+    }
+    const { reviewStatus, anomalies } = debtReview(meter, guardAnomalies)
     const meterData = {
-      litersRead: parseNumericString(meter.liters),
+      litersRead,
       unitPriceRead,
       fuelType: labelFuel ?? priceFuel,
       displayedAmount: parseNumericString(meter.displayedAmount),
       computedAmount: meter.computedAmount,
       amountMatchesDisplay: meter.amountMatchesDisplay,
       meterPhotoId: photoId,
-      aiConfidence: meter.amountConfidence,
+      aiConfidence: debtConfidence(meter),
       aiRawResponse: meter.raw as Prisma.InputJsonValue,
       anomalyReasons: anomalies,
       reviewStatus,
@@ -659,11 +701,35 @@ export async function ingestTankDip(
   station?: { id: string } | null
 ): Promise<ExtractTankDipResult> {
   const result = precomputed ?? (await extractTankDip({ imageBuffer: buffer }))
+  // The printed tank label names its station ("TANHOA / HẦM 3 / E0 - 6K") — the
+  // most trustworthy source there is, exactly like the pump plate for shift and
+  // debt photos. It overrides the sender/context station: a courier forwarding
+  // several stations' dips through one Zalo thread must not file TANHOA's tank
+  // under DAKNONG3 (and poison DAKNONG3's delta/reserve chain).
+  let target = station ?? null
+  if (result.stationLabel) {
+    const byLabel = await matchStationByLabel(result.stationLabel)
+    if (byLabel) {
+      if (target && byLabel.id !== target.id) {
+        logger.info(
+          { from: target.id, to: byLabel.code, label: result.stationLabel },
+          'Tank dip station label overrides sender station'
+        )
+      }
+      target = { id: byLabel.id }
+    } else if (target) {
+      logger.warn(
+        { stationId: target.id, label: result.stationLabel },
+        'Tank dip label matches no station — keeping sender station'
+      )
+    }
+  }
   // The prompt copies the fuel word off the hầm plate as printed, so it is only a khóa
-  // once this trạm's mã hàng and the danh mục have had a look at it. A plate this trạm
-  // cannot place resolves to nothing and the đo hầm lands with an empty nhiên liệu, for
-  // kế toán to set — never a guess.
-  const fuelType = station ? await resolveStationPlateFuel(station.id, result.fuelType) : null
+  // once this trạm's mã hàng and the danh mục have had a look at it. Resolved against
+  // the trạm the LABEL settled on (not the sender's), because a mã hàng belongs to the
+  // pair (trạm, nhiên liệu). A plate this trạm cannot place resolves to nothing and the
+  // đo hầm lands with an empty nhiên liệu, for kế toán to set — never a guess.
+  const fuelType = target ? await resolveStationPlateFuel(target.id, result.fuelType) : null
   const photo = await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
@@ -680,18 +746,18 @@ export async function ingestTankDip(
   // thousand millimetres, not 1.0 — parseNumericString (built for debt
   // displays like "46.81") would read it a thousand times too small.
   const dip = parseVnNumber(result.dipValue)
-  if (!station || !tankNumber || dip === null) return result
+  if (!target || !tankNumber || dip === null) return result
 
   const tankCode = `HAM_${Number.parseInt(tankNumber, 10)}`
   const attachedDispensers = await prisma.dispenser.count({
-    where: { stationId: station.id, tankCode, isActive: true },
+    where: { stationId: target.id, tankCode, isActive: true },
   })
   const isReserve = attachedDispensers === 0
   // The last dip anyone still stands behind. A read kế toán từ chối is skipped:
   // comparing against it would put a bogus "So với lần trước" on this row and
   // could fire a false reserve_stock_changed on a hầm that never moved.
   const previous = await prisma.tankDipRecord.findFirst({
-    where: { ...countableDipWhere(station.id), tankCode },
+    where: { ...countableDipWhere(target.id), tankCode },
     // createdAt breaks a measuredAt tie — two shots of the same stick in one Zalo
     // burst share a timestamp — so this picks the same neighbour a later
     // correction of the row would (lib/inventory/apply-dip-correction.ts).
@@ -705,7 +771,7 @@ export async function ingestTankDip(
 
   await prisma.tankDipRecord.create({
     data: {
-      stationId: station.id,
+      stationId: target.id,
       tankCode,
       fuelType,
       capacityK: result.capacityK,
@@ -723,7 +789,7 @@ export async function ingestTankDip(
   if (comparison.isAnomaly) {
     logger.warn(
       {
-        stationId: station.id,
+        stationId: target.id,
         tankCode,
         dip,
         previous: previous?.dipValue?.toString(),

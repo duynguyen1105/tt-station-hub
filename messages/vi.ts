@@ -336,6 +336,10 @@ export const vi = {
     missing_opening: 'Chưa có chỉ số đầu',
     amount_mismatch: 'Lệch số tiền',
     duplicate_photo_mismatch: 'Hai ảnh cùng đồng hồ lệch nhau',
+    liters_implausible: 'Số lít bất thường',
+    liters_unverified: 'Số lít chưa đối chiếu được',
+    price_implausible: 'Đơn giá bất thường',
+    price_mismatch: 'Đơn giá lệch bảng giá',
   },
 
   docStatus: { valid: 'Còn hạn', expiring_soon: 'Sắp hết hạn', expired: 'Hết hạn' },

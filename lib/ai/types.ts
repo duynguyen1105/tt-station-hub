@@ -22,7 +22,16 @@ const confidencePair = z.object({
 })
 
 export const electronicSchema = z.object({
-  meter_type: z.enum(['electronic_montech', 'electronic_lungbor', 'electronic_green3', 'unclear']),
+  // 'mechanical' is the ESCAPE HATCH for a router misclassification: the reader
+  // is told to declare what it actually sees, and extractMeter then re-reads
+  // the photo with the mechanical prompt so the number lands in the right slot.
+  meter_type: z.enum([
+    'electronic_montech',
+    'electronic_lungbor',
+    'electronic_green3',
+    'mechanical',
+    'unclear',
+  ]),
   reading: z.string().nullable(),
   station_label: z.string().nullable().optional(),
   dispenser_label: z.string().nullable().optional(),
@@ -33,7 +42,8 @@ export const electronicSchema = z.object({
 export type ElectronicResult = z.infer<typeof electronicSchema>
 
 export const mechanicalSchema = z.object({
-  meter_type: z.enum(['mechanical', 'unclear']),
+  // 'electronic' is the symmetric escape hatch — see electronicSchema.
+  meter_type: z.enum(['mechanical', 'electronic', 'unclear']),
   reading: z.string().nullable(),
   has_unreadable_digits: z.boolean().optional().default(false),
   station_label: z.string().nullable().optional(),
@@ -101,7 +111,16 @@ export type VehiclePlateResult = z.infer<typeof vehiclePlateSchema>
 export type ExtractVisitResult = {
   meterType: 'debt_meter' | 'unclear'
   displayedAmount: string | null
+  // Verbatim digits the AI saw on the LÍT row (dot only when visibly lit).
   liters: string | null
+  // Liters after decimal-scale resolution against TIỀN = LÍT × ĐƠN GIÁ:
+  // 'verified'  — the literal reading reconciles with the money line;
+  // 'rescaled'  — a different decimal scale of the same digits reconciles (the
+  //               display's implied decimals, e.g. 350000 → 35.0000 L);
+  // 'unverified'— nothing reconciles (or price/amount missing) — the value is
+  //               the best assumption and MUST be reviewed by a human.
+  litersResolved: number | null
+  litersResolution: 'verified' | 'rescaled' | 'unverified' | null
   unitPrice: string | null
   stationLabel: string | null
   dispenserLabel: string | null
