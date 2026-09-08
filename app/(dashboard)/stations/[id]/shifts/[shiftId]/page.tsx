@@ -17,6 +17,7 @@ import {
 } from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
+import { priceRowOnDate } from '@/lib/misa-export/build-sales-voucher'
 import {
   type DebtCustomerInput,
   buildDebtsList,
@@ -26,6 +27,7 @@ import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
 import { refuseShiftCompletion } from '@/lib/shifts/completion'
 import { hasLateDebtApproval } from '@/lib/shifts/late-debt-approval'
+import { meterGapDifference, readingAmount } from '@/lib/shifts/reading-totals'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -52,6 +54,11 @@ function buildTankOptionsFromDispensers(
   return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
 }
 
+/** A Prisma Decimal meter value as a plain number, or null where no value was read. */
+function numberOrNull(value: { toNumber: () => number } | null | undefined): number | null {
+  return value == null ? null : value.toNumber()
+}
+
 export default async function ShiftDetailPage({
   params,
 }: {
@@ -76,14 +83,23 @@ export default async function ShiftDetailPage({
     loadStationFuelMappings(shift.stationId),
   ])
 
-  const [station, readings, dispensers, visits] = await Promise.all([
-    prisma.station.findUnique({ where: { id: shift.stationId }, select: { code: true } }),
+  const [station, readings, dispensers, visits, priceRows] = await Promise.all([
+    prisma.station.findUnique({
+      where: { id: shift.stationId },
+      // fuelArea rides along with the code: Tổng tiền prices each row by the giá bán
+      // lẻ of the trạm's vùng, the same key the MISA export uses.
+      select: { code: true, fuelArea: true },
+    }),
     prisma.shiftReading.findMany({ where: { shiftId } }),
     prisma.dispenser.findMany({
       where: { stationId: shift.stationId, isActive: true },
       orderBy: { displayOrder: 'asc' },
     }),
     prisma.debtVehicleVisit.findMany(debtVisitSelection(shift.stationId, shift.shiftDate)),
+    // Both vùng in one read — the trạm's own vùng is only known once the row above
+    // lands, and the board holds a handful of rows per nhiên liệu, so narrowing it in
+    // memory below costs less than a second round trip.
+    prisma.misaRetailPrice.findMany({ orderBy: { effectiveDate: 'asc' } }),
   ])
 
   const customerIds = [
@@ -131,10 +147,29 @@ export default async function ShiftDetailPage({
     await loadFuelCatalogue()
   )
 
+  // The giá bán lẻ of this trạm's vùng, every kỳ of it, so each row can be priced by the
+  // one in force on the ca's ngày — a ca opened before a price change still bills at the
+  // price it sold at.
+  const prices = priceRows
+    .filter((p) => p.fuelArea === station?.fuelArea)
+    .map((p) => ({
+      fuelType: p.fuelType,
+      effectiveDate: p.effectiveDate,
+      unitPrice: p.unitPrice.toNumber(),
+    }))
+
   const readingByDispenser = new Map(readings.map((r) => [r.dispenserId, r]))
   const rows: ReadingRowData[] = dispensers.map((d) => {
     const r = readingByDispenser.get(d.id)
     const slotPhotos = r ? readingPhotosForSlots(r, matchedPhotos, photoUrlById) : null
+    const meters = {
+      openingElectronicReading: numberOrNull(r?.openingElectronicReading),
+      electronicReading: numberOrNull(r?.electronicReading),
+      openingMechanicalReading: numberOrNull(r?.openingMechanicalReading),
+      mechanicalReading: numberOrNull(r?.mechanicalReading),
+    }
+    const unitPrice =
+      priceRowOnDate(prices, r?.fuelType ?? d.fuelType, shift.shiftDate)?.unitPrice ?? null
     return {
       readingId: r?.id ?? null,
       shiftId,
@@ -153,6 +188,10 @@ export default async function ShiftDetailPage({
       mechanicalPhotos: slotPhotos?.mechanical,
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
+      totals: {
+        gapDifference: meterGapDifference(meters),
+        amount: readingAmount(meters, unitPrice),
+      },
       role: user.role,
       shiftStatus: shift.status as ShiftStatus,
     }
@@ -228,6 +267,8 @@ export default async function ShiftDetailPage({
               <th className="p-2">{vi.shifts.closingElectronic}</th>
               <th className="p-2">{vi.shifts.openingMechanical}</th>
               <th className="p-2">{vi.shifts.closingMechanical}</th>
+              <th className="p-2">{vi.shifts.meterGapDifference}</th>
+              <th className="p-2">{vi.shifts.totalAmount}</th>
               <th className="p-2">{vi.shifts.status}</th>
               <th className="p-2"></th>
             </tr>
