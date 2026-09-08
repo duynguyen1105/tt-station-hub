@@ -19,6 +19,7 @@ import {
   canReviewShift,
   isReadingDecided,
 } from '@/lib/auth/reading-policy'
+import { formatLiters, formatVND } from '@/lib/format'
 import { type ReadingPhoto } from '@/lib/photos/reading-photos'
 import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -45,10 +46,21 @@ export type ReadingRowData = {
   mechanicalPhotos?: ReadingPhoto[]
   reviewStatus: string | null
   anomalyReasons: string[]
+  // Chênh lệch điện - cơ and Tổng tiền, present only where the table carries those
+  // two columns (Chốt ca of one trạm, which knows the trạm's giá bán lẻ). A row
+  // without them renders neither cell, so the header and the body stay in step.
+  totals?: ReadingTotals
   // The current user's role and the ca's status drive which edit actions the row
   // offers, per the shared reading policy (docs/adr/0001).
   role: AppRole
   shiftStatus: ShiftStatus
+}
+
+export type ReadingTotals = {
+  /** Litres the two đồng hồ disagree by, or null when they agree / cannot be compared. */
+  gapDifference: number | null
+  /** Điện tử litres × giá bán lẻ, or null when either is unknown. */
+  amount: number | null
 }
 
 type ActionResult = { ok: boolean; error?: string }
@@ -276,6 +288,28 @@ export function ReadingRow({
           onSave={(next) => saveField('correct-closing', 'mechanicalReading', next)}
         />
       </td>
+      {data.totals && (
+        <>
+          <td className="p-2 font-mono whitespace-nowrap">
+            {data.totals.gapDifference === null ? (
+              <span className="text-muted-foreground">—</span>
+            ) : (
+              // A disagreement between the two meters is what the reviewer is
+              // looking for, so it is coloured like the anomaly notes below.
+              <span className="text-amber-700 dark:text-amber-400">
+                {formatLiters(data.totals.gapDifference)}
+              </span>
+            )}
+          </td>
+          <td className="p-2 font-mono whitespace-nowrap">
+            {data.totals.amount === null ? (
+              <span className="text-muted-foreground">—</span>
+            ) : (
+              formatVND(data.totals.amount)
+            )}
+          </td>
+        </>
+      )}
       <td className="space-y-1 p-2">
         {info && <StatusBadge label={info.label} tone={info.tone} />}
         {data.anomalyReasons.length > 0 && (

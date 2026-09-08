@@ -429,6 +429,10 @@ export const vi = {
     closingElectronic: 'Cuối ĐT',
     openingMechanical: 'Đầu Cơ',
     closingMechanical: 'Cuối Cơ',
+    // Hai đồng hồ đo cùng số lít, nên cột này chỉ nói khi chúng lệch nhau.
+    meterGapDifference: 'Chênh lệch điện - cơ',
+    // Số lít của đồng hồ điện tử nhân giá bán lẻ áp dụng cho ngày của ca.
+    totalAmount: 'Tổng tiền',
     confidence: 'Độ tin cậy',
     dispenser: 'Trụ',
     complete: 'Chốt ca',
