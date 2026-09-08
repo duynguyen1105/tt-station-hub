@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveVisitStation } from '@/lib/matching/visit-station'
+import { type PhotoStationSource, resolveVisitStation } from '@/lib/matching/visit-station'
 
 const A = 'station-a'
 const B = 'station-b'
@@ -10,64 +10,73 @@ type Case = {
   name: string
   visitStationId: string
   photoStationId: string
-  stationFromPumpPlate: boolean
+  photoStationSource: PhotoStationSource
   expected: string
 }
 
 const cases: Case[] = [
   {
-    name: 'a Pump Photo whose plate names another station takes the visit with it',
+    name: 'a pump photo whose plate names another station takes the visit with it',
     visitStationId: A,
     photoStationId: B,
-    stationFromPumpPlate: true,
+    photoStationSource: 'pump_plate',
     expected: B,
   },
   {
     // The regression test: the vehicle branch used to overwrite the station of
     // the visit it joined with its own inherited guess, undoing the plate.
-    name: 'a vehicle photo joining never moves a plate-derived station',
+    name: 'a vehicle photo joining with an inherited guess never moves the visit',
     visitStationId: B,
     photoStationId: A,
-    stationFromPumpPlate: false,
+    photoStationSource: 'inherited',
     expected: B,
   },
   {
-    name: 'neither half read a plate: the visit keeps the station it has',
+    // Report #6: "công nợ daknong1" typed for this fill outranks a plate read off
+    // a tank label that happened to be in the pump photo's frame.
+    name: 'a station the sender declared for this message moves the visit',
+    visitStationId: B,
+    photoStationId: A,
+    photoStationSource: 'declared',
+    expected: A,
+  },
+  {
+    name: 'neither half carries a station of its own: the visit keeps what it has',
     visitStationId: A,
     photoStationId: A,
-    stationFromPumpPlate: false,
+    photoStationSource: 'inherited',
     expected: A,
   },
   {
     name: 'a plate confirming the station the visit already has changes nothing',
     visitStationId: A,
     photoStationId: A,
-    stationFromPumpPlate: true,
+    photoStationSource: 'pump_plate',
     expected: A,
   },
   {
     name: 'a joining photo parked on the unknown station never overwrites',
     visitStationId: A,
     photoStationId: UNKNOWN,
-    stationFromPumpPlate: false,
+    photoStationSource: 'inherited',
     expected: A,
   },
   {
     name: 'a visit parked on the unknown station is adopted by the joining station',
     visitStationId: UNKNOWN,
     photoStationId: A,
-    stationFromPumpPlate: false,
+    photoStationSource: 'inherited',
     expected: A,
   },
 ]
 
 describe('resolveVisitStation', () => {
-  it.each(cases)('$name', ({ visitStationId, photoStationId, stationFromPumpPlate, expected }) => {
+  it.each(cases)('$name', ({ visitStationId, photoStationId, photoStationSource, expected }) => {
     expect(
       resolveVisitStation({
         visitStationId,
         photoStationId,
-        stationFromPumpPlate,
+        photoStationSource,
         unknownStationId: UNKNOWN,
       })
     ).toBe(expected)

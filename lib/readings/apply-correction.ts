@@ -2,6 +2,8 @@ import { writeAudit } from '@/lib/auth/audit'
 import { type Dispenser, type Prisma, type ShiftReading } from '@/lib/generated/prisma/client'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { prisma } from '@/lib/prisma'
+import { isApprovedReading } from '@/lib/shifts/completion'
+import { propagateApprovedClosing } from '@/lib/shifts/opening-reading'
 
 // Readings are stored as strings to preserve leading zeros (see lib/ai). A field
 // left `undefined` is untouched; an explicit `null` clears it.
@@ -96,5 +98,13 @@ export async function applyReadingCorrection(params: {
     entityId: reading.id,
     metadata: auditMetadata,
   })
+  // A closing that counts is what the next ngày opens from, so a corrected one
+  // travels forward instead of leaving the old number in place.
+  if (
+    (patch.electronicReading !== undefined || patch.mechanicalReading !== undefined) &&
+    isApprovedReading(updated)
+  ) {
+    await propagateApprovedClosing(dispenser, reading.shiftId)
+  }
   return updated
 }

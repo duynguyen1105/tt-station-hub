@@ -36,6 +36,7 @@ import {
 import { hasLedgerFilter, ledgerSelection } from '@/lib/inventory/ledger-selection'
 import { loadStationTankCodes } from '@/lib/inventory/station-tanks'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
+import { tankFuelFrom } from '@/lib/inventory/tank-fuel'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
@@ -519,7 +520,6 @@ export default async function StationInventoryPage({
   const stationPumps = stationPumpsFromDispensers(dispensers)
 
   const canEdit = user.role !== 'viewer'
-  const fuelForTank = new Map(tanks.map((t) => [t.code, t.fuelType]))
 
   const base = `/stations/${id}/inventory`
   const tabHref = (t: InventoryTab) => (t === 'tong-quan' ? base : `${base}?tab=${t}`)
@@ -800,16 +800,13 @@ export default async function StationInventoryPage({
                   const dip = latestByTank.get(tankCode)
                   const flow = flows.get(tankCode)
                   const lookup = actualForTank(tankCode)
+                  // The row's own nhiên liệu, else what the trụ on this hầm sell — the
+                  // same fallback `ingestTankDip` fills a đo hầm from.
+                  const fuel = dip?.fuelType ?? tankFuelFrom(dispensers, tankCode)
                   return (
                     <tr key={tankCode} className="border-b">
                       <td className="p-2 font-medium">{tankCode.replace('HAM_', 'Hầm ')}</td>
-                      <td className="p-2">
-                        {dip?.fuelType
-                          ? fuelLabel(dip.fuelType)
-                          : fuelForTank.get(tankCode)
-                            ? fuelLabel(fuelForTank.get(tankCode)!)
-                            : '—'}
-                      </td>
+                      <td className="p-2">{fuel ? fuelLabel(fuel) : '—'}</td>
                       <td className="p-2 text-right font-mono">
                         {dip?.dipValue.toString() ?? '—'}
                       </td>

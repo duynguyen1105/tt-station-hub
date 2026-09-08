@@ -10,6 +10,16 @@ import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
 import { EditableReading } from '@/components/shared/editable-reading'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { type AppRole } from '@/lib/auth/permissions'
 import {
@@ -20,6 +30,7 @@ import {
   isReadingDecided,
 } from '@/lib/auth/reading-policy'
 import { formatLiters, formatVND } from '@/lib/format'
+import { CONFIRM_REQUIRED_ANOMALIES } from '@/lib/matching/anomaly-detection'
 import { type ReadingPhoto } from '@/lib/photos/reading-photos'
 import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -158,12 +169,25 @@ export function ReadingRow({
   // a kế toán who edits closings in the same row but is barred from openings.
   const showLocks = data.role !== 'viewer'
 
-  async function act(action: 'approve' | 'reject') {
+  // Duyệt past a confirm-gated anomaly asks first: the same set the endpoint
+  // refuses without `confirm`, so the dialog opens exactly when the POST would 400.
+  const confirmable = data.anomalyReasons.filter((r) => CONFIRM_REQUIRED_ANOMALIES.includes(r))
+  const [confirming, setConfirming] = useState(false)
+
+  async function act(action: 'approve' | 'reject', confirm = false) {
     if (!data.readingId) return
+    if (action === 'approve' && confirmable.length > 0 && !confirm) {
+      setConfirming(true)
+      return
+    }
     setActing(action)
-    const result = await postAction(`/api/readings/${data.readingId}/${action}`)
+    const result = await postAction(
+      `/api/readings/${data.readingId}/${action}`,
+      confirm ? { confirm: true } : undefined
+    )
     if (!result.ok) {
       setActing(null)
+      setConfirming(false)
       toast.error(result.error ?? vi.errors.generic)
       return
     }
@@ -173,6 +197,7 @@ export function ReadingRow({
     startTransition(() => {
       router.refresh()
       setActing(null)
+      setConfirming(false)
     })
     toast.success(action === 'approve' ? vi.review.approved : vi.review.rejected)
   }
@@ -347,6 +372,32 @@ export function ReadingRow({
             </Button>
           )}
         </div>
+        {mayReview && confirmable.length > 0 && (
+          <AlertDialog open={confirming} onOpenChange={setConfirming}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{vi.review.confirmTitle}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {vi.review.confirmBody(confirmable.map(anomalyLabel).join(', '))}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+                <AlertDialogAction
+                  loading={acting === 'approve'}
+                  onClick={(e) => {
+                    // The default Action closes on click, which would unmount the
+                    // spinner before the refresh lands.
+                    e.preventDefault()
+                    act('approve', true)
+                  }}
+                >
+                  {vi.review.confirmApprove}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </td>
     </tr>
   )

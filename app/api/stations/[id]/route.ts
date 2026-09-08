@@ -7,12 +7,20 @@ import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { LITERS_DECIMALS_OPTIONS } from '@/lib/debts/liters-decimals'
 import { FuelArea } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
-const updateSchema = z.object({
-  fuelArea: z.nativeEnum(FuelArea),
-})
+const updateSchema = z
+  .object({
+    fuelArea: z.nativeEnum(FuelArea),
+    litersDecimals: z
+      .number()
+      .int()
+      .refine((n) => (LITERS_DECIMALS_OPTIONS as readonly number[]).includes(n)),
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0)
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -29,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const updated = await prisma.station.update({
     where: { id },
-    data: { fuelArea: parsed.data.fuelArea },
+    data: parsed.data,
   })
 
   await writeAudit({
@@ -37,7 +45,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     action: 'station.update',
     entity: 'station',
     entityId: id,
-    metadata: { from: station.fuelArea, to: parsed.data.fuelArea },
+    metadata: {
+      from: { fuelArea: station.fuelArea, litersDecimals: station.litersDecimals },
+      to: parsed.data,
+    },
   })
   return ok(updated)
 }

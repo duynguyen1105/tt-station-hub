@@ -66,11 +66,31 @@ Thao tác:
 
 - **Routing**: mỗi ảnh Zalo được `classifyPhoto()` phân loại 1 lần; màn hình _giao dịch_
   (lít nhỏ, tiền ≈ lít × giá) → `debt_meter` → luồng công nợ, kể cả không caption.
-  Caption chỉ là fallback khi ảnh mờ (`routePhoto()` trong `lib/zalo/classify.ts`).
+  Caption trên chính tin nhắn ("công nợ", "Xe ...") là tuyệt đối; khai báo nhớ từ tin
+  nhắn trước chỉ quyết định các ảnh mơ hồ (`routePhoto()` trong `lib/zalo/classify.ts`).
+  Trong ngữ cảnh công nợ, chỉ ảnh `vehicle` / `debt_meter` / đồng hồ điện tử-cơ mới thành
+  nửa lượt (`debtHalfFor()`); ảnh chỉ-nhãn, nhãn hầm, không rõ → chạy `extractVisitMeter`,
+  nếu tiền = lít × đơn giá khớp thì là ảnh trụ, không thì **đậu trên ca** ở danh sách
+  "Ảnh chưa ghép trụ" (`reason: debt_unreconciled`) — không bao giờ giả làm nửa lượt.
+  Ngược lại, không có khai báo nhưng người gửi đang có lượt chỉ-ảnh-xe chờ trong 5 phút
+  → ảnh "đồng hồ điện tử" được đọc lại bằng `extractVisitMeter`; khớp số học → ghép vào lượt.
+- **Số lít (dấu phẩy ngầm)**: màn hình trụ hiện LÍT không dấu ("340000" = 340,000 L). Dòng
+  tiền cắt chữ số cuối khi ≥ 1.000.000 đ nên **không** phân biệt được 34 L với 340 L bằng
+  số học — `resolveLiters()` (`lib/ai/extract-visit.ts`) đặt dấu theo thứ tự: dấu chấm AI
+  thấy rõ → `Station.litersDecimals` (mặc định 3, chỉnh ở tab Cấu hình) → thang khác của
+  cùng dãy số (gắn `liters_rescaled`, buộc kiểm tra). Số học chỉ **xác nhận**, không chọn.
+  `assembleDebtVisit()` đặt lại dấu theo trạm đã chốt (`placeLitersDecimal`).
 - **Tạo lượt**: `assembleDebtVisit()` (`lib/photos/ingest.ts`) — ảnh `debt_meter` sẽ
-  **ghép** với lượt chỉ-có-ảnh-xe cùng trạm trong **cửa sổ 5 phút**; không có thì tạo lượt
-  mới với `vehicle_photo_id = null`. Caption lưu ở `zalo_caption` (không ghi đè caption cũ
-  bằng null).
+  **ghép** với lượt chỉ-có-ảnh-xe của **cùng người gửi** trong **cửa sổ 5 phút**; không có
+  thì tạo lượt mới với `vehicle_photo_id = null`. Caption lưu ở `zalo_caption` (không ghi
+  đè caption cũ bằng null). **Trạm**: trạm khai báo bằng caption / ngữ cảnh người gửi
+  (`stationDeclared`) thắng nhãn in trên trụ; chỉ khi không khai báo thì nhãn trụ mới đè
+  trạm của người gửi (`resolveVisitStation`, `photoStationSource`).
+- **Quét lượt lẻ** (`lib/debts/stray-sweep.ts`): lượt chỉ-có-ảnh-trụ đã quá cửa sổ ghép
+  5 phút và số đọc **mâu thuẫn** tiền = lít × đơn giá, hoặc không có cả dòng tiền lẫn dòng
+  đơn giá (đồng hồ một số Montech/LungBor) → là ảnh chốt ca bị xếp nhầm, chuyển về luồng
+  chốt ca. Lượt khớp số học, hoặc không đối chiếu được nhưng vẫn có dòng tiền/đơn giá (ảnh
+  xe thất lạc, đơn giá lóa) giữ nguyên trong hàng đợi duyệt — không xóa công nợ theo phỏng đoán.
 - **Duyệt**: `POST /api/debts/visits/[id]/approve` yêu cầu `customerId` + `computedAmount`;
   không yêu cầu biển số/ảnh xe. `reviewStatus` không bao giờ tự auto-approve với công nợ.
 - **Khách mới inline**: `POST /api/debts/customers` (mã bắt buộc, cấm `bl`, biển số

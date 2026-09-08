@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { MisaFuelMapForm } from '@/components/misa-export/fuel-map-form'
 import { DispenserForm } from '@/components/stations/dispenser-form'
 import { StationFuelAreaForm } from '@/components/stations/station-fuel-area-form'
+import { StationLitersDecimalsForm } from '@/components/stations/station-liters-decimals-form'
 import { Badge } from '@/components/ui/badge'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { tankNumberFrom } from '@/lib/dispensers/naming'
@@ -60,6 +61,14 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
           <p className="text-muted-foreground text-sm">{vi.misaSettings.fuelAreaNote}</p>
         </div>
         <StationFuelAreaForm stationId={id} fuelArea={station.fuelArea} />
+      </section>
+
+      <section className="space-y-2">
+        <div>
+          <h2 className="text-sm font-medium">{vi.stations.litersDecimalsLabel}</h2>
+          <p className="text-muted-foreground text-sm">{vi.stations.litersDecimalsNote}</p>
+        </div>
+        <StationLitersDecimalsForm stationId={id} litersDecimals={station.litersDecimals} />
       </section>
 
       <section className="space-y-2">
@@ -191,6 +200,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                           tankCapacityK: dispenser.tankCapacityK,
                           hasElectronicMeter: dispenser.hasElectronicMeter,
                           hasMechanicalMeter: dispenser.hasMechanicalMeter,
+                          electronicDecimals: dispenser.electronicDecimals,
                           isActive: dispenser.isActive,
                         }}
                       />
