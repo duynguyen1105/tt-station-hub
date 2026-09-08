@@ -113,10 +113,11 @@ export type ExtractVisitResult = {
   displayedAmount: string | null
   // Verbatim digits the AI saw on the LÍT row (dot only when visibly lit).
   liters: string | null
-  // Liters after decimal-scale resolution against TIỀN = LÍT × ĐƠN GIÁ:
-  // 'verified'  — the literal reading reconciles with the money line;
-  // 'rescaled'  — a different decimal scale of the same digits reconciles (the
-  //               display's implied decimals, e.g. 350000 → 35.0000 L);
+  // Liters after decimal-scale resolution (lib/ai/extract-visit.ts resolveLiters):
+  // 'verified'  — the visible dot, or the trạm's implied-decimal convention,
+  //               reconciles with TIỀN = LÍT × ĐƠN GIÁ;
+  // 'rescaled'  — only a scale the pump does NOT use reconciles (a digit was
+  //               likely dropped/doubled, or the trạm is misconfigured);
   // 'unverified'— nothing reconciles (or price/amount missing) — the value is
   //               the best assumption and MUST be reviewed by a human.
   litersResolved: number | null

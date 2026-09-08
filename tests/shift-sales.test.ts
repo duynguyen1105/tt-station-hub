@@ -42,31 +42,35 @@ describe('computeShiftSales', () => {
     expect(sales).toEqual([{ fuelType: 'DO', liters: 200 }])
   })
 
-  it('advances only dispensers with a positive delta', () => {
+  it('advances every dispenser that has a closing, whatever its delta', () => {
     const readings: SaleReading[] = [
       {
         dispenserId: 'd1',
         fuelType: 'DO',
         openingElectronicReading: 1000,
         electronicReading: 1200,
-      }, // +200 -> advance
-      { dispenserId: 'd3', fuelType: 'E0', openingElectronicReading: null, electronicReading: 300 }, // no opening -> no advance
+      }, // +200 -> sale + advance
+      { dispenserId: 'd2', fuelType: 'DO', openingElectronicReading: 500, electronicReading: 500 }, // sold nothing -> advance, no sale
+      { dispenserId: 'd3', fuelType: 'E0', openingElectronicReading: null, electronicReading: 300 }, // no opening -> advance, no sale
     ]
-    const { advances } = computeShiftSales(readings, dispensers)
+    const { sales, advances } = computeShiftSales(readings, dispensers)
+    expect(sales).toEqual([{ fuelType: 'DO', liters: 200 }])
     expect(advances).toEqual([
       { dispenserId: 'd1', newElectronicReading: 1200, newMechanicalReading: null },
+      { dispenserId: 'd2', newElectronicReading: 500, newMechanicalReading: null },
+      { dispenserId: 'd3', newElectronicReading: 300, newMechanicalReading: null },
     ])
   })
 
-  it('advances the mechanical cache on a positive mechanical delta', () => {
+  it('advances both caches from one reading', () => {
     const readings: SaleReading[] = [
       {
         dispenserId: 'd1',
         fuelType: 'DO',
         openingElectronicReading: 1000,
-        electronicReading: 1200, // +200 -> electronic advances
+        electronicReading: 1200,
         openingMechanicalReading: 900,
-        mechanicalReading: 1080, // +180 -> mechanical advances
+        mechanicalReading: 1080,
       },
     ]
     const { advances } = computeShiftSales(readings, dispensers)
@@ -75,60 +79,54 @@ describe('computeShiftSales', () => {
     ])
   })
 
-  it('advances each meter independently — a decreased mechanical reading leaves its cache untouched', () => {
+  it('advances each meter independently — a meter with no closing holds its cache', () => {
     const readings: SaleReading[] = [
       {
         dispenserId: 'd1',
         fuelType: 'DO',
         openingElectronicReading: 1000,
-        electronicReading: 1200, // +200 -> electronic advances
+        electronicReading: 1200,
         openingMechanicalReading: 900,
-        mechanicalReading: 850, // decrease -> mechanical does not advance
+        mechanicalReading: null, // no mechanical photo -> its cache holds
+      },
+      {
+        dispenserId: 'd2',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: null, // no electronic photo -> its cache holds
+        openingMechanicalReading: 900,
+        mechanicalReading: 1080,
       },
     ]
     const { advances } = computeShiftSales(readings, dispensers)
     expect(advances).toEqual([
       { dispenserId: 'd1', newElectronicReading: 1200, newMechanicalReading: null },
+      { dispenserId: 'd2', newElectronicReading: null, newMechanicalReading: 1080 },
     ])
   })
 
-  it('advances the mechanical cache even when the electronic meter did not advance', () => {
+  it('books no sale but still advances on a decreased reading', () => {
     const readings: SaleReading[] = [
       {
-        dispenserId: 'd1',
+        dispenserId: 'd2',
         fuelType: 'DO',
-        openingElectronicReading: 1000,
-        electronicReading: 900, // decrease -> electronic does not advance
+        openingElectronicReading: 500,
+        electronicReading: 400,
         openingMechanicalReading: 900,
-        mechanicalReading: 1080, // +180 -> mechanical advances
+        mechanicalReading: 850,
       },
     ]
-    const { advances } = computeShiftSales(readings, dispensers)
+    const { sales, advances } = computeShiftSales(readings, dispensers)
+    expect(sales).toEqual([])
     expect(advances).toEqual([
-      { dispenserId: 'd1', newElectronicReading: null, newMechanicalReading: 1080 },
+      { dispenserId: 'd2', newElectronicReading: 400, newMechanicalReading: 850 },
     ])
   })
 
-  it('books zero liters and does not advance when the opening is null', () => {
+  it('skips a reading whose dispenser is unknown', () => {
     const readings: SaleReading[] = [
-      {
-        dispenserId: 'd1',
-        fuelType: 'DO',
-        openingElectronicReading: null,
-        electronicReading: 1200,
-      },
+      { dispenserId: 'ghost', fuelType: 'DO', openingElectronicReading: 1, electronicReading: 2 },
     ]
-    const { sales, advances } = computeShiftSales(readings, dispensers)
-    expect(sales).toEqual([])
-    expect(advances).toEqual([])
-  })
-
-  it('leaves the cache untouched on a decreased reading', () => {
-    const readings: SaleReading[] = [
-      { dispenserId: 'd2', fuelType: 'DO', openingElectronicReading: 500, electronicReading: 400 }, // decrease -> no sale, no advance
-    ]
-    const { sales, advances } = computeShiftSales(readings, dispensers)
-    expect(sales).toEqual([])
-    expect(advances).toEqual([])
+    expect(computeShiftSales(readings, dispensers)).toEqual({ sales: [], advances: [] })
   })
 })

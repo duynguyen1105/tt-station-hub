@@ -24,7 +24,7 @@ export type SaleDispenser = {
 }
 
 export type FuelSale = { fuelType: string; liters: number }
-// A meter's field is null when its delta was not positive, so its cache stays put.
+// A meter's field is null only when the reading has no closing for it, so its cache stays put.
 export type DispenserAdvance = {
   dispenserId: string
   newElectronicReading: number | null
@@ -39,9 +39,11 @@ export type ShiftSalesResult = {
 /**
  * Computes liters sold per fuel type from a shift's readings, plus the new
  * "last reading" each meter should advance to. Liters are the reading's closing
- * minus its own opening; only a positive delta counts as a sale, and only a
- * positive delta advances the dispenser cache — so a decreased or opening-less
- * reading leaves the baseline untouched for the next shift.
+ * minus its own opening; only a positive delta counts as a sale. Every closing
+ * advances the dispenser cache, whatever its delta — a trụ that sold 0 L, or whose
+ * read the kế toán duyệt'd below its opening, still ends the day at that closing,
+ * and that is where the next ca opens from. (The cache is only the fallback
+ * opening; lib/shifts/opening-reading.ts reads the duyệt'd closing itself.)
  *
  * Only the electronic meter's liters feed inventory; the mechanical meter is a
  * cross-check, so it produces an advance (to carry its opening into the next ca,
@@ -60,21 +62,14 @@ export function computeShiftSales(
     const dispenser = dispenserById.get(reading.dispenserId)
     if (!dispenser) continue
 
-    let newElectronicReading: number | null = null
+    const newElectronicReading = reading.electronicReading
     if (reading.electronicReading !== null && reading.openingElectronicReading !== null) {
       const liters = reading.electronicReading - reading.openingElectronicReading
       if (liters > 0) {
         litersByFuel.set(reading.fuelType, (litersByFuel.get(reading.fuelType) ?? 0) + liters)
-        newElectronicReading = reading.electronicReading
       }
     }
-
-    let newMechanicalReading: number | null = null
-    const mechClosing = reading.mechanicalReading ?? null
-    const mechOpening = reading.openingMechanicalReading ?? null
-    if (mechClosing !== null && mechOpening !== null && mechClosing - mechOpening > 0) {
-      newMechanicalReading = mechClosing
-    }
+    const newMechanicalReading = reading.mechanicalReading ?? null
 
     if (newElectronicReading !== null || newMechanicalReading !== null) {
       advances.push({ dispenserId: dispenser.id, newElectronicReading, newMechanicalReading })

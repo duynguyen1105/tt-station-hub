@@ -3,6 +3,7 @@
 // silently overwrite: agreeing duplicates confirm each other, diverging reads
 // keep the higher-confidence value and force the row into review (both photos
 // stay visible to the reviewer via matchedReadingId).
+import { parseNumericString } from '@/lib/ai/extract-visit'
 
 export type SlotRead = {
   value: number | null
@@ -19,26 +20,43 @@ export function meterTypeRank(meterType: string | null | undefined): number {
   return meterType === 'electronic_green3' ? 1 : 2
 }
 
-// SOME (not all) Montech totalizers render their last 2 digits as decimals
-// behind a tiny dot the AI often cannot see, so 187883.80 comes back as
-// "18788380". Whether a given display has decimals is unknown per pump, so a
-// dotless 7+ digit read is only reinterpreted as /100 when the opening reading
-// PROVES the raw value impossible (negative or absurd delta) while the /100
-// value is plausible. A decimal-less Montech is never touched — its raw delta
-// is the plausible one. Returns the corrected value, or null to keep the raw.
-export function dotlessMontechCorrection(
-  value: number | null,
+export type ScaleResolution = {
+  value: number | null
+  // True only when the scale was INFERRED from the opening (case c) — a placement
+  // by configured decimals is the display's known shape, not a guess.
+  rescaled: boolean
+}
+
+/**
+ * Where the decimal point of an electronic totalizer read goes. Every display
+ * type is prone to it: the Montech and LungBor print 2–3 decimals behind a tiny
+ * dot the AI often cannot see, so 187883.80 comes back as "18788380", and the
+ * PETRO/green displays lose a digit outright. In order:
+ *  (a) a dot the AI DID see is trusted as read;
+ *  (b) a trụ with configured `electronicDecimals` places the point there;
+ *  (c) otherwise the opening decides: of the scales 0..3 the smallest that makes
+ *      closing ≥ opening with delta ≤ maxDelta wins, so a raw read whose own
+ *      delta is plausible is never touched, and a decimal-less display never is;
+ *  (d) nothing plausible (no opening, or every scale absurd): the raw stands.
+ */
+export function resolveReadingScale(
+  raw: string | null,
   opening: number | null,
-  maxDeltaLiters: number
-): number | null {
-  if (value === null || opening === null) return null
-  if (!Number.isInteger(value) || value < 1_000_000) return null
-  const rawDelta = value - opening
-  const scaled = value / 100
-  const scaledDelta = scaled - opening
-  const rawPlausible = rawDelta >= 0 && rawDelta <= maxDeltaLiters
-  const scaledPlausible = scaledDelta >= 0 && scaledDelta <= maxDeltaLiters
-  return !rawPlausible && scaledPlausible ? scaled : null
+  maxDeltaLiters: number,
+  electronicDecimals: number | null
+): ScaleResolution {
+  const value = parseNumericString(raw)
+  if (value === null || raw!.includes('.')) return { value, rescaled: false }
+  if (electronicDecimals !== null) {
+    return { value: value / 10 ** electronicDecimals, rescaled: false }
+  }
+  if (opening === null) return { value, rescaled: false }
+  for (let scale = 0; scale <= 3; scale++) {
+    const candidate = value / 10 ** scale
+    const delta = candidate - opening
+    if (delta >= 0 && delta <= maxDeltaLiters) return { value: candidate, rescaled: scale > 0 }
+  }
+  return { value, rescaled: false }
 }
 
 export type ResolvedSlot = SlotRead & { mismatch: boolean }

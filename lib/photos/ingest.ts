@@ -1,7 +1,12 @@
 import { classifyDebt } from '@/lib/ai/confidence'
 import { extractMeter } from '@/lib/ai/extract-meter'
 import { extractTankDip } from '@/lib/ai/extract-tank-dip'
-import { extractPlate, extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
+import {
+  extractPlate,
+  extractVisitMeter,
+  parseNumericString,
+  placeLitersDecimal,
+} from '@/lib/ai/extract-visit'
 import {
   type ExtractMeterResult,
   type ExtractPlateResult,
@@ -9,18 +14,21 @@ import {
   type ExtractVisitResult,
   type RouterResult,
 } from '@/lib/ai/types'
+import { DEFAULT_LITERS_DECIMALS } from '@/lib/debts/liters-decimals'
 import { plateListContains } from '@/lib/debts/plate'
+import { tankCodeFor } from '@/lib/dispensers/naming'
 import { resolveStationPlateFuel } from '@/lib/fuels/load-catalogue'
 import { FuelArea, Prisma } from '@/lib/generated/prisma/client'
 import { parseVnNumber } from '@/lib/imports/bien-ban'
 import { countableDipWhere } from '@/lib/inventory/dip-review'
 import { compareDipToPrevious } from '@/lib/inventory/tank-dip-rule'
+import { tankFuelFrom } from '@/lib/inventory/tank-fuel'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import {
-  dotlessMontechCorrection,
   meterTypeRank,
   resolveDuplicateSlot,
+  resolveReadingScale,
 } from '@/lib/matching/duplicate-check'
 import {
   type MeterSlot,
@@ -30,14 +38,16 @@ import {
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
-import { resolveVisitStation } from '@/lib/matching/visit-station'
+import { type PhotoStationSource, resolveVisitStation } from '@/lib/matching/visit-station'
 import { inferFuelTypeFromPrice, priceRowOnDate } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
+import { openingReadingsFor } from '@/lib/shifts/opening-reading'
 
 type ShiftRef = { id: string; stationId: string }
 
-// Optional manual assignment from the upload form: force the pump/meter slot when
-// the AI can't read the label (e.g. a Lungbor LCD with no plate in frame).
+// Manual assignment by a reviewer (POST /api/photos/[id]/assign): force the
+// pump/meter slot when the AI can't read the label (e.g. a Lungbor LCD with no
+// plate in frame, or a mechanical window the router missed).
 export type ManualOverride = { dispenserId?: string | null; slot?: MeterSlot | null }
 
 // A per-trip debt photo is either the pump meter (liters + unit price) or the vehicle plate.
@@ -176,7 +186,43 @@ async function assembleShiftReading(
             const existing = await tx.shiftReading.findUnique({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
             })
-            const reading = parseNumericString(result.reading)
+            // Snapshot the opening the first time this reading is assembled: the
+            // latest duyệt'd closing of this trụ from an earlier ngày, else the trụ's
+            // cache (lib/shifts/opening-reading.ts). A re-ingested photo (or an
+            // opening the accountant has already entered) keeps the value it has;
+            // only a slot still empty is filled.
+            const opening =
+              existing?.openingElectronicReading != null &&
+              existing?.openingMechanicalReading != null
+                ? null
+                : await openingReadingsFor(
+                    dispenser.id,
+                    (
+                      await tx.shift.findUniqueOrThrow({
+                        where: { id: shift.id },
+                        select: { shiftDate: true },
+                      })
+                    ).shiftDate,
+                    tx
+                  )
+            const openElec = num(existing?.openingElectronicReading) ?? opening?.electronic ?? null
+            const openMech = num(existing?.openingMechanicalReading) ?? opening?.mechanical ?? null
+
+            // Where the decimal point of an electronic read goes: the display's
+            // configured decimals, else inferred from the opening (see
+            // resolveReadingScale). Resolved before the duplicate check so the new
+            // read meets the prior one on the same scale.
+            const rawReading = parseNumericString(result.reading)
+            const scale =
+              slot === 'electronic'
+                ? resolveReadingScale(
+                    result.reading,
+                    openElec,
+                    DEFAULT_ANOMALY_CONFIG.maxDeltaLiters,
+                    dispenser.electronicDecimals
+                  )
+                : null
+            const reading = scale ? scale.value : rawReading
             const conf = result.readingConfidence
 
             // Staff shoot the same totalizer twice on purpose to cross-check.
@@ -219,32 +265,9 @@ async function assembleShiftReading(
             const mechPhoto =
               slot === 'mechanical' ? resolved.photoId : (existing?.mechanicalPhotoId ?? null)
 
-            // Snapshot the opening from the dispenser's last-reading cache the first
-            // time this reading is assembled; a re-ingested photo (or an opening the
-            // accountant has already entered) keeps the value it already has.
-            const openElec =
-              num(existing?.openingElectronicReading) ?? num(dispenser.lastElectronicReading)
-            const openMech =
-              num(existing?.openingMechanicalReading) ?? num(dispenser.lastMechanicalReading)
-
-            // A dotless Montech read may have lost its decimal dot — but only
-            // reinterpret /100 when the opening proves the raw value impossible
-            // (see dotlessMontechCorrection; not every Montech has decimals).
-            const winnerType =
-              resolved.photoId === photoId ? result.meterType : priorPhoto?.meterType
-            let elecFinal = elecReading
-            if (slot === 'electronic' && winnerType === 'electronic_montech') {
-              elecFinal =
-                dotlessMontechCorrection(
-                  elecReading,
-                  openElec,
-                  DEFAULT_ANOMALY_CONFIG.maxDeltaLiters
-                ) ?? elecReading
-            }
-
             const derived = deriveReviewState(
               {
-                electronicReading: elecFinal,
+                electronicReading: elecReading,
                 mechanicalReading: mechReading,
                 openingElectronicReading: openElec,
                 openingMechanicalReading: openMech,
@@ -257,15 +280,22 @@ async function assembleShiftReading(
               },
               DEFAULT_ANOMALY_CONFIG
             )
-            // A diverging duplicate can never auto-approve: the accountant must
-            // compare both photos before signing the number off.
-            const review = resolved.mismatch
+            // Neither a diverging duplicate nor a guessed decimal point can
+            // auto-approve: the accountant must look at the photo first. The rescale
+            // flag belongs to the electronic photo holding the slot, so it survives
+            // the mechanical photo re-assembling the row.
+            const rescaled =
+              scale && resolved.photoId === photoId
+                ? scale.rescaled
+                : (existing?.anomalyReasons ?? []).includes(ANOMALY_REASONS.scaleRescaled)
+            const extraReasons = [
+              ...(resolved.mismatch ? [ANOMALY_REASONS.duplicatePhotoMismatch] : []),
+              ...(rescaled ? [ANOMALY_REASONS.scaleRescaled] : []),
+            ]
+            const review = extraReasons.length
               ? {
                   isAnomaly: true,
-                  anomalyReasons: [
-                    ...derived.anomalyReasons,
-                    ANOMALY_REASONS.duplicatePhotoMismatch,
-                  ],
+                  anomalyReasons: [...derived.anomalyReasons, ...extraReasons],
                   reviewStatus: 'needs_review',
                 }
               : derived
@@ -273,7 +303,7 @@ async function assembleShiftReading(
             const data = {
               openingElectronicReading: openElec,
               openingMechanicalReading: openMech,
-              electronicReading: elecFinal,
+              electronicReading: elecReading,
               mechanicalReading: mechReading,
               electronicPhotoId: elecPhoto,
               mechanicalPhotoId: mechPhoto,
@@ -285,10 +315,10 @@ async function assembleShiftReading(
               // Preserve the first AI value so a later correction can show the original.
               originalElectronicReading:
                 num(existing?.originalElectronicReading) ??
-                (slot === 'electronic' ? reading : null),
+                (slot === 'electronic' ? rawReading : null),
               originalMechanicalReading:
                 num(existing?.originalMechanicalReading) ??
-                (slot === 'mechanical' ? reading : null),
+                (slot === 'mechanical' ? rawReading : null),
             }
 
             return tx.shiftReading.upsert({
@@ -426,7 +456,7 @@ function debtReview(
  * One indexed query (idx_visits_submitter). It runs holding the global pairing lock
  * every debt photo queues behind, so a scan here stalls all debt intake, not one visit.
  */
-async function findOpenHalf(
+export async function findOpenHalf(
   tx: Prisma.TransactionClient,
   arriving: DebtPhotoType,
   submittedBy: string | null,
@@ -457,6 +487,10 @@ async function findOpenHalf(
 export async function assembleDebtVisit(params: {
   photoId: string
   station: { id: string }
+  // True when the sender declared the station for this message (its caption or
+  // their still-fresh typed context). A human statement beats the pump's printed
+  // plate — the plate wins only when nothing was declared.
+  stationDeclared: boolean
   timestamp: number
   type: DebtPhotoType
   buffer: Buffer
@@ -474,36 +508,44 @@ export async function assembleDebtVisit(params: {
   meter: ExtractVisitResult | null
   plate: ExtractPlateResult | null
 }> {
-  const { photoId, station, timestamp, type, buffer, submittedBy } = params
+  const { photoId, station, stationDeclared, timestamp, type, buffer, submittedBy } = params
   const caption = params.caption?.trim() || null
   const visitDate = new Date(timestamp)
   const windowStart = new Date(timestamp - DEBT_PAIR_WINDOW_MS)
 
   if (type === 'debt_meter') {
-    const meter = params.precomputedMeter ?? (await extractVisitMeter({ imageBuffer: buffer }))
+    const read = params.precomputedMeter ?? (await extractVisitMeter({ imageBuffer: buffer }))
     await prisma.shiftPhoto.update({
       where: { id: photoId },
       data: {
         aiProcessedAt: new Date(),
-        meterType: meter.meterType,
-        aiConfidence: debtConfidence(meter),
-        aiRawResponse: meter.raw as Prisma.InputJsonValue,
+        meterType: read.meterType,
+        aiConfidence: debtConfidence(read),
+        aiRawResponse: read.raw as Prisma.InputJsonValue,
       },
     })
-    const unitPriceRead = parseNumericString(meter.unitPrice)
-    const litersRead = meter.litersResolved
     // The pump plate often names the STATION too ("ĐAKNONG 1 / TRỤ 1 – DO") — let it
-    // override the sender's station, mirroring shift photos. The reviewer can still
-    // change the station manually on the review card.
+    // override the sender's station, mirroring shift photos, unless the sender
+    // declared the station for this message: "công nợ daknong1" is a statement
+    // about THIS fill, while the plate is a read that can land on the wrong trạm
+    // (a tank plate "DAKNONG5 HẦM 1" in the frame). The reviewer can still change
+    // the station manually on the review card.
     let target = station
-    let stationFromPumpPlate = false
-    if (meter.stationLabel) {
-      const byLabel = await matchStationByLabel(meter.stationLabel)
-      if (byLabel) {
-        stationFromPumpPlate = true
+    let source: PhotoStationSource = stationDeclared ? 'declared' : 'inherited'
+    if (read.stationLabel) {
+      const byLabel = await matchStationByLabel(read.stationLabel)
+      if (byLabel && stationDeclared) {
+        if (byLabel.id !== station.id) {
+          logger.warn(
+            { declared: station.id, label: byLabel.code },
+            'Debt visit pump plate disagrees with the declared station — declaration wins'
+          )
+        }
+      } else if (byLabel) {
+        source = 'pump_plate'
         if (byLabel.id !== station.id) {
           logger.info(
-            { from: station.id, to: byLabel.code, label: meter.stationLabel },
+            { from: station.id, to: byLabel.code, label: read.stationLabel },
             'Debt visit station label overrides sender station'
           )
         }
@@ -518,12 +560,18 @@ export async function assembleDebtVisit(params: {
     // still move the visit somewhere else again, which is what the second pass below the
     // transaction is for. Fall back to inferring from the pump price via the station's
     // fuel area retail prices, and finally to null (the accountant sets it in review).
-    const labelFuel = await resolveStationPlateFuel(target.id, meter.fuelType)
-    // Retail prices are keyed by the station's fuel area (retail zone), not by station.
+    const labelFuel = await resolveStationPlateFuel(target.id, read.fuelType)
+    // Retail prices are keyed by the station's fuel area (retail zone), not by
+    // station; the LÍT decimal convention is the trạm's own.
     const stationRow = await prisma.station.findUnique({
       where: { id: target.id },
-      select: { fuelArea: true },
+      select: { fuelArea: true, litersDecimals: true },
     })
+    // The reader placed the decimal under the default convention before any trạm
+    // was known — re-place it under the trạm the plate/sender settled on.
+    const meter = placeLitersDecimal(read, stationRow?.litersDecimals ?? DEFAULT_LITERS_DECIMALS)
+    const unitPriceRead = parseNumericString(meter.unitPrice)
+    const litersRead = meter.litersResolved
     const priceRows = await prisma.misaRetailPrice.findMany({
       where: { fuelArea: stationRow?.fuelArea ?? FuelArea.FUEL_AREA_1 },
     })
@@ -544,6 +592,9 @@ export async function assembleDebtVisit(params: {
     }
     if (litersRead != null && meter.litersResolution === 'unverified') {
       guardAnomalies.push('liters_unverified')
+    }
+    if (litersRead != null && meter.litersResolution === 'rescaled') {
+      guardAnomalies.push('liters_rescaled')
     }
     if (
       unitPriceRead != null &&
@@ -590,7 +641,7 @@ export async function assembleDebtVisit(params: {
                 stationId: resolveVisitStation({
                   visitStationId: open.stationId,
                   photoStationId: target.id,
-                  stationFromPumpPlate,
+                  photoStationSource: source,
                   unknownStationId: unknownStation.id,
                 }),
                 ...meterData,
@@ -602,6 +653,9 @@ export async function assembleDebtVisit(params: {
       },
       { timeout: 15000 }
     )
+    // The photo now sits in a lượt xe: it is no longer waiting to be placed, so it
+    // leaves the ca's unmatched list (components/shifts/unmatched-photos.tsx).
+    await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus: 'matched' } })
     // The pairing lock has the last word on the trạm, and it can disagree with the one
     // the plate word was just read against: a photo from an unidentified sender arrives
     // parked on the UNKNOWN trạm, and a label-less one joining an existing visit leaves
@@ -654,13 +708,13 @@ export async function assembleDebtVisit(params: {
         ? tx.debtVehicleVisit.update({
             where: { id: open.id },
             data: {
-              // A vehicle photo has no pump plate to read a station off, so it only
-              // ever carries an inherited guess and never overwrites what the visit
-              // already concluded.
+              // A vehicle photo has no pump plate to read a station off: it carries
+              // the sender's declaration when there is one, otherwise only an
+              // inherited guess that never overwrites what the visit concluded.
               stationId: resolveVisitStation({
                 visitStationId: open.stationId,
                 photoStationId: station.id,
-                stationFromPumpPlate: false,
+                photoStationSource: stationDeclared ? 'declared' : 'inherited',
                 unknownStationId: unknownStation.id,
               }),
               vehiclePhotoId: photoId,
@@ -684,6 +738,7 @@ export async function assembleDebtVisit(params: {
     },
     { timeout: 15000 }
   )
+  await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus: 'matched' } })
   return { visitId: visit.id, meter: null, plate }
 }
 
@@ -724,12 +779,47 @@ export async function ingestTankDip(
       )
     }
   }
+  const tankNumber = result.tankNumber ?? result.tankLabel?.match(/(\d+)/)?.[1] ?? null
+  const tankCode = target && tankNumber ? tankCodeFor(Number.parseInt(tankNumber, 10)) : null
+  // The trụ drawing on this hầm, and the last dip anyone still stands behind. The
+  // trụ say whether the hầm is dự phòng and what it holds; the previous dip is what
+  // this one is compared to. A read kế toán từ chối is skipped: comparing against it
+  // would put a bogus "So với lần trước" on this row and could fire a false
+  // reserve_stock_changed on a hầm that never moved.
+  const [attached, previous] =
+    target && tankCode
+      ? await Promise.all([
+          prisma.dispenser.findMany({
+            where: { stationId: target.id, tankCode, isActive: true },
+            select: { tankCode: true, fuelType: true },
+          }),
+          prisma.tankDipRecord.findFirst({
+            where: { ...countableDipWhere(target.id), tankCode },
+            // createdAt breaks a measuredAt tie — two shots of the same stick in one
+            // Zalo burst share a timestamp — so this picks the same neighbour a later
+            // correction of the row would (lib/inventory/apply-dip-correction.ts).
+            orderBy: [{ measuredAt: 'desc' }, { createdAt: 'desc' }],
+          }),
+        ])
+      : [[], null]
   // The prompt copies the fuel word off the hầm plate as printed, so it is only a khóa
   // once this trạm's mã hàng and the danh mục have had a look at it. Resolved against
   // the trạm the LABEL settled on (not the sender's), because a mã hàng belongs to the
-  // pair (trạm, nhiên liệu). A plate this trạm cannot place resolves to nothing and the
-  // đo hầm lands with an empty nhiên liệu, for kế toán to set — never a guess.
-  const fuelType = target ? await resolveStationPlateFuel(target.id, result.fuelType) : null
+  // pair (trạm, nhiên liệu). A plate this trạm cannot place — worn paint, a word the
+  // AI misread — falls back to what the hầm is known to hold: the trụ drawing on it,
+  // then the previous đo hầm of the same hầm (a hầm dự phòng has no trụ, but its earlier
+  // dips were reviewed). Only a hầm nothing has ever said anything about lands with an
+  // empty nhiên liệu, for kế toán to set. Each source is a fact about THIS hầm, never a
+  // guess across hầm.
+  const plateFuel = target ? await resolveStationPlateFuel(target.id, result.fuelType) : null
+  const fuelType =
+    plateFuel ?? (tankCode ? tankFuelFrom(attached, tankCode) : null) ?? previous?.fuelType ?? null
+  if (!plateFuel && fuelType) {
+    logger.info(
+      { photoId, tankCode, word: result.fuelType, fuelType },
+      'Tank dip fuel word unresolved — filled from the hầm'
+    )
+  }
   const photo = await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
@@ -741,28 +831,13 @@ export async function ingestTankDip(
     },
   })
 
-  const tankNumber = result.tankNumber ?? result.tankLabel?.match(/(\d+)/)?.[1] ?? null
   // Dip overlays/handwriting use Vietnamese separators: "1.000" is one
   // thousand millimetres, not 1.0 — parseNumericString (built for debt
   // displays like "46.81") would read it a thousand times too small.
   const dip = parseVnNumber(result.dipValue)
-  if (!target || !tankNumber || dip === null) return result
+  if (!target || !tankCode || dip === null) return result
 
-  const tankCode = `HAM_${Number.parseInt(tankNumber, 10)}`
-  const attachedDispensers = await prisma.dispenser.count({
-    where: { stationId: target.id, tankCode, isActive: true },
-  })
-  const isReserve = attachedDispensers === 0
-  // The last dip anyone still stands behind. A read kế toán từ chối is skipped:
-  // comparing against it would put a bogus "So với lần trước" on this row and
-  // could fire a false reserve_stock_changed on a hầm that never moved.
-  const previous = await prisma.tankDipRecord.findFirst({
-    where: { ...countableDipWhere(target.id), tankCode },
-    // createdAt breaks a measuredAt tie — two shots of the same stick in one Zalo
-    // burst share a timestamp — so this picks the same neighbour a later
-    // correction of the row would (lib/inventory/apply-dip-correction.ts).
-    orderBy: [{ measuredAt: 'desc' }, { createdAt: 'desc' }],
-  })
+  const isReserve = attached.length === 0
   const comparison = compareDipToPrevious({
     dipValue: dip,
     previousDipValue: previous ? Number(previous.dipValue) : null,

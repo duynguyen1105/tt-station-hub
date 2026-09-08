@@ -89,6 +89,8 @@ export const vi = {
     unauthorized: 'Bạn không có quyền truy cập.',
     notFound: 'Không tìm thấy dữ liệu.',
     missingOpening: 'Chưa có chỉ số đầu ca — vui lòng nhập trước khi duyệt.',
+    confirmAnomalies: (anomalies: string[]) =>
+      `Chỉ số đang bị cảnh báo: ${anomalies.join(', ')}. Hãy kiểm tra ảnh rồi xác nhận duyệt.`,
   },
 
   fuelArea: {
@@ -259,6 +261,11 @@ export const vi = {
     fuelRequired: 'Vui lòng chọn nhiên liệu.',
     capacityWithoutTank: 'Nhập số hầm trước, rồi mới nhập được dung tích hầm.',
     meterRequired: 'Trụ phải có ít nhất một đồng hồ, nếu không ca sẽ không chờ ảnh nào của trụ.',
+    electronicDecimals: 'Số lẻ thập phân đồng hồ điện tử',
+    electronicDecimalsNote:
+      'Số chữ số sau dấu chấm mà đồng hồ điện tử hiển thị (Montech thường 2–3). Khi AI đọc thiếu dấu chấm, hệ thống đặt lại đúng chỗ; để "Không rõ" thì hệ thống suy từ chỉ số đầu ca.',
+    electronicDecimalsUnknown: 'Không rõ',
+    electronicDecimalsOption: (n: number) => (n === 0 ? 'Không có số lẻ' : `${n} số lẻ`),
   },
 
   misaExport: {
@@ -336,8 +343,10 @@ export const vi = {
     missing_opening: 'Chưa có chỉ số đầu',
     amount_mismatch: 'Lệch số tiền',
     duplicate_photo_mismatch: 'Hai ảnh cùng đồng hồ lệch nhau',
+    scale_rescaled: 'Dấu thập phân do hệ thống suy ra',
     liters_implausible: 'Số lít bất thường',
     liters_unverified: 'Số lít chưa đối chiếu được',
+    liters_rescaled: 'Số lít chỉ khớp ở thang thập phân khác trạm',
     price_implausible: 'Đơn giá bất thường',
     price_mismatch: 'Đơn giá lệch bảng giá',
   },
@@ -408,6 +417,10 @@ export const vi = {
   },
 
   stations: {
+    litersDecimalsLabel: 'Số thập phân dòng LÍT',
+    litersDecimalsNote:
+      'Màn hình trụ hiện số lít không dấu phẩy ("340000"). Số thập phân ngầm quyết định 340,000 L hay 34,0000 L khi tiền không phân biệt được.',
+    litersDecimalsOption: (n: number) => `${n} số thập phân (340000 = ${340000 / 10 ** n} L)`,
     listTitle: 'Danh sách trạm',
     branch: 'Chi nhánh',
     address: 'Địa chỉ',
@@ -464,6 +477,35 @@ export const vi = {
     debtPhotos: 'Ảnh',
   },
 
+  // Ảnh trên ca mà AI không đặt được vào trụ nào — kế toán gán tay.
+  unmatchedPhotos: {
+    title: 'Ảnh chưa ghép trụ',
+    description:
+      'AI không nhận ra trụ hoặc đồng hồ trong các ảnh này. Chọn trụ và loại đồng hồ rồi bấm Gán vào trụ — số sẽ được đọc lại vào đúng ô.',
+    receivedAt: 'Nhận lúc',
+    aiSaw: 'AI thấy',
+    aiNotes: 'Ghi chú AI',
+    pickDispenser: 'Chọn trụ',
+    assign: 'Gán vào trụ',
+    assigned: 'Đã gán ảnh vào trụ và đọc lại số.',
+    notAssignable: 'Ảnh này không thuộc ca nào hoặc không còn file gốc.',
+    slotMissing: 'Trụ này không có loại đồng hồ đã chọn.',
+    reason: {
+      debt_unreconciled:
+        'Gửi trong ngữ cảnh công nợ nhưng không phải ảnh xe hay màn hình bán lẻ (tiền ≠ lít × đơn giá).',
+      extraction_failed: 'Đọc ảnh thất bại.',
+    },
+    routerType: {
+      electronic_meter: 'Đồng hồ điện tử',
+      mechanical_meter: 'Đồng hồ cơ',
+      debt_meter: 'Màn hình bán lẻ',
+      vehicle: 'Xe / can',
+      tank_dip: 'Đo bồn',
+      label_only: 'Chỉ có nhãn',
+      not_relevant: 'Không liên quan',
+    },
+  },
+
   review: {
     shiftsTitle: 'Duyệt chốt ca',
     debtsTitle: 'Duyệt lượt xe',
@@ -471,6 +513,12 @@ export const vi = {
     station: 'Trạm',
     approved: 'Đã duyệt chỉ số.',
     rejected: 'Đã từ chối chỉ số.',
+    // Duyệt past a confirm-gated anomaly: the dialog names what the photo should be
+    // checked against before the number is signed off.
+    confirmTitle: 'Kiểm tra lại trước khi duyệt',
+    confirmBody: (anomalies: string) =>
+      `Chỉ số này đang bị cảnh báo: ${anomalies}. Hãy so với ảnh đồng hồ; nếu số đúng, bấm Xác nhận duyệt.`,
+    confirmApprove: 'Xác nhận duyệt',
   },
 
   correction: {

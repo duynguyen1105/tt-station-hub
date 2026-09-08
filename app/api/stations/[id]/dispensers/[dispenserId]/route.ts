@@ -22,6 +22,7 @@ const editSchema = z.strictObject({
   tankCapacityK: z.number().int().min(1).max(1000).nullable(),
   hasElectronicMeter: z.boolean(),
   hasMechanicalMeter: z.boolean(),
+  electronicDecimals: z.number().int().min(0).max(3).nullable(),
 })
 
 /** Ngừng sử dụng and Dùng lại — a trụ is retired, never deleted. */
@@ -117,6 +118,7 @@ export async function PATCH(
         tankCapacityK: dispenser.tankCapacityK,
         hasElectronicMeter: dispenser.hasElectronicMeter,
         hasMechanicalMeter: dispenser.hasMechanicalMeter,
+        electronicDecimals: dispenser.electronicDecimals,
       },
       to: { fuelType, ...tankFields, ...meters },
     },

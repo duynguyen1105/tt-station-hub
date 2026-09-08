@@ -22,6 +22,9 @@ const createSchema = z.object({
   tankCapacityK: z.number().int().min(1).max(1000).nullable(),
   hasElectronicMeter: z.boolean(),
   hasMechanicalMeter: z.boolean(),
+  // Decimals the electronic totalizer prints (0–3); null when unknown, so ingest
+  // infers the scale from the opening instead.
+  electronicDecimals: z.number().int().min(0).max(3).nullable(),
 })
 
 /**

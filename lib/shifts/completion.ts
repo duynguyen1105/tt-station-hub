@@ -9,21 +9,17 @@ import { vi } from '@/messages/vi'
 export type ReviewedReading = { reviewStatus: string }
 
 /**
- * A số liệu that counts toward the ca — the rows chốt turns into a trừ kho. A `rejected`
- * row is not one: it is a number that was looked at and thrown away, so it weighs
- * nothing.
+ * The review states of a số liệu that counts toward the ca — the rows chốt turns into a
+ * trừ kho, and the closings the next ca opens from. A `rejected` row is not one: it is
+ * a number that was looked at and thrown away, so it weighs nothing.
  */
-export function isApprovedReading(reading: ReviewedReading): boolean {
-  return (
-    reading.reviewStatus === 'approved' ||
-    reading.reviewStatus === 'auto_approved' ||
-    reading.reviewStatus === 'corrected'
-  )
-}
+export const APPROVED_REVIEW_STATUSES = ['approved', 'auto_approved', 'corrected'] as const
 
-/** A số liệu still waiting on the kế toán — nobody has said yes or no to it yet. */
-function isPendingReading(reading: ReviewedReading): boolean {
-  return reading.reviewStatus === 'pending' || reading.reviewStatus === 'needs_review'
+/** The review states of a số liệu still waiting on the kế toán — nobody has said yes or no yet. */
+export const PENDING_REVIEW_STATUSES = ['pending', 'needs_review'] as const
+
+export function isApprovedReading(reading: ReviewedReading): boolean {
+  return (APPROVED_REVIEW_STATUSES as readonly string[]).includes(reading.reviewStatus)
 }
 
 /**
@@ -40,7 +36,9 @@ function isPendingReading(reading: ReviewedReading): boolean {
  * photo arrived for, duyệt, then chốts normally.
  */
 export function refuseShiftCompletion(readings: readonly ReviewedReading[]): string | null {
-  if (readings.some(isPendingReading)) {
+  if (
+    readings.some((r) => (PENDING_REVIEW_STATUSES as readonly string[]).includes(r.reviewStatus))
+  ) {
     return vi.shifts.cannotCompletePending
   }
   if (!readings.some(isApprovedReading)) {

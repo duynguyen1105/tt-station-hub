@@ -165,7 +165,7 @@ async function main() {
     const stationId = resolveVisitStation({
       visitStationId: vehicleVisit.stationId,
       photoStationId: meterVisit.stationId,
-      stationFromPumpPlate: true,
+      photoStationSource: 'pump_plate',
       unknownStationId,
     })
     // The meter half is the row that survives: it carries the money, the AI read
