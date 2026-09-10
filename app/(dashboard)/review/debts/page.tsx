@@ -16,7 +16,6 @@ export default async function ReviewDebtsPage() {
   const user = await requireUser()
 
   // Lazy rescue of misclassified shift photos stuck as unpaired debt visits.
-  // Currently a no-op: the sweep is frozen (see SWEEP_FROZEN in lib/debts/stray-sweep.ts).
   await sweepStrayDebtMeters().catch(() => 0)
 
   // The same boundary the Ca queue draws: a kế toán confirms the lượt xe of the

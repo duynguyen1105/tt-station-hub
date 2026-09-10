@@ -5,10 +5,11 @@ import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
-import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
+import { UnmatchedPhotos } from '@/components/shifts/unmatched-photos'
+import { type ShiftStatus, canEditClosing, canReviewShift } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
-import { formatDate, formatLiters } from '@/lib/format'
+import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
 import {
   fuelTypeLabeller,
   loadFuelCatalogue,
@@ -24,6 +25,7 @@ import {
   debtVisitSelection,
 } from '@/lib/misa-export/debts-list'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
+import { unmatchedPhotoTrace } from '@/lib/photos/unmatched-photos'
 import { prisma } from '@/lib/prisma'
 import { refuseShiftCompletion } from '@/lib/shifts/completion'
 import { hasLateDebtApproval } from '@/lib/shifts/late-debt-approval'
@@ -111,14 +113,47 @@ export default async function ShiftDetailPage({
       : []
   // Source photos, signed so the reviewer can check the original image inline —
   // ALL photos matched to the shift readings (a cross-check pair shoots the same
-  // meter twice) plus the debt visits' photo pairs.
-  const matchedPhotos = await prisma.shiftPhoto.findMany({
-    where: { matchedReadingId: { in: readings.map((r) => r.id) } },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true, matchedReadingId: true, meterType: true, extractedReading: true },
-  })
+  // meter twice) plus the debt visits' photo pairs, plus the photos the AI could
+  // not place on any Trụ, which the reviewer gán by hand below the table.
+  const [matchedPhotos, unmatchedCandidates] = await Promise.all([
+    prisma.shiftPhoto.findMany({
+      where: { matchedReadingId: { in: readings.map((r) => r.id) } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, matchedReadingId: true, meterType: true, extractedReading: true },
+    }),
+    prisma.shiftPhoto.findMany({
+      // 'ambiguous' — a Trụ the label named twice, or a display no reader has a
+      // slot for — is as placeless as 'unmatched': no reading holds the photo.
+      where: { shiftId, matchStatus: { in: ['unmatched', 'ambiguous'] } },
+      orderBy: { zaloReceivedAt: 'asc' },
+      select: {
+        id: true,
+        zaloReceivedAt: true,
+        createdAt: true,
+        extractedReading: true,
+        aiRawResponse: true,
+      },
+    }),
+  ])
+  // Debt photos written before intake marked them 'matched' still say
+  // 'unmatched'; the lượt xe that holds them is the proof they were placed.
+  const placedInVisits =
+    unmatchedCandidates.length === 0
+      ? []
+      : await prisma.debtVehicleVisit.findMany({
+          where: {
+            OR: [
+              { vehiclePhotoId: { in: unmatchedCandidates.map((p) => p.id) } },
+              { meterPhotoId: { in: unmatchedCandidates.map((p) => p.id) } },
+            ],
+          },
+          select: { vehiclePhotoId: true, meterPhotoId: true },
+        })
+  const placedIds = new Set(placedInVisits.flatMap((v) => [v.vehiclePhotoId, v.meterPhotoId]))
+  const unmatchedPhotos = unmatchedCandidates.filter((p) => !placedIds.has(p.id))
   const photoUrlById = await signedUrlsForPhotoIds(prisma, [
     ...matchedPhotos.map((p) => p.id),
+    ...unmatchedPhotos.map((p) => p.id),
     ...readings.flatMap((r) => [r.electronicPhotoId, r.mechanicalPhotoId]),
     ...visits.flatMap((v) => [v.vehiclePhotoId, v.meterPhotoId]),
   ])
@@ -212,6 +247,28 @@ export default async function ShiftDetailPage({
   // it. Fed the rows this page already read — the check narrows them itself, so the
   // warning costs no second query.
   const lateDebtApproval = hasLateDebtApproval(shift, visits)
+  // The photos the AI left on the ca without a Trụ, with what it saw and why it
+  // stopped, for the reviewer to gán by hand. Attaching a photo re-derives a
+  // row's value, so it follows the closing-edit rule.
+  const unmatchedRows = unmatchedPhotos.map((p) => {
+    const trace = unmatchedPhotoTrace(p.aiRawResponse)
+    return {
+      id: p.id,
+      url: photoUrlById.get(p.id) ?? null,
+      receivedAt: formatDateTime(p.zaloReceivedAt ?? p.createdAt),
+      routerType: trace.routerType,
+      reason: trace.reason,
+      notes: trace.notes,
+      error: trace.error,
+      extractedReading: p.extractedReading?.toString() ?? null,
+    }
+  })
+  const assignableDispensers = dispensers.map((d) => ({
+    id: d.id,
+    name: d.displayName,
+    hasElectronicMeter: d.hasElectronicMeter,
+    hasMechanicalMeter: d.hasMechanicalMeter,
+  }))
 
   return (
     <div className="space-y-4">
@@ -285,6 +342,12 @@ export default async function ShiftDetailPage({
           </tbody>
         </table>
       )}
+
+      <UnmatchedPhotos
+        photos={unmatchedRows}
+        dispensers={assignableDispensers}
+        canAssign={canEditClosing(user.role, shift.status as ShiftStatus)}
+      />
 
       <section className="space-y-2">
         <h3 className="text-base font-semibold">{vi.shifts.debtsSectionTitle}</h3>

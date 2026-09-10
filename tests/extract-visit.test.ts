@@ -44,45 +44,71 @@ describe('checkAmountMatch (anti-truncation §5.6, gated)', () => {
   })
 })
 
-// Every case below is a real pump display from the 24/08 Trường Thịnh bug report.
+// Every display below is a real pump read from a Trường Thịnh bug report
+// (24/08 and 26–28/08). The money row truncates above 1,000,000 đ, so it cannot
+// tell 34 L from 340 L on its own — the trạm's convention (default 3 implied
+// decimals) or a lit dot decides, and the money row only confirms.
 describe('resolveLiters (implied-decimal resolution)', () => {
-  it('resolves the 4-implied-decimal convention via the money line', () => {
-    // 50H-357.56: display 90000 = 9.0000 L × 29,110 = 261,990 (AI had said 90.00)
-    expect(resolveLiters('90000', 29110, '261990')).toEqual({
-      liters: 9,
-      resolution: 'rescaled',
+  it('places 3 implied decimals and confirms through money-row truncation (26/08)', () => {
+    // 50H-210.10 DAKNONG1: 340000 = 340.000 L × 29,110 = 9,897,400 shown as 989740
+    expect(resolveLiters('340000', 29110, '989740')).toEqual({
+      liters: 340,
+      resolution: 'verified',
     })
-    // 50H-212.30: 150000 = 15.0000 L × 29,110 = 436,650
-    expect(resolveLiters('150000', 29110, '436650')).toEqual({
-      liters: 15,
-      resolution: 'rescaled',
+    // 59000 = 59.000 L × 28,540 = 1,683,860 shown as 168386
+    expect(resolveLiters('59000', 28540, '168386')).toEqual({
+      liters: 59,
+      resolution: 'verified',
     })
-    // 60C-244.10: 68000 = 6.8000 L × 28,540 = 194,072
-    expect(resolveLiters('68000', 28540, '194072')).toEqual({
-      liters: 6.8,
-      resolution: 'rescaled',
-    })
-  })
-  it('resolves through display truncation of the money line', () => {
-    // 50E-751.91 / 50E-657.51: 350000 = 35.0000 L × 29,110 = 1,018,850, shown truncated as 101885
-    expect(resolveLiters('350000', 29110, '101885')).toEqual({
-      liters: 35,
-      resolution: 'rescaled',
+    // 170000 = 170.000 L × 28,540 = 4,851,800 shown as 485180
+    expect(resolveLiters('170000', 28540, '485180')).toEqual({
+      liters: 170,
+      resolution: 'verified',
     })
   })
-  it('trusts a visible dot that reconciles', () => {
+  it('trusts a dot the reader actually saw over the convention', () => {
+    // 50F-032.52 LAMDONG01: "182.000" lit on the glass × 29,110 = 5,298,020 shown as 529802
+    expect(resolveLiters('182.000', 29110, '529802')).toEqual({
+      liters: 182,
+      resolution: 'verified',
+    })
+    // A dotted read on a 4-decimal trạm still wins when it reconciles
+    expect(resolveLiters('182.000', 29110, '529802', 4)).toEqual({
+      liters: 182,
+      resolution: 'verified',
+    })
     expect(resolveLiters('4.3', 27760, '119368')).toEqual({ liters: 4.3, resolution: 'verified' })
   })
-  it('rescales even against a wrongly-dotted read when arithmetic disagrees', () => {
-    // model wrote "90.00" despite no lit dot — money line says 9.00
-    expect(resolveLiters('90.00', 29110, '261990')).toEqual({
+  it('honours a trạm configured with 4 implied decimals (24/08 displays)', () => {
+    // 50H-357.56: 90000 = 9.0000 L × 29,110 = 261,990
+    expect(resolveLiters('90000', 29110, '261990', 4)).toEqual({
       liters: 9,
+      resolution: 'verified',
+    })
+    // 50E-751.91: 350000 = 35.0000 L × 29,110 = 1,018,850 shown as 101885
+    expect(resolveLiters('350000', 29110, '101885', 4)).toEqual({
+      liters: 35,
+      resolution: 'verified',
+    })
+    // The same digits under the default convention read ten times larger
+    expect(resolveLiters('90000', 29110, '261990')).toEqual({
+      liters: 90,
+      resolution: 'verified',
+    })
+  })
+  it('flags a read that only reconciles at a scale the trạm does not use', () => {
+    // Reader lost two zeros of "340000": 3400 × 29,110 only adds up as 34 L (2 decimals)
+    expect(resolveLiters('3400', 29110, '989740')).toEqual({
+      liters: 34,
       resolution: 'rescaled',
     })
   })
-  it('falls back to the 4-decimal assumption, flagged unverified, when nothing reconciles', () => {
-    expect(resolveLiters('350000', null, null)).toEqual({ liters: 35, resolution: 'unverified' })
-    expect(resolveLiters('350000', 29110, null)).toEqual({ liters: 35, resolution: 'unverified' })
+  it('falls back to the convention, flagged unverified, when nothing reconciles', () => {
+    expect(resolveLiters('350000', null, null)).toEqual({ liters: 350, resolution: 'unverified' })
+    expect(resolveLiters('350000', 29110, null)).toEqual({ liters: 350, resolution: 'unverified' })
+    expect(resolveLiters('350000', null, null, 4)).toEqual({ liters: 35, resolution: 'unverified' })
+    // Too short to carry the implied decimals: kept whole
+    expect(resolveLiters('43', null, null)).toEqual({ liters: 43, resolution: 'unverified' })
   })
   it('keeps a dotted literal, flagged unverified, when it cannot be checked', () => {
     expect(resolveLiters('32.00', null, null)).toEqual({ liters: 32, resolution: 'unverified' })

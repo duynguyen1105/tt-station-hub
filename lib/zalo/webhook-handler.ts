@@ -15,17 +15,21 @@ import {
   matchStationByLabel,
 } from '@/lib/matching/station-label'
 import { submitterKey } from '@/lib/matching/submitter'
+import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
 import {
   assembleDebtVisit,
+  findOpenHalf,
   findOrCreateShift,
   ingestTankDip,
   runShiftExtraction,
 } from '@/lib/photos/ingest'
+import { type UnmatchedReason, unmatchedTrace } from '@/lib/photos/unmatched-photos'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import {
-  classifyZaloMessage,
+  debtHalfFor,
   explicitCaptionKind,
+  reconcilesAsPerFillDisplay,
   routeOpensShift,
   routePhoto,
 } from '@/lib/zalo/classify'
@@ -362,12 +366,10 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
     }
   }
 
-  // An EXPLICIT caption on THIS message ("chốt ca" / "công nợ" / "tồn kho" /
-  // "đo bồn") is authoritative for every photo in it — the human declared the
-  // intent, so the image classifier cannot override it. A kind remembered from
-  // an earlier text is weaker (see routePhoto's declaredFallback): it fills in
-  // where the image is ambiguous but never overrides a clear classification.
-  const captionKind = classifyZaloMessage(msg.caption)
+  // The pairing key, fixed before any AI reads anything, so both halves of one
+  // fill agree on it even when they disagree about the station.
+  const submittedBy = submitterKey('zalo', msg.senderId)
+  const stationDeclared = declaredStation !== null
   let received = 0
 
   for (let i = 0; i < msg.imageUrls.length; i++) {
@@ -376,27 +378,61 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       const buffer = preBuffers.get(i) ?? (await downloadZaloAttachment(url))
       const pre = preResults.get(i)
 
-      // Classify once, then route by what the AI sees — a vehicle plate or a
-      // transaction display is a debt fill, a cumulative totalizer is a shift
-      // reading, a HẦM tank-dip is inventory — falling back to the caption when the
-      // image is ambiguous. The router result is reused by the extractors below so
-      // we never pay for a second classification.
+      // Classify once, then route by what the AI sees and what the sender
+      // declared (precedence in routePhoto). The router result is reused by the
+      // extractors below so we never pay for a second classification.
       const router =
         preRouters.get(i) ??
         (pre
           ? ((pre.raw as { router?: RouterResult })?.router ?? null)
           : await classifyPhoto(buffer).catch(() => null))
-      // The caption typed on THIS message keeps full authority. A kind carried
-      // over from the sender's earlier text is only a fallback: it decides the
-      // cases vision cannot (totalizer vs debt display, unreadable photos) but
-      // never overrides a clear classification — a "công nợ" text five minutes
-      // ago must not turn a tank-dip photo into a debt visit.
+      const routerType = router?.image_type ?? null
       const contextKind = explicitKind ? null : (context?.kind ?? null)
-      const route =
-        explicitKind ??
-        (router
-          ? routePhoto(router.image_type, captionKind, contextKind)
-          : (contextKind ?? captionKind))
+      let route = routePhoto(routerType, explicitKind, contextKind)
+
+      // Which half of a lượt xe a debt photo is. The visit reader's arithmetic
+      // (TIỀN = LÍT × ĐƠN GIÁ) is the second opinion that settles what neither
+      // the router nor a declaration can:
+      //  (a) a declared-debt photo that is neither a vehicle nor a display —
+      //      a bare label, a tank plate — must not fake a pump half (it would
+      //      steal the real pump photo's pairing slot and, via its plate, the
+      //      visit's trạm). It becomes one only if its lines reconcile;
+      //      otherwise it is parked on the ca, visible in the unmatched list.
+      //  (b) with nothing declared, a "totalizer" from a sender whose vehicle
+      //      photo is still waiting for its pump half is that pump half — if
+      //      its lines reconcile. A totalizer never does.
+      let debtHalf = route === 'debt' ? debtHalfFor(routerType) : null
+      let visitMeter = preVisitResults.get(i)
+      let parked: UnmatchedReason | null = null
+      if (route === 'debt' && !debtHalf) {
+        visitMeter ??= await extractVisitMeter({ imageBuffer: buffer }).catch(() => undefined)
+        if (visitMeter && reconcilesAsPerFillDisplay(visitMeter)) {
+          debtHalf = 'debt_meter'
+        } else {
+          route = 'shift'
+          parked = 'debt_unreconciled'
+        }
+      } else if (
+        route === 'shift' &&
+        !explicitKind &&
+        (routerType === 'electronic_meter' || routerType === 'label_only') &&
+        (await findOpenHalf(
+          prisma,
+          'debt_meter',
+          submittedBy,
+          new Date(msg.timestamp - DEBT_PAIR_WINDOW_MS)
+        ))
+      ) {
+        visitMeter = await extractVisitMeter({ imageBuffer: buffer }).catch(() => undefined)
+        if (visitMeter && reconcilesAsPerFillDisplay(visitMeter)) {
+          route = 'debt'
+          debtHalf = 'debt_meter'
+          logger.info(
+            { senderId: msg.senderId, index: i },
+            'Totalizer look-alike reconciles as a per-fill display and pairs with the waiting vehicle photo'
+          )
+        }
+      }
 
       // For shift photos the meter is extracted anyway, so read it now and let the
       // PRINTED STATION LABEL override the sender-based station when they disagree
@@ -404,7 +440,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       // Debt/inventory photos rarely carry a label and keep the sender's station.
       let target = station
       let extracted: ExtractMeterResult | undefined = pre
-      if (route === 'shift') {
+      if (route === 'shift' && !parked) {
         extracted =
           pre ??
           (await extractMeter({ imageBuffer: buffer, router: router ?? undefined }).catch(
@@ -488,8 +524,19 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       })
 
       // Awaited (not fire-and-forget) so processing completes within the webhook's
-      // after() window on serverless — otherwise the function freezes first.
-      if (route === 'shift' && shift) {
+      // after() window on serverless — otherwise the function freezes first. A pass
+      // that throws leaves its trace on the photo (unmatchedTrace) so the reviewer
+      // still finds it in the ca's unmatched list instead of only in a log line.
+      if (parked) {
+        await prisma.shiftPhoto.update({
+          where: { id: photo.id },
+          data: unmatchedTrace(parked, { router, visit: visitMeter?.raw ?? null }),
+        })
+        logger.warn(
+          { photoId: photo.id, routerType },
+          'Declared-debt photo is neither half of a fill — parked on the ca unmatched'
+        )
+      } else if (route === 'shift' && shift) {
         await runShiftExtraction(
           photo.id,
           buffer,
@@ -497,25 +544,46 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           undefined,
           router ?? undefined,
           extracted
-        ).catch((error) => logger.error({ error, photoId: photo.id }, 'Shift extraction failed'))
-      } else if (route === 'debt') {
+        ).catch(async (error) => {
+          logger.error({ error, photoId: photo.id }, 'Shift extraction failed')
+          await prisma.shiftPhoto
+            .update({
+              where: { id: photo.id },
+              data: unmatchedTrace('extraction_failed', { router, error }),
+            })
+            .catch(() => {})
+        })
+      } else if (route === 'debt' && debtHalf) {
         await assembleDebtVisit({
           photoId: photo.id,
           station: { id: station.id },
+          stationDeclared,
           timestamp: msg.timestamp,
-          type: router?.image_type === 'vehicle' ? 'vehicle' : 'debt_meter',
+          type: debtHalf,
           buffer,
           caption: msg.caption,
-          // Fixed before any AI reads anything, so both halves of one fill agree
-          // on it even when they disagree about the station.
-          submittedBy: submitterKey('zalo', msg.senderId),
-          precomputedMeter: preVisitResults.get(i),
-        }).catch((error) =>
+          submittedBy,
+          precomputedMeter: visitMeter,
+        }).catch(async (error) => {
           logger.error({ error, photoId: photo.id }, 'Debt visit assembly failed')
-        )
+          await prisma.shiftPhoto
+            .update({
+              where: { id: photo.id },
+              data: unmatchedTrace('extraction_failed', { router, error }),
+            })
+            .catch(() => {})
+        })
       } else if (route === 'inventory') {
-        await ingestTankDip(photo.id, buffer, preTankResults.get(i), station).catch((error) =>
-          logger.error({ error, photoId: photo.id }, 'Tank-dip ingest failed')
+        await ingestTankDip(photo.id, buffer, preTankResults.get(i), station).catch(
+          async (error) => {
+            logger.error({ error, photoId: photo.id }, 'Tank-dip ingest failed')
+            await prisma.shiftPhoto
+              .update({
+                where: { id: photo.id },
+                data: unmatchedTrace('extraction_failed', { router, error }),
+              })
+              .catch(() => {})
+          }
         )
       }
       received++
@@ -524,10 +592,9 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
     }
   }
 
-  // Rescue pass: a meter-only debt visit still unpaired after 1 minute was a
-  // misclassified shift photo (real debt fills always arrive as a pair) —
+  // Rescue pass: a meter-only debt visit whose pairing window has closed and whose
+  // read never reconciled as a per-fill display was a misfiled shift totalizer —
   // reroute it into the shift pipeline. Runs here because there is no cron.
-  // Currently a no-op: the sweep is frozen (see SWEEP_FROZEN in lib/debts/stray-sweep.ts).
   await sweepStrayDebtMeters().catch((error) =>
     logger.error({ error }, 'Stray debt-meter sweep failed')
   )

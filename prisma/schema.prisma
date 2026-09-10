@@ -64,6 +64,10 @@ model Station {
   address         String?
   zaloGroupId     String?  @map("zalo_group_id") // shift-photo Zalo group
   zaloDebtGroupId String?  @map("zalo_debt_group_id") // debt group (if separated)
+  // Implied decimals on the LÍT row of this trạm's pump displays ("340000" = 340.000 L
+  // at 3). The debt reader places the decimal by this, not by arithmetic alone — the
+  // money row truncates above 1,000,000 đ and can no longer tell 34 L from 340 L.
+  litersDecimals  Int      @default(3) @map("liters_decimals")
   // Admin-written requirement shown on the legal-documents tab
   // ("giấy tờ từ 1-10 ..."), so every reviewer sees what must be on file.
   documentsNote   String?  @map("documents_note")
@@ -96,6 +100,9 @@ model Dispenser {
   tankCapacityK         Int?      @map("tank_capacity_k") // 25
   hasElectronicMeter    Boolean   @default(true) @map("has_electronic_meter")
   hasMechanicalMeter    Boolean   @default(true) @map("has_mechanical_meter")
+  // Implied decimals on the electronic totalizer's display (2 → "18788380" reads
+  // 187883.80). Null = unknown: ingest then infers the scale from the opening.
+  electronicDecimals    Int?      @map("electronic_decimals")
   lastElectronicReading Decimal?  @map("last_electronic_reading") @db.Decimal(15, 3)
   lastMechanicalReading Decimal?  @map("last_mechanical_reading") @db.Decimal(15, 3)
   lastReadingAt         DateTime? @map("last_reading_at")
@@ -159,6 +166,8 @@ model ShiftReading {
   @@unique([shiftId, dispenserId])
   @@index([shiftId], map: "idx_readings_shift")
   @@index([reviewStatus], map: "idx_readings_review")
+  // lib/shifts/opening-reading.ts walks one trụ's history for its latest duyệt'd closing.
+  @@index([dispenserId], map: "idx_readings_dispenser")
   @@map("shift_readings")
 }
 

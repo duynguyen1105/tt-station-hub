@@ -8,6 +8,7 @@ import {
   debtMeterSchema,
   vehiclePlateSchema,
 } from '@/lib/ai/types'
+import { DEFAULT_LITERS_DECIMALS } from '@/lib/debts/liters-decimals'
 
 /** Parses a displayed numeric string ("4.3", "27,760") to a number, or null. */
 export function parseNumericString(value: string | null): number | null {
@@ -49,90 +50,61 @@ export type LitersResolution = {
 }
 
 /**
- * Resolves the decimal scale of the LÍT row using the arithmetic identity the
- * pump itself guarantees: TIỀN = LÍT × ĐƠN GIÁ.
+ * Resolves the decimal scale of the LÍT row.
  *
- * These displays print liters with IMPLIED decimals ("350000" means 35.0000 L,
- * "90000" means 9.0000 L) and the dot is often unlit/invisible, so the raw
- * digits alone are ambiguous by powers of ten (§12.2). Instead of trusting the
- * model's guess, try each plausible scale of the digits it read and keep the
- * one whose product reconciles with the money line.
+ * These displays print liters with IMPLIED decimals ("340000" means 340.000 L)
+ * and the dot is often unlit/invisible, so the raw digits alone are ambiguous by
+ * powers of ten (§12.2). The pump's arithmetic identity TIỀN = LÍT × ĐƠN GIÁ is
+ * a CHECK, not a chooser: because the money row drops its last digit above
+ * 1,000,000, "340000" reconciles with a displayed 989740 both as 34 L (exact)
+ * and as 340 L (9,897,400 truncated) — the 26/08 ×10 undercharge came from
+ * letting the exact tier pick 34. So the scale is chosen by evidence in this
+ * order, and arithmetic only confirms or rejects it:
  *
- * Two tiers of reconciliation, because an EXACT digit match is stronger
- * evidence than one that leans on display truncation: a dotted read of "90.00"
- * truncation-matches a displayed 261990 (2,619,900 → 261990), but 9.0000 with
- * the pump's implied decimals matches it EXACTLY — the exact tier wins, which
- * is precisely the 24/08 10× overcharge scenario. Within a tier, the visible
- * dot is preferred, then 4 implied decimals (the convention on every
- * Trường Thịnh pump verified so far), then 3..0. A scale is only ever ACCEPTED
- * when the arithmetic confirms it, so a pump with a different convention
- * resolves correctly too.
+ * 1. a dot the model actually SAW ("182.000") — the display's own statement;
+ * 2. the trạm's configured implied decimals (`impliedDecimals`);
+ * 3. any other scale of the same digits, marked 'rescaled' — the read only
+ *    adds up at a scale the pump does not use, so a digit was likely dropped
+ *    or doubled (or the trạm's convention is misconfigured) and review is
+ *    forced upstream.
  *
- * When nothing reconciles (unreadable price/amount, or a genuinely wrong
- * read), falls back to the literal reading — or the 4-implied-decimals
- * assumption for dotless 5+ digit reads, which errs small rather than 10,000×
- * large — and marks it 'unverified' so review is forced downstream.
+ * When nothing reconciles (unreadable price/amount, or a genuinely wrong read),
+ * falls back to the literal dotted read or the convention scale and marks it
+ * 'unverified' so review is forced downstream.
  */
 export function resolveLiters(
   rawLiters: string | null,
   unitPrice: number | null,
-  displayedAmount: string | null
+  displayedAmount: string | null,
+  impliedDecimals: number = DEFAULT_LITERS_DECIMALS
 ): LitersResolution {
   if (rawLiters == null) return { liters: null, resolution: null }
   const digits = rawLiters.replace(/\D/g, '')
   if (digits === '') return { liters: null, resolution: null }
   const hasDot = rawLiters.includes('.')
-  const literal = hasDot ? parseNumericString(rawLiters) : Number(digits)
+  const literal = hasDot ? parseNumericString(rawLiters) : null
+  const base = Number(digits)
+  if (!Number.isFinite(base)) return { liters: null, resolution: null }
   const displayedClean = displayedAmount?.replace(/\D/g, '') ?? ''
 
-  const matchTier = (liters: number): 'exact' | 'truncated' | null => {
-    if (unitPrice == null || unitPrice <= 0 || liters <= 0 || displayedClean === '') return null
-    const c = Math.round(liters * unitPrice)
-    if (c.toString() === displayedClean) return 'exact'
-    return checkAmountMatch(c, displayedClean) ? 'truncated' : null
+  const reconciles = (liters: number): boolean => {
+    if (unitPrice == null || unitPrice <= 0 || liters <= 0 || displayedClean === '') return false
+    return checkAmountMatch(Math.round(liters * unitPrice), displayedClean)
   }
 
-  // Candidates in preference order: the visible dot first, then the pump's
-  // implied-decimal scales widest-first.
-  const base = Number(digits)
-  const candidates: number[] = []
-  if (literal != null && hasDot) candidates.push(literal)
-  if (Number.isFinite(base)) {
-    for (const k of [4, 3, 2, 1, 0]) {
-      const scaled = base / 10 ** k
-      if (!candidates.includes(scaled)) candidates.push(scaled)
-    }
+  const conventional = base / 10 ** impliedDecimals
+  if (literal != null && reconciles(literal)) return { liters: literal, resolution: 'verified' }
+  if (reconciles(conventional)) return { liters: conventional, resolution: 'verified' }
+  for (const k of [4, 3, 2, 1, 0]) {
+    if (k === impliedDecimals) continue
+    const scaled = base / 10 ** k
+    if (scaled !== literal && reconciles(scaled)) return { liters: scaled, resolution: 'rescaled' }
   }
 
-  let truncatedHit: number | null = null
-  for (const candidate of candidates) {
-    const tier = matchTier(candidate)
-    if (tier === 'exact') {
-      return {
-        liters: candidate,
-        resolution: literal != null && candidate === literal ? 'verified' : 'rescaled',
-      }
-    }
-    if (tier === 'truncated' && truncatedHit == null) truncatedHit = candidate
-  }
-  if (truncatedHit != null) {
-    return {
-      liters: truncatedHit,
-      resolution: literal != null && truncatedHit === literal ? 'verified' : 'rescaled',
-    }
-  }
-
-  // Nothing reconciles: keep the literal read when it carries its own dot;
-  // otherwise assume the pump-standard 4 implied decimals on long reads.
-  const fallback =
-    literal != null && hasDot
-      ? literal
-      : digits.length >= 5 && Number.isFinite(base)
-        ? base / 10 ** 4
-        : Number.isFinite(base)
-          ? base
-          : null
-  return { liters: fallback, resolution: fallback == null ? null : 'unverified' }
+  // Nothing reconciles: a dotted read keeps its dot; a dotless read long enough
+  // to carry the implied decimals gets them, a shorter one is kept whole.
+  const fallback = literal ?? (digits.length > impliedDecimals ? conventional : base)
+  return { liters: fallback, resolution: 'unverified' }
 }
 
 function mockVisit(): ExtractVisitResult {
@@ -158,6 +130,35 @@ function mockVisit(): ExtractVisitResult {
 }
 
 /**
+ * Re-places the LÍT decimal of a read under a trạm's convention. The reader runs
+ * before the trạm is known (the pump plate in the photo is what identifies it),
+ * so extraction resolves under the default and intake re-resolves once the visit
+ * has settled on a trạm.
+ */
+export function placeLitersDecimal(
+  meter: ExtractVisitResult,
+  impliedDecimals: number
+): ExtractVisitResult {
+  const unitPrice = parseNumericString(meter.unitPrice)
+  const { liters, resolution } = resolveLiters(
+    meter.liters,
+    unitPrice,
+    meter.displayedAmount,
+    impliedDecimals
+  )
+  const computedAmount = liters != null && unitPrice != null ? Math.round(liters * unitPrice) : null
+  const amountMatchesDisplay =
+    computedAmount != null ? checkAmountMatch(computedAmount, meter.displayedAmount) : null
+  return {
+    ...meter,
+    litersResolved: liters,
+    litersResolution: resolution,
+    computedAmount,
+    amountMatchesDisplay,
+  }
+}
+
+/**
  * Reads a debt (per-trip) meter: liters + unit price, then computes the true
  * amount (liters × unit price) and checks it against the displayed amount.
  */
@@ -176,30 +177,27 @@ export async function extractVisitMeter(input: {
   const text = await callClaudeVision({ prompt: DEBT_METER_PROMPT, images: [image] })
   const parsed = debtMeterSchema.parse(parseJsonFromText(text))
 
-  const unitPrice = parseNumericString(parsed.unit_price)
-  const { liters, resolution } = resolveLiters(parsed.liters, unitPrice, parsed.displayed_amount)
-  const computedAmount = liters != null && unitPrice != null ? Math.round(liters * unitPrice) : null
-  const amountMatchesDisplay =
-    computedAmount != null ? checkAmountMatch(computedAmount, parsed.displayed_amount) : null
-
-  return {
-    meterType: parsed.meter_type,
-    displayedAmount: parsed.displayed_amount,
-    liters: parsed.liters,
-    litersResolved: liters,
-    litersResolution: resolution,
-    unitPrice: parsed.unit_price,
-    stationLabel: parsed.station_label ?? null,
-    dispenserLabel: parsed.dispenser_label ?? null,
-    fuelType: parsed.fuel_type ?? null,
-    computedAmount,
-    amountMatchesDisplay,
-    litersConfidence: parsed.confidence.liters,
-    unitPriceConfidence: parsed.confidence.unit_price,
-    amountConfidence: parsed.confidence.amount,
-    notes: parsed.notes,
-    raw: parsed,
-  }
+  return placeLitersDecimal(
+    {
+      meterType: parsed.meter_type,
+      displayedAmount: parsed.displayed_amount,
+      liters: parsed.liters,
+      litersResolved: null,
+      litersResolution: null,
+      unitPrice: parsed.unit_price,
+      stationLabel: parsed.station_label ?? null,
+      dispenserLabel: parsed.dispenser_label ?? null,
+      fuelType: parsed.fuel_type ?? null,
+      computedAmount: null,
+      amountMatchesDisplay: null,
+      litersConfidence: parsed.confidence.liters,
+      unitPriceConfidence: parsed.confidence.unit_price,
+      amountConfidence: parsed.confidence.amount,
+      notes: parsed.notes,
+      raw: parsed,
+    },
+    DEFAULT_LITERS_DECIMALS
+  )
 }
 
 /** Reads a vehicle license plate. */

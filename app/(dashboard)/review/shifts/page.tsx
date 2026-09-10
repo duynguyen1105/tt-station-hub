@@ -14,7 +14,6 @@ export default async function ReviewShiftsPage() {
 
   // Lazy rescue of misclassified shift photos stuck as unpaired debt visits —
   // exactly the moment a reviewer would notice one missing.
-  // Currently a no-op: the sweep is frozen (see SWEEP_FROZEN in lib/debts/stray-sweep.ts).
   await sweepStrayDebtMeters().catch(() => 0)
 
   // A kế toán is offered the ca of the trạm they are phụ trách of and no other,

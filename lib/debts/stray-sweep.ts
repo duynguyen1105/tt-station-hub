@@ -1,40 +1,61 @@
 import { Prisma } from '@/lib/generated/prisma/client'
 import { logger } from '@/lib/logger'
-import { findOrCreateShift, runShiftExtraction } from '@/lib/photos/ingest'
+import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
+import {
+  findOrCreateShift,
+  runShiftExtraction,
+  shiftDateFor,
+  shiftTypeFor,
+} from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
-import { getSignedUrl } from '@/lib/storage/photo-storage'
+import { downloadPhoto } from '@/lib/storage/photo-storage'
 
-// A real debt fill is always sent as a photo PAIR (vehicle/can + pump display),
-// so a meter-only visit still unpaired after this window was a shift totalizer
-// the router misread as a debt screen.
-const STRAY_DEBT_METER_MAX_AGE_MS = 60 * 1000
-
-// FROZEN — the premise above does not hold today. Debt pairs split whenever the
-// fill was photographed away from the submitter's registered station, so most
-// meter-only visits are the money half of a genuine debt fill, not a misread
-// shift screen: sweeping them deletes the debt and files the amount owed as a
-// shift reading. Frozen here rather than at the call sites so all three trigger
-// points are covered (both review page renders + the end of each Zalo webhook).
-// Flip to false to thaw — but not before the sweep's premise is redesigned;
-// see issues/debt-pair-splitting/spec.md and "Frozen, owed" in PROJECT_STATUS.md.
-// Typed `boolean` so the literal `true` does not mark the sweep body unreachable.
-const SWEEP_FROZEN: boolean = true
+// A meter-only visit is only stray once its vehicle photo can no longer join it:
+// findOpenHalf pairs inside DEBT_PAIR_WINDOW_MS of the visit, so anything older
+// is definitively unpaired. The earlier 60s cutoff stole the pump half of fills
+// whose vehicle photo was still on its way.
+const STRAY_DEBT_METER_MAX_AGE_MS = DEBT_PAIR_WINDOW_MS
 
 /**
  * Reroutes stale meter-only debt visits into the shift-closing pipeline.
- * **Currently frozen** (see `SWEEP_FROZEN`): returns 0 without touching anything.
+ *
+ * Premise, stated so it can be checked: a per-fill display reconciles
+ * TIỀN = LÍT × ĐƠN GIÁ; a cumulative totalizer either contradicts its money line
+ * (3-line green display: last sale's tiền beside cumulative lít) or has none
+ * (Montech/LungBor single number). So an unpaired pump photo whose read
+ * contradicts the money line, or that shows no money and no price line at all,
+ * is a totalizer the router or a debt declaration misfiled — the very photo the
+ * ca is missing (report #5/#7). One that reconciled, or that could not be checked
+ * but still shows a money or price line, is the money half of a real fill whose
+ * vehicle photo went missing; it stays in the debt queue for the reviewer, never
+ * becomes a reading.
+ *
+ * Skipped: visits a human has touched (decided, reviewed, or given a customer),
+ * UNKNOWN-station visits (the review card is where their station dropdown
+ * lives), and visits whose ca is already chốt'd — a reading must not appear in a
+ * closed ca behind the reviewer's back.
+ *
  * Called opportunistically (end of each webhook, review page loads) — there is
- * no cron on this deployment. UNKNOWN-station visits are left alone: the debt
- * review card is where their manual station dropdown lives.
+ * no cron on this deployment.
  */
 export async function sweepStrayDebtMeters(): Promise<number> {
-  if (SWEEP_FROZEN) return 0
   const cutoff = new Date(Date.now() - STRAY_DEBT_METER_MAX_AGE_MS)
   const stale = await prisma.debtVehicleVisit.findMany({
     where: {
       vehiclePhotoId: null,
       meterPhotoId: { not: null },
       visitDate: { lt: cutoff },
+      // A read that contradicts the money line, or one with no money/price line at
+      // all (a single-number totalizer). A fill whose price merely glared out still
+      // shows a money line and stays for the reviewer — an amount owed must never
+      // be deleted on a hunch.
+      OR: [
+        { amountMatchesDisplay: false },
+        { amountMatchesDisplay: null, unitPriceRead: null, displayedAmount: null },
+      ],
+      reviewStatus: { in: ['pending', 'needs_review'] },
+      reviewedBy: null,
+      customerId: null,
     },
     take: 10,
   })
@@ -52,6 +73,20 @@ export async function sweepStrayDebtMeters(): Promise<number> {
   let moved = 0
   for (const visit of stale) {
     if (stations.get(visit.stationId) === 'UNKNOWN') continue
+    const photo = await prisma.shiftPhoto.findUnique({ where: { id: visit.meterPhotoId! } })
+    if (!photo?.storagePath) continue
+    const ts = photo.zaloReceivedAt?.getTime() ?? photo.createdAt.getTime()
+    const closed = await prisma.shift.findUnique({
+      where: {
+        stationId_shiftDate_shiftType: {
+          stationId: visit.stationId,
+          shiftDate: shiftDateFor(ts),
+          shiftType: shiftTypeFor(),
+        },
+      },
+      select: { status: true },
+    })
+    if (closed?.status === 'completed') continue
     // Claim by delete: a concurrent sweep (or a late-pairing vehicle photo)
     // that already touched this visit makes the count 0 and we skip it.
     const claimed = await prisma.debtVehicleVisit.deleteMany({
@@ -59,15 +94,12 @@ export async function sweepStrayDebtMeters(): Promise<number> {
     })
     if (claimed.count === 0) continue
     try {
-      const photo = await prisma.shiftPhoto.findUnique({ where: { id: visit.meterPhotoId! } })
-      if (!photo?.storagePath) continue
-      const url = await getSignedUrl(photo.storagePath)
-      const buffer = Buffer.from(await (await fetch(url)).arrayBuffer())
-      const ts = photo.zaloReceivedAt?.getTime() ?? photo.createdAt.getTime()
+      const buffer = await downloadPhoto(photo.storagePath)
       const shift = await findOrCreateShift(visit.stationId, ts)
       await prisma.shiftPhoto.update({ where: { id: photo.id }, data: { shiftId: shift.id } })
       // Force the electronic branch: re-running the router would just repeat
-      // the debt misclassification that stranded the photo here.
+      // the debt misclassification that stranded the photo here. The electronic
+      // reader still escapes to the mechanical one when it sees digit wheels.
       await runShiftExtraction(
         photo.id,
         buffer,
