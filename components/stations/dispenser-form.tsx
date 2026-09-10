@@ -60,6 +60,7 @@ export type DispenserRow = {
   tankCapacityK: number | null
   hasElectronicMeter: boolean
   hasMechanicalMeter: boolean
+  electronicDecimals: number | null
   isActive: boolean
 }
 
@@ -67,6 +68,10 @@ export type DispenserRow = {
 function toInputValue(value: number | null): string {
   return value === null ? '' : String(value)
 }
+
+// Radix Select refuses an empty-string item value, so "không rõ" travels under a
+// sentinel and is turned back into '' (→ null on the wire) on change.
+const UNKNOWN_DECIMALS = 'unknown'
 
 /**
  * What a box reads back as. A blank box means "không khai", not zero — the column is
@@ -111,6 +116,10 @@ export function DispenserForm({
   // is the exception the kế toán unticks.
   const [electronic, setElectronic] = useState(dispenser?.hasElectronicMeter ?? true)
   const [mechanical, setMechanical] = useState(dispenser?.hasMechanicalMeter ?? true)
+  // Select values are strings; '' is the "không rõ" row the column stores as null.
+  const [electronicDecimals, setElectronicDecimals] = useState(
+    toInputValue(dispenser?.electronicDecimals ?? null)
+  )
 
   // What the ô chọn offers: the trạm's Map nhiên liệu rows, plus whatever this trụ
   // already pumps — a trụ đã ngừng may hold one the trạm has since stopped selling, and
@@ -124,6 +133,7 @@ export function DispenserForm({
     setTankCapacityK(toInputValue(dispenser?.tankCapacityK ?? null))
     setElectronic(dispenser?.hasElectronicMeter ?? true)
     setMechanical(dispenser?.hasMechanicalMeter ?? true)
+    setElectronicDecimals(toInputValue(dispenser?.electronicDecimals ?? null))
   }
 
   function openChange(next: boolean) {
@@ -138,6 +148,7 @@ export function DispenserForm({
       tankCapacityK: numberOrNull(tankCapacityK),
       hasElectronicMeter: electronic,
       hasMechanicalMeter: mechanical,
+      electronicDecimals: numberOrNull(electronicDecimals),
     }
   }
 
@@ -375,6 +386,31 @@ export function DispenserForm({
                 <span>{vi.dispensers.mechanicalMeter}</span>
               </label>
               <FieldDescription>{vi.dispensers.metersNote}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel>{vi.dispensers.electronicDecimals}</FieldLabel>
+              <Select
+                value={electronicDecimals || UNKNOWN_DECIMALS}
+                onValueChange={(next) =>
+                  setElectronicDecimals(next === UNKNOWN_DECIMALS ? '' : next)
+                }
+                disabled={!electronic}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNKNOWN_DECIMALS}>
+                    {vi.dispensers.electronicDecimalsUnknown}
+                  </SelectItem>
+                  {[0, 1, 2, 3].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {vi.dispensers.electronicDecimalsOption(n)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldDescription>{vi.dispensers.electronicDecimalsNote}</FieldDescription>
             </Field>
           </div>
           <DialogFooter>

@@ -17,6 +17,14 @@ export async function uploadPhoto(
   return { path }
 }
 
+/** Reads a stored photo back as bytes — for re-running AI on a photo already parked. */
+export async function downloadPhoto(path: string): Promise<Buffer> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase.storage.from(BUCKET).download(path)
+  if (error) throw error
+  return Buffer.from(await data.arrayBuffer())
+}
+
 /** Creates a short-lived signed URL to view a stored photo. */
 export async function getSignedUrl(path: string, expiresInSeconds = 3600): Promise<string> {
   const supabase = createAdminClient()

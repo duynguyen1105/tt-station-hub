@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  dotlessMontechCorrection,
   meterTypeRank,
   resolveDuplicateSlot,
+  resolveReadingScale,
 } from '@/lib/matching/duplicate-check'
 
 describe('resolveDuplicateSlot', () => {
@@ -162,26 +162,72 @@ describe('resolveDuplicateSlot', () => {
   })
 })
 
-describe('dotlessMontechCorrection', () => {
+describe('resolveReadingScale', () => {
   const MAX = 20000
 
-  it('reinterprets /100 when the opening proves the raw read impossible', () => {
-    // Opening 187000: raw 18788380 → delta 18.6M liters (absurd); /100 →
-    // 187883.8 → delta 883.8 (plausible). The dot was lost.
-    expect(dotlessMontechCorrection(18788380, 187000, MAX)).toBe(187883.8)
+  it('trusts a dot the AI saw, whatever the opening says', () => {
+    expect(resolveReadingScale('187883.8', 5000, MAX, null)).toEqual({
+      value: 187883.8,
+      rescaled: false,
+    })
+    expect(resolveReadingScale('187883.8', 187000, MAX, 2)).toEqual({
+      value: 187883.8,
+      rescaled: false,
+    })
   })
 
-  it('never touches a Montech whose raw delta is plausible (no decimals)', () => {
-    expect(dotlessMontechCorrection(18788380, 18780000, MAX)).toBeNull()
+  it('places the point by the trụ’s configured decimals, unflagged', () => {
+    expect(resolveReadingScale('30694885', null, MAX, 3)).toEqual({
+      value: 30694.885,
+      rescaled: false,
+    })
+    expect(resolveReadingScale('18788380', 187000, MAX, 2)).toEqual({
+      value: 187883.8,
+      rescaled: false,
+    })
+    expect(resolveReadingScale('187883', 187000, MAX, 0)).toEqual({
+      value: 187883,
+      rescaled: false,
+    })
   })
 
-  it('does nothing without an opening, a short read, or a dotted read', () => {
-    expect(dotlessMontechCorrection(18788380, null, MAX)).toBeNull()
-    expect(dotlessMontechCorrection(187883, 187000, MAX)).toBeNull()
-    expect(dotlessMontechCorrection(187883.8, 187000, MAX)).toBeNull()
+  it('infers the scale from the opening when nothing is configured, and flags it', () => {
+    // Opening 30650.120: raw 30694885 → delta 30.6M (absurd); /10, /100 absurd
+    // too; /1000 → 30694.885 → delta 44.765 (plausible).
+    expect(resolveReadingScale('30694885', 30650.12, MAX, null)).toEqual({
+      value: 30694.885,
+      rescaled: true,
+    })
+    // LungBor with 2 decimals: 148465.34 read as 14846534.
+    expect(resolveReadingScale('14846534', 148000, MAX, null)).toEqual({
+      value: 148465.34,
+      rescaled: true,
+    })
   })
 
-  it('keeps the raw value when /100 is implausible too', () => {
-    expect(dotlessMontechCorrection(18788380, 5000, MAX)).toBeNull()
+  it('prefers the smallest scale change — a plausible raw read is never touched', () => {
+    expect(resolveReadingScale('18788380', 18780000, MAX, null)).toEqual({
+      value: 18788380,
+      rescaled: false,
+    })
+    // Both /10 (12000, +11000) and /100 (1200, +200) are plausible; the smaller change wins.
+    expect(resolveReadingScale('120000', 1000, MAX, null)).toEqual({
+      value: 12000,
+      rescaled: true,
+    })
+  })
+
+  it('keeps the raw read without an opening or when no scale is plausible', () => {
+    expect(resolveReadingScale('18788380', null, MAX, null)).toEqual({
+      value: 18788380,
+      rescaled: false,
+    })
+    // Opening far above every scale: the meter was replaced, not misread.
+    expect(resolveReadingScale('18788380', 50_000_000, MAX, null)).toEqual({
+      value: 18788380,
+      rescaled: false,
+    })
+    expect(resolveReadingScale(null, 187000, MAX, 2)).toEqual({ value: null, rescaled: false })
+    expect(resolveReadingScale('', 187000, MAX, 2)).toEqual({ value: null, rescaled: false })
   })
 })

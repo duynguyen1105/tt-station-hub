@@ -14,6 +14,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { applyReadingCorrection } from '@/lib/readings/apply-correction'
+import { openingReadingsFor } from '@/lib/shifts/opening-reading'
 
 // Readings are stored as strings to preserve leading zeros (see lib/ai).
 const readingSchema = z.object({
@@ -76,16 +77,18 @@ export async function POST(
 
   // Upsert rather than create: a photo for this Trụ may land between the lookup
   // above and the write, and the compound unique would otherwise collide.
-  // The opening is snapshotted from the Trụ's last-reading cache exactly as
-  // ingest does it, so a hand-made row starts where the prior ca left off.
+  // The opening is snapshotted exactly as ingest does it — the Trụ's latest
+  // duyệt'd closing from an earlier ngày, else its cache — so a hand-made row
+  // starts where the prior ca left off.
+  const opening = existing ? null : await openingReadingsFor(dispenserId, shift.shiftDate)
   const reading = await prisma.shiftReading.upsert({
     where: { shiftId_dispenserId: { shiftId: id, dispenserId } },
     create: {
       shiftId: id,
       dispenserId,
       fuelType: dispenser.fuelType,
-      openingElectronicReading: dispenser.lastElectronicReading,
-      openingMechanicalReading: dispenser.lastMechanicalReading,
+      openingElectronicReading: opening?.electronic ?? null,
+      openingMechanicalReading: opening?.mechanical ?? null,
       reviewStatus: 'needs_review',
     },
     update: {},

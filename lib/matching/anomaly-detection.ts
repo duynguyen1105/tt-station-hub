@@ -10,9 +10,26 @@ export const ANOMALY_REASONS = {
   missingOpening: 'missing_opening',
   // Two photos of the same meter (intentional cross-check) read differently.
   duplicatePhotoMismatch: 'duplicate_photo_mismatch',
+  // A dotless electronic read was only plausible against its opening at another
+  // decimal scale, so the decimal point was placed by inference, not read.
+  scaleRescaled: 'scale_rescaled',
 } as const
 
 export type AnomalyReason = (typeof ANOMALY_REASONS)[keyof typeof ANOMALY_REASONS]
+
+/**
+ * The anomalies a kế toán may only duyệt past by saying so: each is a number that may
+ * be wrong in a way the photo would show — a meter that went backwards, two meters
+ * disagreeing, a value with no photo behind it, a decimal point the system guessed.
+ * Approval carries `confirm: true` for them, or is refused. `missing_opening` is not
+ * here: it has no confirm-anyway path, the opening must be entered.
+ */
+export const CONFIRM_REQUIRED_ANOMALIES: readonly string[] = [
+  ANOMALY_REASONS.readingDecreased,
+  ANOMALY_REASONS.metersDiverge,
+  ANOMALY_REASONS.missingPhoto,
+  ANOMALY_REASONS.scaleRescaled,
+]
 
 export type AnomalyConfig = {
   // Max plausible liters dispensed between two readings (pilot-tunable).

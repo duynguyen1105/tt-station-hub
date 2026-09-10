@@ -68,7 +68,7 @@ export const DEBT_METER_PROMPT = `You are looking at an electronic pump display 
 
 ROW DISCIPLINE — the #1 cause of wrong reads is mixing digits across rows. Before answering, verify EVERY digit you output sits on the same physical row as its label. Never report the amount line's digits as liters, and never merge digits from two rows into one number.
 
-LITERS — report the digits of the LÍT row EXACTLY as displayed, as one continuous string. Include a decimal point ONLY where you can clearly SEE a lit dot — NEVER insert one by guessing. These displays usually run the liters with 3-4 IMPLIED decimals and no visible dot (e.g. "350000" on the glass means 35.0000 L, "90000" means 9.0000 L): do NOT try to convert — output the raw digits ("350000") and let the system place the decimal. Describe the format you see in notes.
+LITERS — report the digits of the LÍT row EXACTLY as displayed, as one continuous string. Include a decimal point ONLY where you can clearly SEE a lit dot ("182.000") — NEVER insert one by guessing, and NEVER drop one you can see. These displays usually run the liters with 3 IMPLIED decimals and the dot is often unlit (e.g. "340000" on the glass means 340.000 L, "90000" means 90.000 L): do NOT try to convert — output the raw digits ("340000") and let the system place the decimal. Describe the format you see in notes.
 
 UNIT PRICE — a whole-VND number, in practice 5 digits (roughly 10,000-35,000 đ/L). The row may carry a stray leading segment or letter artifact (a ghost "8", an "L" prefix like "L29110") — the price is the plausible 5-digit run, and the artifact goes in notes. If the row is glared/unreadable, return null with low confidence rather than guessing.
 
