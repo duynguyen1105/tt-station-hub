@@ -56,8 +56,20 @@ const dispensers: SaleDispenser[] = [
   { id: 'd2', fuelType: 'E0' },
 ]
 const readings: SaleReading[] = [
-  { dispenserId: 'd1', fuelType: 'DO', openingElectronicReading: 1000, electronicReading: 1300 },
-  { dispenserId: 'd2', fuelType: 'E0', openingElectronicReading: 500, electronicReading: 700 },
+  {
+    dispenserId: 'd1',
+    fuelType: 'DO',
+    openingElectronicReading: 1000,
+    electronicReading: 1300,
+    airPurgeLiters: null,
+  },
+  {
+    dispenserId: 'd2',
+    fuelType: 'E0',
+    openingElectronicReading: 500,
+    electronicReading: 700,
+    airPurgeLiters: null,
+  },
 ]
 
 const customers: CreditCustomer[] = [
@@ -294,12 +306,14 @@ describe('buildMisaSalesVoucher — cash rows (bán lẻ)', () => {
             fuelType: 'DO',
             openingElectronicReading: 1000,
             electronicReading: 1250,
+            airPurgeLiters: null,
           },
           {
             dispenserId: 'd2',
             fuelType: 'E0',
             openingElectronicReading: 500,
             electronicReading: 700,
+            airPurgeLiters: null,
           },
         ],
       })
@@ -325,6 +339,63 @@ describe('buildMisaSalesVoucher — cash rows (bán lẻ)', () => {
     expect(doCash?.quantity).toBe(200) // metered 300 − credit 100, still DO
     expect(doCash?.unitPrice).toBe(22290) // DO price, not DC's 24430
     expect(rows.some((r) => r.productCode === 'DO01')).toBe(false) // nothing exported as DC
+  })
+})
+
+describe('buildMisaSalesVoucher — a xả gió on the ca', () => {
+  // Trụ 1 pushed 20 lít of air out of the DO line. It ran through the đồng hồ điện tử
+  // like any other lít and went straight back into the hầm, so nobody bought it.
+  const purgedReadings: SaleReading[] = [
+    {
+      dispenserId: 'd1',
+      fuelType: 'DO',
+      openingElectronicReading: 1000,
+      electronicReading: 1300,
+      airPurgeLiters: 20,
+    },
+    {
+      dispenserId: 'd2',
+      fuelType: 'E0',
+      openingElectronicReading: 500,
+      electronicReading: 700,
+      airPurgeLiters: null,
+    },
+  ]
+
+  it('takes the xả gió off the bán lẻ Số lượng, and Thành tiền follows', () => {
+    const { rows, errors } = buildMisaSalesVoucher(baseInput({ readings: purgedReadings }))
+    expect(errors).toEqual([])
+    const doCash = rows.find((r) => r.kind === 'cash' && r.productCode === 'DO')
+    expect(doCash?.quantity).toBe(180) // sold 280 − credit 100, not metered 300 − 100
+    expect(doCash?.unitPrice).toBe(22290) // same giá bán lẻ as before
+    expect(doCash?.amount).toBe(4012200) // 180 × 22290
+  })
+
+  it('leaves the bán nợ line alone — that fuel was genuinely sold on account', () => {
+    const { rows } = buildMisaSalesVoucher(baseInput({ readings: purgedReadings }))
+    const doCredit = rows.find((r) => r.kind === 'credit' && r.productCode === 'DO')
+    expect(doCredit?.quantity).toBe(100)
+    expect(doCredit?.amount).toBe(2229000)
+  })
+
+  it('leaves the other fuel’s bán lẻ line where it was', () => {
+    const { rows } = buildMisaSalesVoucher(baseInput({ readings: purgedReadings }))
+    const e0Cash = rows.find((r) => r.kind === 'cash' && r.productCode === 'XA E0')
+    expect(e0Cash?.quantity).toBe(150) // metered 200 − credit 50, no xả gió on trụ 2
+  })
+
+  it('adds no row and no column to the file — the fuel is still in the hầm', () => {
+    // No sale and no loss occurred, so there is nothing to write beside the smaller
+    // bán lẻ line: same rows in the same order, and the same 49-column template.
+    const before = buildMisaSalesVoucher(baseInput())
+    const after = buildMisaSalesVoucher(baseInput({ readings: purgedReadings }))
+    expect(after.rows.map((r) => [r.kind, r.productCode, r.customerCode])).toEqual(
+      before.rows.map((r) => [r.kind, r.productCode, r.customerCode])
+    )
+
+    const matrix = misaRowsToMatrix(after.rows)
+    expect(matrix[0]).toEqual([...MISA_SALES_COLUMNS])
+    expect(matrix.every((row) => row.length === MISA_SALES_COLUMNS.length)).toBe(true)
   })
 })
 

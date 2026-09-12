@@ -39,6 +39,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       openingElectronicReading:
         r.openingElectronicReading !== null ? Number(r.openingElectronicReading) : null,
       electronicReading: r.electronicReading !== null ? Number(r.electronicReading) : null,
+      airPurgeLiters: r.airPurgeLiters !== null ? Number(r.airPurgeLiters) : null,
       openingMechanicalReading:
         r.openingMechanicalReading !== null ? Number(r.openingMechanicalReading) : null,
       mechanicalReading: r.mechanicalReading !== null ? Number(r.mechanicalReading) : null,

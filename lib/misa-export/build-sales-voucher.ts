@@ -435,6 +435,15 @@ export function buildMisaSalesVoucher(input: MisaBuildInput): MisaBuildResult {
   }
 
   // Per-fuel preview math over the union of metered and credit fuels.
+  //
+  // `meteredLiters` is now the litres *sold* — computeShiftSales takes each trụ's Xả gió
+  // off before it totals a fuel (ticket 07), and this preview reads that total. The
+  // preflight column still reads "Đo được", so after a purge it names the đồng hồ and
+  // shows something smaller. Deliberately left for ticket 08, which owns this summary and
+  // adds the Xả gió figure beside these two so the path from what the meters counted to
+  // what the file bills is legible; splitting the two figures here would half-build it.
+  // The arithmetic on screen stays self-consistent meanwhile: cashLiters and the bán lẻ
+  // row's Số lượng subtract the same bán nợ litres from the same total.
   const meteredByFuel = new Map(sales.map((s) => [s.fuelType, s.liters]))
   const fuelSummary: FuelSummary[] = [
     ...new Set([...meteredByFuel.keys(), ...summaryCreditByFuel.keys()]),

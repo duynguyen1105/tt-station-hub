@@ -226,6 +226,7 @@ describe('buildDebtsList ↔ buildMisaSalesVoucher consistency', () => {
           fuelType: 'DO',
           openingElectronicReading: 1000,
           electronicReading: 1300,
+          airPurgeLiters: null,
         },
       ],
       dispensers: [{ id: 'd1', fuelType: 'DO' }],

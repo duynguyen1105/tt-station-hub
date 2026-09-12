@@ -19,6 +19,7 @@ function mechanicalOpeningFromPreviousCa(previousMechanicalClosing: number): num
         fuelType: 'DO',
         openingElectronicReading: 1000,
         electronicReading: 1100,
+        airPurgeLiters: null,
         openingMechanicalReading: 1000,
         mechanicalReading: previousMechanicalClosing,
       },

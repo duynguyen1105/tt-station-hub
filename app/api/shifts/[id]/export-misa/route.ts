@@ -76,14 +76,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       ? await prisma.debtCustomer.findMany({ where: { id: { in: customerIds } } })
       : []
 
-  // Each reading carries its own opening and the nhiên liệu it was recorded
-  // against, so metered liters are the reading's closing minus that opening and
-  // they price as the ca sold — a trụ converted since then does not move them.
+  // Each reading carries its own opening, the nhiên liệu it was recorded against and
+  // its own Xả gió, so the liters sold are the reading's closing minus that opening
+  // less that purge, and they price as the ca sold — a trụ converted since then does
+  // not move them.
   const saleReadings: SaleReading[] = readingRows.map((r) => ({
     dispenserId: r.dispenserId,
     fuelType: r.fuelType,
     openingElectronicReading: num(r.openingElectronicReading),
     electronicReading: num(r.electronicReading),
+    airPurgeLiters: num(r.airPurgeLiters),
   }))
   const saleDispensers: SaleDispenser[] = dispenserRows.map((d) => ({
     id: d.id,

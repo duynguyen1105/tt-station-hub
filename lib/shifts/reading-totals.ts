@@ -28,6 +28,12 @@ export function readingMeters(reading: {
   }
 }
 
+/**
+ * The two đồng hồ điện tử ends the litres sold are read from — named apart from
+ * ReadingMeters so a caller holding no đồng hồ cơ can ask without inventing one.
+ */
+export type ElectronicMeter = Pick<ReadingMeters, 'openingElectronicReading' | 'electronicReading'>
+
 /** A meter column as the database holds it, or null where nothing was read. */
 type MeterColumn = { toNumber: () => number } | null
 
@@ -46,7 +52,7 @@ export function meterGap(opening: number | null, closing: number | null): number
 }
 
 /** Litres on the đồng hồ điện tử — the figure the MISA export prices a ca by. */
-export function electronicGap(meters: ReadingMeters): number | null {
+export function electronicGap(meters: ElectronicMeter): number | null {
   return meterGap(meters.openingElectronicReading, meters.electronicReading)
 }
 
@@ -74,15 +80,16 @@ export function meterGapDifference(meters: ReadingMeters): number | null {
  * less the Xả gió. Purged fuel ran through the meter but went back into the hầm, so
  * nobody bought it. A null purge is no purge — the raw gap stands.
  *
- * The seam the question is meant to have exactly one answer through: Tổng tiền on the ca
- * screen asks it here today, and the shift-sales computation behind the hầm movement and
- * the MISA bán lẻ line is to be pointed at it next, so the two cannot come to subtract a
- * Xả gió differently. Until then it still counts its own litres.
+ * The seam the question has exactly one answer through: Tổng tiền on the ca screen asks it
+ * here, and so does the shift-sales computation behind the hầm movement and the MISA bán
+ * lẻ line, so the two cannot come to subtract a Xả gió differently. The one subtraction
+ * serves both — the litres sold and the litres drawn from the hầm fall together, because
+ * the purged fuel went back in.
  *
  * Null only when the đồng hồ điện tử has no litres to start from — a purge of the whole
  * gap sells 0 litres, which is an answer, not a missing one.
  */
-export function soldLiters(meters: ReadingMeters, airPurgeLiters: number | null): number | null {
+export function soldLiters(meters: ElectronicMeter, airPurgeLiters: number | null): number | null {
   const metered = electronicGap(meters)
   if (metered === null) return null
   if (airPurgeLiters === null) return metered
