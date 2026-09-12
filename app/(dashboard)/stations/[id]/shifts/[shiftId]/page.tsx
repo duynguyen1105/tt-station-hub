@@ -236,7 +236,8 @@ export default async function ShiftDetailPage({
         electronicLiters: electronicGap(meters),
         mechanicalLiters: mechanicalGap(meters),
         gapDifference: meterGapDifference(meters),
-        amount: readingAmount(meters, unitPrice),
+        // Priced on the litres sold, so a Xả gió on this trụ takes its own money off.
+        amount: readingAmount(meters, unitPrice, numberOrNull(r?.airPurgeLiters)),
       },
       role: user.role,
       shiftStatus: shift.status as ShiftStatus,

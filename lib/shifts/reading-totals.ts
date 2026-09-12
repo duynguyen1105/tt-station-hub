@@ -70,13 +70,38 @@ export function meterGapDifference(meters: ReadingMeters): number | null {
 }
 
 /**
- * Tổng tiền for the row: the đồng hồ điện tử's litres at the giá bán lẻ in force on
- * the ca's ngày. Always the electronic meter, never the cơ — that is the meter the
- * MISA sales voucher bills by, so the screen and the file can never disagree. Null
- * when the litres or the price are unknown.
+ * How many litres this trụ actually sold this ca: what the đồng hồ điện tử counted,
+ * less the Xả gió. Purged fuel ran through the meter but went back into the hầm, so
+ * nobody bought it. A null purge is no purge — the raw gap stands.
+ *
+ * The seam the question is meant to have exactly one answer through: Tổng tiền on the ca
+ * screen asks it here today, and the shift-sales computation behind the hầm movement and
+ * the MISA bán lẻ line is to be pointed at it next, so the two cannot come to subtract a
+ * Xả gió differently. Until then it still counts its own litres.
+ *
+ * Null only when the đồng hồ điện tử has no litres to start from — a purge of the whole
+ * gap sells 0 litres, which is an answer, not a missing one.
  */
-export function readingAmount(meters: ReadingMeters, unitPrice: number | null): number | null {
-  const litres = electronicGap(meters)
+export function soldLiters(meters: ReadingMeters, airPurgeLiters: number | null): number | null {
+  const metered = electronicGap(meters)
+  if (metered === null) return null
+  if (airPurgeLiters === null) return metered
+  return round3(metered - airPurgeLiters)
+}
+
+/**
+ * Tổng tiền for the row: the litres this trụ sold at the giá bán lẻ in force on the ca's
+ * ngày. Always the electronic meter, never the cơ — that is the meter the MISA sales
+ * voucher bills by, so the screen and the file can never disagree. A Xả gió comes off
+ * the litres first, so the row bills only what a customer took away. Null when the
+ * litres or the price are unknown.
+ */
+export function readingAmount(
+  meters: ReadingMeters,
+  unitPrice: number | null,
+  airPurgeLiters: number | null
+): number | null {
+  const litres = soldLiters(meters, airPurgeLiters)
   if (litres === null || unitPrice === null) return null
   return litres * unitPrice
 }

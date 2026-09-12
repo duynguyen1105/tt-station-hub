@@ -91,7 +91,7 @@ export type ReadingTotals = {
    * what marks the Lít Cơ cell rather than a column of its own.
    */
   gapDifference: number | null
-  /** Điện tử litres × giá bán lẻ, or null when either is unknown. */
+  /** Litres sold — điện tử less Xả gió — × giá bán lẻ, or null when either is unknown. */
   amount: number | null
 }
 
