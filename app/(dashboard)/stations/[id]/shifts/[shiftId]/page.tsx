@@ -29,7 +29,12 @@ import { unmatchedPhotoTrace } from '@/lib/photos/unmatched-photos'
 import { prisma } from '@/lib/prisma'
 import { refuseShiftCompletion } from '@/lib/shifts/completion'
 import { hasLateDebtApproval } from '@/lib/shifts/late-debt-approval'
-import { meterGapDifference, readingAmount } from '@/lib/shifts/reading-totals'
+import {
+  electronicGap,
+  mechanicalGap,
+  meterGapDifference,
+  readingAmount,
+} from '@/lib/shifts/reading-totals'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -224,6 +229,8 @@ export default async function ShiftDetailPage({
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
       totals: {
+        electronicLiters: electronicGap(meters),
+        mechanicalLiters: mechanicalGap(meters),
         gapDifference: meterGapDifference(meters),
         amount: readingAmount(meters, unitPrice),
       },
@@ -322,8 +329,10 @@ export default async function ShiftDetailPage({
               <th className="p-2">{vi.shifts.dispenser}</th>
               <th className="p-2">{vi.shifts.openingElectronic}</th>
               <th className="p-2">{vi.shifts.closingElectronic}</th>
+              <th className="p-2">{vi.shifts.electronicLiters}</th>
               <th className="p-2">{vi.shifts.openingMechanical}</th>
               <th className="p-2">{vi.shifts.closingMechanical}</th>
+              <th className="p-2">{vi.shifts.mechanicalLiters}</th>
               <th className="p-2">{vi.shifts.meterGapDifference}</th>
               <th className="p-2">{vi.shifts.totalAmount}</th>
               <th className="p-2">{vi.shifts.status}</th>

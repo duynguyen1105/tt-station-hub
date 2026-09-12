@@ -77,3 +77,31 @@ describe('readingAmount', () => {
     expect(readingAmount({ ...trụ1, electronicReading: null }, 20000)).toBeNull()
   })
 })
+
+describe('the Lít ĐT and Lít Cơ columns', () => {
+  it('gives each đồng hồ its own litres for the ca', () => {
+    expect(electronicGap(trụ1)).toBe(1824.76)
+    expect(mechanicalGap(trụ1)).toBe(1825)
+  })
+
+  it('shows a trụ that did not move as 0 on both đồng hồ, not as blank', () => {
+    const stillTrụ: ReadingMeters = {
+      openingElectronicReading: 19379.236,
+      electronicReading: 19379.236,
+      openingMechanicalReading: 20411,
+      mechanicalReading: 20411,
+    }
+    expect(electronicGap(stillTrụ)).toBe(0)
+    expect(mechanicalGap(stillTrụ)).toBe(0)
+  })
+
+  it('leaves a đồng hồ missing an end blank while the other still reads', () => {
+    expect(electronicGap({ ...trụ1, electronicReading: null })).toBeNull()
+    expect(mechanicalGap({ ...trụ1, electronicReading: null })).toBe(1825)
+  })
+
+  it('leaves Lít Cơ blank on a trụ with no đồng hồ cơ, and still reads Lít ĐT', () => {
+    expect(electronicGap(ureTrụ)).toBe(56)
+    expect(mechanicalGap(ureTrụ)).toBeNull()
+  })
+})

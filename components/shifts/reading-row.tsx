@@ -57,9 +57,9 @@ export type ReadingRowData = {
   mechanicalPhotos?: ReadingPhoto[]
   reviewStatus: string | null
   anomalyReasons: string[]
-  // Chênh lệch điện - cơ and Tổng tiền, present only where the table carries those
-  // two columns (Chốt ca of one trạm, which knows the trạm's giá bán lẻ). A row
-  // without them renders neither cell, so the header and the body stay in step.
+  // Lít ĐT, Lít Cơ, Chênh lệch điện - cơ and Tổng tiền, present only where the table
+  // carries those columns (Chốt ca of one trạm, which knows the trạm's giá bán lẻ). A
+  // row without them renders none of the cells, so header and body stay in step.
   totals?: ReadingTotals
   // The current user's role and the ca's status drive which edit actions the row
   // offers, per the shared reading policy (docs/adr/0001).
@@ -68,6 +68,10 @@ export type ReadingRowData = {
 }
 
 export type ReadingTotals = {
+  /** Raw litres on the đồng hồ điện tử, or null when either end is missing. */
+  electronicLiters: number | null
+  /** Raw litres on the đồng hồ cơ — null on a Trụ that has none, or missing an end. */
+  mechanicalLiters: number | null
   /** Litres the two đồng hồ disagree by, or null when they agree / cannot be compared. */
   gapDifference: number | null
   /** Điện tử litres × giá bán lẻ, or null when either is unknown. */
@@ -123,6 +127,16 @@ function SlotPhotos({
       ))}
     </span>
   )
+}
+
+/**
+ * One đồng hồ's own litres for the ca. A meter with no reading at an end — and a Trụ
+ * with no đồng hồ cơ at all — has nothing to subtract and reads blank; a Trụ that did
+ * not move reads 0, which is an answer rather than a gap in the data.
+ */
+function MeterLiters({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-muted-foreground">—</span>
+  return <>{formatLiters(value)}</>
 }
 
 export function ReadingRow({
@@ -275,6 +289,11 @@ export function ReadingRow({
           onSave={(next) => saveField('correct-closing', 'electronicReading', next)}
         />
       </td>
+      {data.totals && (
+        <td className="p-2 font-mono whitespace-nowrap">
+          <MeterLiters value={data.totals.electronicLiters} />
+        </td>
+      )}
       <td className="p-2 font-mono">
         <EditableReading
           value={data.openingMechanicalReading}
@@ -315,6 +334,9 @@ export function ReadingRow({
       </td>
       {data.totals && (
         <>
+          <td className="p-2 font-mono whitespace-nowrap">
+            <MeterLiters value={data.totals.mechanicalLiters} />
+          </td>
           <td className="p-2 font-mono whitespace-nowrap">
             {data.totals.gapDifference === null ? (
               <span className="text-muted-foreground">—</span>

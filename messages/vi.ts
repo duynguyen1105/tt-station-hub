@@ -440,8 +440,12 @@ export const vi = {
     mechanical: 'Cơ',
     openingElectronic: 'Đầu ĐT',
     closingElectronic: 'Cuối ĐT',
+    // Số lít đồng hồ điện tử đo được trong ca: Cuối ĐT trừ Đầu ĐT, chưa trừ gì cả.
+    electronicLiters: 'Lít ĐT',
     openingMechanical: 'Đầu Cơ',
     closingMechanical: 'Cuối Cơ',
+    // Số lít đồng hồ cơ đo được trong ca: Cuối Cơ trừ Đầu Cơ, chưa trừ gì cả.
+    mechanicalLiters: 'Lít Cơ',
     // Hai đồng hồ đo cùng số lít, nên cột này chỉ nói khi chúng lệch nhau.
     meterGapDifference: 'Chênh lệch điện - cơ',
     // Số lít của đồng hồ điện tử nhân giá bán lẻ áp dụng cho ngày của ca.
