@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type AppRole } from '@/lib/auth/permissions'
 import {
   type ShiftStatus,
@@ -57,9 +58,9 @@ export type ReadingRowData = {
   mechanicalPhotos?: ReadingPhoto[]
   reviewStatus: string | null
   anomalyReasons: string[]
-  // Lít ĐT, Lít Cơ, Chênh lệch điện - cơ and Tổng tiền, present only where the table
-  // carries those columns (Chốt ca of one trạm, which knows the trạm's giá bán lẻ). A
-  // row without them renders none of the cells, so header and body stay in step.
+  // Lít ĐT, Lít Cơ and Tổng tiền, present only where the table carries those columns
+  // (Chốt ca of one trạm, which knows the trạm's giá bán lẻ). A row without them
+  // renders none of the cells, so header and body stay in step.
   totals?: ReadingTotals
   // The current user's role and the ca's status drive which edit actions the row
   // offers, per the shared reading policy (docs/adr/0001).
@@ -72,7 +73,10 @@ export type ReadingTotals = {
   electronicLiters: number | null
   /** Raw litres on the đồng hồ cơ — null on a Trụ that has none, or missing an end. */
   mechanicalLiters: number | null
-  /** Litres the two đồng hồ disagree by, or null when they agree / cannot be compared. */
+  /**
+   * Litres the two đồng hồ disagree by, or null when they agree / cannot be compared —
+   * what marks the Lít Cơ cell rather than a column of its own.
+   */
   gapDifference: number | null
   /** Điện tử litres × giá bán lẻ, or null when either is unknown. */
   amount: number | null
@@ -133,10 +137,36 @@ function SlotPhotos({
  * One đồng hồ's own litres for the ca. A meter with no reading at an end — and a Trụ
  * with no đồng hồ cơ at all — has nothing to subtract and reads blank; a Trụ that did
  * not move reads 0, which is an answer rather than a gap in the data.
+ *
+ * `divergence` — given on the Lít Cơ cell — is the litres the two đồng hồ disagree by,
+ * which the reviewer is here to spot: it colours the cell like the anomaly notes below
+ * and says by how much on hover. Null (the two agree, or there is no đồng hồ cơ to
+ * compare against) leaves the cell unmarked.
  */
-function MeterLiters({ value }: { value: number | null }) {
+function MeterLiters({
+  value,
+  divergence = null,
+}: {
+  value: number | null
+  divergence?: number | null
+}) {
   if (value === null) return <span className="text-muted-foreground">—</span>
-  return <>{formatLiters(value)}</>
+  if (divergence === null) return <>{formatLiters(value)}</>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* Focusable, so the amount is reachable by keyboard and not by hover alone —
+            it used to be a column anyone could read. */}
+        <span
+          tabIndex={0}
+          className="text-amber-700 underline decoration-dotted dark:text-amber-400"
+        >
+          {formatLiters(value)}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{vi.shifts.meterGapHint(formatLiters(divergence))}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 export function ReadingRow({
@@ -335,18 +365,10 @@ export function ReadingRow({
       {data.totals && (
         <>
           <td className="p-2 font-mono whitespace-nowrap">
-            <MeterLiters value={data.totals.mechanicalLiters} />
-          </td>
-          <td className="p-2 font-mono whitespace-nowrap">
-            {data.totals.gapDifference === null ? (
-              <span className="text-muted-foreground">—</span>
-            ) : (
-              // A disagreement between the two meters is what the reviewer is
-              // looking for, so it is coloured like the anomaly notes below.
-              <span className="text-amber-700 dark:text-amber-400">
-                {formatLiters(data.totals.gapDifference)}
-              </span>
-            )}
+            <MeterLiters
+              value={data.totals.mechanicalLiters}
+              divergence={data.totals.gapDifference}
+            />
           </td>
           <td className="p-2 font-mono whitespace-nowrap">
             {data.totals.amount === null ? (

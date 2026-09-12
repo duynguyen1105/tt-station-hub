@@ -47,7 +47,7 @@ describe('meterGapDifference', () => {
     expect(meterGapDifference(trụ1)).toBe(-0.24)
   })
 
-  it('says nothing when the two agree — the column shows a dash', () => {
+  it('says nothing when the two agree — the Lít Cơ cell stays unmarked', () => {
     expect(
       meterGapDifference({
         openingElectronicReading: 10003,

@@ -33,8 +33,8 @@ export function mechanicalGap(meters: ReadingMeters): number | null {
 /**
  * Chênh lệch điện − cơ: how far the two đồng hồ disagree about the same litres.
  * Null when either meter lacks an end to subtract from *and* when the two agree —
- * the column shows '—' in both cases, since a row with nothing to flag should not
- * make the reviewer read a zero.
+ * the Lít Cơ cell carries no marking in both cases, since a row with nothing to flag
+ * should not make the reviewer read a zero.
  */
 export function meterGapDifference(meters: ReadingMeters): number | null {
   const electronic = electronicGap(meters)

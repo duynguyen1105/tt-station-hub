@@ -333,7 +333,6 @@ export default async function ShiftDetailPage({
               <th className="p-2">{vi.shifts.openingMechanical}</th>
               <th className="p-2">{vi.shifts.closingMechanical}</th>
               <th className="p-2">{vi.shifts.mechanicalLiters}</th>
-              <th className="p-2">{vi.shifts.meterGapDifference}</th>
               <th className="p-2">{vi.shifts.totalAmount}</th>
               <th className="p-2">{vi.shifts.status}</th>
               <th className="p-2"></th>

@@ -446,8 +446,9 @@ export const vi = {
     closingMechanical: 'Cuối Cơ',
     // Số lít đồng hồ cơ đo được trong ca: Cuối Cơ trừ Đầu Cơ, chưa trừ gì cả.
     mechanicalLiters: 'Lít Cơ',
-    // Hai đồng hồ đo cùng số lít, nên cột này chỉ nói khi chúng lệch nhau.
-    meterGapDifference: 'Chênh lệch điện - cơ',
+    // Hai đồng hồ đo cùng số lít, nên ô Lít Cơ chỉ được đánh dấu khi chúng lệch nhau —
+    // và nói lệch bao nhiêu khi rê chuột lên ô đó.
+    meterGapHint: (liters: string) => `Chênh lệch điện - cơ: ${liters} lít`,
     // Số lít của đồng hồ điện tử nhân giá bán lẻ áp dụng cho ngày của ca.
     totalAmount: 'Tổng tiền',
     confidence: 'Độ tin cậy',
