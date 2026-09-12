@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { type AppRole } from '@/lib/auth/permissions'
 import {
   type ShiftStatus,
+  canEditAirPurge,
   canEditClosing,
   canEditOpening,
   canReviewShift,
@@ -272,7 +273,7 @@ export function ReadingRow({
   // đồng hồ was read, a purge says what happened at the trạm (docs/adr/0002). A Trụ
   // with no reading row has no meter litres to purge from, so there is nothing to
   // record against yet either.
-  const mayEditAirPurge = canEditClosing(data.role, data.shiftStatus) && canAct
+  const mayEditAirPurge = canEditAirPurge(data.role, data.shiftStatus) && canAct
   const mayReview = canReviewShift(data.role, data.shiftStatus)
   // A viewer sees plain read-only values with no lock hints; the lock cue is for
   // a kế toán who edits closings in the same row but is barred from openings.

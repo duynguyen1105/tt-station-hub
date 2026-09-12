@@ -4,7 +4,7 @@ import { type NextRequest } from 'next/server'
 
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
-import { type ShiftStatus, canEditClosing } from '@/lib/auth/reading-policy'
+import { type ShiftStatus, canEditAirPurge } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { type Prisma } from '@/lib/generated/prisma/client'
@@ -28,10 +28,10 @@ const airPurgeSchema = z.object({
  * the reason are written independently, so saving one never clears the other, and
  * `null` returns the trụ to having no purge rather than to a purge of zero.
  *
- * Admin at any status, accountant until the ca is chốt — the same rule as a closing
- * correction, since a purge moves the same money. A reading already duyệt/từ chối is
- * deliberately **not** frozen against it: duyệt settles how the meter was read, and a
- * purge is an unrelated assertion about what happened at the trạm. See
+ * Admin at any status, accountant until the ca is chốt — `canEditAirPurge`, the same
+ * predicate the cell on screen asks. A reading already duyệt/từ chối is deliberately
+ * **not** frozen against it: duyệt settles how the meter was read, and a purge is an
+ * unrelated assertion about what happened at the trạm. See
  * docs/adr/0002-air-purge-is-not-frozen-by-reading-approval.md.
  *
  * A purge above the trụ's own Lít ĐT is refused here, by the same rule the cell on
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!shift) return notFound()
   // The ca's own trạm decides, as it does for every other write on a reading.
   if (!(await canReachStation(user, shift.stationId))) return forbidden()
-  if (!canEditClosing(user.role, shift.status as ShiftStatus)) return forbidden()
+  if (!canEditAirPurge(user.role, shift.status as ShiftStatus)) return forbidden()
 
   const data: Prisma.ShiftReadingUpdateInput = {}
   if (parsed.data.airPurgeLiters !== undefined) {

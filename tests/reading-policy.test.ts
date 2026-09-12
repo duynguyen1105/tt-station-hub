@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type ShiftStatus,
   canCreateReading,
+  canEditAirPurge,
   canEditClosing,
   canEditOpening,
   canReviewShift,
@@ -113,5 +114,46 @@ describe('isReadingDecided', () => {
     expect(isReadingDecided('needs_review')).toBe(false)
     expect(isReadingDecided('corrected')).toBe(false)
     expect(isReadingDecided(null)).toBe(false)
+  })
+})
+
+describe('canEditAirPurge', () => {
+  // An air purge mirrors the closing rule — it moves the same money a closing
+  // correction does — so the role × status matrix is pinned against concrete
+  // booleans here rather than compared to canEditClosing.
+  it('lets the admin record an air purge at any status, including a ca đã chốt', () => {
+    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
+      expect(canEditAirPurge('admin', status)).toBe(true)
+    }
+  })
+
+  it('lets the accountant record an air purge until the ca is chốt', () => {
+    for (const status of PRE_COMPLETED) {
+      expect(canEditAirPurge('accountant', status)).toBe(true)
+    }
+    expect(canEditAirPurge('accountant', 'completed')).toBe(false)
+  })
+
+  it('never lets a viewer record an air purge', () => {
+    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
+      expect(canEditAirPurge('viewer', status)).toBe(false)
+    }
+  })
+
+  // The carve-out of docs/adr/0002, stated as the pair of facts it consists of: the
+  // verdict that freezes the meter values is real, and the answer for an air purge on
+  // the same row is the ca's alone. There is no reviewStatus to vary here because the
+  // rule has no such axis — which is the carve-out. What this cannot reach is a caller
+  // that re-applies the freeze itself; the row and the route are the only two, and
+  // neither has a test in this suite.
+  it('answers on the ca alone, on a reading duyệt / từ chối as on an undecided one', () => {
+    expect(isReadingDecided('approved')).toBe(true)
+    expect(isReadingDecided('rejected')).toBe(true)
+    expect(isReadingDecided(null)).toBe(false)
+    // Kế toán while the ca is open, admin once it is chốt — the two the ticket turns on.
+    expect(canEditAirPurge('accountant', 'pending_review')).toBe(true)
+    expect(canEditAirPurge('admin', 'completed')).toBe(true)
+    expect(canEditAirPurge('accountant', 'completed')).toBe(false)
+    expect(canEditAirPurge('viewer', 'pending_review')).toBe(false)
   })
 })

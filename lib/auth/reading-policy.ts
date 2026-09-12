@@ -42,6 +42,21 @@ export function canEditClosing(role: AppRole, shiftStatus: ShiftStatus): boolean
 }
 
 /**
+ * Recording an air purge (Xả gió) on a ca's reading — the litres pumped only to push
+ * air out of the line. Follows the same rule as editing a closing, since an air purge
+ * moves the same money: admin at any status, accountant until the ca is chốt, viewer
+ * never. A kế toán turned away on a ca đã chốt is told so at the cell, rather than
+ * handed a control that does nothing.
+ *
+ * Takes no `reviewStatus`, because the `isReadingDecided` freeze the meter values obey
+ * is no part of this rule: a reading already duyệt / từ chối can still gain an air
+ * purge. See docs/adr/0002-air-purge-is-not-frozen-by-reading-approval.md.
+ */
+export function canEditAirPurge(role: AppRole, shiftStatus: ShiftStatus): boolean {
+  return canEditClosing(role, shiftStatus)
+}
+
+/**
  * Reviewing a ca — approve / reject / chốt — follows the same rule as editing a
  * closing.
  */
