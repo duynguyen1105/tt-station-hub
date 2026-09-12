@@ -46,7 +46,7 @@ export function StationLitersDecimalsForm({
       onValueChange={(v) => pick(Number(v) as LitersDecimals)}
       disabled={busy}
     >
-      <SelectTrigger className="w-48">
+      <SelectTrigger className="w-72">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
