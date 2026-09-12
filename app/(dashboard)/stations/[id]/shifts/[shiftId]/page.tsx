@@ -228,6 +228,10 @@ export default async function ShiftDetailPage({
       mechanicalPhotos: slotPhotos?.mechanical,
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
+      airPurge: {
+        liters: r?.airPurgeLiters?.toString() ?? null,
+        note: r?.airPurgeNote ?? null,
+      },
       totals: {
         electronicLiters: electronicGap(meters),
         mechanicalLiters: mechanicalGap(meters),
@@ -333,6 +337,7 @@ export default async function ShiftDetailPage({
               <th className="p-2">{vi.shifts.openingMechanical}</th>
               <th className="p-2">{vi.shifts.closingMechanical}</th>
               <th className="p-2">{vi.shifts.mechanicalLiters}</th>
+              <th className="p-2">{vi.shifts.airPurge}</th>
               <th className="p-2">{vi.shifts.totalAmount}</th>
               <th className="p-2">{vi.shifts.status}</th>
               <th className="p-2"></th>

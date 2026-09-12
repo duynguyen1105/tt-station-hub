@@ -6,6 +6,7 @@ import { type ReactNode, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 /**
  * One AI-read number cell. When `canEdit`, clicking the number turns it into an
@@ -25,6 +26,8 @@ export function EditableReading({
   busy,
   leading,
   confidence,
+  prose = false,
+  placeholder,
 }: {
   value: string | null
   canEdit: boolean
@@ -33,6 +36,12 @@ export function EditableReading({
   busy: boolean
   leading?: ReactNode
   confidence?: number | null
+  // The cell holds prose — a xả gió's lý do — rather than a meter number, so it gets
+  // the ordinary keyboard and a box wide enough to read a sentence in.
+  prose?: boolean
+  // What an empty cell says in place of the bare dash a number shows. A blank prose
+  // cell has to name itself to be worth clicking.
+  placeholder?: string
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -46,6 +55,9 @@ export function EditableReading({
     setOptimistic(null)
   }
   const shown = optimistic ?? value
+  // What stands in for a value nobody has entered: the placeholder where the cell
+  // carries one, the dash every other reading cell shows otherwise.
+  const blank = placeholder ?? '—'
 
   function begin() {
     setDraft(shown ?? '')
@@ -70,9 +82,10 @@ export function EditableReading({
   if (editing) {
     body = (
       <Input
-        className="h-7 w-24"
+        className={cn('h-7', prose ? 'w-48' : 'w-24')}
         value={draft}
-        inputMode="decimal"
+        placeholder={placeholder}
+        inputMode={prose ? 'text' : 'decimal'}
         autoFocus
         disabled={busy}
         onChange={(e) => setDraft(e.target.value)}
@@ -96,7 +109,7 @@ export function EditableReading({
         disabled={busy}
         className="hover:border-input hover:bg-accent cursor-pointer rounded-md border border-transparent px-1.5 py-0.5 transition-colors"
       >
-        {shown ?? '—'}
+        {shown ?? blank}
         {confidenceSuffix}
       </button>
     )
@@ -106,7 +119,7 @@ export function EditableReading({
         <TooltipTrigger asChild>
           <span className="text-muted-foreground inline-flex items-center gap-1">
             <LockIcon className="size-3" />
-            {shown ?? '—'}
+            {shown ?? blank}
             {confidenceSuffix}
           </span>
         </TooltipTrigger>
@@ -116,7 +129,7 @@ export function EditableReading({
   } else {
     body = (
       <span>
-        {shown ?? '—'}
+        {shown ?? blank}
         {confidenceSuffix}
       </span>
     )

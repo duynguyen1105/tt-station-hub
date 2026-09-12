@@ -62,10 +62,21 @@ export type ReadingRowData = {
   // (Chốt ca of one trạm, which knows the trạm's giá bán lẻ). A row without them
   // renders none of the cells, so header and body stay in step.
   totals?: ReadingTotals
+  // Xả gió recorded against this Trụ for this ca, carried beside the totals and
+  // shown in the same table that carries them. Null litres is no purge at all,
+  // which is not the same answer as a keyed-in 0.
+  airPurge?: AirPurge
   // The current user's role and the ca's status drive which edit actions the row
   // offers, per the shared reading policy (docs/adr/0001).
   role: AppRole
   shiftStatus: ShiftStatus
+}
+
+export type AirPurge = {
+  /** Litres pumped only to push air out of the line, or null where none was. */
+  liters: string | null
+  /** Why it happened, in kế toán's words, or null where nobody wrote one. */
+  note: string | null
 }
 
 export type ReadingTotals = {
@@ -169,6 +180,54 @@ function MeterLiters({
   )
 }
 
+/**
+ * The Xả gió cell: the litres, and under them the lý do they were purged for. A reader
+ * who cannot edit sees the lý do only where one was written — a Trụ that bled no air has
+ * nothing to annotate, and eight empty rows of it would crowd out the numbers beside it.
+ */
+function AirPurgeCell({
+  purge,
+  canEdit,
+  lockHint,
+  busy,
+  onSave,
+}: {
+  purge: AirPurge | undefined
+  canEdit: boolean
+  lockHint?: string
+  busy: boolean
+  onSave: (field: 'airPurgeLiters' | 'airPurgeNote', value: string) => Promise<boolean>
+}) {
+  const liters = purge?.liters ?? null
+  const note = purge?.note ?? null
+  return (
+    <div className="space-y-1">
+      <span className="font-mono whitespace-nowrap">
+        <EditableReading
+          value={liters}
+          canEdit={canEdit}
+          lockHint={lockHint}
+          busy={busy}
+          onSave={(next) => onSave('airPurgeLiters', next)}
+        />
+      </span>
+      {(canEdit || liters !== null || note !== null) && (
+        <div className="text-muted-foreground text-xs">
+          <EditableReading
+            value={note}
+            canEdit={canEdit}
+            lockHint={lockHint}
+            busy={busy}
+            prose
+            placeholder={vi.shifts.airPurgeNote}
+            onSave={(next) => onSave('airPurgeNote', next)}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ReadingRow({
   data,
   electronicSlots,
@@ -208,6 +267,11 @@ export function ReadingRow({
   const decided = isReadingDecided(data.reviewStatus)
   const adminOpening = canEditOpening(data.role) && !decided
   const mayEditClosing = canEditClosing(data.role, data.shiftStatus) && !decided
+  // Xả gió follows the closing rule but not the duyệt freeze: duyệt settles how the
+  // đồng hồ was read, a purge says what happened at the trạm (docs/adr/0002). A Trụ
+  // with no reading row has no meter litres to purge from, so there is nothing to
+  // record against yet either.
+  const mayEditAirPurge = canEditClosing(data.role, data.shiftStatus) && canAct
   const mayReview = canReviewShift(data.role, data.shiftStatus)
   // A viewer sees plain read-only values with no lock hints; the lock cue is for
   // a kế toán who edits closings in the same row but is barred from openings.
@@ -246,6 +310,43 @@ export function ReadingRow({
     toast.success(action === 'approve' ? vi.review.approved : vi.review.rejected)
   }
 
+  /**
+   * One cell's new value, posted and then read back. Clearing `acting` inside the
+   * transition hands the disabled state over to `pending`, so the row greys out once
+   * on the click and stays grey until the fresh values commit. An empty box is `null`
+   * — the value is gone, not zero and not an empty string.
+   */
+  async function saveCell(url: string, field: string, value: string, saved: string) {
+    setActing('field')
+    const result = await postAction(url, { [field]: value || null })
+    if (!result.ok) {
+      setActing(null)
+      toast.error(result.error ?? vi.errors.generic)
+      return false
+    }
+    startTransition(() => {
+      router.refresh()
+      setActing(null)
+    })
+    toast.success(saved)
+    return true
+  }
+
+  /**
+   * Xả gió posts to its own endpoint: it is not a meter correction, so it neither
+   * preserves an AI original nor re-derives the row's review state. Litres and lý do
+   * go one at a time, so saving either never clears the other.
+   */
+  async function saveAirPurge(field: 'airPurgeLiters' | 'airPurgeNote', value: string) {
+    if (!data.readingId) return false
+    return saveCell(
+      `/api/readings/${data.readingId}/air-purge`,
+      field,
+      value,
+      vi.shifts.airPurgeSaved
+    )
+  }
+
   async function saveField(
     endpoint: 'correct-opening' | 'correct-closing',
     field: string,
@@ -257,21 +358,7 @@ export function ReadingRow({
     const url = data.readingId
       ? `/api/readings/${data.readingId}/${endpoint}`
       : `/api/shifts/${data.shiftId}/readings/${data.dispenserId}`
-    setActing('field')
-    const result = await postAction(url, {
-      [field]: value || null,
-    })
-    if (result.ok) {
-      startTransition(() => {
-        router.refresh()
-        setActing(null)
-      })
-      toast.success(vi.correction.saved)
-      return true
-    }
-    setActing(null)
-    toast.error(result.error ?? vi.errors.generic)
-    return false
+    return saveCell(url, field, value, vi.correction.saved)
   }
 
   return (
@@ -368,6 +455,17 @@ export function ReadingRow({
             <MeterLiters
               value={data.totals.mechanicalLiters}
               divergence={data.totals.gapDifference}
+            />
+          </td>
+          <td className="p-2">
+            <AirPurgeCell
+              purge={data.airPurge}
+              canEdit={mayEditAirPurge}
+              // Only where there is a reading to purge against: a Trụ with no row yet
+              // is blank for want of a reading, not because the ca is chốt.
+              lockHint={showLocks && canAct ? vi.correction.closingLocked : undefined}
+              busy={busy}
+              onSave={saveAirPurge}
             />
           </td>
           <td className="p-2 font-mono whitespace-nowrap">

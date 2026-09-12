@@ -159,6 +159,15 @@ model ShiftReading {
   reviewStatus              String    @map("review_status") // 'pending'|'auto_approved'|'needs_review'|'approved'|'rejected'|'corrected'
   originalElectronicReading Decimal?  @map("original_electronic_reading") @db.Decimal(15, 3)
   originalMechanicalReading Decimal?  @map("original_mechanical_reading") @db.Decimal(15, 3)
+  // Xả gió: the litres pumped through this trụ purely to push air out of the line
+  // after a hầm ran dry or a line was broken. Both đồng hồ counted them, nobody
+  // bought them, and the fuel went back into the hầm. Same precision as the meter
+  // columns above, since it is subtracted from them. Null is "no purge" — which is
+  // not the same answer as a keyed-in 0, so existing ca need no backfill.
+  airPurgeLiters            Decimal?  @map("air_purge_liters") @db.Decimal(15, 3)
+  // Why it happened, in kế toán's own words — "hầm 3 hết xăng lúc 14h". Domain data
+  // about the trạm, so it lives on the row; who set it and when live in the audit log.
+  airPurgeNote              String?   @map("air_purge_note")
   reviewedBy                String?   @map("reviewed_by") @db.Uuid
   reviewedAt                DateTime? @map("reviewed_at")
   createdAt                 DateTime  @default(now()) @map("created_at")

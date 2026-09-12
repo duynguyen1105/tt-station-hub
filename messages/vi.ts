@@ -449,6 +449,14 @@ export const vi = {
     // Hai đồng hồ đo cùng số lít, nên ô Lít Cơ chỉ được đánh dấu khi chúng lệch nhau —
     // và nói lệch bao nhiêu khi rê chuột lên ô đó.
     meterGapHint: (liters: string) => `Chênh lệch điện - cơ: ${liters} lít`,
+    // Số lít bơm ra chỉ để đẩy gió trong ống — sau khi hầm hết xăng hoặc sửa đường ống.
+    // Hai đồng hồ đều đếm số lít này nhưng không ai mua, và xăng dầu được đổ lại vào
+    // hầm. Trống nghĩa là ca này không xả gió, khác với việc nhập số 0.
+    airPurge: 'Xả gió',
+    // Lý do xả gió, kế toán tự ghi — ví dụ "hầm 3 hết xăng lúc 14h" — để cái cớ đi
+    // cùng con số thay vì nằm trong trí nhớ.
+    airPurgeNote: 'Lý do xả gió',
+    airPurgeSaved: 'Đã cập nhật xả gió',
     // Số lít của đồng hồ điện tử nhân giá bán lẻ áp dụng cho ngày của ca.
     totalAmount: 'Tổng tiền',
     confidence: 'Độ tin cậy',
