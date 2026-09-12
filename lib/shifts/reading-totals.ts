@@ -11,6 +11,31 @@ export type ReadingMeters = {
 }
 
 /**
+ * A reading off the database in the shape these rules read: Prisma hands each meter back
+ * as a Decimal, and the arithmetic here is plain numbers.
+ */
+export function readingMeters(reading: {
+  openingElectronicReading: MeterColumn
+  electronicReading: MeterColumn
+  openingMechanicalReading: MeterColumn
+  mechanicalReading: MeterColumn
+}): ReadingMeters {
+  return {
+    openingElectronicReading: numberOrNull(reading.openingElectronicReading),
+    electronicReading: numberOrNull(reading.electronicReading),
+    openingMechanicalReading: numberOrNull(reading.openingMechanicalReading),
+    mechanicalReading: numberOrNull(reading.mechanicalReading),
+  }
+}
+
+/** A meter column as the database holds it, or null where nothing was read. */
+type MeterColumn = { toNumber: () => number } | null
+
+function numberOrNull(value: MeterColumn): number | null {
+  return value === null ? null : value.toNumber()
+}
+
+/**
  * Litres between an opening and a closing on one meter, or null when either end is
  * missing — a Trụ with no ảnh yet has nothing to subtract, and 0 (a Trụ that did not
  * move) is a real answer, not a missing one.

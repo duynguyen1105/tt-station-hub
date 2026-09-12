@@ -9,18 +9,16 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { type Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
+import { refuseAirPurge } from '@/lib/shifts/air-purge'
+import { electronicGap, readingMeters } from '@/lib/shifts/reading-totals'
 
-// A plain decimal literal — digits and an optional fractional tail — which is all the
-// column can hold. `Number()` would also swallow "1e5", "0x1a" and " 12 ", each of
-// which reaches a Decimal(15,3) as a database error rather than as an answer.
-const decimalLiteral = /^-?\d+(\.\d+)?$/
-
-// Litres arrive as a string, like every other number the reading cells post. Being a
-// decimal at all is the column's own demand and so this route's business; how much of
-// a purge is *possible* — never more than the đồng hồ điện tử counted — is a rule of
-// its own and not yet written.
+// Litres arrive as a string, like every other number the reading cells post. What that
+// string may say — a plain decimal the column can hold, and never more than the đồng hồ
+// điện tử counted — is refuseAirPurge's to decide, applied below against this reading's
+// own meters, so the cell on screen and this route turn away the same entries with the
+// same words.
 const airPurgeSchema = z.object({
-  airPurgeLiters: z.string().regex(decimalLiteral).nullable().optional(),
+  airPurgeLiters: z.string().nullable().optional(),
   airPurgeNote: z.string().nullable().optional(),
 })
 
@@ -35,6 +33,9 @@ const airPurgeSchema = z.object({
  * deliberately **not** frozen against it: duyệt settles how the meter was read, and a
  * purge is an unrelated assertion about what happened at the trạm. See
  * docs/adr/0002-air-purge-is-not-frozen-by-reading-approval.md.
+ *
+ * A purge above the trụ's own Lít ĐT is refused here, by the same rule the cell on
+ * screen applies, so the two can never disagree about what is recordable.
  *
  * Who changed it and when are the audit entry's, not columns of their own.
  */
@@ -55,7 +56,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!canEditClosing(user.role, shift.status as ShiftStatus)) return forbidden()
 
   const data: Prisma.ShiftReadingUpdateInput = {}
-  if (parsed.data.airPurgeLiters !== undefined) data.airPurgeLiters = parsed.data.airPurgeLiters
+  if (parsed.data.airPurgeLiters !== undefined) {
+    // Against this trụ's own litres — the reading on file, not any the caller sent.
+    const refusal = refuseAirPurge(
+      parsed.data.airPurgeLiters,
+      electronicGap(readingMeters(reading))
+    )
+    if (refusal) return badRequest(refusal)
+    data.airPurgeLiters = parsed.data.airPurgeLiters
+  }
   if (parsed.data.airPurgeNote !== undefined) data.airPurgeNote = parsed.data.airPurgeNote
 
   const updated = await prisma.shiftReading.update({ where: { id }, data })

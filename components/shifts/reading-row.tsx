@@ -33,6 +33,7 @@ import {
 import { formatLiters, formatVND } from '@/lib/format'
 import { CONFIRM_REQUIRED_ANOMALIES } from '@/lib/matching/anomaly-detection'
 import { type ReadingPhoto } from '@/lib/photos/reading-photos'
+import { refuseAirPurge } from '@/lib/shifts/air-purge'
 import { anomalyLabel, reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -336,9 +337,22 @@ export function ReadingRow({
    * Xả gió posts to its own endpoint: it is not a meter correction, so it neither
    * preserves an AI original nor re-derives the row's review state. Litres and lý do
    * go one at a time, so saving either never clears the other.
+   *
+   * The litres are held to the same rule the route applies, against the Lít ĐT this row
+   * is already showing — so a purge the request would refuse is refused here, with the
+   * limit named, instead of after a round-trip.
    */
   async function saveAirPurge(field: 'airPurgeLiters' | 'airPurgeNote', value: string) {
     if (!data.readingId) return false
+    if (field === 'airPurgeLiters') {
+      // Exactly what saveCell is about to post — an empty cell is a null, which clears
+      // the purge — held to the rule the route will hold it to.
+      const refusal = refuseAirPurge(value || null, data.totals?.electronicLiters ?? null)
+      if (refusal) {
+        toast.error(refusal)
+        return false
+      }
+    }
     return saveCell(
       `/api/readings/${data.readingId}/air-purge`,
       field,

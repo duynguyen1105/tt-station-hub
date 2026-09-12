@@ -457,6 +457,17 @@ export const vi = {
     // cùng con số thay vì nằm trong trí nhớ.
     airPurgeNote: 'Lý do xả gió',
     airPurgeSaved: 'Đã cập nhật xả gió',
+    // Không thể xả ra nhiều hơn số lít đã chạy qua đồng hồ điện tử. Câu từ chối nói
+    // luôn mức trần, để kế toán biết phải sửa xuống bao nhiêu chứ không chỉ biết là sai.
+    airPurgeAboveMeter: (liters: string) =>
+      `Xả gió không được vượt quá Lít ĐT của trụ (${liters} lít)`,
+    airPurgeNegative: 'Xả gió không được là số âm',
+    // Ô này chỉ nhận con số — dấu phẩy ngăn cách hàng nghìn cũng không nhận, kể cả khi
+    // vừa chép lại từ câu từ chối ở trên.
+    airPurgeNotANumber: 'Xả gió phải là một con số, ví dụ 20 hoặc 20.5',
+    // Thiếu một đầu đồng hồ điện tử thì chưa có Lít ĐT để đối chiếu, nên chưa có mức
+    // trần nào cho xả gió — nhập chỉ số đầu/cuối ca trước đã.
+    airPurgeNoElectronicLiters: 'Chưa tính được Lít ĐT của trụ nên chưa ghi được xả gió',
     // Số lít của đồng hồ điện tử nhân giá bán lẻ áp dụng cho ngày của ca.
     totalAmount: 'Tổng tiền',
     confidence: 'Độ tin cậy',
