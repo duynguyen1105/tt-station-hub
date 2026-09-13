@@ -298,7 +298,10 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       try {
         const buffer = await downloadZaloAttachment(msg.imageUrls[i]!)
         preBuffers.set(i, buffer)
-        const router = await classifyPhoto(buffer).catch(() => null)
+        const router = await classifyPhoto(buffer).catch((error) => {
+          logger.error({ error, index: i }, 'Photo classification failed')
+          return null
+        })
         if (!router) continue
         preRouters.set(i, router)
         if (router.image_type === 'debt_meter') {
@@ -385,7 +388,10 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         preRouters.get(i) ??
         (pre
           ? ((pre.raw as { router?: RouterResult })?.router ?? null)
-          : await classifyPhoto(buffer).catch(() => null))
+          : await classifyPhoto(buffer).catch((error) => {
+              logger.error({ error, index: i }, 'Photo classification failed')
+              return null
+            }))
       const routerType = router?.image_type ?? null
       const contextKind = explicitKind ? null : (context?.kind ?? null)
       let route = routePhoto(routerType, explicitKind, contextKind)

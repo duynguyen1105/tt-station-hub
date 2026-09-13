@@ -104,9 +104,7 @@ export async function extractMeter(input: ExtractMeterInput): Promise<ExtractMet
   const router =
     input.router ??
     routerSchema.parse(
-      parseJsonFromText(
-        await callClaudeVision({ prompt: ROUTER_PROMPT, images: [image], maxTokens: 300 })
-      )
+      parseJsonFromText(await callClaudeVision({ prompt: ROUTER_PROMPT, images: [image] }))
     )
 
   if (router.image_type === 'electronic_meter') {
@@ -182,7 +180,10 @@ export async function classifyPhoto(imageBuffer: Buffer | Uint8Array): Promise<R
     return { image_type: 'debt_meter', confidence: 80, notes: 'mock' }
   }
   const image = await prepareImageForAI(imageBuffer)
-  const text = await callClaudeVision({ prompt: ROUTER_PROMPT, images: [image], maxTokens: 300 })
+  // No tight token cap: on a 3-line green display the router works the TIỀN = LÍT ×
+  // ĐƠN GIÁ check out in prose before its JSON, and at 300 tokens it never reached
+  // the JSON — every retry failed and a debt pump photo was parked unpaired.
+  const text = await callClaudeVision({ prompt: ROUTER_PROMPT, images: [image] })
   return routerSchema.parse(parseJsonFromText(text))
 }
 
