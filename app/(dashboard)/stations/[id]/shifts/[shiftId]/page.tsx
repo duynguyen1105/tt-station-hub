@@ -228,10 +228,7 @@ export default async function ShiftDetailPage({
       mechanicalPhotos: slotPhotos?.mechanical,
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
-      airPurge: {
-        liters: r?.airPurgeLiters?.toString() ?? null,
-        note: r?.airPurgeNote ?? null,
-      },
+      airPurge: { liters: r?.airPurgeLiters?.toString() ?? null },
       totals: {
         electronicLiters: electronicGap(meters),
         mechanicalLiters: mechanicalGap(meters),
@@ -328,33 +325,35 @@ export default async function ShiftDetailPage({
       {rows.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.shifts.noReadings}</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-muted-foreground border-b text-left">
-              <th className="p-2">{vi.shifts.dispenser}</th>
-              <th className="p-2">{vi.shifts.openingElectronic}</th>
-              <th className="p-2">{vi.shifts.closingElectronic}</th>
-              <th className="p-2">{vi.shifts.electronicLiters}</th>
-              <th className="p-2">{vi.shifts.openingMechanical}</th>
-              <th className="p-2">{vi.shifts.closingMechanical}</th>
-              <th className="p-2">{vi.shifts.mechanicalLiters}</th>
-              <th className="p-2">{vi.shifts.airPurge}</th>
-              <th className="p-2">{vi.shifts.totalAmount}</th>
-              <th className="p-2">{vi.shifts.status}</th>
-              <th className="p-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <ReadingRow
-                key={row.readingId ?? index}
-                data={row}
-                electronicSlots={electronicSlots}
-                mechanicalSlots={mechanicalSlots}
-              />
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground border-b text-left">
+                <th className="p-2">{vi.shifts.dispenser}</th>
+                <th className="p-2">{vi.shifts.openingElectronic}</th>
+                <th className="p-2">{vi.shifts.closingElectronic}</th>
+                <th className="p-2">{vi.shifts.electronicLiters}</th>
+                <th className="p-2">{vi.shifts.openingMechanical}</th>
+                <th className="p-2">{vi.shifts.closingMechanical}</th>
+                <th className="p-2">{vi.shifts.mechanicalLiters}</th>
+                <th className="p-2">{vi.shifts.airPurge}</th>
+                <th className="p-2">{vi.shifts.totalAmount}</th>
+                <th className="p-2">{vi.shifts.status}</th>
+                <th className="p-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <ReadingRow
+                  key={row.readingId ?? index}
+                  data={row}
+                  electronicSlots={electronicSlots}
+                  mechanicalSlots={mechanicalSlots}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <UnmatchedPhotos

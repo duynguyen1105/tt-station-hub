@@ -92,7 +92,7 @@ export function ExportPreflightDialog({
           {vi.misaExport.action}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{vi.misaExport.title}</DialogTitle>
         </DialogHeader>
@@ -101,41 +101,55 @@ export function ExportPreflightDialog({
         {loadError && <p className="text-destructive text-sm">{vi.misaExport.loadError}</p>}
 
         {result !== null && !loading && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <section className="space-y-2">
               <h3 className="text-sm font-medium">{vi.misaExport.fuelMathTitle}</h3>
               {result.fuelSummary.length === 0 ? (
                 <p className="text-muted-foreground text-sm">{vi.misaExport.noFuelData}</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-muted-foreground border-b text-left">
-                      <th className="p-2">{vi.misaExport.fuel}</th>
-                      <th className="p-2 text-right">{vi.misaExport.metered}</th>
-                      <th className="p-2 text-right">{vi.misaExport.credit}</th>
-                      <th className="p-2 text-right">{vi.misaExport.cash}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.fuelSummary.map((f) => (
-                      <tr key={f.fuelType} className="border-b">
-                        <td className="p-2">{fuelLabel(f.fuelType)}</td>
-                        <td className="p-2 text-right font-mono">
-                          {formatLiters(f.meteredLiters)}
-                        </td>
-                        <td className="p-2 text-right font-mono">{formatLiters(f.creditLiters)}</td>
-                        <td
-                          className={cn(
-                            'p-2 text-right font-mono',
-                            f.cashLiters < 0 && 'text-destructive font-medium'
-                          )}
-                        >
-                          {formatLiters(f.cashLiters)}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-muted-foreground border-b text-left whitespace-nowrap">
+                        <th className="p-2">{vi.misaExport.fuel}</th>
+                        <th className="p-2 text-right">{vi.misaExport.metered}</th>
+                        <th className="p-2 text-right">{vi.misaExport.airPurge}</th>
+                        <th className="p-2 text-right">{vi.misaExport.credit}</th>
+                        <th className="p-2 text-right">{vi.misaExport.cash}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {result.fuelSummary.map((f) => (
+                        <tr key={f.fuelType} className="border-b">
+                          <td className="p-2">{fuelLabel(f.fuelType)}</td>
+                          <td className="p-2 text-right font-mono whitespace-nowrap">
+                            {formatLiters(f.meteredLiters)}
+                          </td>
+                          {/* A nhiên liệu no trụ purged has nothing to report here, so the
+                            cell reads as blank rather than as a 0 somebody keyed in. */}
+                          <td className="p-2 text-right font-mono whitespace-nowrap">
+                            {f.airPurgeLiters === null ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              formatLiters(f.airPurgeLiters)
+                            )}
+                          </td>
+                          <td className="p-2 text-right font-mono whitespace-nowrap">
+                            {formatLiters(f.creditLiters)}
+                          </td>
+                          <td
+                            className={cn(
+                              'p-2 text-right font-mono whitespace-nowrap',
+                              f.cashLiters < 0 && 'text-destructive font-medium'
+                            )}
+                          >
+                            {formatLiters(f.cashLiters)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
 
@@ -183,9 +197,8 @@ export function ExportPreflightDialog({
             )}
 
             {!hasErrors && (
-              <section className="space-y-2">
-                <h3 className="text-sm font-medium">{vi.misaExport.datesTitle}</h3>
-                <div className="grid grid-cols-3 gap-3">
+              <section>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <Field>
                     <FieldLabel htmlFor="postingDate">{vi.misaExport.postingDate}</FieldLabel>
                     <Input

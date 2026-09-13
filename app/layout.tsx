@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Be_Vietnam_Pro, Geist_Mono } from 'next/font/google'
 
 import { ClientToaster } from '@/components/layout/client-toaster'
+import { ScrollActivity } from '@/components/layout/scroll-activity'
 import { ThemeProvider } from '@/components/layout/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { QueryProvider } from '@/lib/query-provider'
@@ -51,6 +52,7 @@ export default function RootLayout({
             <TooltipProvider delayDuration={0}>
               {children}
               <ClientToaster />
+              <ScrollActivity />
             </TooltipProvider>
           </ThemeProvider>
         </QueryProvider>

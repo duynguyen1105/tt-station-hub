@@ -165,9 +165,6 @@ model ShiftReading {
   // columns above, since it is subtracted from them. Null is "no purge" — which is
   // not the same answer as a keyed-in 0, so existing ca need no backfill.
   airPurgeLiters            Decimal?  @map("air_purge_liters") @db.Decimal(15, 3)
-  // Why it happened, in kế toán's own words — "hầm 3 hết xăng lúc 14h". Domain data
-  // about the trạm, so it lives on the row; who set it and when live in the audit log.
-  airPurgeNote              String?   @map("air_purge_note")
   reviewedBy                String?   @map("reviewed_by") @db.Uuid
   reviewedAt                DateTime? @map("reviewed_at")
   createdAt                 DateTime  @default(now()) @map("created_at")

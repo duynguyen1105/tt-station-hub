@@ -184,12 +184,20 @@ export type PreflightWarning = {
   message: string
 }
 
-/** Per-fuel liter math shown to the accountant before export (metered / credit / cash). */
+/**
+ * Per-fuel liter math shown to the accountant before export: what the đồng hồ điện tử
+ * counted, the Xả gió that never left the trạm, the bán nợ billed to customers by name,
+ * and the bán lẻ left over — metered − purge − credit, which is the Số lượng the file's
+ * bán lẻ line carries. The four read across as the arithmetic the file was built from,
+ * so kế toán can see why the Số lượng differs from the meters before downloading it.
+ * `airPurgeLiters` is null where no trụ on that fuel purged; a keyed-in 0 stays a 0.
+ */
 export type FuelSummary = {
   fuelType: string
   meteredLiters: number
+  airPurgeLiters: number | null
   creditLiters: number
-  cashLiters: number // metered − credit (may be negative → warning)
+  cashLiters: number // metered − purge − credit (may be negative → warning)
 }
 
 export type MisaBuildResult = {
@@ -434,27 +442,30 @@ export function buildMisaSalesVoucher(input: MisaBuildInput): MisaBuildResult {
     })
   }
 
-  // Per-fuel preview math over the union of metered and credit fuels.
+  // Per-fuel preview math over the union of metered and credit fuels. Read-only — this
+  // is where kế toán verifies before exporting, never where anything is entered.
   //
-  // `meteredLiters` is now the litres *sold* — computeShiftSales takes each trụ's Xả gió
-  // off before it totals a fuel (ticket 07), and this preview reads that total. The
-  // preflight column still reads "Đo được", so after a purge it names the đồng hồ and
-  // shows something smaller. Deliberately left for ticket 08, which owns this summary and
-  // adds the Xả gió figure beside these two so the path from what the meters counted to
-  // what the file bills is legible; splitting the two figures here would half-build it.
-  // The arithmetic on screen stays self-consistent meanwhile: cashLiters and the bán lẻ
-  // row's Số lượng subtract the same bán nợ litres from the same total.
-  const meteredByFuel = new Map(sales.map((s) => [s.fuelType, s.liters]))
+  // `cashLiters` starts from the same sold litres the bán lẻ row's Số lượng does, but it
+  // is not that row's figure: this nets `summaryCreditByFuel`, which counts a blocked
+  // credit visit, where the row nets `creditLitersByFuel`, which cannot. While an error
+  // stands the two are meant to differ — the preview shows the real credit, the file
+  // shows what it could actually write. `meteredLiters` is the raw đồng hồ figure those
+  // sold litres were reached from, and the Xả gió between them names the difference. The
+  // file itself still says nothing about the purge — the fuel went back into the hầm, so
+  // MISA sees only a smaller sale.
+  const saleByFuel = new Map(sales.map((s) => [s.fuelType, s]))
   const fuelSummary: FuelSummary[] = [
-    ...new Set([...meteredByFuel.keys(), ...summaryCreditByFuel.keys()]),
+    ...new Set([...saleByFuel.keys(), ...summaryCreditByFuel.keys()]),
   ].map((fuelType) => {
-    const meteredLiters = round3(meteredByFuel.get(fuelType) ?? 0)
+    const sale = saleByFuel.get(fuelType)
+    const airPurgeLiters = sale?.airPurgeLiters ?? null
     const creditLiters = round3(summaryCreditByFuel.get(fuelType) ?? 0)
     return {
       fuelType,
-      meteredLiters,
+      meteredLiters: round3(sale?.meteredLiters ?? 0),
+      airPurgeLiters: airPurgeLiters === null ? null : round3(airPurgeLiters),
       creditLiters,
-      cashLiters: round3(meteredLiters - creditLiters),
+      cashLiters: round3((sale?.liters ?? 0) - creditLiters),
     }
   })
 

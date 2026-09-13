@@ -77,8 +77,6 @@ export type ReadingRowData = {
 export type AirPurge = {
   /** Litres pumped only to push air out of the line, or null where none was. */
   liters: string | null
-  /** Why it happened, in kế toán's words, or null where nobody wrote one. */
-  note: string | null
 }
 
 export type ReadingTotals = {
@@ -182,11 +180,7 @@ function MeterLiters({
   )
 }
 
-/**
- * The Xả gió cell: the litres, and under them the lý do they were purged for. A reader
- * who cannot edit sees the lý do only where one was written — a Trụ that bled no air has
- * nothing to annotate, and eight empty rows of it would crowd out the numbers beside it.
- */
+/** The Xả gió cell: the litres this Trụ bled, blank where it bled none. */
 function AirPurgeCell({
   purge,
   canEdit,
@@ -198,35 +192,18 @@ function AirPurgeCell({
   canEdit: boolean
   lockHint?: string
   busy: boolean
-  onSave: (field: 'airPurgeLiters' | 'airPurgeNote', value: string) => Promise<boolean>
+  onSave: (value: string) => Promise<boolean>
 }) {
-  const liters = purge?.liters ?? null
-  const note = purge?.note ?? null
   return (
-    <div className="space-y-1">
-      <span className="font-mono whitespace-nowrap">
-        <EditableReading
-          value={liters}
-          canEdit={canEdit}
-          lockHint={lockHint}
-          busy={busy}
-          onSave={(next) => onSave('airPurgeLiters', next)}
-        />
-      </span>
-      {(canEdit || liters !== null || note !== null) && (
-        <div className="text-muted-foreground text-xs">
-          <EditableReading
-            value={note}
-            canEdit={canEdit}
-            lockHint={lockHint}
-            busy={busy}
-            prose
-            placeholder={vi.shifts.airPurgeNote}
-            onSave={(next) => onSave('airPurgeNote', next)}
-          />
-        </div>
-      )}
-    </div>
+    <span className="font-mono whitespace-nowrap">
+      <EditableReading
+        value={purge?.liters ?? null}
+        canEdit={canEdit}
+        lockHint={lockHint}
+        busy={busy}
+        onSave={onSave}
+      />
+    </span>
   )
 }
 
@@ -336,27 +313,24 @@ export function ReadingRow({
 
   /**
    * Xả gió posts to its own endpoint: it is not a meter correction, so it neither
-   * preserves an AI original nor re-derives the row's review state. Litres and lý do
-   * go one at a time, so saving either never clears the other.
+   * preserves an AI original nor re-derives the row's review state.
    *
    * The litres are held to the same rule the route applies, against the Lít ĐT this row
    * is already showing — so a purge the request would refuse is refused here, with the
    * limit named, instead of after a round-trip.
    */
-  async function saveAirPurge(field: 'airPurgeLiters' | 'airPurgeNote', value: string) {
+  async function saveAirPurge(value: string) {
     if (!data.readingId) return false
-    if (field === 'airPurgeLiters') {
-      // Exactly what saveCell is about to post — an empty cell is a null, which clears
-      // the purge — held to the rule the route will hold it to.
-      const refusal = refuseAirPurge(value || null, data.totals?.electronicLiters ?? null)
-      if (refusal) {
-        toast.error(refusal)
-        return false
-      }
+    // Exactly what saveCell is about to post — an empty cell is a null, which clears
+    // the purge — held to the rule the route will hold it to.
+    const refusal = refuseAirPurge(value || null, data.totals?.electronicLiters ?? null)
+    if (refusal) {
+      toast.error(refusal)
+      return false
     }
     return saveCell(
       `/api/readings/${data.readingId}/air-purge`,
-      field,
+      'airPurgeLiters',
       value,
       vi.shifts.airPurgeSaved
     )

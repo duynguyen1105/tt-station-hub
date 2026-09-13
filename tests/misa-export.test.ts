@@ -384,6 +384,74 @@ describe('buildMisaSalesVoucher — a xả gió on the ca', () => {
     expect(e0Cash?.quantity).toBe(150) // metered 200 − credit 50, no xả gió on trụ 2
   })
 
+  it('reports the xả gió litres beside the metered and bán nợ ones', () => {
+    // Đo được 300 − Xả gió 20 − Bán nợ 100 = Bán lẻ 180: every step of the path from
+    // what the đồng hồ counted to what the file bills is on the preflight screen.
+    const { fuelSummary } = buildMisaSalesVoucher(baseInput({ readings: purgedReadings }))
+    expect(fuelSummary.find((f) => f.fuelType === 'DO')).toEqual({
+      fuelType: 'DO',
+      meteredLiters: 300,
+      airPurgeLiters: 20,
+      creditLiters: 100,
+      cashLiters: 180,
+    })
+  })
+
+  it('reports nothing at all for a fuel no trụ purged, rather than a zero', () => {
+    const { fuelSummary } = buildMisaSalesVoucher(baseInput({ readings: purgedReadings }))
+    expect(fuelSummary.find((f) => f.fuelType === 'E0')?.airPurgeLiters).toBeNull()
+  })
+
+  it('sums the purges of both trụ when two of them bled the same fuel', () => {
+    const { fuelSummary } = buildMisaSalesVoucher(
+      baseInput({
+        dispensers: [
+          { id: 'd1', fuelType: 'DO' },
+          { id: 'd2', fuelType: 'DO' },
+        ],
+        readings: [
+          {
+            dispenserId: 'd1',
+            fuelType: 'DO',
+            openingElectronicReading: 1000,
+            electronicReading: 1300,
+            airPurgeLiters: 20,
+          },
+          {
+            dispenserId: 'd2',
+            fuelType: 'DO',
+            openingElectronicReading: 500,
+            electronicReading: 700,
+            airPurgeLiters: 5,
+          },
+        ],
+      })
+    )
+    expect(fuelSummary.find((f) => f.fuelType === 'DO')).toMatchObject({
+      meteredLiters: 500,
+      airPurgeLiters: 25,
+      cashLiters: 375, // 500 − 25 − 100 bán nợ
+    })
+  })
+
+  it('reads the same bán lẻ litres the file is about to carry', () => {
+    // The summary is what kế toán checks the file against, so its bottom line and the
+    // Số lượng on the bán lẻ row must be the one number, not two that agree today.
+    const { fuelSummary, rows } = buildMisaSalesVoucher(baseInput({ readings: purgedReadings }))
+    const doSummary = fuelSummary.find((f) => f.fuelType === 'DO')
+    const doCash = rows.find((r) => r.kind === 'cash' && r.productCode === 'DO')
+    expect(doSummary?.cashLiters).toBe(doCash?.quantity)
+    // …and the three figures above it account for the gap to the đồng hồ, with nothing
+    // unexplained left over: 300 metered − 20 xả gió − 100 bán nợ = 180 bán lẻ.
+    const {
+      meteredLiters = 0,
+      airPurgeLiters = 0,
+      creditLiters = 0,
+      cashLiters = 0,
+    } = doSummary ?? {}
+    expect(meteredLiters - (airPurgeLiters ?? 0) - creditLiters).toBe(cashLiters)
+  })
+
   it('adds no row and no column to the file — the fuel is still in the hầm', () => {
     // No sale and no loss occurred, so there is nothing to write beside the smaller
     // bán lẻ line: same rows in the same order, and the same 49-column template.
@@ -407,6 +475,7 @@ describe('buildMisaSalesVoucher — per-fuel summary', () => {
     expect(doSummary).toEqual({
       fuelType: 'DO',
       meteredLiters: 300,
+      airPurgeLiters: null,
       creditLiters: 100,
       cashLiters: 200,
     })
@@ -415,6 +484,7 @@ describe('buildMisaSalesVoucher — per-fuel summary', () => {
     expect(e0Summary).toEqual({
       fuelType: 'E0',
       meteredLiters: 200,
+      airPurgeLiters: null,
       creditLiters: 50,
       cashLiters: 150,
     })

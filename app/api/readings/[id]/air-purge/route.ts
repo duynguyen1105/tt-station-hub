@@ -19,14 +19,12 @@ import { electronicGap, readingMeters } from '@/lib/shifts/reading-totals'
 // same words.
 const airPurgeSchema = z.object({
   airPurgeLiters: z.string().nullable().optional(),
-  airPurgeNote: z.string().nullable().optional(),
 })
 
 /**
  * Records the Xả gió on a ca's reading — the litres pumped through the trụ only to
- * push air out of the line, which both đồng hồ counted and nobody bought. Litres and
- * the reason are written independently, so saving one never clears the other, and
- * `null` returns the trụ to having no purge rather than to a purge of zero.
+ * push air out of the line, which both đồng hồ counted and nobody bought. `null`
+ * returns the trụ to having no purge rather than to a purge of zero.
  *
  * Admin at any status, accountant until the ca is chốt — `canEditAirPurge`, the same
  * predicate the cell on screen asks. A reading already duyệt/từ chối is deliberately
@@ -65,7 +63,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (refusal) return badRequest(refusal)
     data.airPurgeLiters = parsed.data.airPurgeLiters
   }
-  if (parsed.data.airPurgeNote !== undefined) data.airPurgeNote = parsed.data.airPurgeNote
 
   const updated = await prisma.shiftReading.update({ where: { id }, data })
   await writeAudit({

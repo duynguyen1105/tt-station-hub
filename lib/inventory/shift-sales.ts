@@ -28,7 +28,18 @@ export type SaleDispenser = {
   fuelType: string
 }
 
-export type FuelSale = { fuelType: string; liters: number }
+/**
+ * One fuel's litres for a ca: what its trụ's đồng hồ điện tử counted, the Xả gió taken
+ * off them, and what is left — the litres sold, which is what the hầm gives up and what
+ * the MISA bán lẻ line bills. `airPurgeLiters` is null where no trụ on this fuel bled
+ * air at all, which is not the same fact as a kế toán keying in 0.
+ */
+export type FuelSale = {
+  fuelType: string
+  liters: number
+  meteredLiters: number
+  airPurgeLiters: number | null
+}
 // A meter's field is null only when the reading has no closing for it, so its cache stays put.
 export type DispenserAdvance = {
   dispenserId: string
@@ -68,6 +79,10 @@ export function computeShiftSales(
 ): ShiftSalesResult {
   const dispenserById = new Map(dispensers.map((d) => [d.id, d]))
   const litersByFuel = new Map<string, number>()
+  const meteredByFuel = new Map<string, number>()
+  // Only fuels a trụ actually purged get a key, so "nobody bled air" stays distinct
+  // from "somebody keyed in 0" all the way out to the preflight summary.
+  const purgedByFuel = new Map<string, number>()
   const advances: DispenserAdvance[] = []
 
   for (const reading of readings) {
@@ -79,8 +94,20 @@ export function computeShiftSales(
     // soldLiters has an answer exactly when electronicGap does, so the second null check
     // is the type-checker's and not the rule's.
     const sold = soldLiters(reading, reading.airPurgeLiters)
+    // A Xả gió is counted from the reading it was keyed on, whatever that reading's
+    // delta turned out to be: it is what the ca screen shows kế toán, so a purge on an
+    // opening-less or decreased trụ must not read back as "nobody bled air". Those
+    // litres are already absent from the sale below, so counting them here only names
+    // a purge the summary would otherwise hide — it moves no litres.
+    if (reading.airPurgeLiters !== null) {
+      purgedByFuel.set(
+        reading.fuelType,
+        (purgedByFuel.get(reading.fuelType) ?? 0) + reading.airPurgeLiters
+      )
+    }
     if (metered !== null && sold !== null && metered > 0) {
       litersByFuel.set(reading.fuelType, (litersByFuel.get(reading.fuelType) ?? 0) + sold)
+      meteredByFuel.set(reading.fuelType, (meteredByFuel.get(reading.fuelType) ?? 0) + metered)
     }
     const newMechanicalReading = reading.mechanicalReading ?? null
 
@@ -89,6 +116,19 @@ export function computeShiftSales(
     }
   }
 
-  const sales = [...litersByFuel.entries()].map(([fuelType, liters]) => ({ fuelType, liters }))
+  const sales = [...litersByFuel.entries()].map(([fuelType, liters]) => {
+    const purged = purgedByFuel.get(fuelType)
+    return {
+      fuelType,
+      liters,
+      meteredLiters: round3(meteredByFuel.get(fuelType) ?? 0),
+      airPurgeLiters: purged === undefined ? null : round3(purged),
+    }
+  })
   return { sales, advances }
+}
+
+/** Meters carry 3 decimals, so trim the dust summing floats leaves behind. */
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000
 }

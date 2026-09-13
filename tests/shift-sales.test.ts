@@ -39,7 +39,9 @@ describe('computeShiftSales', () => {
       }, // no opening -> no sale
     ]
     const { sales } = computeShiftSales(readings, dispensers)
-    expect(sales).toEqual([{ fuelType: 'DO', liters: 350 }])
+    expect(sales).toEqual([
+      { fuelType: 'DO', liters: 350, meteredLiters: 350, airPurgeLiters: null },
+    ])
   })
 
   it('counts liters against the fuel stamped on the reading, not the trụ’s current one', () => {
@@ -54,7 +56,9 @@ describe('computeShiftSales', () => {
       },
     ]
     const { sales } = computeShiftSales(readings, [{ id: 'd1', fuelType: 'DC' }])
-    expect(sales).toEqual([{ fuelType: 'DO', liters: 200 }])
+    expect(sales).toEqual([
+      { fuelType: 'DO', liters: 200, meteredLiters: 200, airPurgeLiters: null },
+    ])
   })
 
   it('advances every dispenser that has a closing, whatever its delta', () => {
@@ -82,7 +86,9 @@ describe('computeShiftSales', () => {
       }, // no opening -> advance, no sale
     ]
     const { sales, advances } = computeShiftSales(readings, dispensers)
-    expect(sales).toEqual([{ fuelType: 'DO', liters: 200 }])
+    expect(sales).toEqual([
+      { fuelType: 'DO', liters: 200, meteredLiters: 200, airPurgeLiters: null },
+    ])
     expect(advances).toEqual([
       { dispenserId: 'd1', newElectronicReading: 1200, newMechanicalReading: null },
       { dispenserId: 'd2', newElectronicReading: 500, newMechanicalReading: null },
@@ -183,7 +189,7 @@ describe('computeShiftSales under a xả gió', () => {
       },
     ]
     const { sales } = computeShiftSales(readings, dispensers)
-    expect(sales).toEqual([{ fuelType: 'DO', liters: 180 }])
+    expect(sales).toEqual([{ fuelType: 'DO', liters: 180, meteredLiters: 200, airPurgeLiters: 20 }])
   })
 
   it('comes off only the fuel of the trụ that pushed the air', () => {
@@ -205,8 +211,8 @@ describe('computeShiftSales under a xả gió', () => {
     ]
     const { sales } = computeShiftSales(readings, dispensers)
     expect(sales).toEqual([
-      { fuelType: 'DO', liters: 180 },
-      { fuelType: 'E0', liters: 200 },
+      { fuelType: 'DO', liters: 180, meteredLiters: 200, airPurgeLiters: 20 },
+      { fuelType: 'E0', liters: 200, meteredLiters: 200, airPurgeLiters: null },
     ])
   })
 
@@ -228,7 +234,9 @@ describe('computeShiftSales under a xả gió', () => {
       },
     ]
     const { sales } = computeShiftSales(readings, dispensers)
-    expect(sales).toEqual([{ fuelType: 'DO', liters: 325 }]) // (200 − 20) + (150 − 5)
+    expect(sales).toEqual([
+      { fuelType: 'DO', liters: 325, meteredLiters: 350, airPurgeLiters: 25 }, // (200 − 20) + (150 − 5)
+    ])
   })
 
   it('still advances the trụ cache to the raw meter value', () => {
@@ -261,7 +269,7 @@ describe('computeShiftSales under a xả gió', () => {
       },
     ]
     const { sales, advances } = computeShiftSales(readings, dispensers)
-    expect(sales).toEqual([{ fuelType: 'DO', liters: 0 }])
+    expect(sales).toEqual([{ fuelType: 'DO', liters: 0, meteredLiters: 200, airPurgeLiters: 200 }])
     expect(advances).toEqual([
       { dispenserId: 'd1', newElectronicReading: 1200, newMechanicalReading: null },
     ])
@@ -280,7 +288,128 @@ describe('computeShiftSales under a xả gió', () => {
       airPurgeLiters: 0.1,
     }
     const { sales } = computeShiftSales([reading], dispensers)
-    expect(sales).toEqual([{ fuelType: 'DO', liters: 55.9 }])
+    expect(sales).toEqual([
+      { fuelType: 'DO', liters: 55.9, meteredLiters: 56, airPurgeLiters: 0.1 },
+    ])
     expect(sales[0]?.liters).toBe(soldLiters(reading, reading.airPurgeLiters))
+  })
+})
+
+describe('computeShiftSales reports what the đồng hồ counted beside what it sold', () => {
+  it('carries the raw metered litres and the xả gió taken off them', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+        airPurgeLiters: 20,
+      },
+    ]
+    const { sales } = computeShiftSales(readings, dispensers)
+    expect(sales).toEqual([{ fuelType: 'DO', liters: 180, meteredLiters: 200, airPurgeLiters: 20 }])
+  })
+
+  it('sums the purges of every trụ on a fuel, and the metered litres with them', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+        airPurgeLiters: 20,
+      },
+      {
+        dispenserId: 'd2',
+        fuelType: 'DO',
+        openingElectronicReading: 500,
+        electronicReading: 650,
+        airPurgeLiters: 5,
+      },
+    ]
+    const { sales } = computeShiftSales(readings, dispensers)
+    expect(sales).toEqual([{ fuelType: 'DO', liters: 325, meteredLiters: 350, airPurgeLiters: 25 }])
+  })
+
+  it('leaves a fuel nobody purged with no purge at all, rather than a zero', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+        airPurgeLiters: 20,
+      },
+      {
+        dispenserId: 'd3',
+        fuelType: 'E0',
+        openingElectronicReading: 500,
+        electronicReading: 700,
+        airPurgeLiters: null,
+      },
+    ]
+    const { sales } = computeShiftSales(readings, dispensers)
+    expect(sales.find((s) => s.fuelType === 'E0')?.airPurgeLiters).toBeNull()
+    expect(sales.find((s) => s.fuelType === 'DO')?.airPurgeLiters).toBe(20)
+  })
+
+  it('reports a keyed-in zero as a zero, so it reads apart from no purge at all', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+        airPurgeLiters: 0,
+      },
+    ]
+    const { sales } = computeShiftSales(readings, dispensers)
+    expect(sales[0]?.airPurgeLiters).toBe(0)
+  })
+
+  it('counts a purge keyed on a trụ that sold nothing, rather than losing it', () => {
+    // Trụ 2 has no opening, so it sells nothing and its litres never reach the hầm —
+    // but kế toán did key a Xả gió on it and the ca screen shows it. Dropping it here
+    // would tell the preflight summary that 5 lít of air were never bled.
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1200,
+        airPurgeLiters: 20,
+      },
+      {
+        dispenserId: 'd2',
+        fuelType: 'DO',
+        openingElectronicReading: null,
+        electronicReading: 650,
+        airPurgeLiters: 5,
+      },
+    ]
+    const { sales } = computeShiftSales(readings, dispensers)
+    expect(sales).toEqual([{ fuelType: 'DO', liters: 180, meteredLiters: 200, airPurgeLiters: 25 }])
+  })
+
+  it('trims the float dust off a summed purge, as the litres beside it are trimmed', () => {
+    const readings: SaleReading[] = [
+      {
+        dispenserId: 'd1',
+        fuelType: 'DO',
+        openingElectronicReading: 1000,
+        electronicReading: 1056,
+        airPurgeLiters: 0.1,
+      },
+      {
+        dispenserId: 'd2',
+        fuelType: 'DO',
+        openingElectronicReading: 500,
+        electronicReading: 700,
+        airPurgeLiters: 0.2,
+      },
+    ]
+    const { sales } = computeShiftSales(readings, dispensers)
+    expect(sales[0]?.airPurgeLiters).toBe(0.3)
+    expect(sales[0]?.meteredLiters).toBe(256)
   })
 })

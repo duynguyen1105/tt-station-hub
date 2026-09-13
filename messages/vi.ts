@@ -293,6 +293,11 @@ export const vi = {
     fuelMathTitle: 'Số lít theo nhiên liệu',
     fuel: 'Nhiên liệu',
     metered: 'Đo được',
+    // Số lít bơm ra chỉ để đẩy gió trong ống rồi đổ lại vào hầm: đồng hồ đếm nhưng
+    // không ai mua. Trừ khỏi "Đo được", cùng với "Bán nợ", ra đúng "Bán lẻ" mà file
+    // MISA ghi — để kế toán thấy vì sao Số lượng khác số đồng hồ trước khi tải file.
+    // Trống nghĩa là ca này không trụ nào xả gió, khác với việc nhập số 0.
+    airPurge: 'Xả gió',
     credit: 'Bán nợ',
     cash: 'Bán lẻ',
     noFuelData: 'Không có số liệu nhiên liệu.',
@@ -300,7 +305,6 @@ export const vi = {
     fix: 'Sửa',
     warningTitle: 'Cảnh báo',
     negativeCashConfirm: 'Tôi xác nhận số lít bán lẻ âm và vẫn muốn tải file.',
-    datesTitle: 'Ngày chứng từ',
     postingDate: 'Ngày hạch toán',
     voucherDate: 'Ngày chứng từ',
     invoiceDate: 'Ngày hóa đơn',
@@ -453,9 +457,6 @@ export const vi = {
     // Hai đồng hồ đều đếm số lít này nhưng không ai mua, và xăng dầu được đổ lại vào
     // hầm. Trống nghĩa là ca này không xả gió, khác với việc nhập số 0.
     airPurge: 'Xả gió',
-    // Lý do xả gió, kế toán tự ghi — ví dụ "hầm 3 hết xăng lúc 14h" — để cái cớ đi
-    // cùng con số thay vì nằm trong trí nhớ.
-    airPurgeNote: 'Lý do xả gió',
     airPurgeSaved: 'Đã cập nhật xả gió',
     // Không thể xả ra nhiều hơn số lít đã chạy qua đồng hồ điện tử. Câu từ chối nói
     // luôn mức trần, để kế toán biết phải sửa xuống bao nhiêu chứ không chỉ biết là sai.

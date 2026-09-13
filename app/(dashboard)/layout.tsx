@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             roleLabel: vi.roles[user.role],
           }}
         />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <header className="bg-background/80 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b backdrop-blur-sm">
             {/* brass operations rail */}
             <span className="bg-brass h-full w-1 shrink-0" />
