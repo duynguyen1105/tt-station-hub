@@ -172,6 +172,21 @@ describe('resolveReadingScale', () => {
     })
   })
 
+  it('re-places a dot the AI put one cell off when it drops the closing below the opening', () => {
+    // TANHOA TRỤ 3 27/08: LED 455421.63, AI "45542.163" (dot before the 1).
+    expect(resolveReadingScale('45542.163', 454750, MAX)).toEqual({
+      value: 455421.63,
+      rescaled: true,
+    })
+    // LAMDONG01 TRỤ 1 28/08: LED 337781.73, AI "33778.173".
+    expect(resolveReadingScale('33778.173', 337407.38, MAX)).toEqual({
+      value: 337781.73,
+      rescaled: true,
+    })
+    // A dotted read below the opening that no scale rescues stays as read (meter replaced).
+    expect(resolveReadingScale('12.5', 454750, MAX)).toEqual({ value: 12.5, rescaled: false })
+  })
+
   it('infers the scale from the opening, and flags it', () => {
     // Opening 30650.120: raw 30694885 → delta 30.6M (absurd); /10, /100 absurd
     // too; /1000 → 30694.885 → delta 44.765 (plausible).

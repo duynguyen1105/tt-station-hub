@@ -31,7 +31,10 @@ export type ScaleResolution = {
  * type is prone to it: the Montech and LungBor print 2–3 decimals behind a tiny
  * dot the AI often cannot see, so 187883.80 comes back as "18788380", and the
  * PETRO/green displays lose a digit outright. In order:
- *  (a) a dot the AI DID see is trusted as read;
+ *  (a) a dot the AI DID see is trusted as read — unless it lands the closing
+ *      BELOW the opening, which a totalizer cannot do: the dot was put one cell
+ *      off (TANHOA TRỤ 3: 455421.63 read as "45542.163"), so its digits are
+ *      re-placed like a dotless read;
  *  (b) otherwise the opening decides: of the scales 0..3 the smallest that makes
  *      closing ≥ opening with delta ≤ maxDelta wins, so a raw read whose own
  *      delta is plausible is never touched, and a decimal-less display never is;
@@ -43,12 +46,15 @@ export function resolveReadingScale(
   maxDeltaLiters: number
 ): ScaleResolution {
   const value = parseNumericString(raw)
-  if (value === null || raw!.includes('.')) return { value, rescaled: false }
-  if (opening === null) return { value, rescaled: false }
+  if (value === null || opening === null) return { value, rescaled: false }
+  if (raw!.includes('.') && value >= opening) return { value, rescaled: false }
+  const digits = Number(raw!.replace(/\D/g, ''))
   for (let scale = 0; scale <= 3; scale++) {
-    const candidate = value / 10 ** scale
+    const candidate = digits / 10 ** scale
     const delta = candidate - opening
-    if (delta >= 0 && delta <= maxDeltaLiters) return { value: candidate, rescaled: scale > 0 }
+    if (delta >= 0 && delta <= maxDeltaLiters) {
+      return { value: candidate, rescaled: candidate !== value }
+    }
   }
   return { value, rescaled: false }
 }
