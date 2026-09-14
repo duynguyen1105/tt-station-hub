@@ -874,6 +874,14 @@ export const vi = {
     clearOwing: 'Bỏ lọc còn nợ',
     // A filter that matched nothing, as opposed to a trạm with no khách hàng at all.
     emptyFiltered: 'Không có khách hàng nào khớp bộ lọc.',
+    // Sổ công nợ of one khách hàng: every charge and payment, balance after each.
+    ledgerDate: 'Ngày',
+    ledgerDetail: 'Nội dung',
+    ledgerSale: 'Bán nợ',
+    ledgerCharge: 'Nợ',
+    ledgerPayment: 'Trả',
+    openingBalance: 'Số dư đầu kỳ',
+    ledgerEmpty: 'Chưa có giao dịch nào.',
   },
 
   debtReview: {

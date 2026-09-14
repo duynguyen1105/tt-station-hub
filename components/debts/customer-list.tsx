@@ -4,6 +4,7 @@ import { ListFilter, Search } from 'lucide-react'
 
 import { useMemo, useState } from 'react'
 
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { CustomerForm } from '@/components/debts/customer-form'
@@ -172,7 +173,12 @@ export function CustomerList({
             {shown.map((customer) => (
               <tr key={customer.id} className="border-b">
                 <td className="p-2">
-                  <div className="font-medium">{customer.name}</div>
+                  <Link
+                    href={`${pathname}/${customer.id}`}
+                    className="font-medium underline-offset-2 hover:underline"
+                  >
+                    {customer.name}
+                  </Link>
                   {customer.phone ? (
                     <div className="text-muted-foreground text-xs">{customer.phone}</div>
                   ) : null}
