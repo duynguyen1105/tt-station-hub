@@ -12,7 +12,7 @@ Decide in this priority order:
 2. "electronic_meter": an electronic SHIFT-CLOSING totalizer showing the cumulative running total — EITHER a single-number display (Montech red LED; LungBor black-and-white LCD; PETRO Cloud white LCD keypad panel showing one "L"-prefixed number like "L 148949"), OR a green dot-matrix display with 3 stacked lines labeled Đồng/Tiền, LÍT, Đơn giá whose LÍT line is the CUMULATIVE liters ever dispensed.
 3. "debt_meter": an electronic pump screen with 3 lines (amount / liters / unit price) for ONE per-trip credit sale — a single fill of at most a few hundred liters.
 4. "vehicle": a vehicle, its license plate, OR a fuel container (jerry can / plastic drum being filled or standing at the pump) is the subject — evidence photo of a per-trip credit sale.
-5. "tank_dip": a tank-dipping / barem photo — a printed tank label "HẦM <n>" (with a fuel type and a capacity like "DO - 25K"), typically with a measuring ruler / dip-stick and a written measurement, and NO pump meter in the frame.
+5. "tank_dip": a tank-dipping / barem photo — a printed tank label "HẦM <n>" (with a fuel type and a capacity like "DO - 25K"), typically with a measuring ruler / dip-stick and a written measurement, and NO pump meter in the frame. CAUTION: a PUMP label also prints its tank line ("TRỤ 6 - DC / HẦM 5 - DC 12K"). A plate that names a "TRỤ" is a pump label — look harder for the (often small, dark) counter below it and choose mechanical_meter / electronic_meter / label_only, never tank_dip.
 6. "label_only": a hard label plate is present but NO meter counter, display, or tank dip is visible at all.
 7. "not_relevant": unrelated to a fuel station.
 
@@ -100,10 +100,12 @@ Return JSON only:
 export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
 Read the printed label: the STATION name usually printed on the first line ("DAKNONG1", "PHUCTIEN"...), the tank ("HẦM" + number), the fuel word EXACTLY AS PRINTED ("DO", "DO01", "XA E0", "Xăng RON 95"...) — copy it verbatim, do NOT translate, expand, tidy or convert it into any code you think it stands for, because the system looks the printed word up per station — and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
 Read the measurement value EXACTLY as shown, choosing the source in THIS order: (1) the number stamped in a COLOURED BADGE/BOX overlaid on the photo by the camera app (e.g. a red box in a corner) — when present, that badge IS the dip value; (2) otherwise a hand-written value. NEVER use the ruler's own engraved scale numbers (mm or inch markings printed along the ruler) as the value — the wet/red line on the ruler only shows the level's position, the declared value lives in the badge. Keep the value verbatim, including dots — its unit and conversion to liters are applied later from a barem table.
+A PUMP label prints its tank line too ("TRỤ 6 - DC" above "HẦM 5 - DC 12K"). If the plate names a "TRỤ" / "TRU", this is a pump label, not a tank plate: put that pump line in dispenser_label ("TRỤ 6"), set is_tank_dip false, and still fill the other fields from what you see. A real tank plate has no TRỤ line → dispenser_label null.
 
 Return JSON only (example values are placeholders, replace with what you actually see):
 {
   "is_tank_dip": true,
+  "dispenser_label": "<TRỤ + number if the plate names a pump>" | null,
   "station_label": "<station name on the plate>" | null,
   "tank_label": "<HẦM + number>" | null,
   "tank_number": "<number>" | null,

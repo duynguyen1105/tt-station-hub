@@ -7,6 +7,7 @@ import {
   reconcilesAsPerFillDisplay,
   routeOpensShift,
   routePhoto,
+  secondOpinionOnTankDip,
 } from '@/lib/zalo/classify'
 import { computeZaloSignature, verifyZaloSignature } from '@/lib/zalo/signature'
 import { parseZaloEvent, parseZaloTextEvent } from '@/lib/zalo/webhook-handler'
@@ -35,6 +36,29 @@ describe('routePhoto', () => {
     expect(routePhoto(null, 'inventory')).toBe('inventory')
     // ...and over a remembered declaration.
     expect(routePhoto('electronic_meter', 'shift', 'debt')).toBe('shift')
+  })
+})
+
+describe('secondOpinionOnTankDip', () => {
+  it('sends a plate that names a TRỤ back to the ca — a pump label prints its hầm line too', () => {
+    // LAMDONG01 Trụ 6 (L1 report): "TRỤ 6 – DC / HẦM 5 – DC 12K" over a dark counter.
+    expect(secondOpinionOnTankDip({ dispenserLabel: 'TRỤ 6', dipValue: null }, 'shift')).toBe(
+      'shift'
+    )
+    expect(secondOpinionOnTankDip({ dispenserLabel: 'TRỤ 6', dipValue: '415' }, null)).toBe('shift')
+  })
+  it('parks a measurement-less "dip" sent under chốt ca for the reviewer to gán', () => {
+    expect(secondOpinionOnTankDip({ dispenserLabel: null, dipValue: null }, 'shift')).toBe('park')
+  })
+  it('keeps a real dip — a measurement, or no chốt ca context — as inventory', () => {
+    // DAKNONGVK sends ruler photos in the chốt ca album: they carry a badge value.
+    expect(secondOpinionOnTankDip({ dispenserLabel: null, dipValue: '415' }, 'shift')).toBe(
+      'inventory'
+    )
+    expect(secondOpinionOnTankDip({ dispenserLabel: null, dipValue: null }, null)).toBe('inventory')
+    expect(secondOpinionOnTankDip({ dispenserLabel: null, dipValue: null }, 'inventory')).toBe(
+      'inventory'
+    )
   })
 })
 

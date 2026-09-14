@@ -144,6 +144,9 @@ export type ExtractPlateResult = {
 // === Tank dip (inventory / barem §12.6) ===
 export const tankDipSchema = z.object({
   is_tank_dip: z.boolean(),
+  // "TRỤ 6" when the plate is a PUMP label (which prints its hầm line too) — the
+  // reader's own word that this is not a tank dip. Null on a real tank plate.
+  dispenser_label: z.string().nullable().optional(),
   station_label: z.string().nullable().optional(), // "DAKNONG1" printed above the tank label
   tank_label: z.string().nullable(), // "HẦM 3"
   tank_number: z.string().nullable(), // "3"
@@ -157,6 +160,7 @@ export const tankDipSchema = z.object({
 export type TankDipRaw = z.infer<typeof tankDipSchema>
 
 export type ExtractTankDipResult = {
+  dispenserLabel: string | null
   stationLabel: string | null
   tankLabel: string | null
   tankNumber: string | null

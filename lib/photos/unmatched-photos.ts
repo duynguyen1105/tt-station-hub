@@ -10,8 +10,17 @@ export type UnmatchedReason =
   // Sent under a debt declaration, but neither a vehicle nor a display whose
   // TIỀN = LÍT × ĐƠN GIÁ reconciles — parked on the ca instead of faking a half.
   | 'debt_unreconciled'
+  // Routed as a tank dip under a chốt ca declaration, but the dip reader found
+  // no measurement on it — a plate-dominated pump photo, not a dip.
+  | 'dip_without_value'
   // The AI pass threw; the photo would otherwise have vanished into a log line.
   | 'extraction_failed'
+
+const REASONS: readonly UnmatchedReason[] = [
+  'debt_unreconciled',
+  'dip_without_value',
+  'extraction_failed',
+]
 
 export const ROUTER_IMAGE_TYPES: readonly RouterResult['image_type'][] = [
   'electronic_meter',
@@ -70,7 +79,7 @@ export function unmatchedPhotoTrace(raw: unknown): UnmatchedPhotoTrace {
   const routerType = router?.image_type
   const notes = extraction?.notes ?? router?.notes ?? obj.notes
   return {
-    reason: reason === 'debt_unreconciled' || reason === 'extraction_failed' ? reason : null,
+    reason: (REASONS as readonly unknown[]).includes(reason) ? (reason as UnmatchedReason) : null,
     routerType:
       typeof routerType === 'string' &&
       (ROUTER_IMAGE_TYPES as readonly string[]).includes(routerType)

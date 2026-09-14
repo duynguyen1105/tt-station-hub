@@ -1,7 +1,7 @@
 // Decides which route an incoming Zalo photo takes — a shift-closing photo, a
 // per-trip debt fill or an inventory dip (build plan §6) — and what that route
 // implies for the day's ca. Default is shift.
-import type { ExtractVisitResult, RouterResult } from '@/lib/ai/types'
+import type { ExtractTankDipResult, ExtractVisitResult, RouterResult } from '@/lib/ai/types'
 import type { DebtPhotoType } from '@/lib/photos/ingest'
 
 export type PhotoRoute = 'shift' | 'debt' | 'inventory'
@@ -75,6 +75,27 @@ export function routePhoto(
       // 'label_only' | 'not_relevant' | null — trust the remembered intent.
       return declaredFallback ?? 'shift'
   }
+}
+
+/**
+ * Second opinion on a photo the router called a tank dip, from the dip reader's
+ * own read of the plate. A PUMP label prints its hầm line too ("TRỤ 6 – DC /
+ * HẦM 5 – DC 12K"), so a dark counter under a big plate routes as inventory —
+ * the LAMDONG01 Trụ 6 photo that "was never received" (L1 report). Only a
+ * remembered declaration got here: an explicit "đo bồn" caption is not second-guessed.
+ *
+ *  - the plate names a TRỤ → it is the pump's, so the photo is a shift reading;
+ *  - no TRỤ but also no measurement, while the sender declared chốt ca → not a
+ *    dip either; park it on the ca so the reviewer can gán it to a trụ;
+ *  - otherwise it is the dip the router said.
+ */
+export function secondOpinionOnTankDip(
+  dip: Pick<ExtractTankDipResult, 'dispenserLabel' | 'dipValue'>,
+  declaredFallback: PhotoRoute | null
+): 'shift' | 'park' | 'inventory' {
+  if (dip.dispenserLabel) return 'shift'
+  if (!dip.dipValue && declaredFallback === 'shift') return 'park'
+  return 'inventory'
 }
 
 /**

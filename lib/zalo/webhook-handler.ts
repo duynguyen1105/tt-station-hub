@@ -31,6 +31,7 @@ import {
   reconcilesAsPerFillDisplay,
   routeOpensShift,
   routePhoto,
+  secondOpinionOnTankDip,
 } from '@/lib/zalo/classify'
 import { downloadZaloAttachment, sendZaloMessage } from '@/lib/zalo/client'
 
@@ -434,6 +435,33 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         }
       }
 
+      // A pump label prints its hầm line too, so a dark counter under a big plate
+      // routes as a tank dip (the LAMDONG01 Trụ 6 photo that "was never received").
+      // The dip reader reads the plate anyway — its TRỤ line, or the absence of any
+      // measurement, sends the photo back to the ca. An explicit "đo bồn" caption
+      // is the human's word and is not second-guessed.
+      let routerForReader = router
+      if (route === 'inventory' && !explicitKind && routerType === 'tank_dip') {
+        const dip =
+          preTankResults.get(i) ??
+          (await extractTankDip({ imageBuffer: buffer }).catch(() => undefined))
+        if (dip) preTankResults.set(i, dip)
+        const opinion = dip ? secondOpinionOnTankDip(dip, contextKind) : 'inventory'
+        if (opinion === 'shift') {
+          route = 'shift'
+          // The shift reader must not take the router's word either: as label_only
+          // it tries both meter readers and the zoomed crops.
+          routerForReader = router ? { ...router, image_type: 'label_only' } : null
+          logger.info(
+            { senderId: msg.senderId, index: i, dispenserLabel: dip?.dispenserLabel },
+            'Tank-dip look-alike names a TRỤ — it is a pump photo, routed to the ca'
+          )
+        } else if (opinion === 'park') {
+          route = 'shift'
+          parked = 'dip_without_value'
+        }
+      }
+
       // For shift photos the meter is extracted anyway, so read it now and let the
       // PRINTED STATION LABEL override the sender-based station when they disagree
       // (e.g. a tester registered to one station sending another station's photo).
@@ -443,9 +471,20 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
       if (route === 'shift' && !parked) {
         extracted =
           pre ??
-          (await extractMeter({ imageBuffer: buffer, router: router ?? undefined }).catch(
+          (await extractMeter({ imageBuffer: buffer, router: routerForReader ?? undefined }).catch(
             () => undefined
           ))
+        // The dip reader already read the plate on a rerouted look-alike; the
+        // meter readers, busy with the counter, may not repeat it. Its TRỤ line is
+        // what matches the reading to its trụ.
+        const plate = preTankResults.get(i)
+        if (extracted && plate?.dispenserLabel && !extracted.dispenserLabel) {
+          extracted = {
+            ...extracted,
+            dispenserLabel: plate.dispenserLabel,
+            stationLabel: extracted.stationLabel ?? plate.stationLabel,
+          }
+        }
         if (extracted?.stationLabel) {
           // The printed plate on the pump is the most trustworthy source — a
           // typed declaration can carry a typo, the plate cannot. It still
@@ -542,7 +581,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
           buffer,
           { id: shift.id, stationId: target.id },
           undefined,
-          router ?? undefined,
+          routerForReader ?? undefined,
           extracted
         ).catch(async (error) => {
           logger.error({ error, photoId: photo.id }, 'Shift extraction failed')

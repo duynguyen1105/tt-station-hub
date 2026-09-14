@@ -561,6 +561,8 @@ export const vi = {
     reason: {
       debt_unreconciled:
         'Gửi trong ngữ cảnh công nợ nhưng không phải ảnh xe hay màn hình bán lẻ (tiền ≠ lít × đơn giá).',
+      dip_without_value:
+        'Máy xếp là ảnh đo bồn nhưng không đọc được số đo — khả năng là ảnh trụ bị nhãn che.',
       extraction_failed: 'Đọc ảnh thất bại.',
     },
     routerType: {
