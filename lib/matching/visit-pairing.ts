@@ -24,11 +24,61 @@ export type VisitPair = {
 }
 
 /**
- * How far apart two halves of one fill may arrive. Stated here once for both
- * shapes of pairing: under the submitter key its only remaining job is to stop
- * one submitter's two DIFFERENT fills from merging.
+ * How far apart two halves of one fill may arrive in the OFFLINE batch shape
+ * (pairVisitPhotos, the repair script, the stray sweep). The arrival path no
+ * longer pairs across anything like this: see pickOpenHalf.
  */
 export const DEBT_PAIR_WINDOW_MS = 5 * 60 * 1000
+
+/**
+ * Two photos selected together and sent as ONE Zalo bubble reach the webhook as
+ * separate events 80–100 ms apart (13 photos of one album: 1.3 s). Bubbles sent
+ * one after another are tens of seconds apart. So "same bubble" is a timestamp
+ * gap well under this, and nothing else — Zalo carries no album id.
+ */
+export const SAME_BUBBLE_MS = 2_000
+
+/**
+ * A fill photographed as two separate bubbles (vehicle, then pump) is still one
+ * fill when nothing else from the same submitter landed near it.
+ */
+export const LONE_PAIR_WINDOW_MS = 60_000
+
+export type OpenHalfCandidate = {
+  visitDate: Date
+  /** Still missing the half that is arriving. */
+  open: boolean
+}
+
+export type OpenHalfPick<T> = { visit: T | null; ambiguous: boolean }
+
+/**
+ * The arrival-path pairing rule, on the submitter's visits that lie within
+ * ±LONE_PAIR_WINDOW_MS of the arriving photo's Zalo timestamp (`at`), open or not.
+ *
+ * 1. An open half from the same bubble (≤ SAME_BUBBLE_MS) wins — nearest first.
+ *    Sent together always pairs together, whatever order the AI finishes in.
+ * 2. Otherwise the open half is taken only when it is the ONLY visit in the
+ *    window: a second visit there means another fill was photographed in the
+ *    same minute, and which of the two this photo belongs to is a coin flip.
+ * 3. Otherwise nothing pairs; `ambiguous` says a wrong-looking neighbour existed,
+ *    so the new visit can be flagged for the reviewer instead of silently split.
+ *
+ * This is what the 5-minute "most recent open half" rule got wrong: photos of
+ * three trucks sent at 19:21 pair by AI finish order, i.e. crosswise.
+ */
+export function pickOpenHalf<T extends OpenHalfCandidate>(
+  visits: readonly T[],
+  at: number
+): OpenHalfPick<T> {
+  const gap = (v: T) => Math.abs(v.visitDate.getTime() - at)
+  const inWindow = visits.filter((v) => gap(v) <= LONE_PAIR_WINDOW_MS)
+  const open = inWindow.filter((v) => v.open).sort((a, b) => gap(a) - gap(b))
+  const nearest = open[0]
+  if (nearest && gap(nearest) <= SAME_BUBBLE_MS) return { visit: nearest, ambiguous: false }
+  if (nearest && inWindow.length === 1) return { visit: nearest, ambiguous: false }
+  return { visit: null, ambiguous: inWindow.length > 0 }
+}
 
 export function pairVisitPhotos(
   photos: VisitPhoto[],

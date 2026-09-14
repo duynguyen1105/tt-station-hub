@@ -31,7 +31,7 @@ import {
 } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
-import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
+import { LONE_PAIR_WINDOW_MS, pickOpenHalf } from '@/lib/matching/visit-pairing'
 import { type PhotoStationSource, resolveVisitStation } from '@/lib/matching/visit-station'
 import { inferFuelTypeFromPrice, priceRowOnDate } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
@@ -434,9 +434,9 @@ function debtReview(
 
 /**
  * The pairing key, stated once for both assembly branches: this submitter's open
- * half of a fill, inside the window, still missing the kind of photo that has just
- * arrived. Stated once so the two branches can never drift into two different
- * definitions of a pair.
+ * half of a fill, still missing the kind of photo that has just arrived, chosen by
+ * how close in Zalo time the two photos were sent (pickOpenHalf). Stated once so
+ * the two branches can never drift into two different definitions of a pair.
  *
  * The station is deliberately NOT part of the key — the two halves of one fill
  * resolve it independently and can disagree, which is exactly what used to split
@@ -452,17 +452,28 @@ export async function findOpenHalf(
   tx: Prisma.TransactionClient,
   arriving: DebtPhotoType,
   submittedBy: string | null,
-  windowStart: Date
+  at: number
 ) {
-  if (!submittedBy) return null
-  const missing =
-    arriving === 'debt_meter'
-      ? { meterPhotoId: null, vehiclePhotoId: { not: null } }
-      : { vehiclePhotoId: null, meterPhotoId: { not: null } }
-  return tx.debtVehicleVisit.findFirst({
-    where: { submittedBy, ...missing, visitDate: { gte: windowStart } },
-    orderBy: { visitDate: 'desc' },
+  if (!submittedBy) return { visit: null, ambiguous: false }
+  const nearby = await tx.debtVehicleVisit.findMany({
+    where: {
+      submittedBy,
+      visitDate: {
+        gte: new Date(at - LONE_PAIR_WINDOW_MS),
+        lte: new Date(at + LONE_PAIR_WINDOW_MS),
+      },
+    },
   })
+  return pickOpenHalf(
+    nearby.map((v) => ({
+      ...v,
+      open:
+        arriving === 'debt_meter'
+          ? v.meterPhotoId == null && v.vehiclePhotoId != null
+          : v.vehiclePhotoId == null && v.meterPhotoId != null,
+    })),
+    at
+  )
 }
 
 /**
@@ -503,7 +514,6 @@ export async function assembleDebtVisit(params: {
   const { photoId, station, stationDeclared, timestamp, type, buffer, submittedBy } = params
   const caption = params.caption?.trim() || null
   const visitDate = new Date(timestamp)
-  const windowStart = new Date(timestamp - DEBT_PAIR_WINDOW_MS)
 
   if (type === 'debt_meter') {
     const meter = params.precomputedMeter ?? (await extractVisitMeter({ imageBuffer: buffer }))
@@ -621,7 +631,12 @@ export async function assembleDebtVisit(params: {
     const visit = await prisma.$transaction(
       async (tx) => {
         await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
-        const open = await findOpenHalf(tx, 'debt_meter', submittedBy, windowStart)
+        const { visit: open, ambiguous } = await findOpenHalf(
+          tx,
+          'debt_meter',
+          submittedBy,
+          timestamp
+        )
         return open
           ? tx.debtVehicleVisit.update({
               where: { id: open.id },
@@ -636,7 +651,18 @@ export async function assembleDebtVisit(params: {
               },
             })
           : tx.debtVehicleVisit.create({
-              data: { stationId: target.id, visitDate, submittedBy, ...meterData },
+              data: {
+                stationId: target.id,
+                visitDate,
+                submittedBy,
+                ...meterData,
+                ...(ambiguous
+                  ? {
+                      anomalyReasons: [...anomalies, 'pairing_ambiguous'],
+                      reviewStatus: 'needs_review',
+                    }
+                  : {}),
+              },
             })
       },
       { timeout: 15000 }
@@ -691,7 +717,7 @@ export async function assembleDebtVisit(params: {
   const visit = await prisma.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
-      const open = await findOpenHalf(tx, 'vehicle', submittedBy, windowStart)
+      const { visit: open, ambiguous } = await findOpenHalf(tx, 'vehicle', submittedBy, timestamp)
       return open
         ? tx.debtVehicleVisit.update({
             where: { id: open.id },
@@ -720,6 +746,7 @@ export async function assembleDebtVisit(params: {
               plateRead: plate.plate,
               customerId: customer?.id ?? null,
               reviewStatus: 'needs_review',
+              anomalyReasons: ambiguous ? ['pairing_ambiguous'] : [],
               zaloCaption: caption,
             },
           })

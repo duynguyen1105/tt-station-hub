@@ -380,6 +380,7 @@ export const vi = {
     liters_rescaled: 'Số lít chỉ khớp ở thang thập phân khác trạm',
     price_implausible: 'Đơn giá bất thường',
     price_mismatch: 'Đơn giá lệch bảng giá',
+    pairing_ambiguous: 'Không ghép được ảnh xe với ảnh trụ — gửi lại 2 ảnh cùng một tin nhắn',
   },
 
   docStatus: { valid: 'Còn hạn', expiring_soon: 'Sắp hết hạn', expired: 'Hết hạn' },

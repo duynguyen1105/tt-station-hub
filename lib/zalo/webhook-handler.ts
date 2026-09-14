@@ -15,7 +15,6 @@ import {
   matchStationByLabel,
 } from '@/lib/matching/station-label'
 import { submitterKey } from '@/lib/matching/submitter'
-import { DEBT_PAIR_WINDOW_MS } from '@/lib/matching/visit-pairing'
 import {
   assembleDebtVisit,
   findOpenHalf,
@@ -422,12 +421,7 @@ export async function handleZaloImageMessage(msg: ZaloImageMessage): Promise<voi
         route === 'shift' &&
         !explicitKind &&
         (routerType === 'electronic_meter' || routerType === 'label_only') &&
-        (await findOpenHalf(
-          prisma,
-          'debt_meter',
-          submittedBy,
-          new Date(msg.timestamp - DEBT_PAIR_WINDOW_MS)
-        ))
+        (await findOpenHalf(prisma, 'debt_meter', submittedBy, msg.timestamp)).visit
       ) {
         visitMeter = await extractVisitMeter({ imageBuffer: buffer }).catch(() => undefined)
         if (visitMeter && reconcilesAsPerFillDisplay(visitMeter)) {

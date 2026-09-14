@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { type VisitPhoto, pairVisitPhotos } from '@/lib/matching/visit-pairing'
+import { type VisitPhoto, pairVisitPhotos, pickOpenHalf } from '@/lib/matching/visit-pairing'
 
 describe('pairVisitPhotos', () => {
   it('pairs a vehicle and a meter photo sent close together', () => {
@@ -72,5 +72,43 @@ describe('pairVisitPhotos', () => {
     ]
     const pairs = pairVisitPhotos(photos)
     expect(pairs).toEqual([{ vehiclePhotoId: 'v1', meterPhotoId: 'm1', caption: 'Xe Tiến Oanh' }])
+  })
+})
+
+// Timings are the ones Zalo actually delivered on 13/09: the two photos of one
+// bubble 80–100 ms apart, the next bubble 48 s later.
+describe('pickOpenHalf', () => {
+  const half = (id: string, at: number, open = true) => ({ id, visitDate: new Date(at), open })
+
+  it('pairs the half sent in the same bubble, whichever finished AI first', () => {
+    const picked = pickOpenHalf([half('A', 0), half('B', 48_000)], 94)
+    expect(picked).toEqual({ visit: half('A', 0), ambiguous: false })
+  })
+
+  it('pairs three trucks sent at 19:21 to their own bubbles, not crosswise', () => {
+    const visits = [half('A', 0), half('B', 30_000), half('C', 55_000)]
+    expect(pickOpenHalf(visits, 30_090).visit?.id).toBe('B')
+    expect(pickOpenHalf(visits, 55_080).visit?.id).toBe('C')
+    expect(pickOpenHalf(visits, 80).visit?.id).toBe('A')
+  })
+
+  it('pairs a fill sent as two bubbles when nothing else is near', () => {
+    expect(pickOpenHalf([half('A', 0)], 30_000)).toEqual({ visit: half('A', 0), ambiguous: false })
+  })
+
+  it('refuses to guess between two fills photographed in the same minute', () => {
+    const visits = [half('A', 0), half('B', 50_000)]
+    expect(pickOpenHalf(visits, 30_000)).toEqual({ visit: null, ambiguous: true })
+  })
+
+  it('refuses when the only neighbour is a fill already complete', () => {
+    expect(pickOpenHalf([half('A', 0), half('B', 40_000, false)], 30_000)).toEqual({
+      visit: null,
+      ambiguous: true,
+    })
+  })
+
+  it('opens a fresh visit, unflagged, when the sender has nothing nearby', () => {
+    expect(pickOpenHalf([half('A', -5 * 60_000)], 0)).toEqual({ visit: null, ambiguous: false })
   })
 })
