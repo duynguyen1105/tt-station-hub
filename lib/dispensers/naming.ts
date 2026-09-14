@@ -31,6 +31,11 @@ export function tankCodeFor(tankNumber: number): string {
   return `HAM_${tankNumber}`
 }
 
+/** "Hầm 3" — the tên a hầm code reads as on screen; a code carrying no số reads as itself. */
+export function tankNameFor(tankCode: string): string {
+  return tankCode.replace('HAM_', 'Hầm ')
+}
+
 /**
  * The số hầm behind a hầm code, so Chỉnh sửa shows back the number that was typed.
  * Null for a trụ drawing from no hầm, and for a code carrying no số — nothing is

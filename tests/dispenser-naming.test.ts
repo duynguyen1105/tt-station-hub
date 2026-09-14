@@ -4,6 +4,7 @@ import {
   dispenserCodeFor,
   dispenserNameFor,
   tankCodeFor,
+  tankNameFor,
   tankNumberFrom,
 } from '@/lib/dispensers/naming'
 import { tankCodeFromLabel } from '@/lib/imports/bien-ban'
@@ -39,6 +40,16 @@ describe('tankCodeFor', () => {
     expect(tankCodeFor(3)).toBe(tankCodeFromLabel('HẦM 3')?.code)
     expect(tankCodeFor(3)).toBe(tankCodeFromLabel('Hầm 03')?.code)
     expect(tankCodeFor(3)).toBe('HAM_3')
+  })
+})
+
+describe('tankNameFor', () => {
+  it('names a hầm the way every screen reads it', () => {
+    expect(tankNameFor(tankCodeFor(3))).toBe('Hầm 3')
+  })
+
+  it('reads a code carrying no số as itself', () => {
+    expect(tankNameFor('PHU')).toBe('PHU')
   })
 })
 

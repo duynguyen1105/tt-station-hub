@@ -210,15 +210,15 @@ export const vi = {
   // Trụ bơm on a trạm's Cấu hình: the trụ the trạm has, what each pumps, the hầm it
   // draws from and the đồng hồ a ca will ask it for.
   dispensers: {
-    title: 'Trụ bơm',
-    note: 'Những trụ đang bơm ở trạm này: nhiên liệu mỗi trụ bán, hầm nó hút lên và đồng hồ nó có.',
-    empty: 'Trạm chưa có trụ bơm nào. Bấm Thêm trụ để lắp trụ đầu tiên.',
+    title: 'Hầm & trụ bơm',
+    note: 'Hầm là gốc: mỗi hầm chứa một nhiên liệu với dung tích của nó, và trụ hút từ hầm nào thì bán nhiên liệu của hầm đó.',
+    empty:
+      'Trạm chưa có hầm hay trụ nào. Bấm Thêm hầm để khai báo hầm đầu tiên, rồi chọn Thêm trụ trong menu của hầm.',
     emptyNoFuels:
-      'Trạm chưa có trụ bơm nào. Hãy khai báo nhiên liệu ở Map nhiên liệu trước, rồi mới lắp được trụ.',
+      'Trạm chưa có hầm hay trụ nào. Hãy khai báo nhiên liệu ở Map nhiên liệu trước, rồi mới tạo được hầm.',
     add: 'Thêm trụ',
     edit: 'Chỉnh sửa trụ',
     actions: (name: string) => `Tùy chọn ${name}`,
-    pump: 'Trụ',
     pumpNumber: 'Số trụ',
     pumpNumberNote:
       'Số in trên biển trụ. Số này sinh ra mã trụ để AI khớp ảnh chụp biển, nên lắp xong là cố định.',
@@ -233,18 +233,18 @@ export const vi = {
     convertBody: (from: string, to: string) =>
       `Từ giờ ca của trụ này được ghi theo ${to}. Ca đã chốt vẫn giữ ${from}, trên mọi màn hình và khi xuất lại MISA. Tồn kho không được chuyển từ ${from} sang ${to} — hầm phải được rút cạn và đổ lại ngoài thực tế, rồi ghi bằng phiếu nhập và điều chỉnh kho.`,
     tank: 'Hầm',
-    tankNumber: 'Số hầm',
     tankNote:
-      'Số hầm trụ này hút lên. Trụ không khai hầm sẽ không có trong ô chọn hầm của phiếu nhập và không được đối chiếu barem.',
-    tankCapacity: 'Dung tích hầm',
-    tankCapacityK: 'Dung tích hầm (nghìn lít)',
-    tankCapacityNote: 'Nhập 25 cho hầm 25.000 lít. Dung tích được đối chiếu với barem.',
+      'Trụ bán nhiên liệu của hầm nó hút lên. Chọn Không có hầm cho trụ lấy từ bồn rời như URE — trụ đó không có trong ô chọn hầm của phiếu nhập và không được đối chiếu barem.',
+    selectTank: 'Chọn hầm',
+    noTank: 'Không có hầm',
+    tankFuel: (fuel: string) => `Trụ bán ${fuel}, theo hầm.`,
+    tankRequired: 'Vui lòng chọn hầm, hoặc Không có hầm.',
+    notStationTank: 'Hầm này không thuộc trạm.',
     meters: 'Đồng hồ',
     electronicMeter: 'Đồng hồ điện tử',
     mechanicalMeter: 'Đồng hồ cơ',
     metersNote:
       'Ca chỉ đòi ảnh của đồng hồ trụ có. Bỏ tích đồng hồ cơ thì trụ này không bị báo thiếu ảnh đồng hồ cơ.',
-    noMeter: 'Không có đồng hồ',
     inactive: 'Đã ngừng',
     deactivate: 'Ngừng sử dụng',
     reactivate: 'Dùng lại',
@@ -259,13 +259,40 @@ export const vi = {
     numberRequired: 'Vui lòng nhập số trụ.',
     numberTaken: (name: string) => `Trạm đã có ${name}.`,
     fuelRequired: 'Vui lòng chọn nhiên liệu.',
-    capacityWithoutTank: 'Nhập số hầm trước, rồi mới nhập được dung tích hầm.',
     meterRequired: 'Trụ phải có ít nhất một đồng hồ, nếu không ca sẽ không chờ ảnh nào của trụ.',
-    electronicDecimals: 'Số lẻ thập phân đồng hồ điện tử',
-    electronicDecimalsNote:
-      'Số chữ số sau dấu chấm mà đồng hồ điện tử hiển thị (Montech thường 2–3). Khi AI đọc thiếu dấu chấm, hệ thống đặt lại đúng chỗ; để "Không rõ" thì hệ thống suy từ chỉ số đầu ca.',
-    electronicDecimalsUnknown: 'Không rõ',
-    electronicDecimalsOption: (n: number) => (n === 0 ? 'Không có số lẻ' : `${n} số lẻ`),
+  },
+
+  tanks: {
+    add: 'Thêm hầm',
+    edit: 'Chỉnh sửa hầm',
+    remove: 'Xóa hầm',
+    actions: (name: string) => `Tùy chọn ${name}`,
+    column: 'Hầm / Trụ',
+    capacity: 'Dung tích',
+    tankNumber: 'Số hầm',
+    tankNumberNote:
+      'Số hầm in trên biên bản giao nhận. Đo hầm và phiếu nhập gọi hầm theo số này, nên tạo xong là cố định.',
+    fuelNote: 'Mọi trụ hút từ hầm này bán nhiên liệu này.',
+    fuelEditNote:
+      'Chỉ đổi khi hầm được hoán cải thật. Mọi trụ hút từ hầm đổi theo; ca đã chốt vẫn giữ nhiên liệu lúc chốt.',
+    capacityK: 'Dung tích (nghìn lít)',
+    capacityNote:
+      'Nhập 25 cho hầm 25.000 lít; để trống nếu chưa rõ. Dung tích được đối chiếu với barem.',
+    convertTitle: (name: string) => `Đổi nhiên liệu ${name}?`,
+    // Names the trụ that move with the hầm, so nobody converts a hầm without seeing
+    // which trụ start selling something else.
+    convertBody: (from: string, to: string, pumps: string) =>
+      `${pumps ? `${pumps} hút từ hầm này sẽ được ghi theo ${to} từ ca sau; ca` : 'Ca'} đã chốt vẫn giữ ${from}, trên mọi màn hình và khi xuất lại MISA. Tồn kho không được chuyển từ ${from} sang ${to} — hầm phải được rút cạn và đổ lại ngoài thực tế, rồi ghi bằng phiếu nhập và điều chỉnh kho.`,
+    removeTitle: (name: string) => `Xóa ${name}?`,
+    removeBody:
+      'Hầm chưa có trụ nào hút từ nó. Đo hầm và phiếu nhập đã ghi cho hầm này vẫn giữ nguyên.',
+    noDispensers: 'Chưa có trụ nào hút từ hầm này.',
+    saved: 'Đã lưu hầm',
+    removed: 'Đã xóa hầm',
+    numberRequired: 'Vui lòng nhập số hầm.',
+    numberTaken: (name: string) => `Trạm đã có ${name}.`,
+    hasDispensers: (name: string, pumps: string) =>
+      `${name} vẫn còn ${pumps}. Chuyển các trụ sang hầm khác trước khi xóa.`,
   },
 
   misaExport: {
@@ -421,10 +448,6 @@ export const vi = {
   },
 
   stations: {
-    litersDecimalsLabel: 'Số thập phân dòng LÍT',
-    litersDecimalsNote:
-      'Màn hình trụ hiện số lít không dấu phẩy ("340000"). Số thập phân ngầm quyết định 340,000 L hay 34,0000 L khi tiền không phân biệt được.',
-    litersDecimalsOption: (n: number) => `${n} số thập phân (340000 = ${340000 / 10 ** n} L)`,
     listTitle: 'Danh sách trạm',
     branch: 'Chi nhánh',
     address: 'Địa chỉ',

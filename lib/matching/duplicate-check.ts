@@ -22,8 +22,7 @@ export function meterTypeRank(meterType: string | null | undefined): number {
 
 export type ScaleResolution = {
   value: number | null
-  // True only when the scale was INFERRED from the opening (case c) — a placement
-  // by configured decimals is the display's known shape, not a guess.
+  // True only when the scale was INFERRED from the opening (case b).
   rescaled: boolean
 }
 
@@ -33,23 +32,18 @@ export type ScaleResolution = {
  * dot the AI often cannot see, so 187883.80 comes back as "18788380", and the
  * PETRO/green displays lose a digit outright. In order:
  *  (a) a dot the AI DID see is trusted as read;
- *  (b) a trụ with configured `electronicDecimals` places the point there;
- *  (c) otherwise the opening decides: of the scales 0..3 the smallest that makes
+ *  (b) otherwise the opening decides: of the scales 0..3 the smallest that makes
  *      closing ≥ opening with delta ≤ maxDelta wins, so a raw read whose own
  *      delta is plausible is never touched, and a decimal-less display never is;
- *  (d) nothing plausible (no opening, or every scale absurd): the raw stands.
+ *  (c) nothing plausible (no opening, or every scale absurd): the raw stands.
  */
 export function resolveReadingScale(
   raw: string | null,
   opening: number | null,
-  maxDeltaLiters: number,
-  electronicDecimals: number | null
+  maxDeltaLiters: number
 ): ScaleResolution {
   const value = parseNumericString(raw)
   if (value === null || raw!.includes('.')) return { value, rescaled: false }
-  if (electronicDecimals !== null) {
-    return { value: value / 10 ** electronicDecimals, rescaled: false }
-  }
   if (opening === null) return { value, rescaled: false }
   for (let scale = 0; scale <= 3; scale++) {
     const candidate = value / 10 ** scale

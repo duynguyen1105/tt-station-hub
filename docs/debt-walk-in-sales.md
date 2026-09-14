@@ -77,9 +77,8 @@ Thao tác:
 - **Số lít (dấu phẩy ngầm)**: màn hình trụ hiện LÍT không dấu ("340000" = 340,000 L). Dòng
   tiền cắt chữ số cuối khi ≥ 1.000.000 đ nên **không** phân biệt được 34 L với 340 L bằng
   số học — `resolveLiters()` (`lib/ai/extract-visit.ts`) đặt dấu theo thứ tự: dấu chấm AI
-  thấy rõ → `Station.litersDecimals` (mặc định 3, chỉnh ở tab Cấu hình) → thang khác của
+  thấy rõ → 3 số thập phân ngầm (`DEFAULT_LITERS_DECIMALS`) → thang khác của
   cùng dãy số (gắn `liters_rescaled`, buộc kiểm tra). Số học chỉ **xác nhận**, không chọn.
-  `assembleDebtVisit()` đặt lại dấu theo trạm đã chốt (`placeLitersDecimal`).
 - **Tạo lượt**: `assembleDebtVisit()` (`lib/photos/ingest.ts`) — ảnh `debt_meter` sẽ
   **ghép** với lượt chỉ-có-ảnh-xe của **cùng người gửi** trong **cửa sổ 5 phút**; không có
   thì tạo lượt mới với `vehicle_photo_id = null`. Caption lưu ở `zalo_caption` (không ghi

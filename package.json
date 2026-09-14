@@ -21,6 +21,7 @@
     "db:phu-trach": "tsx scripts/backfill-station-accountants.ts",
     "db:fuel-stamp": "tsx scripts/backfill-shift-reading-fuel-type.ts",
     "db:dip-review": "tsx scripts/backfill-tank-dip-review.ts",
+    "db:tanks": "tsx scripts/backfill-tanks.ts",
     "barem:check": "tsx scripts/check-barem.ts",
     "roster:check": "tsx scripts/check-rosters.ts",
     "db:studio": "prisma studio"

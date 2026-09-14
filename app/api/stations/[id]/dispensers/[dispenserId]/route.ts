@@ -7,22 +7,22 @@ import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
-import { refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
+import { noTankFieldsFor, refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 /**
- * What Chỉnh sửa changes: the nhiên liệu the trụ pumps, the hầm it draws from, its dung
- * tích and the đồng hồ it carries. The số trụ is not here — it is the code a photo
+ * What Chỉnh sửa changes: the hầm the trụ draws from (or, with none, the nhiên liệu it
+ * pumps) and the đồng hồ it carries. The số trụ is not here — it is the code a photo
  * matches a biển to, and it is fixed once the trụ is lắp.
  */
 const editSchema = z.strictObject({
-  fuelType: z.string().trim().min(1),
-  tankNumber: z.number().int().min(1).max(99).nullable(),
-  tankCapacityK: z.number().int().min(1).max(1000).nullable(),
+  // Alongside a hầm, fuelType is not read: the trụ pumps what the hầm holds.
+  tankId: z.string().uuid().nullable(),
+  fuelType: z.string().trim().min(1).nullable(),
   hasElectronicMeter: z.boolean(),
   hasMechanicalMeter: z.boolean(),
-  electronicDecimals: z.number().int().min(0).max(3).nullable(),
 })
 
 /** Ngừng sử dụng and Dùng lại — a trụ is retired, never deleted. */
@@ -37,10 +37,11 @@ const patchSchema = z.union([standingSchema, editSchema])
 /**
  * Chỉnh sửa a trụ, or retire and restore one.
  *
- * Changing the nhiên liệu converts the trụ from here on: the chỉ số of every ca already
- * chốt carry their own nhiên liệu, so what the trụ sold as a trụ DO still reads DO on
- * screen and re-exports as DO. Tồn kho is not migrated — the hầm is emptied and refilled
- * in the real world, and that is recorded as kho movements.
+ * Changing the nhiên liệu — its own, or by moving it to a hầm holding another — converts
+ * the trụ from here on: the chỉ số of every ca already chốt carry their own nhiên liệu,
+ * so what the trụ sold as a trụ DO still reads DO on screen and re-exports as DO. Tồn
+ * kho is not migrated — the hầm is emptied and refilled in the real world, and that is
+ * recorded as kho movements.
  *
  * Retiring deactivates rather than deletes: the chỉ số and the đồng hồ cache hanging
  * off the row are the trạm's history, and a ca that has already been chốt reads them.
@@ -81,24 +82,33 @@ export async function PATCH(
     return ok(updated)
   }
 
-  const { fuelType, tankNumber, tankCapacityK, ...meters } = parsed.data
-  const refusal = refuseDispenserShape(parsed.data)
+  const { tankId, fuelType, ...meters } = parsed.data
+  const refusal = refuseDispenserShape(meters)
   if (refusal) return badRequest(refusal)
 
   // A trụ converted from DO to DC pumps DC from every ca after this one; each chỉ số it
   // has already written keeps the nhiên liệu stamped on it, so nothing behind it moves.
   // A nhiên liệu left alone passes untouched: a trụ đã ngừng may still hold one the trạm
-  // has since stopped selling, and editing its hầm is not the moment to refuse it.
-  const converted = fuelType !== dispenser.fuelType
-  if (converted) {
-    const notSold = await stationFuelRefusal(stationId, fuelType)
-    if (notSold) return badRequest(notSold)
+  // has since stopped selling, and editing its đồng hồ is not the moment to refuse it.
+  // A hầm's nhiên liệu was checked when the hầm was written, so it is not asked again.
+  let supply
+  if (tankId !== null) {
+    const tank = await prisma.tank.findFirst({ where: { id: tankId, stationId } })
+    if (!tank) return badRequest(vi.dispensers.notStationTank)
+    supply = tankFieldsFor(tank)
+  } else {
+    if (fuelType === null) return badRequest(vi.dispensers.fuelRequired)
+    if (fuelType !== dispenser.fuelType) {
+      const notSold = await stationFuelRefusal(stationId, fuelType)
+      if (notSold) return badRequest(notSold)
+    }
+    supply = noTankFieldsFor(fuelType)
   }
+  const converted = supply.fuelType !== dispenser.fuelType
 
-  const tankFields = tankFieldsFor(tankNumber, tankCapacityK)
   const updated = await prisma.dispenser.update({
     where: { id: dispenserId },
-    data: { fuelType, ...tankFields, ...meters },
+    data: { ...supply, ...meters },
   })
 
   await writeAudit({
@@ -113,14 +123,14 @@ export async function PATCH(
       stationId,
       code: dispenser.code,
       from: {
+        tankId: dispenser.tankId,
         fuelType: dispenser.fuelType,
         tankCode: dispenser.tankCode,
         tankCapacityK: dispenser.tankCapacityK,
         hasElectronicMeter: dispenser.hasElectronicMeter,
         hasMechanicalMeter: dispenser.hasMechanicalMeter,
-        electronicDecimals: dispenser.electronicDecimals,
       },
-      to: { fuelType, ...tankFields, ...meters },
+      to: { ...supply, ...meters },
     },
   })
   return ok(updated)

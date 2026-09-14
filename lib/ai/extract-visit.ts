@@ -62,11 +62,10 @@ export type LitersResolution = {
  * order, and arithmetic only confirms or rejects it:
  *
  * 1. a dot the model actually SAW ("182.000") — the display's own statement;
- * 2. the trạm's configured implied decimals (`impliedDecimals`);
+ * 2. the pump's implied decimals (`DEFAULT_LITERS_DECIMALS`);
  * 3. any other scale of the same digits, marked 'rescaled' — the read only
  *    adds up at a scale the pump does not use, so a digit was likely dropped
- *    or doubled (or the trạm's convention is misconfigured) and review is
- *    forced upstream.
+ *    or doubled and review is forced upstream.
  *
  * When nothing reconciles (unreadable price/amount, or a genuinely wrong read),
  * falls back to the literal dotted read or the convention scale and marks it
@@ -75,8 +74,7 @@ export type LitersResolution = {
 export function resolveLiters(
   rawLiters: string | null,
   unitPrice: number | null,
-  displayedAmount: string | null,
-  impliedDecimals: number = DEFAULT_LITERS_DECIMALS
+  displayedAmount: string | null
 ): LitersResolution {
   if (rawLiters == null) return { liters: null, resolution: null }
   const digits = rawLiters.replace(/\D/g, '')
@@ -92,18 +90,18 @@ export function resolveLiters(
     return checkAmountMatch(Math.round(liters * unitPrice), displayedClean)
   }
 
-  const conventional = base / 10 ** impliedDecimals
+  const conventional = base / 10 ** DEFAULT_LITERS_DECIMALS
   if (literal != null && reconciles(literal)) return { liters: literal, resolution: 'verified' }
   if (reconciles(conventional)) return { liters: conventional, resolution: 'verified' }
   for (const k of [4, 3, 2, 1, 0]) {
-    if (k === impliedDecimals) continue
+    if (k === DEFAULT_LITERS_DECIMALS) continue
     const scaled = base / 10 ** k
     if (scaled !== literal && reconciles(scaled)) return { liters: scaled, resolution: 'rescaled' }
   }
 
   // Nothing reconciles: a dotted read keeps its dot; a dotless read long enough
   // to carry the implied decimals gets them, a shorter one is kept whole.
-  const fallback = literal ?? (digits.length > impliedDecimals ? conventional : base)
+  const fallback = literal ?? (digits.length > DEFAULT_LITERS_DECIMALS ? conventional : base)
   return { liters: fallback, resolution: 'unverified' }
 }
 
@@ -129,23 +127,10 @@ function mockVisit(): ExtractVisitResult {
   }
 }
 
-/**
- * Re-places the LÍT decimal of a read under a trạm's convention. The reader runs
- * before the trạm is known (the pump plate in the photo is what identifies it),
- * so extraction resolves under the default and intake re-resolves once the visit
- * has settled on a trạm.
- */
-export function placeLitersDecimal(
-  meter: ExtractVisitResult,
-  impliedDecimals: number
-): ExtractVisitResult {
+/** Places the LÍT decimal of a read and checks the resulting amount against the display. */
+export function placeLitersDecimal(meter: ExtractVisitResult): ExtractVisitResult {
   const unitPrice = parseNumericString(meter.unitPrice)
-  const { liters, resolution } = resolveLiters(
-    meter.liters,
-    unitPrice,
-    meter.displayedAmount,
-    impliedDecimals
-  )
+  const { liters, resolution } = resolveLiters(meter.liters, unitPrice, meter.displayedAmount)
   const computedAmount = liters != null && unitPrice != null ? Math.round(liters * unitPrice) : null
   const amountMatchesDisplay =
     computedAmount != null ? checkAmountMatch(computedAmount, meter.displayedAmount) : null
@@ -177,27 +162,24 @@ export async function extractVisitMeter(input: {
   const text = await callClaudeVision({ prompt: DEBT_METER_PROMPT, images: [image] })
   const parsed = debtMeterSchema.parse(parseJsonFromText(text))
 
-  return placeLitersDecimal(
-    {
-      meterType: parsed.meter_type,
-      displayedAmount: parsed.displayed_amount,
-      liters: parsed.liters,
-      litersResolved: null,
-      litersResolution: null,
-      unitPrice: parsed.unit_price,
-      stationLabel: parsed.station_label ?? null,
-      dispenserLabel: parsed.dispenser_label ?? null,
-      fuelType: parsed.fuel_type ?? null,
-      computedAmount: null,
-      amountMatchesDisplay: null,
-      litersConfidence: parsed.confidence.liters,
-      unitPriceConfidence: parsed.confidence.unit_price,
-      amountConfidence: parsed.confidence.amount,
-      notes: parsed.notes,
-      raw: parsed,
-    },
-    DEFAULT_LITERS_DECIMALS
-  )
+  return placeLitersDecimal({
+    meterType: parsed.meter_type,
+    displayedAmount: parsed.displayed_amount,
+    liters: parsed.liters,
+    litersResolved: null,
+    litersResolution: null,
+    unitPrice: parsed.unit_price,
+    stationLabel: parsed.station_label ?? null,
+    dispenserLabel: parsed.dispenser_label ?? null,
+    fuelType: parsed.fuel_type ?? null,
+    computedAmount: null,
+    amountMatchesDisplay: null,
+    litersConfidence: parsed.confidence.liters,
+    unitPriceConfidence: parsed.confidence.unit_price,
+    amountConfidence: parsed.confidence.amount,
+    notes: parsed.notes,
+    raw: parsed,
+  })
 }
 
 /** Reads a vehicle license plate. */

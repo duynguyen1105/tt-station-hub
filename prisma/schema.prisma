@@ -64,10 +64,6 @@ model Station {
   address         String?
   zaloGroupId     String?  @map("zalo_group_id") // shift-photo Zalo group
   zaloDebtGroupId String?  @map("zalo_debt_group_id") // debt group (if separated)
-  // Implied decimals on the LÍT row of this trạm's pump displays ("340000" = 340.000 L
-  // at 3). The debt reader places the decimal by this, not by arithmetic alone — the
-  // money row truncates above 1,000,000 đ and can no longer tell 34 L from 340 L.
-  litersDecimals  Int      @default(3) @map("liters_decimals")
   // Admin-written requirement shown on the legal-documents tab
   // ("giấy tờ từ 1-10 ..."), so every reviewer sees what must be on file.
   documentsNote   String?  @map("documents_note")
@@ -90,19 +86,36 @@ model StationAccountant {
   @@map("station_accountants")
 }
 
+// A hầm: the root of a trạm's equipment. Its nhiên liệu and dung tích are facts of
+// the hầm, stated once here, and every trụ drawing from it pumps that nhiên liệu.
+// Step one of ADR 0006: the trụ still carry copies (fuel_type, tank_code,
+// tank_capacity_k), rewritten whenever the hầm or the trụ is saved, so every reader
+// of those columns keeps working until it is moved onto this table.
+model Tank {
+  id        String   @id @default(uuid()) @db.Uuid
+  stationId String   @map("station_id") @db.Uuid
+  code      String // "HAM_3" — fixed once created: đo hầm and phiếu nhập name it by this
+  fuelType  String   @map("fuel_type") // khóa nhiên liệu of a Fuel row
+  capacityK Int?     @map("capacity_k") // 25 = 25,000 L; null = không rõ
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([stationId, code])
+  @@map("tanks")
+}
+
 model Dispenser {
   id                    String    @id @default(uuid()) @db.Uuid
   stationId             String    @map("station_id") @db.Uuid
   code                  String // "TRU_1"
   displayName           String    @map("display_name") // "Trụ 1"
+  // The hầm it draws from; null for a trụ with none (URE). When set, fuelType,
+  // tankCode and tankCapacityK are copies of that Tank row.
+  tankId                String?   @map("tank_id") @db.Uuid
   fuelType              String    @map("fuel_type") // khóa nhiên liệu of a Fuel row
   tankCode              String?   @map("tank_code") // "HAM_3"
   tankCapacityK         Int?      @map("tank_capacity_k") // 25
   hasElectronicMeter    Boolean   @default(true) @map("has_electronic_meter")
   hasMechanicalMeter    Boolean   @default(true) @map("has_mechanical_meter")
-  // Implied decimals on the electronic totalizer's display (2 → "18788380" reads
-  // 187883.80). Null = unknown: ingest then infers the scale from the opening.
-  electronicDecimals    Int?      @map("electronic_decimals")
   lastElectronicReading Decimal?  @map("last_electronic_reading") @db.Decimal(15, 3)
   lastMechanicalReading Decimal?  @map("last_mechanical_reading") @db.Decimal(15, 3)
   lastReadingAt         DateTime? @map("last_reading_at")

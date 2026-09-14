@@ -1,12 +1,7 @@
 import { classifyDebt } from '@/lib/ai/confidence'
 import { extractMeter } from '@/lib/ai/extract-meter'
 import { extractTankDip } from '@/lib/ai/extract-tank-dip'
-import {
-  extractPlate,
-  extractVisitMeter,
-  parseNumericString,
-  placeLitersDecimal,
-} from '@/lib/ai/extract-visit'
+import { extractPlate, extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
 import {
   type ExtractMeterResult,
   type ExtractPlateResult,
@@ -14,7 +9,6 @@ import {
   type ExtractVisitResult,
   type RouterResult,
 } from '@/lib/ai/types'
-import { DEFAULT_LITERS_DECIMALS } from '@/lib/debts/liters-decimals'
 import { plateListContains } from '@/lib/debts/plate'
 import { tankCodeFor } from '@/lib/dispensers/naming'
 import { resolveStationPlateFuel } from '@/lib/fuels/load-catalogue'
@@ -208,9 +202,8 @@ async function assembleShiftReading(
             const openElec = num(existing?.openingElectronicReading) ?? opening?.electronic ?? null
             const openMech = num(existing?.openingMechanicalReading) ?? opening?.mechanical ?? null
 
-            // Where the decimal point of an electronic read goes: the display's
-            // configured decimals, else inferred from the opening (see
-            // resolveReadingScale). Resolved before the duplicate check so the new
+            // Where the decimal point of an electronic read goes: inferred from
+            // the opening (see resolveReadingScale). Resolved before the duplicate check so the new
             // read meets the prior one on the same scale.
             const rawReading = parseNumericString(result.reading)
             const scale =
@@ -218,8 +211,7 @@ async function assembleShiftReading(
                 ? resolveReadingScale(
                     result.reading,
                     openElec,
-                    DEFAULT_ANOMALY_CONFIG.maxDeltaLiters,
-                    dispenser.electronicDecimals
+                    DEFAULT_ANOMALY_CONFIG.maxDeltaLiters
                   )
                 : null
             const reading = scale ? scale.value : rawReading
@@ -514,14 +506,14 @@ export async function assembleDebtVisit(params: {
   const windowStart = new Date(timestamp - DEBT_PAIR_WINDOW_MS)
 
   if (type === 'debt_meter') {
-    const read = params.precomputedMeter ?? (await extractVisitMeter({ imageBuffer: buffer }))
+    const meter = params.precomputedMeter ?? (await extractVisitMeter({ imageBuffer: buffer }))
     await prisma.shiftPhoto.update({
       where: { id: photoId },
       data: {
         aiProcessedAt: new Date(),
-        meterType: read.meterType,
-        aiConfidence: debtConfidence(read),
-        aiRawResponse: read.raw as Prisma.InputJsonValue,
+        meterType: meter.meterType,
+        aiConfidence: debtConfidence(meter),
+        aiRawResponse: meter.raw as Prisma.InputJsonValue,
       },
     })
     // The pump plate often names the STATION too ("ĐAKNONG 1 / TRỤ 1 – DO") — let it
@@ -532,8 +524,8 @@ export async function assembleDebtVisit(params: {
     // the station manually on the review card.
     let target = station
     let source: PhotoStationSource = stationDeclared ? 'declared' : 'inherited'
-    if (read.stationLabel) {
-      const byLabel = await matchStationByLabel(read.stationLabel)
+    if (meter.stationLabel) {
+      const byLabel = await matchStationByLabel(meter.stationLabel)
       if (byLabel && stationDeclared) {
         if (byLabel.id !== station.id) {
           logger.warn(
@@ -545,7 +537,7 @@ export async function assembleDebtVisit(params: {
         source = 'pump_plate'
         if (byLabel.id !== station.id) {
           logger.info(
-            { from: station.id, to: byLabel.code, label: read.stationLabel },
+            { from: station.id, to: byLabel.code, label: meter.stationLabel },
             'Debt visit station label overrides sender station'
           )
         }
@@ -560,16 +552,12 @@ export async function assembleDebtVisit(params: {
     // still move the visit somewhere else again, which is what the second pass below the
     // transaction is for. Fall back to inferring from the pump price via the station's
     // fuel area retail prices, and finally to null (the accountant sets it in review).
-    const labelFuel = await resolveStationPlateFuel(target.id, read.fuelType)
-    // Retail prices are keyed by the station's fuel area (retail zone), not by
-    // station; the LÍT decimal convention is the trạm's own.
+    const labelFuel = await resolveStationPlateFuel(target.id, meter.fuelType)
+    // Retail prices are keyed by the station's fuel area (retail zone), not by station.
     const stationRow = await prisma.station.findUnique({
       where: { id: target.id },
-      select: { fuelArea: true, litersDecimals: true },
+      select: { fuelArea: true },
     })
-    // The reader placed the decimal under the default convention before any trạm
-    // was known — re-place it under the trạm the plate/sender settled on.
-    const meter = placeLitersDecimal(read, stationRow?.litersDecimals ?? DEFAULT_LITERS_DECIMALS)
     const unitPriceRead = parseNumericString(meter.unitPrice)
     const litersRead = meter.litersResolved
     const priceRows = await prisma.misaRetailPrice.findMany({

@@ -8,7 +8,7 @@ import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { dispenserCodeFor, dispenserNameFor } from '@/lib/dispensers/naming'
-import { refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
+import { noTankFieldsFor, refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -16,15 +16,12 @@ import { vi } from '@/messages/vi'
 const createSchema = z.object({
   // A số trụ is what is painted on the biển; no trạm has three digits of them.
   pumpNumber: z.number().int().min(1).max(99),
-  fuelType: z.string().trim().min(1),
-  tankNumber: z.number().int().min(1).max(99).nullable(),
-  // Thousands of litres, the way the column stores it — 25 is a 25,000 L hầm.
-  tankCapacityK: z.number().int().min(1).max(1000).nullable(),
+  // The hầm it draws from, whose nhiên liệu it pumps. Only a trụ with no hầm (URE)
+  // names a nhiên liệu of its own; alongside a hầm, fuelType is not read.
+  tankId: z.string().uuid().nullable(),
+  fuelType: z.string().trim().min(1).nullable(),
   hasElectronicMeter: z.boolean(),
   hasMechanicalMeter: z.boolean(),
-  // Decimals the electronic totalizer prints (0–3); null when unknown, so ingest
-  // infers the scale from the opening instead.
-  electronicDecimals: z.number().int().min(0).max(3).nullable(),
 })
 
 /**
@@ -32,9 +29,9 @@ const createSchema = z.object({
  * the photo matcher resolves a biển to and the tên every screen shows, so a trạm and a
  * photo cannot end up on two naming schemes.
  *
- * The nhiên liệu is narrowed to what the trạm declared it sells — the same rule the
- * picker draws — so a trụ can never pump something the trạm has no mã hàng, no giá and
- * no hầm for.
+ * A trụ drawing from a hầm pumps the hầm's nhiên liệu. A trụ with no hầm names its own,
+ * narrowed to what the trạm declared it sells — the same rule the picker draws — so a
+ * trụ can never pump something the trạm has no mã hàng and no giá for.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -44,16 +41,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const parsed = createSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
-  const { pumpNumber, fuelType, tankNumber, tankCapacityK, ...meters } = parsed.data
-  const refusal = refuseDispenserShape({ tankNumber, tankCapacityK, ...meters })
+  const { pumpNumber, tankId, fuelType, ...meters } = parsed.data
+  const refusal = refuseDispenserShape(meters)
   if (refusal) return badRequest(refusal)
 
   const station = await prisma.station.findUnique({ where: { id: stationId } })
   if (!station) return notFound()
   if (!(await canReachStation(user, station.id))) return forbidden()
 
-  const notSold = await stationFuelRefusal(stationId, fuelType)
-  if (notSold) return badRequest(notSold)
+  let supply
+  if (tankId !== null) {
+    const tank = await prisma.tank.findFirst({ where: { id: tankId, stationId } })
+    if (!tank) return badRequest(vi.dispensers.notStationTank)
+    supply = tankFieldsFor(tank)
+  } else {
+    if (fuelType === null) return badRequest(vi.dispensers.fuelRequired)
+    const notSold = await stationFuelRefusal(stationId, fuelType)
+    if (notSold) return badRequest(notSold)
+    supply = noTankFieldsFor(fuelType)
+  }
 
   // One số trụ per trạm: the code is what a photo matches on, so two trụ sharing one
   // would make every plate ambiguous. Checked here for the tên the refusal names; the
@@ -70,8 +76,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       stationId,
       code,
       displayName: dispenserNameFor(pumpNumber),
-      fuelType,
-      ...tankFieldsFor(tankNumber, tankCapacityK),
+      ...supply,
       ...meters,
       // The số trụ is the order a trạm reads its trụ in, on screen and on paper.
       displayOrder: pumpNumber,
@@ -83,7 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     action: 'dispenser.create',
     entity: 'dispenser',
     entityId: dispenser.id,
-    metadata: { stationId, ...parsed.data, code },
+    metadata: { stationId, ...parsed.data, ...supply, code },
   })
   return created(dispenser)
 }

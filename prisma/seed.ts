@@ -233,12 +233,30 @@ async function main() {
     create: { stationId: station.id, accountantId: ACCOUNTANT_ID },
   })
 
-  // Dispensers (trụ bơm).
+  // Tanks (hầm), one per code the dispensers name — each holds its dispensers' fuel.
+  const tankIds = new Map<string, string>()
+  for (const d of DISPENSERS) {
+    if (tankIds.has(d.tankCode)) continue
+    const tank = await prisma.tank.upsert({
+      where: { stationId_code: { stationId: station.id, code: d.tankCode } },
+      update: { fuelType: d.fuelType, capacityK: d.tankCapacityK },
+      create: {
+        stationId: station.id,
+        code: d.tankCode,
+        fuelType: d.fuelType,
+        capacityK: d.tankCapacityK,
+      },
+    })
+    tankIds.set(d.tankCode, tank.id)
+  }
+
+  // Dispensers (trụ bơm), each carrying a copy of its tank's code, fuel and capacity.
   for (const d of DISPENSERS) {
     await prisma.dispenser.upsert({
       where: { stationId_code: { stationId: station.id, code: d.code } },
       update: {
         displayName: d.displayName,
+        tankId: tankIds.get(d.tankCode),
         fuelType: d.fuelType,
         tankCode: d.tankCode,
         tankCapacityK: d.tankCapacityK,
@@ -251,6 +269,7 @@ async function main() {
         stationId: station.id,
         code: d.code,
         displayName: d.displayName,
+        tankId: tankIds.get(d.tankCode),
         fuelType: d.fuelType,
         tankCode: d.tankCode,
         tankCapacityK: d.tankCapacityK,
