@@ -36,8 +36,9 @@ import {
 import { hasLedgerFilter, ledgerSelection } from '@/lib/inventory/ledger-selection'
 import { loadStationTankCodes } from '@/lib/inventory/station-tanks'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
-import { tankFuelFrom } from '@/lib/inventory/tank-fuel'
+import { dipFuel, tankFuelFrom } from '@/lib/inventory/tank-fuel'
 import { computeTankFlows } from '@/lib/inventory/tank-ledger'
+import { stationTankOptions } from '@/lib/inventory/tank-options'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
@@ -51,54 +52,17 @@ function todayShiftDate(): Date {
   return shiftDateFor(Date.now())
 }
 
-/** Tank choices for the import form: every tank a dispenser draws from, plus
- * tanks only seen via dip records (reserve tanks carry no dispenser). Each label names
- * the hầm's nhiên liệu, so the page hands in the danh mục's answer for a khóa. */
-function buildTankOptions(
-  dispensers: { tankCode: string | null; fuelType: string; tankCapacityK: number | null }[],
-  dipTanks: { tankCode: string; fuelType: string | null }[],
-  fuelLabel: (fuelType: string) => string
-): TankOption[] {
-  const options = new Map<string, TankOption>()
-  for (const d of dispensers) {
-    if (!d.tankCode || options.has(d.tankCode)) continue
-    const cap = d.tankCapacityK ? ` (${d.tankCapacityK}K)` : ''
-    options.set(d.tankCode, {
-      code: d.tankCode,
-      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${fuelLabel(d.fuelType)}${cap}`,
-      fuelType: d.fuelType,
-      capacityK: d.tankCapacityK,
-    })
-  }
-  for (const t of dipTanks) {
-    if (options.has(t.tankCode)) continue
-    options.set(t.tankCode, {
-      code: t.tankCode,
-      label: `${t.tankCode.replace('HAM_', 'Hầm ')}${t.fuelType ? ` — ${fuelLabel(t.fuelType)}` : ''}`,
-      fuelType: t.fuelType,
-      // A Hầm seen only through its dips: nothing says how big it is.
-      capacityK: null,
-    })
-  }
-  return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
-}
-
-/** Hầm choices for the Đo bồn cells: short-labelled, because the row shows
- * the nhiên liệu in its own column right beside them.
+/** Hầm choices for the Đo bồn cell: short-labelled, because the row shows
+ * the nhiên liệu in its own column right beside it.
  *
- * `buildTankOptions` reads the trạm's recent countable dips, so a từ chối or older
+ * `stationTankOptions` reads the trạm's recent countable dips, so a từ chối or older
  * đo hầm further back in the history can name a hầm it never listed — and a hầm
  * missing from the ô chọn would render that row's cell blank. Every hầm on the page
  * is added back for exactly that reason. */
 function buildDipTankOptions(tanks: TankOption[], pageDips: { tankCode: string }[]) {
-  const codes = new Map(tanks.map((tank) => [tank.code, tank.fuelType]))
-  for (const dip of pageDips) if (!codes.has(dip.tankCode)) codes.set(dip.tankCode, null)
-  return [...codes.entries()]
-    .map(([code, fuelType]) => ({
-      value: code,
-      label: code.replace('HAM_', 'Hầm '),
-      fuelType,
-    }))
+  const codes = new Set([...tanks.map((tank) => tank.code), ...pageDips.map((dip) => dip.tankCode)])
+  return [...codes]
+    .map((code) => ({ value: code, label: code.replace('HAM_', 'Hầm ') }))
     .sort((a, b) => a.value.localeCompare(b.value))
 }
 
@@ -133,10 +97,17 @@ export default async function StationInventoryPage({
   // What this trạm sells, for the two forms on this page, and its mã hàng, which is
   // what reads a goods column on a biên bản. Every table below resolves whatever khóa
   // its rows already carry; only the ô chọn narrow.
-  const [stationFuels, fuelMappings] = await Promise.all([
+  // And what each hầm holds, as Cấu hình states it — the nhiên liệu Đo bồn and Tổng
+  // quan show for a hầm, over whatever its dips were stamped with (`dipFuel`).
+  const [stationFuels, fuelMappings, configuredTanks] = await Promise.all([
     loadStationFuels(id),
     loadStationFuelMappings(id),
+    prisma.tank.findMany({
+      where: { stationId: id },
+      select: { code: true, fuelType: true, capacityK: true },
+    }),
   ])
+  const configuredFuel = new Map(configuredTanks.map((tank) => [tank.code, tank.fuelType]))
 
   // The histories grow every day, so each lives in its own sub-tab with
   // pagination; the overview stays a fixed-size dashboard. Tab, page and the
@@ -226,7 +197,11 @@ export default async function StationInventoryPage({
   const dipSel = dipSelection(
     { from, to, tank: rawTank, fuel: rawFuel, status: rawStatus, page: rawPage },
     id,
-    { tanks: stationTankCodes, fuels: stationFuels.map((fuel) => fuel.fuelType) }
+    {
+      tanks: stationTankCodes,
+      fuels: stationFuels.map((fuel) => fuel.fuelType),
+      tankFuels: Object.fromEntries(configuredFuel),
+    }
   )
   const pageNum = tab === 'do-bon' ? dipSel.page : selection.page
 
@@ -280,15 +255,18 @@ export default async function StationInventoryPage({
   // Tanks with activity today but no dip yet still deserve a row.
   const tankCodes = [...new Set([...latestByTank.keys(), ...flows.keys()])].sort()
 
-  const tanks = buildTankOptions(
-    dispensers,
-    [...latestByTank.values()].map((d) => ({ tankCode: d.tankCode, fuelType: d.fuelType })),
+  const tanks = stationTankOptions(
+    {
+      tanks: configuredTanks,
+      dispensers,
+      dipTanks: [...latestByTank.values()],
+    },
     fuelLabel
   )
 
-  // Built once and handed to every row, so the RSC payload carries each list a
+  // Built once and handed to every row, so the RSC payload carries the list a
   // single time. `stationFuels` is what this trạm sells — the same narrowing the
-  // nhập hàng forms below draw, and the same one the correct route enforces.
+  // nhập hàng forms below draw.
   const dipTankOptions = buildDipTankOptions(tanks, dipsPage)
   const dipFuelOptions = stationFuels.map((fuel) => ({
     value: fuel.fuelType,
@@ -296,7 +274,7 @@ export default async function StationInventoryPage({
   }))
   // What the Đo bồn bộ lọc offers. The hầm come from the trạm rather than from this page of
   // rows, or a filter could only ever narrow to a hầm that happened to be on screen; the
-  // nhiên liệu are `dipFuelOptions`, the same list the cells edit against. Both are in the
+  // nhiên liệu are `dipFuelOptions`, what this trạm sells. Both are in the
   // order `dipSelection` narrows the URL against, so a tick and its parameter agree.
   const dipFilterTankOptions = stationTankCodes.map((code) => ({
     value: code,
@@ -400,7 +378,7 @@ export default async function StationInventoryPage({
   const actualByFuel = new Map<string, number>()
   const incompleteFuels = new Set<string>()
   for (const t of tanks) {
-    const fuel = latestByTank.get(t.code)?.fuelType ?? t.fuelType
+    const fuel = dipFuel(configuredFuel, t.code, latestByTank.get(t.code)?.fuelType ?? t.fuelType)
     if (!fuel) continue
     const lookup = actualForTank(t.code)
     if (lookup?.ok) actualByFuel.set(fuel, (actualByFuel.get(fuel) ?? 0) + lookup.liters)
@@ -800,9 +778,14 @@ export default async function StationInventoryPage({
                   const dip = latestByTank.get(tankCode)
                   const flow = flows.get(tankCode)
                   const lookup = actualForTank(tankCode)
-                  // The row's own nhiên liệu, else what the trụ on this hầm sell — the
-                  // same fallback `ingestTankDip` fills a đo hầm from.
-                  const fuel = dip?.fuelType ?? tankFuelFrom(dispensers, tankCode)
+                  // What Cấu hình says the hầm holds, else the row's own nhiên liệu,
+                  // else what the trụ on this hầm sell — the same fallback
+                  // `ingestTankDip` fills a đo hầm from.
+                  const fuel = dipFuel(
+                    configuredFuel,
+                    tankCode,
+                    dip?.fuelType ?? tankFuelFrom(dispensers, tankCode)
+                  )
                   return (
                     <tr key={tankCode} className="border-b">
                       <td className="p-2 font-medium">{tankCode.replace('HAM_', 'Hầm ')}</td>
@@ -942,18 +925,17 @@ export default async function StationInventoryPage({
                           Math.round(Number(dip.dipValue))
                         )
                       : null
+                    const fuel = dipFuel(configuredFuel, dip.tankCode, dip.fuelType)
                     return (
                       <DipRow
                         key={dip.id}
                         tankOptions={dipTankOptions}
-                        fuelOptions={dipFuelOptions}
                         data={{
                           id: dip.id,
                           measuredAt: formatDateTime(dip.measuredAt),
                           tankCode: dip.tankCode,
                           tankLabel: dip.tankCode.replace('HAM_', 'Hầm '),
-                          fuelType: dip.fuelType,
-                          fuelLabel: dip.fuelType ? fuelLabel(dip.fuelType) : '—',
+                          fuelLabel: fuel ? fuelLabel(fuel) : '—',
                           dipValue: dip.dipValue.toString(),
                           liters: lookup?.ok ? formatLiters(lookup.liters) : null,
                           litersRefusal:

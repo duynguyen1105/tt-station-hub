@@ -616,7 +616,6 @@ export const vi = {
     dipValue: 'Số đo',
     dipCorrected: 'Đã cập nhật số đo bồn.',
     tankCorrected: 'Đã cập nhật hầm.',
-    fuelCorrected: 'Đã cập nhật nhiên liệu.',
     invalidDipValue: 'Số đo không hợp lệ.',
     // Refused because this trạm has no such hầm — the twin of notStationFuel for
     // the other half of a hầm plate.

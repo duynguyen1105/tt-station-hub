@@ -52,9 +52,9 @@ async function chainAround(dip: TankDipRecord, tankCode: string): Promise<ChainS
  * gate lives in the route; this helper is reached only after `canCorrectTankDip`
  * passes — same arrangement as `lib/readings/apply-correction.ts` for a ca's chỉ số.
  *
- * The AI reads three things off one hầm plate — the hầm, its nhiên liệu and the
- * số đo — so all three arrive here, each optional, and the caller sends only what
- * a người duyệt actually changed.
+ * A người duyệt repairs the hầm or the số đo, each optional, and the caller sends
+ * only what they actually changed. The nhiên liệu is not theirs to type: moving the
+ * dip to a hầm Cấu hình knows stamps that hầm's nhiên liệu on it.
  *
  * Up to three rows move. A đo hầm's "So với lần trước" compares it to the dip
  * before it *in the same hầm*, so retyping the number changes this row's delta and
@@ -69,7 +69,6 @@ export async function applyDipCorrection(params: {
   dip: TankDipRecord
   dipValue?: number
   tankCode?: string
-  fuelType?: string
   userId: string
 }): Promise<TankDipRecord> {
   const { dip, userId } = params
@@ -83,11 +82,17 @@ export async function applyDipCorrection(params: {
   // anomaly rule the row is judged by.
   //
   // Nothing here depends on anything else here, so the hầm it left, the hầm it
-  // joined and that hầm's trụ are all asked at once.
-  const [from, movedTo, movedReserve] = await Promise.all([
+  // joined, that hầm's trụ and its Cấu hình row are all asked at once.
+  const [from, movedTo, movedReserve, movedTankRow] = await Promise.all([
     chainAround(dip, dip.tankCode),
     movedTank ? chainAround(dip, tankCode) : null,
     movedTank ? tankIsReserve(dip.stationId, tankCode) : null,
+    movedTank
+      ? prisma.tank.findUnique({
+          where: { stationId_code: { stationId: dip.stationId, code: tankCode } },
+          select: { fuelType: true },
+        })
+      : null,
   ])
   const to = movedTo ?? from
   const isReserve = movedReserve ?? dip.isReserve
@@ -96,8 +101,12 @@ export async function applyDipCorrection(params: {
 
   const data: Prisma.TankDipRecordUpdateInput = { dipValue, isReserve, ...plan.self }
   if (movedTank) data.tankCode = tankCode
-  // capacityK is left alone: it is what the plate said, not what the hầm is.
-  if (params.fuelType !== undefined) data.fuelType = params.fuelType
+  // capacityK is left alone: it is what the plate said, not what the hầm is. The
+  // stored nhiên liệu follows the hầm Cấu hình knows, so the copy the row falls back
+  // on stays true; a hầm Cấu hình does not know leaves the dip's own alone.
+  const fuelType = movedTankRow?.fuelType ?? dip.fuelType
+  const changedFuel = fuelType !== dip.fuelType
+  if (changedFuel) data.fuelType = fuelType
   // Keep what the AI read the first time a reviewer actually moves it — stamping
   // on every save would record the AI's own value as its "original" and say
   // nothing. It is also what tells the row to stop showing the AI's confidence
@@ -126,12 +135,12 @@ export async function applyDipCorrection(params: {
       from: {
         ...(params.dipValue !== undefined ? { dipValue: dip.dipValue.toString() } : {}),
         ...(movedTank ? { tankCode: dip.tankCode } : {}),
-        ...(params.fuelType !== undefined ? { fuelType: dip.fuelType } : {}),
+        ...(changedFuel ? { fuelType: dip.fuelType } : {}),
       },
       to: {
         ...(params.dipValue !== undefined ? { dipValue: updated.dipValue.toString() } : {}),
         ...(movedTank ? { tankCode: updated.tankCode } : {}),
-        ...(params.fuelType !== undefined ? { fuelType: updated.fuelType } : {}),
+        ...(changedFuel ? { fuelType: updated.fuelType } : {}),
       },
     },
   })

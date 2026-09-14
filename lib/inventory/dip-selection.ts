@@ -51,7 +51,37 @@ export type DipSelection = {
 }
 
 /** The hầm and nhiên liệu this trạm actually has — what the URL is narrowed against. */
-export type DipSelectionOptions = { tanks: string[]; fuels: string[] }
+export type DipSelectionOptions = {
+  tanks: string[]
+  fuels: string[]
+  /** The nhiên liệu Cấu hình gives each hầm that has a `tanks` row, by hầm code. */
+  tankFuels: Record<string, string>
+}
+
+/**
+ * The đo hầm whose nhiên liệu, as the tab shows it, is one of `fuels`. A hầm with a
+ * `tanks` row holds what Cấu hình says, whatever its dips were stamped with — so it is
+ * matched by its code, and its dips' own `fuelType` is never asked. Only a hầm Cấu hình
+ * does not know falls back to the nhiên liệu stored on the dip.
+ *
+ * A đo hầm whose biển the AI could not place, on a hầm Cấu hình does not know, carries no
+ * nhiên liệu at all. `in` leaves those rows out, which is what asking for Dầu DO means;
+ * they are still there — and still the ones most worth a look — with this criterion off.
+ */
+function fuelWhere(
+  fuels: string[],
+  tankFuels: Record<string, string>
+): Prisma.TankDipRecordWhereInput[] {
+  const configured = Object.entries(tankFuels)
+  return [
+    {
+      tankCode: {
+        in: configured.filter(([, fuel]) => fuels.includes(fuel)).map(([code]) => code),
+      },
+    },
+    { tankCode: { notIn: configured.map(([code]) => code) }, fuelType: { in: fuels } },
+  ]
+}
 
 /**
  * What the Lịch sử đo bồn list shows: the đo hầm of the trạm asked for, newest first, one
@@ -95,10 +125,7 @@ export function dipSelection(
       stationId,
       ...(from || to ? { measuredAt } : {}),
       ...(tanks.length ? { tankCode: { in: tanks } } : {}),
-      // A đo hầm whose biển the AI could not place carries no nhiên liệu at all. `in`
-      // leaves those rows out, which is what asking for Dầu DO means; they are still
-      // there — and still the ones most worth a look — with this criterion off.
-      ...(fuels.length ? { fuelType: { in: fuels } } : {}),
+      ...(fuels.length ? { OR: fuelWhere(fuels, offered.tankFuels) } : {}),
       ...(statuses.length ? { reviewStatus: { in: statuses } } : {}),
     },
     orderBy: [{ measuredAt: 'desc' }, { id: 'asc' }],

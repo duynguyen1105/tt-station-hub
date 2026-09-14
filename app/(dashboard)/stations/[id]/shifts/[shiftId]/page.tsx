@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 
-import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
+import { FuelImportForm } from '@/components/inventory/fuel-import-form'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { CashEntriesTable } from '@/components/shifts/cash-entries-table'
@@ -24,6 +24,7 @@ import {
 } from '@/lib/fuels/load-catalogue'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
+import { stationTankOptions } from '@/lib/inventory/tank-options'
 import { priceRowOnDate } from '@/lib/misa-export/build-sales-voucher'
 import {
   type DebtCustomerInput,
@@ -44,28 +45,6 @@ import {
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
-
-function buildTankOptionsFromDispensers(
-  dispensers: {
-    tankCode: string | null
-    fuelType: string
-    tankCapacityK: number | null
-  }[],
-  fuelLabel: (fuelType: string) => string
-): TankOption[] {
-  const options = new Map<string, TankOption>()
-  for (const d of dispensers) {
-    if (!d.tankCode || options.has(d.tankCode)) continue
-    const cap = d.tankCapacityK ? ` (${d.tankCapacityK}K)` : ''
-    options.set(d.tankCode, {
-      code: d.tankCode,
-      label: `${d.tankCode.replace('HAM_', 'Hầm ')} — ${fuelLabel(d.fuelType)}${cap}`,
-      fuelType: d.fuelType,
-      capacityK: d.tankCapacityK,
-    })
-  }
-  return [...options.values()].sort((a, b) => a.code.localeCompare(b.code))
-}
 
 /** A Prisma Decimal meter value as a plain number, or null where no value was read. */
 function numberOrNull(value: { toNumber: () => number } | null | undefined): number | null {
@@ -96,26 +75,32 @@ export default async function ShiftDetailPage({
     loadStationFuelMappings(shift.stationId),
   ])
 
-  const [station, readings, dispensers, visits, priceRows, cashEntryRows] = await Promise.all([
-    prisma.station.findUnique({
-      where: { id: shift.stationId },
-      // fuelArea rides along with the code: Tổng tiền prices each row by the giá bán
-      // lẻ of the trạm's vùng, the same key the MISA export uses.
-      select: { code: true, fuelArea: true },
-    }),
-    prisma.shiftReading.findMany({ where: { shiftId } }),
-    prisma.dispenser.findMany({
-      where: { stationId: shift.stationId, isActive: true },
-      orderBy: { displayOrder: 'asc' },
-    }),
-    prisma.debtVehicleVisit.findMany(debtVisitSelection(shift.stationId, shift.shiftDate)),
-    // Both vùng in one read — the trạm's own vùng is only known once the row above
-    // lands, and the board holds a handful of rows per nhiên liệu, so narrowing it in
-    // memory below costs less than a second round trip.
-    prisma.misaRetailPrice.findMany({ orderBy: { effectiveDate: 'asc' } }),
-    // Thu chi tiền mặt – Khách CK, the kế toán's note on the ca, in the order typed.
-    prisma.shiftCashEntry.findMany({ where: { shiftId }, orderBy: { position: 'asc' } }),
-  ])
+  const [station, readings, dispensers, tanks, visits, priceRows, cashEntryRows] =
+    await Promise.all([
+      prisma.station.findUnique({
+        where: { id: shift.stationId },
+        // fuelArea rides along with the code: Tổng tiền prices each row by the giá bán
+        // lẻ of the trạm's vùng, the same key the MISA export uses.
+        select: { code: true, fuelArea: true },
+      }),
+      prisma.shiftReading.findMany({ where: { shiftId } }),
+      prisma.dispenser.findMany({
+        where: { stationId: shift.stationId, isActive: true },
+        orderBy: { displayOrder: 'asc' },
+      }),
+      // The hầm as Cấu hình states them, for the nhập hàng picker — see `stationTankOptions`.
+      prisma.tank.findMany({
+        where: { stationId: shift.stationId },
+        select: { code: true, fuelType: true, capacityK: true },
+      }),
+      prisma.debtVehicleVisit.findMany(debtVisitSelection(shift.stationId, shift.shiftDate)),
+      // Both vùng in one read — the trạm's own vùng is only known once the row above
+      // lands, and the board holds a handful of rows per nhiên liệu, so narrowing it in
+      // memory below costs less than a second round trip.
+      prisma.misaRetailPrice.findMany({ orderBy: { effectiveDate: 'asc' } }),
+      // Thu chi tiền mặt – Khách CK, the kế toán's note on the ca, in the order typed.
+      prisma.shiftCashEntry.findMany({ where: { shiftId }, orderBy: { position: 'asc' } }),
+    ])
   const cashEntries = cashEntryRows.map((e) => ({
     content: e.content,
     counterparty: e.counterparty,
@@ -313,7 +298,7 @@ export default async function ShiftDetailPage({
               stationId={shift.stationId}
               fuels={stationFuels}
               fuelMappings={fuelMappings}
-              tanks={buildTankOptionsFromDispensers(dispensers, fuelLabel)}
+              tanks={stationTankOptions({ tanks, dispensers, dipTanks: [] }, fuelLabel)}
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
               paperPumps={paperRoster?.pumps ?? []}

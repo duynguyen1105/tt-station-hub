@@ -4,19 +4,17 @@ import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
 /**
- * Every hầm one trạm has — the trụ that draw from one, plus the hầm seen only
- * through their đo hầm (a hầm dự phòng carries no trụ). The same two sources
- * `buildTankOptions` builds the ô chọn from, so what a route accepts and what a
- * picker offers cannot drift apart.
- *
- * There is no Hầm table: a hầm is only ever the `tankCode` string repeated on the
- * rows that mention it.
+ * Every hầm one trạm has — the ones Cấu hình lists, the trụ that draw from one,
+ * plus the hầm seen only through their đo hầm (a hầm dự phòng carries no trụ). The
+ * same three sources `stationTankOptions` builds the ô chọn from, so what a route
+ * accepts and what a picker offers cannot drift apart.
  *
  * Cached per request, so a route that both validates a write and re-derives from
- * the same list pays for one pair of queries.
+ * the same list pays for one set of queries.
  */
 export const loadStationTankCodes = cache(async (stationId: string): Promise<string[]> => {
-  const [dispensers, dips] = await Promise.all([
+  const [tanks, dispensers, dips] = await Promise.all([
+    prisma.tank.findMany({ where: { stationId }, select: { code: true } }),
     prisma.dispenser.findMany({
       where: { stationId, isActive: true, tankCode: { not: null } },
       select: { tankCode: true },
@@ -28,7 +26,7 @@ export const loadStationTankCodes = cache(async (stationId: string): Promise<str
       distinct: ['tankCode'],
     }),
   ])
-  const codes = new Set(dips.map((dip) => dip.tankCode))
+  const codes = new Set([...tanks.map((tank) => tank.code), ...dips.map((dip) => dip.tankCode)])
   for (const d of dispensers) if (d.tankCode) codes.add(d.tankCode)
   return [...codes].sort()
 })

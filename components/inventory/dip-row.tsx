@@ -13,16 +13,13 @@ import { canCorrectTankDip, canReviewTankDip } from '@/lib/inventory/dip-review'
 import { reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
-/** A hầm the ô chọn offers, with the nhiên liệu it holds so picking one answers both. */
-export type DipTankOption = EditableOption & { fuelType: string | null }
-
 export type DipRowData = {
   id: string
   /** Pre-formatted on the server, so the row renders the same time the rest of the page does. */
   measuredAt: string
   tankCode: string
   tankLabel: string
-  fuelType: string | null
+  /** What Cấu hình says the hầm holds, else what the dip carries — see `dipFuel`. */
   fuelLabel: string
   dipValue: string
   /** Barem litres, already formatted; null when the sheet could not answer. */
@@ -49,13 +46,11 @@ export type DipRowData = {
 export function DipRow({
   data,
   tankOptions,
-  fuelOptions,
 }: {
   data: DipRowData
-  // Beside `data` rather than inside it: the page hands every row the same two
-  // arrays, so the RSC payload carries each list once and points the rows at it.
-  tankOptions: DipTankOption[]
-  fuelOptions: EditableOption[]
+  // Beside `data` rather than inside it: the page hands every row the same array,
+  // so the RSC payload carries the list once and points the rows at it.
+  tankOptions: EditableOption[]
 }) {
   // Which write is in flight, not merely whether one is — the row shows Duyệt and
   // Từ chối side by side, and only the one that was clicked should spin.
@@ -74,7 +69,7 @@ export function DipRow({
   const approveDisabled = disabled || alreadyApproved || (alreadyRejected && !canReverse)
   const rejectDisabled = disabled || alreadyRejected || (alreadyApproved && !canReverse)
   const mayReview = canReviewTankDip(data.role)
-  // Only while nobody has decided: the hầm, its nhiên liệu and the số đo are the
+  // Only while nobody has decided: the hầm and the số đo are the
   // facts the duyệt was made on. The lock says so in the same words a chốt-ca row
   // uses, because it is the same rule.
   const mayCorrect = canCorrectTankDip(data.role, data.reviewStatus)
@@ -104,21 +99,12 @@ export function DipRow({
     })
   }
 
-  function saveTank(next: string): Promise<boolean> {
-    // Picking a hầm answers its nhiên liệu too, where that hầm has one — both go
-    // in the one POST, so the row never lands showing a hầm and a nhiên liệu that
-    // disagree. A hầm dự phòng no trụ names leaves the nhiên liệu to be set on its
-    // own, which is the cell right beside it.
-    const fuelType = tankOptions.find((tank) => tank.value === next)?.fuelType ?? undefined
-    return correct({ tankCode: next, fuelType }, vi.inventory.tankCorrected)
-  }
-
   return (
     <tr className="border-b">
       <td className="p-2">{data.measuredAt}</td>
       <td className="p-2 font-medium">
-        {/* The hầm and its nhiên liệu are read off the same plate as the số đo and
-            misread the same way, so they are repaired in place beside it. */}
+        {/* The hầm is read off the same plate as the số đo and misread the same
+            way, so it is repaired in place beside it. */}
         <EditableSelect
           value={data.tankCode}
           fallbackLabel={data.tankLabel}
@@ -126,20 +112,12 @@ export function DipRow({
           canEdit={mayCorrect}
           lockHint={lockHint}
           busy={disabled}
-          onSave={saveTank}
+          onSave={(next) => correct({ tankCode: next }, vi.inventory.tankCorrected)}
         />
       </td>
-      <td className="p-2">
-        <EditableSelect
-          value={data.fuelType}
-          fallbackLabel={data.fuelLabel}
-          options={fuelOptions}
-          canEdit={mayCorrect}
-          lockHint={lockHint}
-          busy={disabled}
-          onSave={(next) => correct({ fuelType: next }, vi.inventory.fuelCorrected)}
-        />
-      </td>
+      {/* Not editable: a hầm's nhiên liệu is set once, in Cấu hình, and every dip of
+          that hầm shows it — moving the dip to another hầm is how it changes. */}
+      <td className="p-2">{data.fuelLabel}</td>
       <td className="p-2 text-right font-mono">
         {/* The photo sits with the number it was read from, so checking the AI
             against the dip-stick — and repairing it — never means leaving the

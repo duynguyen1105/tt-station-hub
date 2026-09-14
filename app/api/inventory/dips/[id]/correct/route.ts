@@ -5,7 +5,6 @@ import { type NextRequest } from 'next/server'
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
-import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { parseVnNumber } from '@/lib/imports/bien-ban'
 import { applyDipCorrection } from '@/lib/inventory/apply-dip-correction'
 import { canCorrectTankDip } from '@/lib/inventory/dip-review'
@@ -13,9 +12,10 @@ import { stationTankRefusal } from '@/lib/inventory/station-tanks'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
-// One field per cell, each optional: a người duyệt repairs the hầm, its nhiên
-// liệu or the số đo one click at a time, and a payload naming none of them is a
-// bug rather than an empty edit.
+// One field per cell, each optional: a người duyệt repairs the hầm or the số đo
+// one click at a time, and a payload naming neither is a bug rather than an empty
+// edit. There is no nhiên liệu field: a hầm's nhiên liệu is set in Cấu hình, and
+// the dip takes it from whichever hầm it is on.
 //
 // dipValue is a string, not a number: the typed value goes through the same
 // parser that read the dip photo, so "1.037" means 1037 millimetres here exactly
@@ -24,13 +24,12 @@ const correctDipSchema = z
   .object({
     dipValue: z.string().optional(),
     tankCode: z.string().optional(),
-    fuelType: z.string().optional(),
   })
   .refine((body) => Object.values(body).some((field) => field !== undefined))
 
 /**
  * Repairs what the AI misread off a hầm plate before anyone decides on it — the
- * hầm, its nhiên liệu, the số đo. Admin or kế toán, at the đo hầm's own trạm, and
+ * hầm and the số đo. Admin or kế toán, at the đo hầm's own trạm, and
  * only while the row is still chờ xử lý — see `canCorrectTankDip`. Re-derives "So
  * với lần trước", the hầm dự phòng flag and both hầm's chains from the shared
  * rule, so a repaired dip reads exactly like a correct AI read.
@@ -49,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!(await canReachStation(user, dip.stationId))) return forbidden()
   if (!canCorrectTankDip(user.role, dip.reviewStatus)) return forbidden()
 
-  const { dipValue: typed, tankCode, fuelType } = parsed.data
+  const { dipValue: typed, tankCode } = parsed.data
 
   // A dip-stick height is never negative, and a blank box is a mistake rather
   // than an instruction to zero the hầm.
@@ -60,22 +59,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     dipValue = parsedDip
   }
 
-  // A hầm or a nhiên liệu no ô chọn offered is turned away rather than written —
-  // the same rule the picker draws.
-  const refusal = (
-    await Promise.all([
-      tankCode === undefined ? null : stationTankRefusal(dip.stationId, tankCode),
-      fuelType === undefined ? null : stationFuelRefusal(dip.stationId, fuelType),
-    ])
-  ).find((message) => message !== null)
+  // A hầm no ô chọn offered is turned away rather than written — the same rule
+  // the picker draws.
+  const refusal = tankCode === undefined ? null : await stationTankRefusal(dip.stationId, tankCode)
   if (refusal) return badRequest(refusal)
 
-  const updated = await applyDipCorrection({
-    dip,
-    dipValue,
-    tankCode,
-    fuelType,
-    userId: user.id,
-  })
+  const updated = await applyDipCorrection({ dip, dipValue, tankCode, userId: user.id })
   return ok(updated)
 }

@@ -15,6 +15,8 @@ const STATION = 'aaaaaaaa-0000-0000-0000-000000000001'
 const OFFERED = {
   tanks: ['HAM_1', 'HAM_2', 'HAM_3'],
   fuels: ['XANG_E0', 'DAU_DO', 'DAU_DC'],
+  // HAM_3 is left out of Cấu hình, so its dips answer for their own nhiên liệu.
+  tankFuels: { HAM_1: 'XANG_E0', HAM_2: 'DAU_DC' },
 }
 
 function select(params: DipSelectionParams): DipSelection {
@@ -25,7 +27,7 @@ function dayWindow(params: DipSelectionParams): { gte?: Date; lte?: Date } | und
   return select(params).where.measuredAt as { gte?: Date; lte?: Date } | undefined
 }
 
-function picked(params: DipSelectionParams, column: 'tankCode' | 'fuelType' | 'reviewStatus') {
+function picked(params: DipSelectionParams, column: 'tankCode' | 'reviewStatus') {
   return select(params).where[column] as { in: string[] } | undefined
 }
 
@@ -108,7 +110,6 @@ describe('dipSelection — lọc theo khoảng ngày', () => {
 
 describe.each([
   ['hầm', 'tank' as const, 'tankCode' as const, 'tanks' as const, OFFERED.tanks],
-  ['nhiên liệu', 'fuel' as const, 'fuelType' as const, 'fuels' as const, OFFERED.fuels],
   [
     'trạng thái',
     'status' as const,
@@ -151,6 +152,42 @@ describe.each([
   })
 })
 
+describe('dipSelection — lọc theo nhiên liệu', () => {
+  it('matches a hầm Cấu hình knows by the nhiên liệu Cấu hình gives it', () => {
+    expect(select({ fuel: 'DAU_DC' }).where.OR).toContainEqual({ tankCode: { in: ['HAM_2'] } })
+  })
+
+  it('never matches a known hầm by the nhiên liệu stamped on its dips', () => {
+    // HAM_2's dips may still say XANG_E0 from a misread plate; Cấu hình says DAU_DC, and
+    // the tab shows DAU_DC, so asking for XANG_E0 must not list them.
+    const [byConfig, byDip] = select({ fuel: 'XANG_E0' }).where.OR!
+    expect(byConfig).toEqual({ tankCode: { in: ['HAM_1'] } })
+    expect(byDip).toEqual({
+      tankCode: { notIn: ['HAM_1', 'HAM_2'] },
+      fuelType: { in: ['XANG_E0'] },
+    })
+  })
+
+  it('falls back to the dip’s own nhiên liệu only for a hầm Cấu hình does not know', () => {
+    expect(select({ fuel: 'DAU_DO' }).where.OR).toEqual([
+      { tankCode: { in: [] } },
+      { tankCode: { notIn: ['HAM_1', 'HAM_2'] }, fuelType: { in: ['DAU_DO'] } },
+    ])
+  })
+
+  it('narrows to several at once, in the ô chọn’s order', () => {
+    const selection = select({ fuel: 'DAU_DC,XANG_E0,DAU_DC' })
+    expect(selection.fuels).toEqual(['XANG_E0', 'DAU_DC'])
+    expect(selection.where.OR).toContainEqual({ tankCode: { in: ['HAM_1', 'HAM_2'] } })
+  })
+
+  it('means tất cả when nothing asked for survives', () => {
+    const selection = select({ fuel: 'KHONG_CO' })
+    expect(selection.fuels).toEqual([])
+    expect(selection.where.OR).toBeUndefined()
+  })
+})
+
 describe('dipSelection — nhiều tiêu chí', () => {
   it('combines every criterion into one where', () => {
     const selection = select({
@@ -167,7 +204,10 @@ describe('dipSelection — nhiều tiêu chí', () => {
         lte: new Date('2026-08-31T23:59:59.999+07:00'),
       },
       tankCode: { in: ['HAM_2'] },
-      fuelType: { in: ['DAU_DO'] },
+      OR: [
+        { tankCode: { in: [] } },
+        { tankCode: { notIn: ['HAM_1', 'HAM_2'] }, fuelType: { in: ['DAU_DO'] } },
+      ],
       reviewStatus: { in: ['pending', 'rejected'] },
     })
   })
