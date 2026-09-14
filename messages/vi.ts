@@ -472,11 +472,13 @@ export const vi = {
     electronicLiters: 'Lít ĐT',
     openingMechanical: 'Đầu Cơ',
     closingMechanical: 'Cuối Cơ',
+    // Đồng hồ chỉ đếm lên, nên chỉ số cuối ca nhỏ hơn đầu ca là đọc hoặc nhập sai.
+    closingBelowOpening: 'Chỉ số cuối nhỏ hơn chỉ số đầu',
     // Số lít đồng hồ cơ đo được trong ca: Cuối Cơ trừ Đầu Cơ, chưa trừ gì cả.
     mechanicalLiters: 'Lít Cơ',
-    // Hai đồng hồ đo cùng số lít, nên ô Lít Cơ chỉ được đánh dấu khi chúng lệch nhau —
-    // và nói lệch bao nhiêu khi rê chuột lên ô đó.
-    meterGapHint: (liters: string) => `Chênh lệch điện - cơ: ${liters} lít`,
+    // Hai đồng hồ đo cùng số lít, nên khi chúng lệch nhau ô Lít Cơ được đánh dấu và
+    // dưới nhãn Trạng thái ghi rõ lệch bao nhiêu — dấu + là đồng hồ điện tử đếm nhiều hơn.
+    meterGapHint: (liters: string) => `Lệch ĐT − Cơ: ${liters} lít`,
     // Số lít bơm ra chỉ để đẩy gió trong ống — sau khi hầm hết xăng hoặc sửa đường ống.
     // Hai đồng hồ đều đếm số lít này nhưng không ai mua, và xăng dầu được đổ lại vào
     // hầm. Trống nghĩa là ca này không xả gió, khác với việc nhập số 0.

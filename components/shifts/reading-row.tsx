@@ -1,5 +1,6 @@
 'use client'
 
+import { TriangleAlertIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useState, useTransition } from 'react'
@@ -86,7 +87,8 @@ export type ReadingTotals = {
   mechanicalLiters: number | null
   /**
    * Litres the two đồng hồ disagree by, or null when they agree / cannot be compared —
-   * what marks the Lít Cơ cell rather than a column of its own.
+   * what marks the Lít Cơ cell and is spelled out under the Trạng thái badge, rather
+   * than a column of its own.
    */
   gapDifference: number | null
   /** Litres sold — điện tử less Xả gió — × giá bán lẻ, or null when either is unknown. */
@@ -150,9 +152,9 @@ function SlotPhotos({
  * not move reads 0, which is an answer rather than a gap in the data.
  *
  * `divergence` — given on the Lít Cơ cell — is the litres the two đồng hồ disagree by,
- * which the reviewer is here to spot: it colours the cell like the anomaly notes below
- * and says by how much on hover. Null (the two agree, or there is no đồng hồ cơ to
- * compare against) leaves the cell unmarked.
+ * which the reviewer is here to spot: it colours the cell like the anomaly notes, while
+ * the amount itself is written under the Trạng thái badge. Null (the two agree, or there
+ * is no đồng hồ cơ to compare against) leaves the cell unmarked.
  */
 function MeterLiters({
   value,
@@ -163,19 +165,30 @@ function MeterLiters({
 }) {
   if (value === null) return <span className="text-muted-foreground">—</span>
   if (divergence === null) return <>{formatLiters(value)}</>
+  return <span className="text-amber-700 dark:text-amber-400">{formatLiters(value)}</span>
+}
+
+/**
+ * Whether a meter's Cuối reads below its Đầu — a đồng hồ only counts up, so the closing
+ * was misread or keyed wrong. False while either end is missing: nothing to compare yet.
+ */
+function closingBelowOpening(opening: string | null, closing: string | null): boolean {
+  if (opening === null || closing === null) return false
+  return Number(closing) < Number(opening)
+}
+
+/** The warning beside a Cuối that reads below its Đầu, saying so on hover or focus. */
+function ClosingBelowOpeningIcon() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {/* Focusable, so the amount is reachable by keyboard and not by hover alone —
-            it used to be a column anyone could read. */}
-        <span
+        <TriangleAlertIcon
           tabIndex={0}
-          className="text-amber-700 underline decoration-dotted dark:text-amber-400"
-        >
-          {formatLiters(value)}
-        </span>
+          aria-label={vi.shifts.closingBelowOpening}
+          className="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+        />
       </TooltipTrigger>
-      <TooltipContent>{vi.shifts.meterGapHint(formatLiters(divergence))}</TooltipContent>
+      <TooltipContent>{vi.shifts.closingBelowOpening}</TooltipContent>
     </Tooltip>
   )
 }
@@ -386,11 +399,16 @@ export function ReadingRow({
           confidence={data.electronicConfidence}
           busy={busy}
           leading={
-            <SlotPhotos
-              photos={data.electronicPhotos}
-              label={vi.correction.closingElectronicLabel}
-              slots={electronicSlots}
-            />
+            <>
+              <SlotPhotos
+                photos={data.electronicPhotos}
+                label={vi.correction.closingElectronicLabel}
+                slots={electronicSlots}
+              />
+              {closingBelowOpening(data.openingElectronicReading, data.electronicReading) && (
+                <ClosingBelowOpeningIcon />
+              )}
+            </>
           }
           onSave={(next) => saveField('correct-closing', 'electronicReading', next)}
         />
@@ -429,11 +447,16 @@ export function ReadingRow({
           confidence={data.mechanicalConfidence}
           busy={busy}
           leading={
-            <SlotPhotos
-              photos={data.mechanicalPhotos}
-              label={vi.correction.closingMechanicalLabel}
-              slots={mechanicalSlots}
-            />
+            <>
+              <SlotPhotos
+                photos={data.mechanicalPhotos}
+                label={vi.correction.closingMechanicalLabel}
+                slots={mechanicalSlots}
+              />
+              {closingBelowOpening(data.openingMechanicalReading, data.mechanicalReading) && (
+                <ClosingBelowOpeningIcon />
+              )}
+            </>
           }
           onSave={(next) => saveField('correct-closing', 'mechanicalReading', next)}
         />
@@ -468,7 +491,18 @@ export function ReadingRow({
       )}
       <td className="space-y-1 p-2">
         {info && <StatusBadge label={info.label} tone={info.tone} />}
-        {data.anomalyReasons.length > 0 && (
+        {/* The size of the đồng hồ disagreement, readable without hovering — signed, so
+            + says the đồng hồ điện tử counted more. */}
+        {data.totals?.gapDifference != null && (
+          <div className="font-mono text-xs whitespace-nowrap text-amber-700 dark:text-amber-400">
+            {vi.shifts.meterGapHint(
+              `${data.totals.gapDifference > 0 ? '+' : ''}${formatLiters(data.totals.gapDifference)}`
+            )}
+          </div>
+        )}
+        {/* Chốt ca of one trạm (the table with totals) leaves the reasons out — the gap
+            line and the marked cells already say what is off; the review list keeps them. */}
+        {!data.totals && data.anomalyReasons.length > 0 && (
           <div className="text-xs text-amber-700 dark:text-amber-400">
             {data.anomalyReasons.map(anomalyLabel).join(', ')}
           </div>
