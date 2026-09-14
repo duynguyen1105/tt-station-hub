@@ -4,6 +4,7 @@ import {
   type ShiftStatus,
   canCreateReading,
   canEditAirPurge,
+  canEditCashEntries,
   canEditClosing,
   canEditOpening,
   canReviewShift,
@@ -155,5 +156,14 @@ describe('canEditAirPurge', () => {
     expect(canEditAirPurge('admin', 'completed')).toBe(true)
     expect(canEditAirPurge('accountant', 'completed')).toBe(false)
     expect(canEditAirPurge('viewer', 'pending_review')).toBe(false)
+  })
+})
+
+describe('canEditCashEntries', () => {
+  // Thu chi tiền mặt is a note nothing on the ca is derived from, so chốt does not lock it.
+  it('lets the admin and the accountant edit it at any status, the viewer never', () => {
+    expect(canEditCashEntries('admin')).toBe(true)
+    expect(canEditCashEntries('accountant')).toBe(true)
+    expect(canEditCashEntries('viewer')).toBe(false)
   })
 })

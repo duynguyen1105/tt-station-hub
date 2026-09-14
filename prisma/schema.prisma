@@ -190,6 +190,23 @@ model ShiftReading {
   @@map("shift_readings")
 }
 
+// Thu chi tiền mặt – Khách CK: the kế toán's hand-typed cash in/out note for a ca,
+// the sheet they used to keep in Excel beside it. Purely a note — nothing on the ca
+// (chốt ca, stock, MISA) reads it, and it stays editable after the ca is chốt.
+model ShiftCashEntry {
+  id           String   @id @default(uuid()) @db.Uuid
+  shiftId      String   @map("shift_id") @db.Uuid
+  position     Int // row order on screen
+  content      String   @default("") // Nội dung
+  counterparty String   @default("") // Đối tượng
+  receipt      Decimal? @db.Decimal(15, 0) // Thu
+  payment      Decimal? @db.Decimal(15, 0) // Chi
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([shiftId], map: "idx_cash_entries_shift")
+  @@map("shift_cash_entries")
+}
+
 model ShiftPhoto {
   id                     String    @id @default(uuid()) @db.Uuid
   shiftId                String?   @map("shift_id") @db.Uuid

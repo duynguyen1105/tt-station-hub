@@ -74,6 +74,15 @@ export function canCreateReading(role: AppRole, shiftStatus: ShiftStatus): boole
 }
 
 /**
+ * Editing a ca's Thu chi tiền mặt – Khách CK note — admin and accountant at any status,
+ * viewer never. Unlike the closing rule, chốt ca does not lock it: the rows are a note
+ * nothing on the ca is derived from, so kế toán may keep filling it in after chốt.
+ */
+export function canEditCashEntries(role: AppRole): boolean {
+  return role === 'admin' || role === 'accountant'
+}
+
+/**
  * Whether a row's Duyệt / Từ chối call has been made. A decided row's values are
  * frozen for every role — the numbers are what the decision was made on, so
  * changing them behind the decision would silently un-decide the row. Note

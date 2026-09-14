@@ -523,6 +523,23 @@ export const vi = {
     debtFuel: 'Nhiên liệu',
     debtLiters: 'Số lít',
     debtPhotos: 'Ảnh',
+    // Bảng ghi chú thu chi kế toán tự nhập cho ca — không ảnh hưởng số liệu nào của ca,
+    // và vẫn sửa được sau khi chốt ca.
+    cashEntries: {
+      title: 'Thu chi tiền mặt - Khách CK',
+      content: 'Nội dung',
+      counterparty: 'Đối tượng',
+      receipt: 'Thu',
+      payment: 'Chi',
+      total: 'Tổng',
+      addRow: 'Thêm dòng',
+      removeRow: 'Xóa dòng',
+      save: 'Lưu',
+      saved: 'Đã lưu thu chi',
+      empty: 'Chưa có thu chi cho ca này.',
+      // Chỉ nhận số đồng nguyên, có thể ngăn cách hàng nghìn bằng dấu chấm hoặc phẩy.
+      invalidAmount: 'Thu / Chi phải là số tiền nguyên, ví dụ 20355520 hoặc 20.355.520',
+    },
   },
 
   // Ảnh trên ca mà AI không đặt được vào trụ nào — kế toán gán tay.

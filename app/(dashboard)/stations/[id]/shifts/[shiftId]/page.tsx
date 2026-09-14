@@ -3,10 +3,16 @@ import { notFound } from 'next/navigation'
 import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-import-form'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { CashEntriesTable } from '@/components/shifts/cash-entries-table'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
 import { UnmatchedPhotos } from '@/components/shifts/unmatched-photos'
-import { type ShiftStatus, canEditClosing, canReviewShift } from '@/lib/auth/reading-policy'
+import {
+  type ShiftStatus,
+  canEditCashEntries,
+  canEditClosing,
+  canReviewShift,
+} from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
@@ -90,7 +96,7 @@ export default async function ShiftDetailPage({
     loadStationFuelMappings(shift.stationId),
   ])
 
-  const [station, readings, dispensers, visits, priceRows] = await Promise.all([
+  const [station, readings, dispensers, visits, priceRows, cashEntryRows] = await Promise.all([
     prisma.station.findUnique({
       where: { id: shift.stationId },
       // fuelArea rides along with the code: Tổng tiền prices each row by the giá bán
@@ -107,7 +113,15 @@ export default async function ShiftDetailPage({
     // lands, and the board holds a handful of rows per nhiên liệu, so narrowing it in
     // memory below costs less than a second round trip.
     prisma.misaRetailPrice.findMany({ orderBy: { effectiveDate: 'asc' } }),
+    // Thu chi tiền mặt – Khách CK, the kế toán's note on the ca, in the order typed.
+    prisma.shiftCashEntry.findMany({ where: { shiftId }, orderBy: { position: 'asc' } }),
   ])
+  const cashEntries = cashEntryRows.map((e) => ({
+    content: e.content,
+    counterparty: e.counterparty,
+    receipt: e.receipt?.toString() ?? '',
+    payment: e.payment?.toString() ?? '',
+  }))
 
   const customerIds = [
     ...new Set(visits.map((v) => v.customerId).filter((cid): cid is string => cid !== null)),
@@ -402,6 +416,12 @@ export default async function ShiftDetailPage({
           </table>
         )}
       </section>
+
+      <CashEntriesTable
+        shiftId={shift.id}
+        initialEntries={cashEntries}
+        canEdit={canEditCashEntries(user.role)}
+      />
     </div>
   )
 }
