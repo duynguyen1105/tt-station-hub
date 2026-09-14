@@ -6,6 +6,7 @@ import { useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { announceSaved } from '@/components/layout/refresh-on-return'
 import { vi } from '@/messages/vi'
 
 type SaveInit = {
@@ -55,6 +56,8 @@ export function useSaveAction() {
       }
 
       if (init.success) toast.success(init.success)
+      // This tab refreshes below; the others open in this browser hear about it here.
+      announceSaved()
       // A state update after an `await` no longer belongs to the transition that
       // started it, so the refresh needs its own — that is what keeps `busy` true
       // until the fresh RSC payload commits instead of dropping it here.

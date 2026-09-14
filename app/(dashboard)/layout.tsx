@@ -1,5 +1,6 @@
 import { FuelCatalogueProvider } from '@/components/fuels/catalogue-provider'
 import { AppSidebar } from '@/components/layout/app-sidebar'
+import { RefreshOnReturn } from '@/components/layout/refresh-on-return'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { requireUser } from '@/lib/auth/session'
 import { loadFuelCatalogue } from '@/lib/fuels/load-catalogue'
@@ -19,6 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <FuelCatalogueProvider catalogue={catalogue}>
+      <RefreshOnReturn />
       <SidebarProvider>
         <AppSidebar
           user={{
