@@ -79,6 +79,9 @@ export type DebtVisitCardData = {
   // name. Empty means that trạm has declared none, and the ô chọn says so. The tên of
   // whatever the AI already read still renders, sold here or not.
   fuels: readonly CatalogueFuel[]
+  // The giá bán lẻ in force on the visit date for each of those nhiên liệu, from the
+  // bảng giá of the trạm's vùng — what Sửa số fills the đơn giá with when one is picked.
+  boardPrices: Record<string, number>
   customerId: string | null
   autoMatched: boolean
   anomalyReasons: string[]
@@ -165,12 +168,13 @@ function CustomerPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between font-normal"
+          title={selected?.name}
+          className="w-full min-w-0 justify-between font-normal"
         >
           {selected ? (
-            selected.name
+            <span className="truncate">{selected.name}</span>
           ) : (
-            <span className="text-muted-foreground">{vi.debtReview.assignCustomer}</span>
+            <span className="text-muted-foreground truncate">{vi.debtReview.assignCustomer}</span>
           )}
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
@@ -550,7 +554,14 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
                   ) : data.fuels.length === 0 ? (
                     <NoStationFuels stationId={stationId} />
                   ) : (
-                    <Select value={fuelType} onValueChange={setFuelType}>
+                    <Select
+                      value={fuelType}
+                      onValueChange={(next) => {
+                        setFuelType(next)
+                        const price = data.boardPrices[next]
+                        if (price !== undefined) setUnitPrice(String(price))
+                      }}
+                    >
                       <SelectTrigger id="fuelType">
                         <SelectValue placeholder={vi.debts.fuelType} />
                       </SelectTrigger>

@@ -7,6 +7,8 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { boardPriceOf } from '@/lib/debts/board-price'
+import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { nextAmountFields, refuseAmountOverride } from '@/lib/debts/visit-amount'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { Prisma } from '@/lib/generated/prisma/client'
@@ -41,6 +43,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!(await canReachStation(user, visit.stationId))) return forbidden()
 
   const num = (d: Prisma.Decimal | null) => (d !== null ? Number(d) : null)
+  // The đơn giá is the bảng giá of the trạm's vùng, so a lượt xe moved to another trạm —
+  // the ô chọn trạm posts only a stationId — takes that trạm's price for its nhiên liệu.
+  // A đơn giá sent alongside is the reviewer's own and stands; a vùng with no price for
+  // this nhiên liệu leaves the stored one alone rather than blanking the charge.
+  const movedPrice =
+    parsed.data.stationId !== undefined &&
+    parsed.data.stationId !== visit.stationId &&
+    parsed.data.unitPriceRead === undefined
+      ? boardPriceOf(
+          await loadStationPrices(parsed.data.stationId),
+          parsed.data.fuelType !== undefined ? parsed.data.fuelType : visit.fuelType,
+          visit.visitDate
+        )
+      : null
   // `undefined` (field absent — the trạm ô chọn posts only a stationId) and `null`
   // (box cleared) mean different things, so the merge is handed the parsed patch as-is.
   const amounts = nextAmountFields(
@@ -53,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
     {
       litersRead: parsed.data.litersRead,
-      unitPriceRead: parsed.data.unitPriceRead,
+      unitPriceRead: movedPrice ?? parsed.data.unitPriceRead,
       amountOverride: parsed.data.amountOverride,
     }
   )
