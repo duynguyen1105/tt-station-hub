@@ -1,13 +1,11 @@
-import { placeLitersDecimal } from '@/lib/ai/extract-visit'
-import { type ExtractVisitResult } from '@/lib/ai/types'
 import { type RetailPrice, priceRowOnDate } from '@/lib/misa-export/build-sales-voucher'
 
 /**
- * The đơn giá a lượt bán nợ is charged at: the giá bán lẻ in force for its nhiên liệu on
- * the visit date, from the bảng giá of the trạm's vùng (/settings/misa/prices).
+ * The giá bán lẻ a lượt bán nợ's đơn giá is checked against: the price in force for its
+ * nhiên liệu on the visit date, from the bảng giá of the trạm's vùng (/settings/misa/prices).
  *
- * Pure — prices in, a price out — so ingest, the Sửa số pre-fill and a trạm move all
- * read the same row. Null when the nhiên liệu is unknown or the bảng giá has no row yet.
+ * The đơn giá itself is always the one read off the pump — the bảng giá only warns, and
+ * the kế toán decides in Sửa số. Null when the nhiên liệu is unknown or has no price yet.
  */
 export function boardPriceOf(
   prices: RetailPrice[],
@@ -19,26 +17,21 @@ export function boardPriceOf(
 }
 
 /**
- * Prices an AI pump read from the bảng giá instead of the ĐƠN GIÁ row it read.
+ * Whether a read đơn giá disagrees with the bảng giá ("Đơn giá lệch bảng giá").
  *
- * That row is the one most often glared or cut off, and a guessed price there both
- * charges the wrong amount and throws the liters decimal off (the decimal is placed by
- * reconciling TIỀN = LÍT × ĐƠN GIÁ). So the decimal is re-placed against the board
- * price, and the Khớp/Lệch check that follows says whether the pump agrees with it.
+ * Against the lượt xe's own nhiên liệu when the bảng giá prices it — a DO fill read at the
+ * E0 price is still wrong. Without one, the read only has to be *some* nhiên liệu's price
+ * on that date. Nothing to compare (no read, empty bảng giá) is not a mismatch.
  */
-export function priceMeterRead(
-  meter: ExtractVisitResult,
+export function priceMismatchOf(
   prices: RetailPrice[],
   fuelType: string | null,
-  at: Date
-): { unitPriceRead: number | null; meter: ExtractVisitResult; anomalies: string[] } {
-  const unitPriceRead = boardPriceOf(prices, fuelType, at)
-  return {
-    unitPriceRead,
-    meter: placeLitersDecimal({
-      ...meter,
-      unitPrice: unitPriceRead !== null ? String(unitPriceRead) : null,
-    }),
-    anomalies: unitPriceRead === null ? ['price_missing'] : [],
-  }
+  at: Date,
+  unitPrice: number | null
+): boolean {
+  if (unitPrice === null || prices.length === 0) return false
+  const board = boardPriceOf(prices, fuelType, at)
+  if (board !== null) return unitPrice !== board
+  const fuels = new Set(prices.map((p) => p.fuelType))
+  return ![...fuels].some((f) => priceRowOnDate(prices, f, at)?.unitPrice === unitPrice)
 }

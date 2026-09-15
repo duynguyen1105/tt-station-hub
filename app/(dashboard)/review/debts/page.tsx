@@ -5,7 +5,7 @@ import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
 import { approvedTodaySelection, buildApprovedTodayList } from '@/lib/debts/approved-today'
 import { boardPriceOf } from '@/lib/debts/board-price'
-import { loadAreaPrices } from '@/lib/debts/load-board-prices'
+import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { vnTime } from '@/lib/format'
 import { loadStationFuels } from '@/lib/fuels/load-catalogue'
@@ -65,33 +65,15 @@ export default async function ReviewDebtsPage() {
     )
   )
 
-  // The bảng giá of each vùng the queue's trạm sit in, so Sửa số can pre-fill the đơn giá
-  // of whichever nhiên liệu the reviewer picks. One query per vùng, not per trạm.
-  const fuelAreaByStation = new Map(
-    (
-      await prisma.station.findMany({
-        where: { id: { in: [...fuelsByStation.keys()] } },
-        select: { id: true, fuelArea: true },
-      })
-    ).map((s) => [s.id, s.fuelArea] as const)
-  )
-  const pricesByArea = new Map(
+  // The bảng giá each trạm on this page sells by, so a card can show the giá bán lẻ its
+  // read đơn giá is checked against — the figure a kế toán types in Sửa số if they side with it.
+  const pricesByStation = new Map(
     await Promise.all(
-      [...new Set(fuelAreaByStation.values())].map(
-        async (area) => [area, await loadAreaPrices(area)] as const
+      [...fuelsByStation.keys()].map(
+        async (stationId) => [stationId, await loadStationPrices(stationId)] as const
       )
     )
   )
-  const boardPricesFor = (v: (typeof visits)[number]): Record<string, number> => {
-    const area = fuelAreaByStation.get(v.stationId)
-    const prices = area !== undefined ? (pricesByArea.get(area) ?? []) : []
-    return Object.fromEntries(
-      fuelsByStation
-        .get(v.stationId)!
-        .map((f) => [f.fuelType, boardPriceOf(prices, f.fuelType, v.visitDate)] as const)
-        .filter((entry): entry is readonly [string, number] => entry[1] !== null)
-    )
-  }
 
   // Where each lượt xe duyệt'd today went: the ca of the lượt xe's own ngày, and the
   // khách hàng it was charged to. Both are looked up per row rather than reused from
@@ -198,7 +180,11 @@ export default async function ReviewDebtsPage() {
                 amountMatchesDisplay: v.amountMatchesDisplay,
                 fuelType: v.fuelType,
                 fuels: fuelsByStation.get(v.stationId)!,
-                boardPrices: boardPricesFor(v),
+                boardPrice: boardPriceOf(
+                  pricesByStation.get(v.stationId)!,
+                  v.fuelType,
+                  v.visitDate
+                ),
                 customerId: v.customerId,
                 autoMatched: v.customerId !== null,
                 anomalyReasons: v.anomalyReasons,

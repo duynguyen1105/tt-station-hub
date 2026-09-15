@@ -9,7 +9,7 @@ import {
   type ExtractVisitResult,
   type RouterResult,
 } from '@/lib/ai/types'
-import { priceMeterRead } from '@/lib/debts/board-price'
+import { priceMismatchOf } from '@/lib/debts/board-price'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { plateListContains } from '@/lib/debts/plate'
 import { tankCodeFor } from '@/lib/dispensers/naming'
@@ -35,7 +35,7 @@ import { deriveReviewState } from '@/lib/matching/review-state'
 import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
 import { LONE_PAIR_WINDOW_MS, pickOpenHalf } from '@/lib/matching/visit-pairing'
 import { type PhotoStationSource, resolveVisitStation } from '@/lib/matching/visit-station'
-import { type RetailPrice, inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
+import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import { openingReadingsFor } from '@/lib/shifts/opening-reading'
 
@@ -400,23 +400,24 @@ export async function runShiftExtraction(
   return result
 }
 
-/**
- * How sure the AI is of the one number it still supplies to the charge: số lít. The
- * đơn giá comes from the bảng giá (priceMeterRead), so its read confidence says
- * nothing about what will be charged.
- */
+/** The weakest of the two numbers the charge is actually computed from. */
 function debtConfidence(meter: ExtractVisitResult): number | null {
-  return meter.litersConfidence
+  const confs = [meter.litersConfidence, meter.unitPriceConfidence].filter(
+    (c): c is number => c != null
+  )
+  return confs.length ? Math.min(...confs) : null
 }
 
-// Plausibility bound for a single credit fill. Anything above is a misread
-// (a 2,619 L "fill"), not a real sale — flag, never post.
+// Plausibility bounds for a single credit fill. Anything outside is a misread
+// (a 15 đ URE price, a 2,619 L "fill"), not a real sale — flag, never post.
 const LITERS_MAX = 2000
+const UNIT_PRICE_MIN = 1000
+const UNIT_PRICE_MAX = 100000
 
 /**
- * Debt review status from the liters confidence, the §5.6 amount check, and the
- * plausibility anomalies collected by the caller (bounds, missing board price,
- * unresolved liters scale).
+ * Debt review status from the weakest of liters/unit-price confidence, the §5.6
+ * amount check, and the plausibility anomalies collected by the caller (bounds,
+ * retail-price cross-check, unresolved liters scale).
  */
 function debtReview(
   meter: ExtractVisitResult,
@@ -431,54 +432,6 @@ function debtReview(
   // queue as 'pending', a weak one as 'needs_review'.
   const reviewStatus = classifyDebt(conf) === 'needs_review' ? 'needs_review' : 'pending'
   return { reviewStatus, anomalies }
-}
-
-/** The nhiên liệu whose giá bán lẻ equals the ĐƠN GIÁ the AI read, when exactly one does. */
-function priceFuelOf(meter: ExtractVisitResult, prices: RetailPrice[], at: Date): string | null {
-  const aiPrice = parseNumericString(meter.unitPrice)
-  return aiPrice !== null ? inferFuelTypeFromPrice(aiPrice, prices, at) : null
-}
-
-/**
- * What a pump read writes onto its lượt xe at one trạm: the đơn giá from that trạm's
- * bảng giá for the nhiên liệu, the liters decimal placed against it, and the guardrails
- * the numbers must pass before they can sit quietly in the queue. Any hit forces
- * needs_review — the reviewer sees exactly why on the card.
- */
-function debtMeterFields(
-  read: ExtractVisitResult,
-  prices: RetailPrice[],
-  fuelType: string | null,
-  at: Date
-) {
-  const {
-    unitPriceRead,
-    meter,
-    anomalies: priceAnomalies,
-  } = priceMeterRead(read, prices, fuelType, at)
-  const litersRead = meter.litersResolved
-  const guardAnomalies: string[] = [...priceAnomalies]
-  if (litersRead != null && (litersRead <= 0 || litersRead > LITERS_MAX)) {
-    guardAnomalies.push('liters_implausible')
-  }
-  if (litersRead != null && meter.litersResolution === 'unverified') {
-    guardAnomalies.push('liters_unverified')
-  }
-  if (litersRead != null && meter.litersResolution === 'rescaled') {
-    guardAnomalies.push('liters_rescaled')
-  }
-  const { reviewStatus, anomalies } = debtReview(meter, guardAnomalies)
-  return {
-    litersRead,
-    unitPriceRead,
-    fuelType,
-    displayedAmount: parseNumericString(meter.displayedAmount),
-    computedAmount: meter.computedAmount,
-    amountMatchesDisplay: meter.amountMatchesDisplay,
-    aiConfidence: debtConfidence(meter),
-    anomalyReasons: anomalies,
-    reviewStatus,
-  }
 }
 
 /**
@@ -612,13 +565,48 @@ export async function assembleDebtVisit(params: {
     // transaction is for. Fall back to inferring from the pump price via the station's
     // fuel area retail prices, and finally to null (the accountant sets it in review).
     const labelFuel = await resolveStationPlateFuel(target.id, meter.fuelType)
+    // Retail prices are keyed by the station's fuel area (retail zone), not by station.
+    const unitPriceRead = parseNumericString(meter.unitPrice)
+    const litersRead = meter.litersResolved
     const prices = await loadStationPrices(target.id)
-    const fuelType = labelFuel ?? priceFuelOf(meter, prices, visitDate)
-    const meterFields = debtMeterFields(meter, prices, fuelType, visitDate)
+    const priceFuel =
+      unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null
+    // Guardrails the AI numbers must pass before they can sit quietly in the
+    // queue: physical bounds, an unresolved liters decimal, and the pump price
+    // matching the bảng giá of the station's fuel area. The read price stands
+    // either way — any hit forces needs_review, and the reviewer sees exactly why
+    // on the card, next to the bảng giá price, and decides in Sửa số.
+    const guardAnomalies: string[] = []
+    if (litersRead != null && (litersRead <= 0 || litersRead > LITERS_MAX)) {
+      guardAnomalies.push('liters_implausible')
+    }
+    if (litersRead != null && meter.litersResolution === 'unverified') {
+      guardAnomalies.push('liters_unverified')
+    }
+    if (litersRead != null && meter.litersResolution === 'rescaled') {
+      guardAnomalies.push('liters_rescaled')
+    }
+    if (
+      unitPriceRead != null &&
+      (unitPriceRead < UNIT_PRICE_MIN || unitPriceRead > UNIT_PRICE_MAX)
+    ) {
+      guardAnomalies.push('price_implausible')
+    } else if (priceMismatchOf(prices, labelFuel ?? priceFuel, visitDate, unitPriceRead)) {
+      guardAnomalies.push('price_mismatch')
+    }
+    const { reviewStatus, anomalies } = debtReview(meter, guardAnomalies)
     const meterData = {
-      ...meterFields,
+      litersRead,
+      unitPriceRead,
+      fuelType: labelFuel ?? priceFuel,
+      displayedAmount: parseNumericString(meter.displayedAmount),
+      computedAmount: meter.computedAmount,
+      amountMatchesDisplay: meter.amountMatchesDisplay,
       meterPhotoId: photoId,
+      aiConfidence: debtConfidence(meter),
       aiRawResponse: meter.raw as Prisma.InputJsonValue,
+      anomalyReasons: anomalies,
+      reviewStatus,
       // Keep an existing caption when this photo carries none.
       ...(caption ? { zaloCaption: caption } : {}),
     }
@@ -658,7 +646,7 @@ export async function assembleDebtVisit(params: {
                 ...meterData,
                 ...(ambiguous
                   ? {
-                      anomalyReasons: [...meterFields.anomalyReasons, 'pairing_ambiguous'],
+                      anomalyReasons: [...anomalies, 'pairing_ambiguous'],
                       reviewStatus: 'needs_review',
                     }
                   : {}),
@@ -671,21 +659,20 @@ export async function assembleDebtVisit(params: {
     // leaves the ca's unmatched list (components/shifts/unmatched-photos.tsx).
     await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus: 'matched' } })
     // The pairing lock has the last word on the trạm, and it can disagree with the one
-    // the plate word and the bảng giá were just read against: a photo from an
-    // unidentified sender arrives parked on the UNKNOWN trạm, and a label-less one
-    // joining an existing visit leaves that visit's trạm standing (resolveVisitStation).
-    // Either way the mã hàng and the vùng consulted above were the wrong trạm's, so ask
-    // the trạm the visit actually settled on — its nhiên liệu, and the đơn giá and
-    // amounts that follow from it.
-    if (visit.stationId !== target.id) {
-      const settledPrices = await loadStationPrices(visit.stationId)
+    // the plate word was just read against: a photo from an unidentified sender arrives
+    // parked on the UNKNOWN trạm, and a label-less one joining an existing visit leaves
+    // that visit's trạm standing (resolveVisitStation). Either way the mã hàng consulted
+    // above were the wrong trạm's, so ask the trạm the visit actually settled on. A word
+    // that trạm cannot place falls back to the price like any unread plate.
+    if (meter.fuelType && visit.stationId !== target.id) {
       const settledFuel =
-        (await resolveStationPlateFuel(visit.stationId, meter.fuelType)) ??
-        priceFuelOf(meter, settledPrices, visitDate)
-      await prisma.debtVehicleVisit.update({
-        where: { id: visit.id },
-        data: debtMeterFields(meter, settledPrices, settledFuel, visitDate),
-      })
+        (await resolveStationPlateFuel(visit.stationId, meter.fuelType)) ?? priceFuel
+      if (settledFuel !== visit.fuelType) {
+        await prisma.debtVehicleVisit.update({
+          where: { id: visit.id },
+          data: { fuelType: settledFuel },
+        })
+      }
     }
     return { visitId: visit.id, meter, plate: null }
   }

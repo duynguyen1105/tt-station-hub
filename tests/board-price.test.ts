@@ -1,80 +1,49 @@
 import { describe, expect, it } from 'vitest'
 
-import { placeLitersDecimal } from '@/lib/ai/extract-visit'
-import { type ExtractVisitResult } from '@/lib/ai/types'
-import { boardPriceOf, priceMeterRead } from '@/lib/debts/board-price'
+import { boardPriceOf, priceMismatchOf } from '@/lib/debts/board-price'
 
-const day = (iso: string) => new Date(`${iso}T00:00:00+07:00`)
-
-/** Vùng 2's bảng giá as the settings page showed it on 15/09. */
+/** Vùng 2's bảng giá as it stood on 15/09: DO moved from 24,000 to 29,910 on 13/08. */
 const prices = [
-  { fuelType: 'DO', effectiveDate: day('2026-07-20'), unitPrice: 24000 },
-  { fuelType: 'DO', effectiveDate: day('2026-08-13'), unitPrice: 29910 },
-  { fuelType: 'DO', effectiveDate: day('2026-10-01'), unitPrice: 31000 },
-  { fuelType: 'DAU_DO', effectiveDate: day('2026-08-21'), unitPrice: 29110 },
+  { fuelType: 'DO', effectiveDate: new Date('2026-07-20T00:00:00+07:00'), unitPrice: 24_000 },
+  { fuelType: 'DO', effectiveDate: new Date('2026-08-13T00:00:00+07:00'), unitPrice: 29_910 },
+  { fuelType: 'E0', effectiveDate: new Date('2026-08-13T00:00:00+07:00'), unitPrice: 21_650 },
 ]
-
-/** A pump read as the AI hands it over, before the liters decimal is placed. */
-function read(overrides: Partial<ExtractVisitResult>): ExtractVisitResult {
-  return placeLitersDecimal({
-    meterType: 'debt_meter',
-    displayedAmount: null,
-    liters: null,
-    litersResolved: null,
-    litersResolution: null,
-    unitPrice: null,
-    stationLabel: null,
-    dispenserLabel: null,
-    fuelType: null,
-    computedAmount: null,
-    amountMatchesDisplay: null,
-    litersConfidence: 72,
-    unitPriceConfidence: 55,
-    amountConfidence: 72,
-    notes: '',
-    raw: {},
-    ...overrides,
-  })
-}
+const visitDate = new Date('2026-09-15T07:38:00+07:00')
 
 describe('boardPriceOf', () => {
-  it('is the price in force for that nhiên liệu on the visit date', () => {
-    expect(boardPriceOf(prices, 'DO', day('2026-09-15'))).toBe(29910)
-    expect(boardPriceOf(prices, 'DO', day('2026-08-01'))).toBe(24000)
-    expect(boardPriceOf(prices, 'DAU_DO', day('2026-09-15'))).toBe(29110)
+  it('is the latest price in force on the visit date', () => {
+    expect(boardPriceOf(prices, 'DO', visitDate)).toBe(29_910)
+    expect(boardPriceOf(prices, 'DO', new Date('2026-08-01T00:00:00+07:00'))).toBe(24_000)
   })
 
-  it('has no price for an unknown nhiên liệu or before the first row', () => {
-    expect(boardPriceOf(prices, null, day('2026-09-15'))).toBeNull()
-    expect(boardPriceOf(prices, 'A95', day('2026-09-15'))).toBeNull()
-    expect(boardPriceOf(prices, 'DO', day('2026-07-01'))).toBeNull()
+  it('has no answer for an unknown nhiên liệu or one the bảng giá does not price yet', () => {
+    expect(boardPriceOf(prices, null, visitDate)).toBeNull()
+    expect(boardPriceOf(prices, 'DC', visitDate)).toBeNull()
+    expect(boardPriceOf(prices, 'DO', new Date('2026-07-01T00:00:00+07:00'))).toBeNull()
   })
 })
 
-describe('priceMeterRead', () => {
-  it('charges the board price, never the ĐƠN GIÁ the AI guessed (50H-210.10, 15/09)', () => {
-    const meter = read({ liters: '380860', unitPrice: '26200', displayedAmount: '998020' })
-    const priced = priceMeterRead(meter, prices, 'DO', day('2026-09-15'))
-    expect(priced.unitPriceRead).toBe(29910)
-    expect(priced.meter.computedAmount).toBe(Math.round(380.86 * 29910))
-    expect(priced.anomalies).toEqual([])
+describe('priceMismatchOf', () => {
+  it('flags a glared read that is not the bảng giá price (the 50H-210.10 fill)', () => {
+    expect(priceMismatchOf(prices, 'DO', visitDate, 26_200)).toBe(true)
   })
 
-  it('places the liters decimal against the board price, not the misread one', () => {
-    // 340.000 L × 29,110 = 9,897,400, shown with its last digit dropped.
-    const meter = read({ liters: '340000', unitPrice: '26200', displayedAmount: '989740' })
-    expect(meter.litersResolution).toBe('unverified')
-    const priced = priceMeterRead(meter, prices, 'DAU_DO', day('2026-09-15'))
-    expect(priced.meter.litersResolved).toBe(340)
-    expect(priced.meter.litersResolution).toBe('verified')
-    expect(priced.meter.amountMatchesDisplay).toBe(true)
+  it('is quiet when the read is the bảng giá price', () => {
+    expect(priceMismatchOf(prices, 'DO', visitDate, 29_910)).toBe(false)
   })
 
-  it('leaves the đơn giá blank and says why when the board has none', () => {
-    const meter = read({ liters: '340000', unitPrice: '29110', displayedAmount: '989740' })
-    const priced = priceMeterRead(meter, prices, null, day('2026-09-15'))
-    expect(priced.unitPriceRead).toBeNull()
-    expect(priced.meter.computedAmount).toBeNull()
-    expect(priced.anomalies).toEqual(['price_missing'])
+  it("flags a read that is another nhiên liệu's price", () => {
+    expect(priceMismatchOf(prices, 'DO', visitDate, 21_650)).toBe(true)
+  })
+
+  it('without a priced nhiên liệu, only asks that the read be some nhiên liệu’s price', () => {
+    expect(priceMismatchOf(prices, null, visitDate, 21_650)).toBe(false)
+    expect(priceMismatchOf(prices, null, visitDate, 26_200)).toBe(true)
+    expect(priceMismatchOf(prices, 'DC', visitDate, 29_910)).toBe(false)
+  })
+
+  it('has nothing to say with no read or an empty bảng giá', () => {
+    expect(priceMismatchOf(prices, 'DO', visitDate, null)).toBe(false)
+    expect(priceMismatchOf([], 'DO', visitDate, 26_200)).toBe(false)
   })
 })

@@ -380,7 +380,6 @@ export const vi = {
     liters_rescaled: 'Số lít chỉ khớp ở thang thập phân khác trạm',
     price_implausible: 'Đơn giá bất thường',
     price_mismatch: 'Đơn giá lệch bảng giá',
-    price_missing: 'Chưa có giá bán lẻ cho nhiên liệu này',
     pairing_ambiguous: 'Không ghép được ảnh xe với ảnh trụ — gửi lại 2 ảnh cùng một tin nhắn',
   },
 
@@ -896,6 +895,7 @@ export const vi = {
     meterPhoto: 'Ảnh cây xăng',
     noPhoto: 'Không có ảnh',
     displayedAmount: 'Số hiển thị',
+    boardPrice: 'Bảng giá',
     amountMatch: 'Khớp',
     amountMismatch: 'Lệch',
     amountManual: 'Nhập tay',

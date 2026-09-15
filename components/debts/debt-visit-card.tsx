@@ -79,9 +79,9 @@ export type DebtVisitCardData = {
   // name. Empty means that trạm has declared none, and the ô chọn says so. The tên of
   // whatever the AI already read still renders, sold here or not.
   fuels: readonly CatalogueFuel[]
-  // The giá bán lẻ in force on the visit date for each of those nhiên liệu, from the
-  // bảng giá of the trạm's vùng — what Sửa số fills the đơn giá with when one is picked.
-  boardPrices: Record<string, number>
+  // The giá bán lẻ of this nhiên liệu on the visit date, from the bảng giá of the trạm's
+  // vùng. Null when the nhiên liệu is unknown or the bảng giá has no price for it.
+  boardPrice: number | null
   customerId: string | null
   autoMatched: boolean
   anomalyReasons: string[]
@@ -234,6 +234,10 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
 
   const info = reviewStatusInfo(data.reviewStatus)
   const mismatch = data.amountMatchesDisplay === false
+  const priceOff =
+    data.boardPrice !== null &&
+    data.unitPrice !== null &&
+    Number(data.unitPrice) !== data.boardPrice
   // What this lượt xe will charge, which is the typed thành tiền when there is one.
   const charged = chargeAmountOf({
     litersRead: data.liters !== null ? Number(data.liters) : null,
@@ -427,6 +431,21 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
               </span>
             </div>
           )}
+          {/* The đơn giá stands as read; the kế toán decides in Sửa số whether the bảng giá wins. */}
+          {data.boardPrice !== null && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">
+                {vi.debtReview.boardPrice}:{' '}
+                <span className="readout text-foreground">{formatVND(data.boardPrice)}</span>
+              </span>
+              {data.unitPrice !== null && (
+                <StatusBadge
+                  label={priceOff ? vi.debtReview.amountMismatch : vi.debtReview.amountMatch}
+                  tone={priceOff ? 'danger' : 'success'}
+                />
+              )}
+            </div>
+          )}
           {data.displayedAmount !== null && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">
@@ -520,6 +539,12 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
                       value={unitPrice}
                       onChange={(e) => setUnitPrice(e.target.value)}
                     />
+                    {data.boardPrice !== null && (
+                      <FieldDescription>
+                        {vi.debtReview.boardPrice}:{' '}
+                        <span className="readout">{formatVND(data.boardPrice)}</span>
+                      </FieldDescription>
+                    )}
                   </Field>
                 </div>
                 <Field>
@@ -554,14 +579,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
                   ) : data.fuels.length === 0 ? (
                     <NoStationFuels stationId={stationId} />
                   ) : (
-                    <Select
-                      value={fuelType}
-                      onValueChange={(next) => {
-                        setFuelType(next)
-                        const price = data.boardPrices[next]
-                        if (price !== undefined) setUnitPrice(String(price))
-                      }}
-                    >
+                    <Select value={fuelType} onValueChange={setFuelType}>
                       <SelectTrigger id="fuelType">
                         <SelectValue placeholder={vi.debts.fuelType} />
                       </SelectTrigger>
