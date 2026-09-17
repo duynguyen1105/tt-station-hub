@@ -42,14 +42,22 @@ function areasFor(fuel: CatalogueFuel): readonly (FuelArea | null)[] {
 
 /**
  * Thêm giá as a kỳ điều chỉnh giá: one ngày áp dụng, every nhiên liệu, both vùng in
- * one grid. Each cell shows the price in force on the chosen date, so kế toán can see
- * what a number is changing from; a cell left blank means that fuel did not move and
- * writes nothing. One announcement is one pass through one dialog.
+ * one grid, all of it on screen the moment the dialog opens. Each cell shows the price
+ * in force on the chosen date, so kế toán can see what a number is changing from; a cell
+ * left blank means that fuel did not move and writes nothing. One announcement is one
+ * pass through one dialog.
+ *
+ * The ngày áp dụng opens empty on purpose — kế toán states which kỳ this is, nothing is
+ * saved until they do. `today` is the Vietnam calendar day, decided on the server so the
+ * dialog keeps no clock of its own: it is what the grid reads prices at while the field
+ * is still empty.
  */
 export function RetailPriceForm({
+  today,
   fuels,
   prices,
 }: {
+  today: string
   fuels: CatalogueFuel[]
   prices: BoardPrice[]
 }) {
@@ -63,7 +71,7 @@ export function RetailPriceForm({
   // rule, read at that date rather than at today's, so a backdated kỳ shows what was
   // actually being billed then.
   const chosenDate = effectiveDate === '' ? null : new Date(effectiveDate)
-  const board = chosenDate === null ? null : buildRetailPriceBoard(fuels, prices, chosenDate)
+  const board = buildRetailPriceBoard(fuels, prices, chosenDate ?? new Date(today))
   const dateHasKy =
     chosenDate !== null &&
     prices.some((price) => price.effectiveDate.getTime() === chosenDate.getTime())
@@ -150,56 +158,51 @@ export function RetailPriceForm({
 
           {dateHasKy && <p className="text-sm">{vi.misaSettings.dateHasKy}</p>}
 
-          {board !== null && (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-muted-foreground text-left">
-                  <th className="p-2 font-normal">{vi.misaSettings.fuel}</th>
-                  {BOARD_AREA_ORDER.map((area) => (
-                    <th key={area} className="p-2 font-normal">
-                      {vi.fuelArea[area]}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {board.map((entry) => (
-                  <tr key={entry.fuelType}>
-                    <td className="p-2 font-medium">{entry.name}</td>
-                    {areasFor(entry).map((area) => {
-                      const key = cellKey(area, entry.fuelType)
-                      // A null vùng reads the board's vùng 1 cell — both hold the same price.
-                      const inForce = entry.cells[area ?? BOARD_AREA_ORDER[0]].current
-                      const areaLabel =
-                        area === null ? vi.misaSettings.bothAreas : vi.fuelArea[area]
-                      return (
-                        <td
-                          className="space-y-1 p-2"
-                          key={key}
-                          colSpan={area === null ? BOARD_AREA_ORDER.length : undefined}
-                        >
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            aria-label={`${entry.name} — ${areaLabel}`}
-                            value={cells[key] ?? ''}
-                            onChange={(e) =>
-                              setCells((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                          />
-                          <p className="text-muted-foreground text-xs">
-                            {inForce === null
-                              ? vi.misaSettings.noPrice
-                              : `${vi.misaSettings.current}: ${formatVND(inForce.unitPrice)}`}
-                          </p>
-                        </td>
-                      )
-                    })}
-                  </tr>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-muted-foreground text-left">
+                <th className="p-2 font-normal">{vi.misaSettings.fuel}</th>
+                {BOARD_AREA_ORDER.map((area) => (
+                  <th key={area} className="p-2 font-normal">
+                    {vi.fuelArea[area]}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          )}
+              </tr>
+            </thead>
+            <tbody>
+              {board.map((entry) => (
+                <tr key={entry.fuelType}>
+                  <td className="p-2 font-medium">{entry.name}</td>
+                  {areasFor(entry).map((area) => {
+                    const key = cellKey(area, entry.fuelType)
+                    // A null vùng reads the board's vùng 1 cell — both hold the same price.
+                    const inForce = entry.cells[area ?? BOARD_AREA_ORDER[0]].current
+                    const areaLabel = area === null ? vi.misaSettings.bothAreas : vi.fuelArea[area]
+                    return (
+                      <td
+                        className="space-y-1 p-2"
+                        key={key}
+                        colSpan={area === null ? BOARD_AREA_ORDER.length : undefined}
+                      >
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          aria-label={`${entry.name} — ${areaLabel}`}
+                          value={cells[key] ?? ''}
+                          onChange={(e) => setCells((prev) => ({ ...prev, [key]: e.target.value }))}
+                        />
+                        <p className="text-muted-foreground text-xs">
+                          {inForce === null
+                            ? vi.misaSettings.noPrice
+                            : `${vi.misaSettings.current}: ${formatVND(inForce.unitPrice)}`}
+                        </p>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
           <p className="text-muted-foreground text-xs">{vi.misaSettings.blankMeansUnchanged}</p>
         </div>

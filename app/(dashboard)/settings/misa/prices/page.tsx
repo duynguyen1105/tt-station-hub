@@ -29,7 +29,8 @@ export default async function MisaPricesPage() {
 
   // effectiveDate is a @db.Date (UTC midnight), so "today" is the Vietnam calendar
   // day read the same way — a price dated today is in force from its first ca.
-  const today = new Date(vnTime(new Date()).format('YYYY-MM-DD'))
+  const todayIso = vnTime(new Date()).format('YYYY-MM-DD')
+  const today = new Date(todayIso)
   const rows = prices.map((price) => ({
     fuelArea: price.fuelArea,
     fuelType: price.fuelType,
@@ -49,7 +50,11 @@ export default async function MisaPricesPage() {
       <div className="flex justify-end gap-2">
         <FuelForm />
         {/* A nhiên liệu đã ngừng takes no new giá, so the kỳ grid never offers it a cell. */}
-        <RetailPriceForm fuels={catalogue.filter((fuel) => fuel.isActive)} prices={rows} />
+        <RetailPriceForm
+          today={todayIso}
+          fuels={catalogue.filter((fuel) => fuel.isActive)}
+          prices={rows}
+        />
       </div>
 
       <table className="w-full text-sm">
