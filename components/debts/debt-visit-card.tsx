@@ -352,7 +352,7 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
           <Select
             value={stationKnown ? stationId : undefined}
             onValueChange={changeStation}
-            disabled={busy}
+            disabled={busy || !canAct}
           >
             <SelectTrigger className="h-8 flex-1">
               <SelectValue placeholder={vi.debtReview.selectStation} />
