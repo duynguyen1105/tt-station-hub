@@ -24,7 +24,8 @@ export type ShiftStatus =
 /**
  * Editing an opening reading (Đầu ĐT / Đầu Cơ) — admin only, at any shift status.
  * The opening is the immutable carry-forward of the prior ca's closing, so
- * repairing it is an exceptional, admin-only act.
+ * repairing it is an exceptional, admin-only act. The same rule governs a khách
+ * hàng's nợ đầu kỳ: it re-anchors their whole sổ công nợ.
  */
 export function canEditOpening(role: AppRole): boolean {
   return role === 'admin'

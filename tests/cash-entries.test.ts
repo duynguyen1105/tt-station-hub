@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type CashEntryInput,
   cashEntryTotals,
+  debtPaymentsOf,
   isBlankCashEntry,
   normalizeCashEntries,
   refuseCashEntries,
@@ -10,7 +11,7 @@ import {
 import { vi } from '@/messages/vi'
 
 function row(overrides: Partial<CashEntryInput> = {}): CashEntryInput {
-  return { content: '', counterparty: '', receipt: '', payment: '', ...overrides }
+  return { content: '', customerId: null, counterparty: '', receipt: '', payment: '', ...overrides }
 }
 
 // The kế toán's Excel sheet this table replaces.
@@ -27,6 +28,10 @@ describe('isBlankCashEntry', () => {
 
   it('treats any typed cell as not blank', () => {
     expect(isBlankCashEntry(row({ counterparty: 'Anh Ba' }))).toBe(false)
+  })
+
+  it('treats a picked khách hàng alone as not blank', () => {
+    expect(isBlankCashEntry(row({ customerId: 'c-1' }))).toBe(false)
   })
 })
 
@@ -46,15 +51,35 @@ describe('refuseCashEntries', () => {
 describe('normalizeCashEntries', () => {
   it('drops blank rows, trims text and parses amounts in order', () => {
     expect(normalizeCashEntries(sheet)).toEqual([
-      { content: 'Phí chuyển khoản', counterparty: '', receipt: null, payment: 33122 },
-      { content: 'Nộp tiền', counterparty: 'Vietcombank', receipt: null, payment: 20355520 },
+      {
+        content: 'Phí chuyển khoản',
+        customerId: null,
+        counterparty: '',
+        receipt: null,
+        payment: 33122,
+      },
+      {
+        content: 'Nộp tiền',
+        customerId: null,
+        counterparty: 'Vietcombank',
+        receipt: null,
+        payment: 20355520,
+      },
     ])
   })
 
   it('trims text around the cells', () => {
     expect(normalizeCashEntries([row({ content: ' Thu hộ ', receipt: ' 500 ' })])).toEqual([
-      { content: 'Thu hộ', counterparty: '', receipt: 500, payment: null },
+      { content: 'Thu hộ', customerId: null, counterparty: '', receipt: 500, payment: null },
     ])
+  })
+
+  it('keeps a picked khách hàng and drops any typed text beside it', () => {
+    expect(
+      normalizeCashEntries([
+        row({ customerId: 'c-1', counterparty: 'Tiến Oanh', receipt: '1.000' }),
+      ])
+    ).toEqual([{ content: '', customerId: 'c-1', counterparty: '', receipt: 1000, payment: null }])
   })
 })
 
@@ -68,5 +93,20 @@ describe('cashEntryTotals', () => {
       receipt: 1000,
       payment: 0,
     })
+  })
+})
+
+describe('debtPaymentsOf', () => {
+  it('reads only Thu rows naming a khách hàng as thu nợ', () => {
+    const entries = normalizeCashEntries([
+      row({ content: 'Trả nợ', customerId: 'c-1', receipt: '300.000' }),
+      row({ customerId: 'c-2', receipt: '50.000' }),
+      row({ content: 'Hoàn tiền', customerId: 'c-1', payment: '10.000' }),
+      row({ content: 'Thu hộ', counterparty: 'Anh Ba', receipt: '20.000' }),
+    ])
+    expect(debtPaymentsOf(entries)).toEqual([
+      { customerId: 'c-1', amount: 300_000, note: 'Trả nợ' },
+      { customerId: 'c-2', amount: 50_000, note: null },
+    ])
   })
 })

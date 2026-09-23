@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
+import { balanceOf } from '@/lib/debts/ledger'
+import { loadLedgers } from '@/lib/debts/load-ledger'
 import { formatVND } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { cn } from '@/lib/utils'
@@ -51,10 +53,7 @@ export default async function OverviewPage() {
       where: { stationId: inScope },
       select: { stationId: true, estimatedStock: true, lowThreshold: true },
     }),
-    prisma.debtCustomer.findMany({
-      where: { isActive: true, stationId: inScope },
-      select: { stationId: true, currentBalance: true },
-    }),
+    loadLedgers({ isActive: true, stationId: inScope }),
   ])
 
   const stationOfShift = new Map(shifts.map((s) => [s.id, s.stationId]))
@@ -75,11 +74,11 @@ export default async function OverviewPage() {
     }
   }
   const debtByStation = new Map<string, number>()
-  for (const c of customers) {
-    if (c.stationId) {
+  for (const { customer, txs } of customers) {
+    if (customer.stationId) {
       debtByStation.set(
-        c.stationId,
-        (debtByStation.get(c.stationId) ?? 0) + Number(c.currentBalance)
+        customer.stationId,
+        (debtByStation.get(customer.stationId) ?? 0) + balanceOf(customer.anchor, txs)
       )
     }
   }

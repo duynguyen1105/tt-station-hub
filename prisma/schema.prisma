@@ -191,14 +191,18 @@ model ShiftReading {
 }
 
 // Thu chi tiền mặt – Khách CK: the kế toán's hand-typed cash in/out note for a ca,
-// the sheet they used to keep in Excel beside it. Purely a note — nothing on the ca
-// (chốt ca, stock, MISA) reads it, and it stays editable after the ca is chốt.
+// the sheet they used to keep in Excel beside it. A Thu row naming a khách hàng is
+// that khách's thu nợ (DebtTransaction payment, sourceRef cash:<shiftId>); every other
+// row is a note. It stays editable after the ca is chốt.
 model ShiftCashEntry {
   id           String   @id @default(uuid()) @db.Uuid
   shiftId      String   @map("shift_id") @db.Uuid
   position     Int // row order on screen
   content      String   @default("") // Nội dung
-  counterparty String   @default("") // Đối tượng
+  // Đối tượng: a khách hàng picked from the list (customerId), or free text when the
+  // other side is not a customer ("Vietcombank" for a Nộp tiền row). Never both.
+  customerId   String?  @map("customer_id") @db.Uuid
+  counterparty String   @default("")
   receipt      Decimal? @db.Decimal(15, 0) // Thu
   payment      Decimal? @db.Decimal(15, 0) // Chi
   createdAt    DateTime @default(now()) @map("created_at")
@@ -428,16 +432,18 @@ model InventoryMovement {
 
 // === PER-TRIP DEBT ===
 model DebtCustomer {
-  id             String   @id @default(uuid()) @db.Uuid
-  stationId      String?  @map("station_id") @db.Uuid // may owe at multiple stations
+  id             String    @id @default(uuid()) @db.Uuid
+  stationId      String?   @map("station_id") @db.Uuid // may owe at multiple stations
   name           String // "Tiến Oanh"
-  misaCode       String?  @map("misa_code") // MISA "Mã khách hàng"
+  misaCode       String?   @map("misa_code") // MISA "Mã khách hàng"
   phone          String?
-  knownPlates    String[] @default([]) @map("known_plates") // known plates for AI cross-check
-  openingBalance Decimal  @default(0) @map("opening_balance") @db.Decimal(15, 0)
-  currentBalance Decimal  @default(0) @map("current_balance") @db.Decimal(15, 0)
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
+  knownPlates    String[]  @default([]) @map("known_plates") // known plates for AI cross-check
+  // openingBalance is the debt at the start of openingDate; transactions dated before
+  // it are already inside it. Set by the admin only.
+  openingBalance Decimal   @default(0) @map("opening_balance") @db.Decimal(15, 0)
+  openingDate    DateTime? @map("opening_date") @db.Date
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
 
   @@map("debt_customers")
 }

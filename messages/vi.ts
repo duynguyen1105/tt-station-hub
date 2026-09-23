@@ -526,8 +526,8 @@ export const vi = {
     debtFuel: 'Nhiên liệu',
     debtLiters: 'Số lít',
     debtPhotos: 'Ảnh',
-    // Bảng ghi chú thu chi kế toán tự nhập cho ca — không ảnh hưởng số liệu nào của ca,
-    // và vẫn sửa được sau khi chốt ca.
+    // Bảng thu chi kế toán tự nhập cho ca; vẫn sửa được sau khi chốt ca. Dòng Thu có chọn
+    // khách hàng là khách trả nợ trong sổ công nợ.
     cashEntries: {
       title: 'Thu chi tiền mặt - Khách CK',
       content: 'Nội dung',
@@ -542,6 +542,12 @@ export const vi = {
       empty: 'Chưa có thu chi cho ca này.',
       // Chỉ nhận số đồng nguyên, có thể ngăn cách hàng nghìn bằng dấu chấm hoặc phẩy.
       invalidAmount: 'Thu / Chi phải là số tiền nguyên, ví dụ 20355520 hoặc 20.355.520',
+      // Đối tượng: chọn khách hàng, hoặc gõ tên khi bên kia không phải khách (ngân hàng…).
+      pickCounterparty: 'Chọn khách hàng hoặc gõ tên',
+      useTyped: (text: string) => `Ghi “${text}” (không phải khách hàng)`,
+      clearCounterparty: 'Bỏ chọn',
+      unknownCustomer: 'Khách hàng đã chọn không còn tồn tại, hãy chọn lại.',
+      debtHint: 'Dòng Thu có chọn khách hàng được ghi là khách trả nợ trong sổ công nợ.',
     },
   },
 
@@ -888,6 +894,34 @@ export const vi = {
     ledgerPayment: 'Trả',
     openingBalance: 'Số dư đầu kỳ',
     ledgerEmpty: 'Chưa có giao dịch nào.',
+    // Nợ đầu kỳ: admin sets it once, when the trạm starts using the app.
+    openingEdit: 'Nợ đầu kỳ',
+    openingTitle: (name: string) => `Nợ đầu kỳ — ${name}`,
+    openingAmount: 'Số nợ đầu kỳ (đ)',
+    openingDate: 'Tính từ ngày',
+    openingNote:
+      'Số khách còn nợ vào đầu ngày này. Sổ công nợ tính tiếp từ ngày này; giao dịch trước ngày này đã nằm trong số đầu kỳ.',
+    openingSaved: 'Đã lưu nợ đầu kỳ',
+    openingInvalid: 'Nợ đầu kỳ phải là số tiền nguyên.',
+    openingFuture: 'Ngày đầu kỳ không được sau hôm nay.',
+    // Sổ công nợ theo ngày, like chốt ca.
+    dayLabel: 'Ngày',
+    today: 'Hôm nay',
+    openingOfDay: 'Nợ đầu ngày',
+    chargedOfDay: '+ Bán nợ',
+    paidOfDay: '− Thu',
+    closingOfDay: '= Nợ cuối ngày',
+    pendingOfDay: 'Chờ duyệt',
+    visitsCount: (n: number) => `${n} lượt`,
+    total: 'Tổng',
+    beforeOpening: 'Trước ngày đầu kỳ',
+    dayCashLink: 'Thu chi của ca ngày này →',
+    noShift: 'Ngày này chưa có ca — thu nợ được ghi ở bảng Thu chi của ca.',
+    openShift: 'Mở ca ngày này',
+    openShiftFuture: 'Không mở ca cho ngày chưa tới.',
+    unassignedPending: (n: number) => `${n} lượt xe trong ngày chưa gán khách hàng.`,
+    goReview: 'Duyệt công nợ →',
+    fromCashEntries: (date: string) => `Thu chi ca ${date}`,
   },
 
   debtReview: {

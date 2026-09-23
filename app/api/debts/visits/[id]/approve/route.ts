@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { plateListContains } from '@/lib/debts/plate'
 import { chargeAmountOf } from '@/lib/debts/visit-amount'
+import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -54,13 +55,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         txType: 'charge',
         amount,
         sourceRef: id,
-        txDate: visit.visitDate,
+        // The GMT+7 day of the fill, the same day its ca and the sổ file it under.
+        txDate: shiftDateFor(visit.visitDate.getTime()),
         createdBy: user.id,
       },
-    })
-    await db.debtCustomer.update({
-      where: { id: customerId },
-      data: { currentBalance: { increment: amount } },
     })
     // Learn the plate: approving the visit confirms this vehicle belongs to
     // the customer, so an unseen plate joins their known list and the next

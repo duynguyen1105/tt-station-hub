@@ -103,10 +103,19 @@ export default async function ShiftDetailPage({
     ])
   const cashEntries = cashEntryRows.map((e) => ({
     content: e.content,
+    customerId: e.customerId,
     counterparty: e.counterparty,
     receipt: e.receipt?.toString() ?? '',
     payment: e.payment?.toString() ?? '',
   }))
+  // Đối tượng's list: every khách hàng in use — the same list the lượt xe picker offers —
+  // plus any a saved row already names, so a retired khách still reads by tên.
+  const cashCustomerIds = cashEntryRows.flatMap((e) => (e.customerId ? [e.customerId] : []))
+  const cashCustomers = await prisma.debtCustomer.findMany({
+    where: { OR: [{ isActive: true }, { id: { in: cashCustomerIds } }] },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true },
+  })
 
   const customerIds = [
     ...new Set(visits.map((v) => v.customerId).filter((cid): cid is string => cid !== null)),
@@ -405,6 +414,7 @@ export default async function ShiftDetailPage({
       <CashEntriesTable
         shiftId={shift.id}
         initialEntries={cashEntries}
+        customers={cashCustomers}
         canEdit={canEditCashEntries(user.role)}
       />
     </div>

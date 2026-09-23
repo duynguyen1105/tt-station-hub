@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireStationAccess } from '@/lib/auth/station-guard'
+import { balanceOf } from '@/lib/debts/ledger'
+import { loadLedgers } from '@/lib/debts/load-ledger'
 import { formatVND } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -33,13 +35,13 @@ export default async function StationOverviewPage({ params }: { params: Promise<
       where: { stationId: id, status: { in: ['expiring_soon', 'expired'] } },
     }),
     prisma.inventoryBalance.findMany({ where: { stationId: id } }),
-    prisma.debtCustomer.findMany({ where: { stationId: id, isActive: true } }),
+    loadLedgers({ stationId: id, isActive: true }),
   ])
 
   const lowStock = balances.filter(
     (b) => b.lowThreshold !== null && Number(b.estimatedStock) <= Number(b.lowThreshold)
   ).length
-  const debtTotal = customers.reduce((sum, c) => sum + Number(c.currentBalance), 0)
+  const debtTotal = customers.reduce((sum, c) => sum + balanceOf(c.customer.anchor, c.txs), 0)
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

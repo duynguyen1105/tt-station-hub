@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { CustomerForm } from '@/components/debts/customer-form'
-import { PaymentForm } from '@/components/debts/payment-form'
+import { DebtOpeningForm } from '@/components/debts/debt-opening-form'
 import { FilterChip } from '@/components/shared/filter-chip'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
@@ -24,18 +24,28 @@ import {
   filterDebtCustomers,
   hasDebtCustomerFilter,
 } from '@/lib/debts/customer-search'
+import type { DebtDay } from '@/lib/debts/ledger'
 import { formatVND } from '@/lib/format'
 import { vi } from '@/messages/vi'
 
-/** A khách hàng as the Công nợ table prints them — dư nợ already a number. */
+/** A khách hàng as the Công nợ table prints them: their sổ on the chosen day. */
 export type DebtCustomerRow = {
   id: string
   name: string
   phone: string | null
   misaCode: string | null
   knownPlates: string[]
+  /** Nợ cuối ngày (0 before nợ đầu kỳ) — what "Chỉ khách còn nợ" reads. */
   balance: number
+  /** Null for a day before the khách's nợ đầu kỳ. */
+  day: DebtDay | null
+  /** Lượt xe of the day not yet Duyệt'd, so not yet in Bán nợ. */
+  pending: { count: number; amount: number }
+  /** Nợ đầu kỳ as stored, for DebtOpeningForm. */
+  opening: { balance: number; date: string | null }
 }
+
+const num = 'p-2 text-right font-mono whitespace-nowrap'
 
 /**
  * The Công nợ list of a trạm, and the bộ lọc that narrows it.
@@ -57,19 +67,39 @@ export type DebtCustomerRow = {
 export function CustomerList({
   customers,
   initialFilter,
+  canEditOpening,
+  today,
+  unassignedPending,
 }: {
   customers: DebtCustomerRow[]
   initialFilter: DebtCustomerFilter
+  canEditOpening: boolean
+  today: string
+  unassignedPending: number
 }) {
   const pathname = usePathname()
   const [filter, setFilter] = useState(initialFilter)
   const shown = useMemo(() => filterDebtCustomers(customers, filter), [customers, filter])
+  const total = useMemo(() => {
+    const sum = { opening: 0, charged: 0, paid: 0, closing: 0 }
+    for (const c of shown) {
+      if (!c.day) continue
+      sum.opening += c.day.opening
+      sum.charged += c.day.charged
+      sum.paid += c.day.paid
+      sum.closing += c.day.closing
+    }
+    return sum
+  }, [shown])
 
   // The one way the filter changes: state and URL move together, so what is on
   // screen and what the address bar claims can't drift apart.
   function apply(next: DebtCustomerFilter) {
     setFilter(next)
-    const params = new URLSearchParams()
+    // Keeps every other param — the chosen day above all.
+    const params = new URLSearchParams(window.location.search)
+    params.delete('q')
+    params.delete('owing')
     if (next.q) params.set('q', next.q)
     if (next.owing) params.set('owing', '1')
     const qs = params.toString()
@@ -163,9 +193,12 @@ export function CustomerList({
           <thead>
             <tr className="text-muted-foreground border-b text-left">
               <th className="p-2">{vi.debts.customer}</th>
-              <th className="p-2">{vi.debts.plate}</th>
               <th className="p-2">{vi.debts.misaCode}</th>
-              <th className="p-2 text-right">{vi.debts.balance}</th>
+              <th className={num}>{vi.debts.openingOfDay}</th>
+              <th className={num}>{vi.debts.chargedOfDay}</th>
+              <th className={num}>{vi.debts.paidOfDay}</th>
+              <th className={num}>{vi.debts.closingOfDay}</th>
+              <th className={num}>{vi.debts.pendingOfDay}</th>
               <th className="p-2"></th>
             </tr>
           </thead>
@@ -179,19 +212,48 @@ export function CustomerList({
                   >
                     {customer.name}
                   </Link>
-                  {customer.phone ? (
-                    <div className="text-muted-foreground text-xs">{customer.phone}</div>
+                  {customer.phone || customer.knownPlates.length ? (
+                    <div className="text-muted-foreground text-xs">
+                      {[customer.phone, customer.knownPlates.join(', ')]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
                   ) : null}
-                </td>
-                <td className="p-2 font-mono text-xs">
-                  {customer.knownPlates.length ? customer.knownPlates.join(', ') : '—'}
                 </td>
                 <td className="p-2 font-mono">
                   {customer.misaCode ?? (
                     <StatusBadge label={vi.debtReview.missingCode} tone="danger" />
                   )}
                 </td>
-                <td className="p-2 text-right font-mono">{formatVND(customer.balance)}</td>
+                {customer.day ? (
+                  <>
+                    <td className={num}>{formatVND(customer.day.opening)}</td>
+                    <td className={num}>
+                      {formatVND(customer.day.charged)}
+                      {customer.day.chargeCount > 0 ? (
+                        <div className="text-muted-foreground text-xs">
+                          {vi.debts.visitsCount(customer.day.chargeCount)}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className={num}>{formatVND(customer.day.paid)}</td>
+                    <td className={`${num} font-semibold`}>{formatVND(customer.day.closing)}</td>
+                  </>
+                ) : (
+                  <>
+                    <td className={num} title={vi.debts.beforeOpening}>
+                      —
+                    </td>
+                    <td className={num}>—</td>
+                    <td className={num}>—</td>
+                    <td className={num}>—</td>
+                  </>
+                )}
+                <td className={`${num} text-muted-foreground text-xs`}>
+                  {customer.pending.count > 0
+                    ? `${vi.debts.visitsCount(customer.pending.count)} · ${formatVND(customer.pending.amount)}`
+                    : '—'}
+                </td>
                 <td className="p-2 text-right whitespace-nowrap">
                   <CustomerForm
                     customer={{
@@ -207,13 +269,41 @@ export function CustomerList({
                       </Button>
                     }
                   />
-                  <PaymentForm customerId={customer.id} customerName={customer.name} />
+                  {canEditOpening ? (
+                    <DebtOpeningForm
+                      customerId={customer.id}
+                      customerName={customer.name}
+                      openingBalance={customer.opening.balance}
+                      openingDate={customer.opening.date}
+                      today={today}
+                    />
+                  ) : null}
                 </td>
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="font-semibold">
+              <td className="p-2" colSpan={2}>
+                {vi.debts.total}
+              </td>
+              <td className={num}>{formatVND(total.opening)}</td>
+              <td className={num}>{formatVND(total.charged)}</td>
+              <td className={num}>{formatVND(total.paid)}</td>
+              <td className={num}>{formatVND(total.closing)}</td>
+              <td colSpan={2}></td>
+            </tr>
+          </tfoot>
         </table>
       )}
+      {unassignedPending > 0 ? (
+        <p className="text-muted-foreground text-sm">
+          {vi.debts.unassignedPending(unassignedPending)}{' '}
+          <Link href="/review/debts" className="underline-offset-2 hover:underline">
+            {vi.debts.goReview}
+          </Link>
+        </p>
+      ) : null}
     </div>
   )
 }
