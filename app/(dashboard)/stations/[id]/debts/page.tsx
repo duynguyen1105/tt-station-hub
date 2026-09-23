@@ -68,12 +68,14 @@ export default async function StationDebtsPage({
     pending.set(v.customerId, { count: sum.count + 1, amount: sum.amount + amount })
   }
 
-  const addButton = (
+  // Người xem reads the sổ; adding or editing a khách is left out for them.
+  const canEdit = user.role !== 'viewer'
+  const addButton = canEdit ? (
     <CustomerForm
       stationId={id}
       trigger={<Button size="sm">+ {vi.debtReview.addCustomer}</Button>}
     />
-  )
+  ) : null
 
   // A trạm with no khách hàng at all has nothing to filter, so it keeps its own
   // empty state rather than reading as a bộ lọc that matched nothing.
@@ -117,6 +119,7 @@ export default async function StationDebtsPage({
           }
         })}
         initialFilter={debtCustomerFilter(query)}
+        canEdit={canEdit}
         canEditOpening={user.role === 'admin'}
         today={today}
         unassignedPending={unassignedPending}

@@ -32,7 +32,9 @@ function byTankNumber(a: { code: string }, b: { code: string }) {
 
 export default async function StationConfigPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  await requireStationAccess(id)
+  const user = await requireStationAccess(id)
+  // Người xem reads the cấu hình; every control that writes is left out for them.
+  const canEdit = user.role !== 'viewer'
 
   const station = await prisma.station.findUnique({ where: { id } })
   if (!station) notFound()
@@ -91,7 +93,11 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
           <h2 className="text-sm font-medium">{vi.misaSettings.fuelAreaLabel}</h2>
           <p className="text-muted-foreground text-sm">{vi.misaSettings.fuelAreaNote}</p>
         </div>
-        <StationFuelAreaForm stationId={id} fuelArea={station.fuelArea} />
+        {canEdit ? (
+          <StationFuelAreaForm stationId={id} fuelArea={station.fuelArea} />
+        ) : (
+          <p className="text-sm">{vi.fuelArea[station.fuelArea]}</p>
+        )}
       </section>
 
       <section className="space-y-2">
@@ -100,7 +106,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
             <h2 className="text-sm font-medium">{vi.misaSettings.fuelMap}</h2>
             <p className="text-muted-foreground text-sm">{vi.misaSettings.fuelMapNote}</p>
           </div>
-          <MisaFuelMapForm stationId={id} addable={addable} />
+          {canEdit && <MisaFuelMapForm stationId={id} addable={addable} />}
         </div>
 
         {rows.length === 0 ? (
@@ -136,17 +142,19 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                   <td className="readout p-2">{entry.warehouseCode}</td>
                   <td className="readout p-2">{entry.unit ?? '—'}</td>
                   <td className="p-2 text-right">
-                    <MisaFuelMapForm
-                      stationId={id}
-                      isActive={isActive}
-                      entry={{
-                        fuelType: entry.fuelType,
-                        productCode: entry.productCode,
-                        productName: entry.productName,
-                        warehouseCode: entry.warehouseCode,
-                        unit: entry.unit,
-                      }}
-                    />
+                    {canEdit && (
+                      <MisaFuelMapForm
+                        stationId={id}
+                        isActive={isActive}
+                        entry={{
+                          fuelType: entry.fuelType,
+                          productCode: entry.productCode,
+                          productName: entry.productName,
+                          warehouseCode: entry.warehouseCode,
+                          unit: entry.unit,
+                        }}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}
@@ -162,7 +170,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
             <p className="text-muted-foreground text-sm">{vi.dispensers.note}</p>
           </div>
           {/* A trụ is added from the menu of the hầm it draws from. */}
-          <TankForm stationId={id} fuels={sold} tanks={tankOptions} />
+          {canEdit && <TankForm stationId={id} fuels={sold} tanks={tankOptions} />}
         </div>
 
         {tanks.length === 0 && untanked.length === 0 ? (
@@ -192,18 +200,20 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                     {tank.capacityK === null ? '—' : `${tank.capacityK}K`}
                   </td>
                   <td className="p-2 text-right">
-                    <TankForm
-                      stationId={id}
-                      fuels={sold}
-                      tanks={tankOptions}
-                      tank={{
-                        id: tank.id,
-                        name: tank.name,
-                        fuel: tank.fuel,
-                        capacityK: tank.capacityK,
-                        dispenserNames: tank.dispensers.map((d) => d.displayName),
-                      }}
-                    />
+                    {canEdit && (
+                      <TankForm
+                        stationId={id}
+                        fuels={sold}
+                        tanks={tankOptions}
+                        tank={{
+                          id: tank.id,
+                          name: tank.name,
+                          fuel: tank.fuel,
+                          capacityK: tank.capacityK,
+                          dispenserNames: tank.dispensers.map((d) => d.displayName),
+                        }}
+                      />
+                    )}
                   </td>
                 </tr>
                 {tank.dispensers.length === 0 ? (
@@ -220,6 +230,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                       fuels={sold}
                       tanks={tankOptions}
                       dispenser={{ ...dispenser, fuel: fuelOf(dispenser.fuelType) }}
+                      canEdit={canEdit}
                     />
                   ))
                 )}
@@ -239,6 +250,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                     fuels={sold}
                     tanks={tankOptions}
                     dispenser={{ ...dispenser, fuel: fuelOf(dispenser.fuelType) }}
+                    canEdit={canEdit}
                     showFuel
                   />
                 ))}
@@ -261,9 +273,11 @@ function DispenserTableRow({
   fuels,
   tanks,
   dispenser,
+  canEdit,
   showFuel = false,
 }: Pick<ComponentProps<typeof DispenserForm>, 'stationId' | 'fuels' | 'tanks'> & {
   dispenser: DispenserRow
+  canEdit: boolean
   showFuel?: boolean
 }) {
   return (
@@ -280,20 +294,22 @@ function DispenserTableRow({
       <td className="p-2">{showFuel && dispenser.fuel.name}</td>
       <td className="p-2"></td>
       <td className="p-2 text-right">
-        <DispenserForm
-          stationId={stationId}
-          fuels={fuels}
-          tanks={tanks}
-          dispenser={{
-            id: dispenser.id,
-            displayName: dispenser.displayName,
-            fuel: dispenser.fuel,
-            tankId: dispenser.tankId,
-            hasElectronicMeter: dispenser.hasElectronicMeter,
-            hasMechanicalMeter: dispenser.hasMechanicalMeter,
-            isActive: dispenser.isActive,
-          }}
-        />
+        {canEdit && (
+          <DispenserForm
+            stationId={stationId}
+            fuels={fuels}
+            tanks={tanks}
+            dispenser={{
+              id: dispenser.id,
+              displayName: dispenser.displayName,
+              fuel: dispenser.fuel,
+              tankId: dispenser.tankId,
+              hasElectronicMeter: dispenser.hasElectronicMeter,
+              hasMechanicalMeter: dispenser.hasMechanicalMeter,
+              isActive: dispenser.isActive,
+            }}
+          />
+        )}
       </td>
     </tr>
   )

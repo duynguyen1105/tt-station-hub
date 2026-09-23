@@ -67,12 +67,15 @@ const num = 'p-2 text-right font-mono whitespace-nowrap'
 export function CustomerList({
   customers,
   initialFilter,
+  canEdit,
   canEditOpening,
   today,
   unassignedPending,
 }: {
   customers: DebtCustomerRow[]
   initialFilter: DebtCustomerFilter
+  /** Thêm / Sửa khách hàng: false for người xem. */
+  canEdit: boolean
   canEditOpening: boolean
   today: string
   unassignedPending: number
@@ -255,20 +258,22 @@ export function CustomerList({
                     : '—'}
                 </td>
                 <td className="p-2 text-right whitespace-nowrap">
-                  <CustomerForm
-                    customer={{
-                      id: customer.id,
-                      name: customer.name,
-                      phone: customer.phone,
-                      misaCode: customer.misaCode,
-                      knownPlates: customer.knownPlates,
-                    }}
-                    trigger={
-                      <Button size="sm" variant="ghost">
-                        {vi.common.edit}
-                      </Button>
-                    }
-                  />
+                  {canEdit ? (
+                    <CustomerForm
+                      customer={{
+                        id: customer.id,
+                        name: customer.name,
+                        phone: customer.phone,
+                        misaCode: customer.misaCode,
+                        knownPlates: customer.knownPlates,
+                      }}
+                      trigger={
+                        <Button size="sm" variant="ghost">
+                          {vi.common.edit}
+                        </Button>
+                      }
+                    />
+                  ) : null}
                   {canEditOpening ? (
                     <DebtOpeningForm
                       customerId={customer.id}
