@@ -53,10 +53,12 @@ Việt Nam "6.000" / "34,5") và tự điền vào form. Nếu không muốn dù
 - **a. Ngăn xe bồn 1-5:** số lít, vị trí lưỡi gà, lít bơm bù, nhiệt độ trên xe.
 - **b. Kiểm tra phương tiện:** tình trạng hàng hóa (nước, cặn).
 - **c. Kiểm tra hầm:** trước/sau nhập (nhiệt độ, chiều cao mm, SL sổ sách, SL
-  barem) + cột **"Nhập vào hầm (lít)"** — chính số này được cộng vào tồn kho,
-  mỗi hầm có nhận hàng sinh một phiếu nhập riêng. **SL barem và Nhập vào hầm
-  do app tự tra từ Barem của Trường Thịnh**, xem mục _Barem: từ chiều cao ra số
-  lít_ bên dưới. Dòng nào thuộc hầm nào: xem _Dòng trên giấy thuộc hầm nào_.
+  barem) + cột **"Nhập vào sổ (lít)"** — **kế toán tự gõ**, chính số này được cộng
+  vào tồn kho, mỗi hầm có nhận hàng sinh một phiếu nhập riêng. **SL barem do app tự
+  tra từ Barem của Trường Thịnh**; số lít hầm đo được theo Barem (SL barem sau −
+  trước) chỉ hiện **bên dưới ô để tham khảo**, cùng số trên phiếu giao — không bao
+  giờ tự ghi sổ. Xem mục _Barem: từ chiều cao ra số lít_ bên dưới. Dòng nào thuộc
+  hầm nào: xem _Dòng trên giấy thuộc hầm nào_.
 - **d. Trụ bơm:** **mỗi trụ của trạm một dòng** (kể cả trụ AI đọc không ra —
   dòng trống vẫn hiện, vì thiếu một dòng là mất luôn bằng chứng trụ đó đứng yên),
   total điện tử + cơ trước/sau, kèm cột **chênh lệch tự tính** — phải bằng 0
@@ -142,8 +144,8 @@ nhiên liệu + dung tích khi giấy không đánh số. Danh sách hầm để
 (`lib/imports/station-rosters.ts`) khi chưa — hàng về trạm chưa cấu hình vẫn khớp
 được.
 
-- **Khớp được** → đúng dòng của hầm đó: tra Barem, điền SL barem và Nhập vào hầm,
-  xác nhận thì sinh phiếu nhập và tồn kho tăng.
+- **Khớp được** → đúng dòng của hầm đó: tra Barem, điền SL barem; kế toán gõ Nhập
+  vào sổ, xác nhận thì sinh phiếu nhập và tồn kho tăng.
 - **Không khớp được** → dòng vẫn giữ nguyên chiều cao, nhiệt độ, SL sổ sách và
   hiện lý do tiếng Việt: _"Số hầm trùng trên biên bản"_ (hai hầm cùng ghi `3.` như
   HTGDONGNAI), _"Nhiên liệu / dung tích không khớp cấu hình hầm"_, _"Không xác
@@ -164,7 +166,7 @@ vẫn hiện thành **dòng trống** để nhân viên điền, chứ không bi
 `dispensers.tank_code` cho biết mỗi trụ hút từ hầm nào. Nên khi một trụ có chênh
 lệch khác 0, app báo ngay **trên dòng hầm đó ở mục (c)**: _"Trụ 2 chạy 12 L trong
 lúc nhập — số đo hầm này có thể sai"_. Nghĩa là trong lúc đo chiều cao thì xăng
-dầu vẫn đang ra khỏi hầm, nên **số "Nhập vào hầm" của dòng đó không đáng tin**.
+dầu vẫn đang ra khỏi hầm, nên **số lít đo theo Barem của dòng đó không đáng tin**.
 
 Đây là **cảnh báo, không phải khóa**: biên bản vẫn xác nhận và lưu được, vẫn sinh
 phiếu nhập. Giấy là chứng từ pháp lý, người ký mới là người quyết định — app chỉ
@@ -191,12 +193,12 @@ tra, hoặc mở lại form.)
   milimét**, không nội suy). Số AI đọc được trên giấy vẫn giữ nguyên trong
   `raw_extract`; nếu **lệch ≥ 1 lít** so với Barem thì hiện **đỏ** ngay dưới ô
   ("Giấy ghi …") để soát lại — chép sai số trong sổ trạm là chuyện có thật.
-- **Nhập vào hầm (lít) = SL barem sau − SL barem trước** — tức số lít **hầm thực
-  nhận**, không phải số nhà cung cấp khai. Số lượng trên phiếu giao của mặt hàng
-  tương ứng hiện **bên cạnh để đối chiếu** ("Phiếu giao …"), giao thiếu là thấy
-  ngay.
-- **Mức hầm không tăng thì không điền gì.** Bằng 0 (hầm không nhận hàng) để trống,
-  không báo lỗi. **Giảm** thì để trống ô và hiện số chênh **màu đỏ** — hầm tụt
+- **Barem (lít) = SL barem sau − SL barem trước** — số lít **hầm đo được**, hiện dưới
+  ô Nhập vào sổ để **đối chiếu**, cùng số lượng trên phiếu giao của mặt hàng tương
+  ứng ("Phiếu giao …"). Số ghi sổ là số kế toán gõ vào **Nhập vào sổ (lít)** — hầm đo
+  7.635 L mà ghi sổ số khác là chuyện có thật (báo cáo L2 của Trường Thịnh).
+- **Mức hầm không tăng thì không có số Barem tham khảo.** Bằng 0 (hầm không nhận
+  hàng) để trống, không báo lỗi. **Giảm** thì hiện số chênh **màu đỏ** — hầm tụt
   trong khi chênh lệch trụ bơm (mục d) bằng 0 là bất thường, phải dừng lại xem.
 - **Chiều cao Barem không trả lời được** thì ô để trống kèm lý do tiếng Việt trên
   dòng: _"Ngoài phạm vi barem"_, _"Không có barem cho chiều cao này"_, _"Chưa có
@@ -208,11 +210,12 @@ tra, hoặc mở lại form.)
   quản trị viên"_. Các ô SL barem để trống, kế toán tự gõ số lít, **biên bản vẫn
   lưu được**. Câu này khác _"Chưa có barem cho hầm này"_ có chủ đích: lỗi ở tài
   liệu, việc của quản trị viên, không phải ở cái hầm.
-- **Sửa chiều cao thì cả dòng tra lại**: hai ô SL barem và ô Nhập vào hầm. Nhờ vậy
-  một lần đọc trang tính lỗi tạm thời tự hết khi kế toán sửa lại chiều cao.
-- Mọi số app điền đều **gõ đè được**. Cái kế toán xác nhận mới là cái được lưu và
-  cộng vào tồn kho; hầm không có số nhập thì không sinh phiếu. Xóa trắng ô thì
-  app điền lại số của Barem — muốn hầm **không** sinh phiếu thì gõ `0`.
+- **Sửa chiều cao thì cả dòng tra lại**: hai ô SL barem và số Barem tham khảo. Nhờ
+  vậy một lần đọc trang tính lỗi tạm thời tự hết khi kế toán sửa lại chiều cao.
+- SL barem **gõ đè được**. Chỉ số trong ô **Nhập vào sổ** được lưu và cộng vào tồn
+  kho; hầm không có số nhập thì không sinh phiếu. Hầm có số Barem (mức hầm tăng) mà ô
+  Nhập vào sổ bỏ trống thì không xác nhận được: _"Nhập số lít vào sổ cho … (mục c)."_
+  — muốn hầm **không** sinh phiếu thì gõ `0`.
 - Số đã lưu là **bản chụp tại thời điểm xác nhận**: sửa trang tính sau này **không**
   sửa biên bản cũ.
 

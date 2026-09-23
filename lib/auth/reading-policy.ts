@@ -75,9 +75,10 @@ export function canCreateReading(role: AppRole, shiftStatus: ShiftStatus): boole
 }
 
 /**
- * Editing a ca's Thu chi tiền mặt – Khách CK note — admin and accountant at any status,
- * viewer never. Unlike the closing rule, chốt ca does not lock it: the rows are a note
- * nothing on the ca is derived from, so kế toán may keep filling it in after chốt.
+ * Editing a ca's Thu chi tiền mặt – Khách CK table — admin and accountant at any
+ * status, viewer never. Unlike the closing rule, chốt ca does not lock it, so kế toán
+ * may keep filling it in after chốt. Not a harmless note: a Thu row naming a khách hàng
+ * is that khách's thu nợ, so saving the table rewrites the ca's payments in the sổ.
  */
 export function canEditCashEntries(role: AppRole): boolean {
   return role === 'admin' || role === 'accountant'
