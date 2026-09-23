@@ -771,8 +771,11 @@ export const vi = {
     heightMm: 'Cao (mm)',
     bookLiters: 'SL sổ sách',
     baremLiters: 'SL barem',
-    importedLiters: 'Nhập vào hầm (lít)',
-    // SL barem + Nhập vào hầm come from Trường Thịnh's Barem, not from the paper
+    importedLiters: 'Nhập vào sổ (lít)',
+    // Số lít vào sổ sách do kế toán gõ; barem và phiếu giao chỉ để tham khảo.
+    baremIntake: 'Barem',
+    bookLitersRequired: (tank: string) => `Nhập số lít vào sổ cho ${tank} (mục c).`,
+    // SL barem comes from Trường Thịnh's Barem, not from the paper
     baremOutOfRange: 'Ngoài phạm vi barem',
     baremMissingPoint: 'Không có barem cho chiều cao này',
     baremUnknownTank: 'Chưa có barem cho hầm này',

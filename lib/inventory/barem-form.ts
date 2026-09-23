@@ -2,11 +2,12 @@
 // litres fill the SL barem cells, what the Hầm itself measured as its intake,
 // and where the paper disagrees with either.
 //
-// ADR 0002 — the measured intake outranks the paper: the cells carry the
-// Barem's figures rather than the AI's reading of the handwriting, and "Nhập
-// vào hầm" is barem(after) − barem(before) rather than the delivery note's
-// quantity. Both stay overtypable in the form; this module only decides what is
-// offered. It reads no database and has no side effects.
+// ADR 0002 — the SL barem cells carry the Barem's figures rather than the AI's
+// reading of the handwriting, and stay overtypable. What the Hầm measured,
+// barem(after) − barem(before), is kept as the REFERENCE beside "Nhập vào sổ":
+// the litres that enter the sổ sách are typed by the kế toán (Trường Thịnh L2
+// report — 7,635 L measured, a different figure booked). This module only decides
+// what is offered. It reads no database and has no side effects.
 import { type FuelWordResolver } from '@/lib/fuels/catalogue'
 import { parseVnNumber } from '@/lib/imports/bien-ban'
 
@@ -33,8 +34,6 @@ export type TankBaremResolution = {
   /** The paper's figure, shown only where it disagrees with the Barem. */
   paperBefore: number | null
   paperAfter: number | null
-  /** Litres for "Nhập vào hầm"; null fills nothing. */
-  intakeLiters: number | null
   /** Why the Barem could not answer — one entry per distinct reason, so a row
    *  that fails the same way on both sides says so once. */
   reasons: BaremRefusal[]
@@ -50,7 +49,6 @@ export function resolveTankBarem(input: TankBaremInput): TankBaremResolution {
     baremAfter: input.after?.ok ? input.after.liters : null,
     paperBefore: paperDisagreement(input.before, input.paperBaremBefore),
     paperAfter: paperDisagreement(input.after, input.paperBaremAfter),
-    intakeLiters: intake?.fill ? intake.liters : null,
     reasons: [...new Set([input.before, input.after].flatMap(refusalOf))],
     fellLiters: intake && !intake.fill && intake.reason === 'tank-fell' ? intake.deltaLiters : null,
   }
@@ -94,11 +92,21 @@ export function savedCell(typed: string, computed: number | null): number | null
   return typed === '' ? computed : parseVnNumber(typed)
 }
 
+/**
+ * What the Hầm measured it received: SL barem sau − SL barem trước, from the cells
+ * as they stand (or as they were saved). A reference shown beside the booked
+ * litres, never booked itself; null unless both sides are known and the level rose.
+ */
+export function baremIntakeOf(before: number | null, after: number | null): number | null {
+  if (before === null || after === null || after <= before) return null
+  return after - before
+}
+
 export type DeliveryNoteProduct = { productLabel: string; quantityLiters: number | null }
 
 /**
  * The delivery note's quantity for what a Hầm holds — displayed beside the
- * measured intake as the comparison, never as the value (ADR 0002). Exactly one
+ * booked litres as a comparison, never as the value. Exactly one
  * column must name the Hầm's fuel: two columns of the same fuel leave the
  * attribution to the reviewer rather than to a guess here.
  *

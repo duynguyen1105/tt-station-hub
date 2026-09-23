@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDateTime, formatLiters } from '@/lib/format'
 import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
+import { baremIntakeOf } from '@/lib/inventory/barem-form'
 import { prisma } from '@/lib/prisma'
 import { REVIEW_URL_TTL_SECONDS, signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
@@ -294,7 +295,7 @@ export default async function ImportReceiptPage({
                   <th className="border-l p-2 text-center" colSpan={4}>
                     {vi.imports.after}
                   </th>
-                  <th className="border-l p-2" colSpan={2}></th>
+                  <th className="border-l p-2" colSpan={3}></th>
                 </tr>
                 <tr className="text-muted-foreground border-b text-left">
                   <th className="p-2">{vi.inventory.tank}</th>
@@ -306,28 +307,36 @@ export default async function ImportReceiptPage({
                   <th className="p-2">{vi.imports.heightMm}</th>
                   <th className="p-2">{vi.imports.bookLiters}</th>
                   <th className="p-2">{vi.imports.baremLiters}</th>
-                  <th className="border-l p-2 text-right">{vi.imports.importedLiters}</th>
+                  <th className="border-l p-2 text-right">{vi.imports.baremIntake}</th>
+                  <th className="p-2 text-right">{vi.imports.importedLiters}</th>
                   <th className="p-2">{vi.inventory.fuelType}</th>
                 </tr>
               </thead>
               <tbody>
-                {tanks.map((t, i) => (
-                  <tr key={i} className="border-b">
-                    <td className="p-2 font-medium whitespace-nowrap">{cell(t.tankLabel)}</td>
-                    <td className="border-l p-2 font-mono">{cell(t.before.temperatureC)}</td>
-                    <td className="p-2 font-mono">{cell(t.before.heightMm)}</td>
-                    <td className="p-2 font-mono">{cell(t.before.bookLiters)}</td>
-                    <td className="p-2 font-mono">{cell(t.before.baremLiters)}</td>
-                    <td className="border-l p-2 font-mono">{cell(t.after.temperatureC)}</td>
-                    <td className="p-2 font-mono">{cell(t.after.heightMm)}</td>
-                    <td className="p-2 font-mono">{cell(t.after.bookLiters)}</td>
-                    <td className="p-2 font-mono">{cell(t.after.baremLiters)}</td>
-                    <td className="border-l p-2 text-right font-mono font-semibold">
-                      {t.importedLiters === null ? '—' : formatLiters(t.importedLiters)}
-                    </td>
-                    <td className="p-2">{t.fuelType ? fuelLabel(t.fuelType) : '—'}</td>
-                  </tr>
-                ))}
+                {tanks.map((t, i) => {
+                  const barem = baremIntakeOf(t.before.baremLiters, t.after.baremLiters)
+                  return (
+                    <tr key={i} className="border-b">
+                      <td className="p-2 font-medium whitespace-nowrap">{cell(t.tankLabel)}</td>
+                      <td className="border-l p-2 font-mono">{cell(t.before.temperatureC)}</td>
+                      <td className="p-2 font-mono">{cell(t.before.heightMm)}</td>
+                      <td className="p-2 font-mono">{cell(t.before.bookLiters)}</td>
+                      <td className="p-2 font-mono">{cell(t.before.baremLiters)}</td>
+                      <td className="border-l p-2 font-mono">{cell(t.after.temperatureC)}</td>
+                      <td className="p-2 font-mono">{cell(t.after.heightMm)}</td>
+                      <td className="p-2 font-mono">{cell(t.after.bookLiters)}</td>
+                      <td className="p-2 font-mono">{cell(t.after.baremLiters)}</td>
+                      {/* The Hầm's measured intake, for reference; only the next cell was booked */}
+                      <td className="text-muted-foreground border-l p-2 text-right font-mono">
+                        {barem === null ? '—' : formatLiters(barem)}
+                      </td>
+                      <td className="p-2 text-right font-mono font-semibold">
+                        {t.importedLiters === null ? '—' : formatLiters(t.importedLiters)}
+                      </td>
+                      <td className="p-2">{t.fuelType ? fuelLabel(t.fuelType) : '—'}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

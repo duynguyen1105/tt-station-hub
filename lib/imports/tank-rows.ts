@@ -2,8 +2,9 @@
 //
 // The Trạm's own Hầm come first, as they always have. Every row the biên bản
 // printed is then run through the binding ladder (ADR 0004): a bound row is that
-// Hầm's row — its heights resolve against the Barem, "Nhập vào hầm" is measured
-// from them, and confirming creates a phiếu nhập (ADR 0002). An unbound row
+// Hầm's row — its heights resolve against the Barem, the measured intake is shown
+// as a reference, and confirming books the kế toán's "Nhập vào sổ" as a phiếu nhập
+// (ADR 0002). An unbound row
 // keeps everything the paper said and carries the reason it could not be
 // attributed; it produces no Barem lookup and no phiếu nhập, and it never stops
 // the biên bản — the legal record — from being saved.

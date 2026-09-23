@@ -7,6 +7,7 @@ import {
 } from '@/lib/fuels/catalogue'
 import { type BaremLookup, type BaremRefusal } from '@/lib/inventory/barem'
 import {
+  baremIntakeOf,
   deliveryNoteLiters,
   resolveTankBarem,
   savedCell,
@@ -32,12 +33,11 @@ function row(input: Partial<Parameters<typeof resolveTankBarem>[0]> = {}) {
 }
 
 describe('resolveTankBarem', () => {
-  it('fills both SL barem cells and the intake when the level rose', () => {
+  it('fills both SL barem cells when the level rose', () => {
     // DAKNONG1 Hầm 3 as imported: 1200 mm → 12,358 L, 1600 mm → 17,563 L.
     const resolved = row({ before: found(12358), after: found(17563) })
     expect(resolved.baremBefore).toBe(12358)
     expect(resolved.baremAfter).toBe(17563)
-    expect(resolved.intakeLiters).toBe(5205)
     expect(resolved.reasons).toEqual([])
     expect(resolved.fellLiters).toBeNull()
   })
@@ -75,28 +75,24 @@ describe('resolveTankBarem', () => {
     const resolved = row({ after: found(17563) })
     expect(resolved.baremBefore).toBeNull()
     expect(resolved.baremAfter).toBe(17563)
-    expect(resolved.intakeLiters).toBeNull()
     expect(resolved.reasons).toEqual([])
     expect(resolved.fellLiters).toBeNull()
   })
 
   it('leaves a tank that took nothing empty and unremarked', () => {
     const resolved = row({ before: found(12358), after: found(12358) })
-    expect(resolved.intakeLiters).toBeNull()
     expect(resolved.fellLiters).toBeNull()
     expect(resolved.reasons).toEqual([])
   })
 
   it('reports the drop and fills nothing when the level fell', () => {
     const resolved = row({ before: found(17563), after: found(12358) })
-    expect(resolved.intakeLiters).toBeNull()
     expect(resolved.fellLiters).toBe(-5205)
   })
 
   it('names a refusal once when both heights fail the same way', () => {
     const resolved = row({ before: refused('unknown-tank'), after: refused('unknown-tank') })
     expect(resolved.reasons).toEqual(['unknown-tank'])
-    expect(resolved.intakeLiters).toBeNull()
   })
 
   it('keeps the side that resolved when only the other refuses', () => {
@@ -104,7 +100,20 @@ describe('resolveTankBarem', () => {
     expect(resolved.baremBefore).toBe(12358)
     expect(resolved.baremAfter).toBeNull()
     expect(resolved.reasons).toEqual(['above-maximum'])
-    expect(resolved.intakeLiters).toBeNull()
+  })
+})
+
+describe('baremIntakeOf', () => {
+  it('is SL barem sau − SL barem trước (DAKNONG1 15/09: 7,943 → 15,578)', () => {
+    // The 7,635 L the L2 report asks to keep as reference, not to book.
+    expect(baremIntakeOf(7943, 15578)).toBe(7635)
+  })
+
+  it('names no intake while a side is unknown, or when the level did not rise', () => {
+    expect(baremIntakeOf(null, 15578)).toBeNull()
+    expect(baremIntakeOf(7943, null)).toBeNull()
+    expect(baremIntakeOf(12358, 12358)).toBeNull()
+    expect(baremIntakeOf(17563, 12358)).toBeNull()
   })
 })
 

@@ -56,6 +56,7 @@ import { type StationMismatch, type StationOnPaper } from '@/lib/imports/station
 import { reviewTankRows } from '@/lib/imports/tank-rows'
 import { type BaremLookup, type BaremLookupResult, type BaremRefusal } from '@/lib/inventory/barem'
 import {
+  baremIntakeOf,
   deliveryNoteLiters,
   resolveTankBarem,
   savedCell,
@@ -217,9 +218,9 @@ function applyExtraction(
     before: row.checks ? sideCells(row.checks.before) : emptySide(),
     after: row.checks ? sideCells(row.checks.after) : emptySide(),
   }))
-  // "Nhập vào hầm" is no longer copied from the delivery note: it is the Hầm's
-  // own measurement, barem(after) − barem(before), filled once the heights
-  // resolve (ADR 0002). The note's quantity is shown beside it as the comparison.
+  // "Nhập vào sổ" starts empty: the litres booked are the kế toán's own figure. The
+  // Hầm's measurement, barem(after) − barem(before), and the delivery note's
+  // quantity are shown beside it as references only.
 
   const pumps = formPumpRows(stationPumps, extraction.pumps, paperPumps)
 
@@ -457,14 +458,21 @@ export function FuelImportForm({
     return tankRows.map((row) => {
       const before = sideLookup(row, 'before', baremCache)
       const after = sideLookup(row, 'after', baremCache)
+      const barem = resolveTankBarem({
+        before,
+        after,
+        paperBaremBefore: row.before.paperBaremLiters,
+        paperBaremAfter: row.after.paperBaremLiters,
+      })
       return {
         row,
-        barem: resolveTankBarem({
-          before,
-          after,
-          paperBaremBefore: row.before.paperBaremLiters,
-          paperBaremAfter: row.after.paperBaremLiters,
-        }),
+        barem,
+        // The measured intake, from the SL barem cells as they stand — the same rule
+        // the saved phiếu nhập reads back, so both always show the same figure.
+        baremIntake: baremIntakeOf(
+          savedCell(row.before.baremLiters, barem.baremBefore),
+          savedCell(row.after.baremLiters, barem.baremAfter)
+        ),
         deliveryLiters: deliveryNoteLiters(noteProducts, row.fuelType || null, resolveFuel),
         // A height typed but not yet answered — the cells are blank for a moment.
         asking:
@@ -593,7 +601,8 @@ export function FuelImportForm({
         tankLabel: t.tankLabel || t.tankCode || '—',
         tankCode: t.tankCode || null,
         fuelType: t.fuelType || null,
-        importedLiters: savedCell(t.importedLiters, barem.intakeLiters),
+        // The kế toán's figure, and only theirs — the barem intake is never booked.
+        importedLiters: parseVnNumber(t.importedLiters),
         before: {
           temperatureC: parseVnNumber(t.before.temperatureC),
           heightMm: parseVnNumber(t.before.heightMm),
@@ -608,6 +617,16 @@ export function FuelImportForm({
         },
       }
     })
+    // A Hầm the Barem says received fuel must have its booked litres typed: left
+    // blank it would book nothing, and the delivery would silently miss the sổ.
+    const unbooked = resolvedRows.find(
+      ({ row: t, baremIntake }) =>
+        t.tankCode && baremIntake !== null && t.importedLiters.trim() === ''
+    )
+    if (unbooked) {
+      toast.error(vi.imports.bookLitersRequired(unbooked.row.tankLabel || unbooked.row.tankCode))
+      return
+    }
     const receiving = tanksPayload.filter(
       (t) => t.tankCode && t.importedLiters !== null && t.importedLiters > 0
     )
@@ -981,190 +1000,203 @@ export function FuelImportForm({
                     </tr>
                   </thead>
                   <tbody>
-                    {resolvedRows.map(({ row: t, barem, deliveryLiters, asking }, i) => {
-                      const intakeCell = shownCell(t.importedLiters, barem.intakeLiters)
-                      // The Trụ that were running while this Hầm was measured.
-                      const taint = t.tankCode ? taints.get(t.tankCode) : undefined
-                      const updateSide =
-                        (side: 'before' | 'after', key: 'temperatureC' | 'bookLiters') =>
-                        (e: ChangeEvent<HTMLInputElement>) =>
-                          setTankRows((prev) =>
-                            prev.map((row, j) =>
-                              j === i
-                                ? { ...row, [side]: { ...row[side], [key]: e.target.value } }
-                                : row
-                            )
-                          )
-                      // A corrected height re-resolves the row: the side's SL barem
-                      // and the intake go back to whatever the Barem now says.
-                      const updateHeight =
-                        (side: 'before' | 'after') => (e: ChangeEvent<HTMLInputElement>) =>
-                          setTankRows((prev) =>
-                            prev.map((row, j) =>
-                              j === i
-                                ? {
-                                    ...row,
-                                    importedLiters: '',
-                                    [side]: {
-                                      ...row[side],
-                                      heightMm: e.target.value,
-                                      baremLiters: '',
-                                    },
-                                  }
-                                : row
-                            )
-                          )
-                      const updateBarem =
-                        (side: 'before' | 'after') => (e: ChangeEvent<HTMLInputElement>) =>
-                          setTankRows((prev) =>
-                            prev.map((row, j) =>
-                              j === i
-                                ? { ...row, [side]: { ...row[side], baremLiters: e.target.value } }
-                                : row
-                            )
-                          )
-                      return (
-                        <Fragment key={i}>
-                          <tr>
-                            <td className="p-1 font-medium whitespace-nowrap">{t.tankLabel}</td>
-                            {(['before', 'after'] as const).map((side) => {
-                              const paper = side === 'before' ? barem.paperBefore : barem.paperAfter
-                              const computed =
-                                side === 'before' ? barem.baremBefore : barem.baremAfter
-                              return (
-                                <Fragment key={side}>
-                                  <td className="border-l p-1">
-                                    <Input
-                                      className={cellClass}
-                                      value={t[side].temperatureC}
-                                      onChange={updateSide(side, 'temperatureC')}
-                                    />
-                                  </td>
-                                  <td className="p-1">
-                                    <Input
-                                      className={cellClass}
-                                      value={t[side].heightMm}
-                                      onChange={updateHeight(side)}
-                                    />
-                                  </td>
-                                  <td className="p-1">
-                                    <Input
-                                      className={cellClass}
-                                      value={t[side].bookLiters}
-                                      onChange={updateSide(side, 'bookLiters')}
-                                    />
-                                  </td>
-                                  <td className="p-1">
-                                    <Input
-                                      className={cellClass}
-                                      value={shownCell(t[side].baremLiters, computed)}
-                                      onChange={updateBarem(side)}
-                                    />
-                                    {/* What the station's book says, where it and the Barem disagree */}
-                                    {paper !== null && (
-                                      <div className="text-destructive mt-0.5 text-[10px] whitespace-nowrap">
-                                        {vi.imports.baremOnPaper} {baremLitersText(paper)}
-                                      </div>
-                                    )}
-                                  </td>
-                                </Fragment>
+                    {resolvedRows.map(
+                      ({ row: t, barem, baremIntake, deliveryLiters, asking }, i) => {
+                        // The Trụ that were running while this Hầm was measured.
+                        const taint = t.tankCode ? taints.get(t.tankCode) : undefined
+                        const updateSide =
+                          (side: 'before' | 'after', key: 'temperatureC' | 'bookLiters') =>
+                          (e: ChangeEvent<HTMLInputElement>) =>
+                            setTankRows((prev) =>
+                              prev.map((row, j) =>
+                                j === i
+                                  ? { ...row, [side]: { ...row[side], [key]: e.target.value } }
+                                  : row
                               )
-                            })}
-                            <td className="border-l p-1">
-                              <Input
-                                className={`${cellClass} font-semibold`}
-                                value={intakeCell}
-                                onChange={(e) =>
-                                  setTankRows((prev) =>
-                                    prev.map((row, j) =>
-                                      j === i ? { ...row, importedLiters: e.target.value } : row
-                                    )
-                                  )
-                                }
-                              />
-                              {/* The delivery note's claim, for comparison — never the value */}
-                              {deliveryLiters !== null && (
-                                <div className="text-muted-foreground mt-0.5 text-[10px] whitespace-nowrap">
-                                  {vi.imports.deliveryNote} {baremLitersText(deliveryLiters)}
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-1">
-                              <Select
-                                value={t.fuelType}
-                                onValueChange={(value) =>
-                                  setTankRows((prev) =>
-                                    prev.map((row, j) =>
-                                      j === i ? { ...row, fuelType: value } : row
-                                    )
-                                  )
-                                }
-                              >
-                                <SelectTrigger className="h-8 w-28 text-xs">
-                                  <SelectValue placeholder={vi.inventory.fuelType} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {fuels.map((fuel) => (
-                                    <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
-                                      {fuel.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </td>
-                          </tr>
-                          {/* Why a cell is empty, and the reading that should not be */}
-                          {(barem.fellLiters !== null ||
-                            barem.reasons.length > 0 ||
-                            t.refusal !== null ||
-                            taint !== undefined ||
-                            asking) && (
+                            )
+                        // A corrected height re-resolves the side's SL barem (and so the
+                        // barem reference); the booked litres the kế toán typed stay theirs.
+                        const updateHeight =
+                          (side: 'before' | 'after') => (e: ChangeEvent<HTMLInputElement>) =>
+                            setTankRows((prev) =>
+                              prev.map((row, j) =>
+                                j === i
+                                  ? {
+                                      ...row,
+                                      [side]: {
+                                        ...row[side],
+                                        heightMm: e.target.value,
+                                        baremLiters: '',
+                                      },
+                                    }
+                                  : row
+                              )
+                            )
+                        const updateBarem =
+                          (side: 'before' | 'after') => (e: ChangeEvent<HTMLInputElement>) =>
+                            setTankRows((prev) =>
+                              prev.map((row, j) =>
+                                j === i
+                                  ? {
+                                      ...row,
+                                      [side]: { ...row[side], baremLiters: e.target.value },
+                                    }
+                                  : row
+                              )
+                            )
+                        return (
+                          <Fragment key={i}>
                             <tr>
-                              <td></td>
-                              <td colSpan={10} className="space-x-3 border-l px-1 pb-1 text-[11px]">
-                                {/* No Hầm, so no barem and no phiếu nhập — the row
-                                    still keeps everything the paper said. */}
-                                {t.refusal !== null && (
-                                  <span className="text-destructive font-medium">
-                                    {bindingText(t.refusal)}
-                                  </span>
-                                )}
-                                {barem.fellLiters !== null && (
-                                  <span className="text-destructive font-medium">
-                                    {vi.imports.baremTankFell} {baremLitersText(barem.fellLiters)} L
-                                  </span>
-                                )}
-                                {/* Fuel left this Hầm while it was being measured
-                                    (mục d) — a cue, never a block on lưu. */}
-                                {taint !== undefined && (
-                                  <span className="text-destructive font-medium">
-                                    {taint
-                                      .map(
-                                        (moved) =>
-                                          `${pumpName(moved.pumpCode)} ${vi.imports.pumpMoved} ${baremLitersText(moved.liters)} L`
+                              <td className="p-1 font-medium whitespace-nowrap">{t.tankLabel}</td>
+                              {(['before', 'after'] as const).map((side) => {
+                                const paper =
+                                  side === 'before' ? barem.paperBefore : barem.paperAfter
+                                const computed =
+                                  side === 'before' ? barem.baremBefore : barem.baremAfter
+                                return (
+                                  <Fragment key={side}>
+                                    <td className="border-l p-1">
+                                      <Input
+                                        className={cellClass}
+                                        value={t[side].temperatureC}
+                                        onChange={updateSide(side, 'temperatureC')}
+                                      />
+                                    </td>
+                                    <td className="p-1">
+                                      <Input
+                                        className={cellClass}
+                                        value={t[side].heightMm}
+                                        onChange={updateHeight(side)}
+                                      />
+                                    </td>
+                                    <td className="p-1">
+                                      <Input
+                                        className={cellClass}
+                                        value={t[side].bookLiters}
+                                        onChange={updateSide(side, 'bookLiters')}
+                                      />
+                                    </td>
+                                    <td className="p-1">
+                                      <Input
+                                        className={cellClass}
+                                        value={shownCell(t[side].baremLiters, computed)}
+                                        onChange={updateBarem(side)}
+                                      />
+                                      {/* What the station's book says, where it and the Barem disagree */}
+                                      {paper !== null && (
+                                        <div className="text-destructive mt-0.5 text-[10px] whitespace-nowrap">
+                                          {vi.imports.baremOnPaper} {baremLitersText(paper)}
+                                        </div>
+                                      )}
+                                    </td>
+                                  </Fragment>
+                                )
+                              })}
+                              <td className="border-l p-1">
+                                <Input
+                                  className={`${cellClass} font-semibold`}
+                                  value={t.importedLiters}
+                                  onChange={(e) =>
+                                    setTankRows((prev) =>
+                                      prev.map((row, j) =>
+                                        j === i ? { ...row, importedLiters: e.target.value } : row
                                       )
-                                      .join(', ')}{' '}
-                                    {vi.imports.pumpTaintsTank}
-                                  </span>
+                                    )
+                                  }
+                                />
+                                {/* References only — neither is ever booked */}
+                                {baremIntake !== null && (
+                                  <div className="text-muted-foreground mt-0.5 text-[10px] whitespace-nowrap">
+                                    {vi.imports.baremIntake} {baremLitersText(baremIntake)}
+                                  </div>
                                 )}
-                                {barem.reasons.map((reason) => (
-                                  <span key={reason} className="text-muted-foreground">
-                                    {refusalText(reason)}
-                                  </span>
-                                ))}
-                                {asking && (
-                                  <span className="text-muted-foreground">
-                                    {lookupFailed
-                                      ? vi.imports.baremLookupFailed
-                                      : vi.imports.baremResolving}
-                                  </span>
+                                {deliveryLiters !== null && (
+                                  <div className="text-muted-foreground mt-0.5 text-[10px] whitespace-nowrap">
+                                    {vi.imports.deliveryNote} {baremLitersText(deliveryLiters)}
+                                  </div>
                                 )}
                               </td>
+                              <td className="p-1">
+                                <Select
+                                  value={t.fuelType}
+                                  onValueChange={(value) =>
+                                    setTankRows((prev) =>
+                                      prev.map((row, j) =>
+                                        j === i ? { ...row, fuelType: value } : row
+                                      )
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className="h-8 w-28 text-xs">
+                                    <SelectValue placeholder={vi.inventory.fuelType} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {fuels.map((fuel) => (
+                                      <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                                        {fuel.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
                             </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })}
+                            {/* Why a cell is empty, and the reading that should not be */}
+                            {(barem.fellLiters !== null ||
+                              barem.reasons.length > 0 ||
+                              t.refusal !== null ||
+                              taint !== undefined ||
+                              asking) && (
+                              <tr>
+                                <td></td>
+                                <td
+                                  colSpan={10}
+                                  className="space-x-3 border-l px-1 pb-1 text-[11px]"
+                                >
+                                  {/* No Hầm, so no barem and no phiếu nhập — the row
+                                    still keeps everything the paper said. */}
+                                  {t.refusal !== null && (
+                                    <span className="text-destructive font-medium">
+                                      {bindingText(t.refusal)}
+                                    </span>
+                                  )}
+                                  {barem.fellLiters !== null && (
+                                    <span className="text-destructive font-medium">
+                                      {vi.imports.baremTankFell} {baremLitersText(barem.fellLiters)}{' '}
+                                      L
+                                    </span>
+                                  )}
+                                  {/* Fuel left this Hầm while it was being measured
+                                    (mục d) — a cue, never a block on lưu. */}
+                                  {taint !== undefined && (
+                                    <span className="text-destructive font-medium">
+                                      {taint
+                                        .map(
+                                          (moved) =>
+                                            `${pumpName(moved.pumpCode)} ${vi.imports.pumpMoved} ${baremLitersText(moved.liters)} L`
+                                        )
+                                        .join(', ')}{' '}
+                                      {vi.imports.pumpTaintsTank}
+                                    </span>
+                                  )}
+                                  {barem.reasons.map((reason) => (
+                                    <span key={reason} className="text-muted-foreground">
+                                      {refusalText(reason)}
+                                    </span>
+                                  ))}
+                                  {asking && (
+                                    <span className="text-muted-foreground">
+                                      {lookupFailed
+                                        ? vi.imports.baremLookupFailed
+                                        : vi.imports.baremResolving}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      }
+                    )}
                   </tbody>
                 </table>
               </div>
