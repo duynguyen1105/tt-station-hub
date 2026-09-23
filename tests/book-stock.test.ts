@@ -30,6 +30,19 @@ describe('bookSummary', () => {
     expect(s.soldLiters).toBe(2000)
     expect(s.bookStock).toBe(10000 + 4000 - 2000 - 100)
   })
+
+  it('leaves the sổ untouched by a kiểm kê (tồn thực is compared, not booked)', () => {
+    const counted = [
+      ...MOVES,
+      { movementType: 'physical_count', quantity: 1000, movementDate: d('2026-08-03') },
+    ]
+    expect(bookSummary(10000, d('2026-08-01'), counted)).toEqual(
+      bookSummary(10000, d('2026-08-01'), MOVES)
+    )
+    expect(dailyLedger(10000, d('2026-08-01'), counted)).toEqual(
+      dailyLedger(10000, d('2026-08-01'), MOVES)
+    )
+  })
 })
 
 describe('dailyLedger', () => {

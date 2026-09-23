@@ -3,6 +3,10 @@
 // movements dated on/after the opening's effective date. Sales movements come
 // from shift completion (electronic-meter deltas), which already include the
 // debt fills — fuel sold on credit still leaves through the pump.
+//
+// A kiểm kê (physical_count) is tồn thực, not a movement: it is compared against
+// the sổ (Chênh lệch) and never changes it. Bringing the sổ in line with a count
+// is a deliberate Điều chỉnh the kế toán books.
 
 export type BookMovement = {
   /** 'import' | 'sale' | 'adjustment' | 'physical_count' */
@@ -51,7 +55,7 @@ export function bookSummary(
     if (dayKey(m.movementDate) < since) continue
     if (m.movementType === 'import') imported += m.quantity
     else if (m.movementType === 'sale') sold += -m.quantity
-    else adjusted += m.quantity // 'adjustment' | 'physical_count' keep their sign
+    else if (m.movementType === 'adjustment') adjusted += m.quantity // keeps its sign
   }
   return {
     openingLiters,
@@ -76,7 +80,7 @@ export function dailyLedger(
   const byDay = new Map<string, { imported: number; sold: number; adjusted: number }>()
   for (const m of movements) {
     const key = dayKey(m.movementDate)
-    if (key < since) continue
+    if (key < since || m.movementType === 'physical_count') continue
     let day = byDay.get(key)
     if (!day) {
       day = { imported: 0, sold: 0, adjusted: 0 }
