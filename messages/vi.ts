@@ -988,7 +988,8 @@ export const vi = {
     pendingReviews: 'Cần duyệt',
     expiringDocs: 'Giấy tờ sắp hết hạn',
     lowStock: 'Tồn thấp',
-    overdueDebts: 'Nợ quá hạn',
+    // Every khách's dư nợ summed — there is no payment term, so nothing is "quá hạn".
+    totalDebt: 'Tổng dư nợ',
   },
 } as const
 

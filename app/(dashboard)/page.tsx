@@ -110,7 +110,7 @@ export default async function OverviewPage() {
         <SummaryCard title={vi.overview.pendingReviews} value={totalPending} />
         <SummaryCard title={vi.overview.expiringDocs} value={totalExpiring} />
         <SummaryCard title={vi.overview.lowStock} value={totalLow} />
-        <SummaryCard title={vi.overview.overdueDebts} value={formatVND(totalDebt)} />
+        <SummaryCard title={vi.overview.totalDebt} value={formatVND(totalDebt)} />
       </div>
 
       {stations.length === 0 ? (
