@@ -163,6 +163,7 @@ export default async function ReviewDebtsPage() {
           {visits.map((v) => (
             <DebtVisitCard
               key={v.id}
+              canAct={user.role !== 'viewer'}
               data={{
                 visitId: v.id,
                 stationId: v.stationId,

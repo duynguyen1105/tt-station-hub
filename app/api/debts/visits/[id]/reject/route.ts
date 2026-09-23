@@ -10,6 +10,8 @@ import { prisma } from '@/lib/prisma'
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
+  // Người xem only reads.
+  if (user.role === 'viewer') return forbidden()
   const { id } = await params
 
   const visit = await prisma.debtVehicleVisit.findUnique({ where: { id } })

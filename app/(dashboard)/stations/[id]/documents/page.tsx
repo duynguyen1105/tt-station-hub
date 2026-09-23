@@ -34,7 +34,7 @@ export default async function StationDocumentsPage({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-muted-foreground text-sm font-medium">{vi.documents.title}</h2>
-        <DocumentForm stationId={id} />
+        {user.role !== 'viewer' && <DocumentForm stationId={id} />}
       </div>
 
       {/* The admin's requirement bar — what must be on file at this station. */}

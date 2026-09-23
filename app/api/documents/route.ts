@@ -49,6 +49,8 @@ const createDocumentSchema = z.object({
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
+  // Người xem only reads.
+  if (user.role === 'viewer') return forbidden()
 
   let raw: Record<string, unknown>
   let scan: File | null = null

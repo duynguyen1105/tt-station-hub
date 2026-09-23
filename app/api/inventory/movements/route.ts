@@ -21,6 +21,8 @@ const movementSchema = z.object({
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
+  // Người xem only reads.
+  if (user.role === 'viewer') return forbidden()
 
   const parsed = movementSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())

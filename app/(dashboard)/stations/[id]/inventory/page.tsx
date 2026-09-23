@@ -580,7 +580,7 @@ export default async function StationInventoryPage({
               paperPumps={paperRoster?.pumps ?? []}
             />
           )}
-          <MovementForm stationId={id} fuels={stationFuels} />
+          {canEdit && <MovementForm stationId={id} fuels={stationFuels} />}
         </div>
       </div>
 

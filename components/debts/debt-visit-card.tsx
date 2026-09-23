@@ -208,7 +208,8 @@ function CustomerPicker({
   )
 }
 
-export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
+/** `canAct` false (người xem) shows the card read-only: no Duyệt / Sửa số / Từ chối. */
+export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAct: boolean }) {
   const router = useRouter()
   // The tên of the nhiên liệu the AI read: labels resolve for every nhiên liệu, while
   // the ô chọn beside them offers only the ones this trạm sells.
@@ -476,168 +477,172 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
             <div className="min-w-0 flex-1">
               <CustomerPicker customers={customers} value={customerId} onChange={setCustomerId} />
             </div>
-            <CustomerForm
-              stationId={data.stationId}
-              onSaved={(c) => {
-                setCustomers((prev) =>
-                  prev.some((x) => x.id === c.id)
-                    ? prev
-                    : [...prev, c].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-                )
-                setCustomerId(c.id)
-              }}
-              trigger={
-                <Button variant="outline" size="icon" title={vi.debtReview.addCustomer}>
-                  +
-                </Button>
-              }
-            />
+            {canAct && (
+              <CustomerForm
+                stationId={data.stationId}
+                onSaved={(c) => {
+                  setCustomers((prev) =>
+                    prev.some((x) => x.id === c.id)
+                      ? prev
+                      : [...prev, c].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+                  )
+                  setCustomerId(c.id)
+                }}
+                trigger={
+                  <Button variant="outline" size="icon" title={vi.debtReview.addCustomer}>
+                    +
+                  </Button>
+                }
+              />
+            )}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
-          <Button
-            className="flex-1"
-            loading={action === 'approve'}
-            disabled={busy}
-            onClick={approve}
-          >
-            {vi.common.approve}
-          </Button>
+        {canAct && (
+          <div className="flex gap-2">
+            <Button
+              className="flex-1"
+              loading={action === 'approve'}
+              disabled={busy}
+              onClick={approve}
+            >
+              {vi.common.approve}
+            </Button>
 
-          <Dialog open={openCorrect} onOpenChange={setOpenCorrect}>
-            <DialogTrigger asChild>
-              <Button variant="outline" disabled={busy}>
-                {vi.common.correct}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{vi.common.correct}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <Field>
-                  <FieldLabel htmlFor="plate">{vi.debts.plate}</FieldLabel>
-                  <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value)} />
-                </Field>
-                <div className="grid grid-cols-2 gap-3">
+            <Dialog open={openCorrect} onOpenChange={setOpenCorrect}>
+              <DialogTrigger asChild>
+                <Button variant="outline" disabled={busy}>
+                  {vi.common.correct}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{vi.common.correct}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
                   <Field>
-                    <FieldLabel htmlFor="liters">{vi.debts.liters}</FieldLabel>
-                    <Input
-                      id="liters"
-                      inputMode="decimal"
-                      value={liters}
-                      onChange={(e) => setLiters(e.target.value)}
-                    />
+                    <FieldLabel htmlFor="plate">{vi.debts.plate}</FieldLabel>
+                    <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value)} />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field>
+                      <FieldLabel htmlFor="liters">{vi.debts.liters}</FieldLabel>
+                      <Input
+                        id="liters"
+                        inputMode="decimal"
+                        value={liters}
+                        onChange={(e) => setLiters(e.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="unitPrice">{vi.debts.unitPrice}</FieldLabel>
+                      <Input
+                        id="unitPrice"
+                        inputMode="numeric"
+                        value={unitPrice}
+                        onChange={(e) => setUnitPrice(e.target.value)}
+                      />
+                      {data.boardPrice !== null && (
+                        <FieldDescription>
+                          {vi.debtReview.boardPrice}:{' '}
+                          <span className="readout">{formatVND(data.boardPrice)}</span>
+                        </FieldDescription>
+                      )}
+                    </Field>
+                  </div>
+                  <Field>
+                    <FieldLabel>{vi.debts.amount}</FieldLabel>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={overrideOn}
+                        onCheckedChange={(state) => setOverrideOn(state === true)}
+                      />
+                      <span>{vi.debtReview.amountManualToggle}</span>
+                    </label>
+                    {overrideOn && (
+                      <Input
+                        id="amountOverride"
+                        inputMode="numeric"
+                        value={overrideAmount}
+                        onChange={(e) => setOverrideAmount(e.target.value)}
+                      />
+                    )}
+                    <FieldDescription>
+                      {vi.debtReview.amountComputed}:{' '}
+                      {draftComputed !== null ? formatVND(draftComputed) : '—'}
+                      {overrideOn ? ` — ${vi.debtReview.amountManualHint}` : ''}
+                    </FieldDescription>
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="unitPrice">{vi.debts.unitPrice}</FieldLabel>
-                    <Input
-                      id="unitPrice"
-                      inputMode="numeric"
-                      value={unitPrice}
-                      onChange={(e) => setUnitPrice(e.target.value)}
-                    />
-                    {data.boardPrice !== null && (
-                      <FieldDescription>
-                        {vi.debtReview.boardPrice}:{' '}
-                        <span className="readout">{formatVND(data.boardPrice)}</span>
-                      </FieldDescription>
+                    <FieldLabel htmlFor="fuelType">{vi.debts.fuelType}</FieldLabel>
+                    {!stationKnown ? (
+                      <p className="text-muted-foreground text-sm">
+                        {vi.debtReview.fuelNeedsStation}
+                      </p>
+                    ) : data.fuels.length === 0 ? (
+                      <NoStationFuels stationId={stationId} />
+                    ) : (
+                      <Select value={fuelType} onValueChange={setFuelType}>
+                        <SelectTrigger id="fuelType">
+                          <SelectValue placeholder={vi.debts.fuelType} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={UNASSIGNED}>—</SelectItem>
+                          {data.fuels.map((fuel) => (
+                            <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
+                              {fuel.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     )}
                   </Field>
                 </div>
-                <Field>
-                  <FieldLabel>{vi.debts.amount}</FieldLabel>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={overrideOn}
-                      onCheckedChange={(state) => setOverrideOn(state === true)}
-                    />
-                    <span>{vi.debtReview.amountManualToggle}</span>
-                  </label>
-                  {overrideOn && (
-                    <Input
-                      id="amountOverride"
-                      inputMode="numeric"
-                      value={overrideAmount}
-                      onChange={(e) => setOverrideAmount(e.target.value)}
-                    />
-                  )}
-                  <FieldDescription>
-                    {vi.debtReview.amountComputed}:{' '}
-                    {draftComputed !== null ? formatVND(draftComputed) : '—'}
-                    {overrideOn ? ` — ${vi.debtReview.amountManualHint}` : ''}
-                  </FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="fuelType">{vi.debts.fuelType}</FieldLabel>
-                  {!stationKnown ? (
-                    <p className="text-muted-foreground text-sm">
-                      {vi.debtReview.fuelNeedsStation}
-                    </p>
-                  ) : data.fuels.length === 0 ? (
-                    <NoStationFuels stationId={stationId} />
-                  ) : (
-                    <Select value={fuelType} onValueChange={setFuelType}>
-                      <SelectTrigger id="fuelType">
-                        <SelectValue placeholder={vi.debts.fuelType} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UNASSIGNED}>—</SelectItem>
-                        {data.fuels.map((fuel) => (
-                          <SelectItem key={fuel.fuelType} value={fuel.fuelType}>
-                            {fuel.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </Field>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpenCorrect(false)}>
-                  {vi.common.cancel}
-                </Button>
-                <Button onClick={saveCorrection} loading={action === 'correct'} disabled={busy}>
-                  {vi.common.save}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOpenCorrect(false)}>
+                    {vi.common.cancel}
+                  </Button>
+                  <Button onClick={saveCorrection} loading={action === 'correct'} disabled={busy}>
+                    {vi.common.save}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
-          {/* Controlled so the click can be intercepted: the default Action closes
+            {/* Controlled so the click can be intercepted: the default Action closes
               the dialog immediately, which would unmount the spinner on sight. */}
-          <AlertDialog open={openReject} onOpenChange={setOpenReject}>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                disabled={busy}
-                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
-              >
-                {vi.common.reject}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{vi.debtReview.rejectConfirmTitle}</AlertDialogTitle>
-                <AlertDialogDescription>{vi.debtReview.rejectConfirmBody}</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
-                <AlertDialogAction
-                  loading={action === 'reject'}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    void reject()
-                  }}
+            <AlertDialog open={openReject} onOpenChange={setOpenReject}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
                 >
                   {vi.common.reject}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{vi.debtReview.rejectConfirmTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>{vi.debtReview.rejectConfirmBody}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+                  <AlertDialogAction
+                    loading={action === 'reject'}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      void reject()
+                    }}
+                  >
+                    {vi.common.reject}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
