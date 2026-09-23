@@ -124,7 +124,7 @@ export function MovementForm({
               )}
             </Field>
             <Field>
-              <FieldLabel>{vi.movementType.import}</FieldLabel>
+              <FieldLabel>{vi.inventory.movementKind}</FieldLabel>
               <Select value={movementType} onValueChange={setMovementType}>
                 <SelectTrigger>
                   <SelectValue />

@@ -615,6 +615,8 @@ export const vi = {
   inventory: {
     title: 'Hàng tồn',
     fuelType: 'Nhiên liệu',
+    // Label of the Nhập / Bán / Kiểm kê / Điều chỉnh picker in the Thêm dialog.
+    movementKind: 'Loại phát sinh',
     estimated: 'Tồn sổ sách',
     physical: 'Tồn thực',
     variance: 'Chênh lệch',
