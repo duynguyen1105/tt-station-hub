@@ -36,7 +36,8 @@ function fixLink(error: PreflightError, stationId: string): string {
     case 'missing_global_config':
       return '/settings/misa/config'
     case 'missing_fuel_map':
-      return `/settings/misa/fuel-map?station=${stationId}`
+      // The map lives on the trạm's own Cấu hình tab.
+      return `/stations/${stationId}/config`
     case 'missing_price':
       return `/settings/misa/prices?station=${stationId}`
     case 'customer_without_misa_code':
