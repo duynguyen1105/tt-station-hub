@@ -30,8 +30,8 @@ import {
 import { type AppRole } from '@/lib/auth/permissions'
 import { vi } from '@/messages/vi'
 
-// `roles`, where present, restricts the item to those roles — an entry a kế
-// toán may not open is not shown to them.
+// `roles`, where present, restricts the item to those roles — an entry the user
+// may not open (a kế toán on Quản trị, a người xem on Cài đặt) is not shown to them.
 const NAV_ITEMS: {
   href: string
   label: string
@@ -42,7 +42,12 @@ const NAV_ITEMS: {
   { href: '/stations', label: vi.nav.stations, icon: Building2 },
   { href: '/review/shifts', label: vi.nav.review, icon: ClipboardCheck },
   { href: '/reports/misa-export', label: vi.nav.misaReport, icon: FileSpreadsheet },
-  { href: '/settings/misa', label: vi.nav.settings, icon: Settings },
+  {
+    href: '/settings/misa',
+    label: vi.nav.settings,
+    icon: Settings,
+    roles: ['admin', 'accountant'],
+  },
   { href: '/admin/accountants', label: vi.nav.admin, icon: Users, roles: ['admin'] },
 ]
 
