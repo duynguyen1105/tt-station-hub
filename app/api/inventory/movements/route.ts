@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma'
 const movementSchema = z.object({
   stationId: z.string().uuid(),
   fuelType: z.string().min(1),
-  movementType: z.enum(['import', 'sale', 'physical_count', 'adjustment']),
+  movementType: z.enum(['import', 'sale', 'adjustment']),
   quantity: z.number(), // signed: + import, - sale
   movementDate: z.coerce.date(),
   note: z.string().optional(),
@@ -38,25 +38,11 @@ export async function POST(req: NextRequest) {
       data: { stationId, fuelType, movementType, quantity, movementDate, note, createdBy: user.id },
     })
 
-    if (movementType === 'physical_count') {
-      await tx.inventoryBalance.upsert({
-        where: { stationId_fuelType: { stationId, fuelType } },
-        update: { lastPhysicalStock: quantity, lastPhysicalAt: new Date() },
-        create: {
-          stationId,
-          fuelType,
-          estimatedStock: 0,
-          lastPhysicalStock: quantity,
-          lastPhysicalAt: new Date(),
-        },
-      })
-    } else {
-      await tx.inventoryBalance.upsert({
-        where: { stationId_fuelType: { stationId, fuelType } },
-        update: { estimatedStock: { increment: quantity } },
-        create: { stationId, fuelType, estimatedStock: quantity },
-      })
-    }
+    await tx.inventoryBalance.upsert({
+      where: { stationId_fuelType: { stationId, fuelType } },
+      update: { estimatedStock: { increment: quantity } },
+      create: { stationId, fuelType, estimatedStock: quantity },
+    })
     return row
   })
 

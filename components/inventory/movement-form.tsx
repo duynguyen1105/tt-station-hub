@@ -28,7 +28,11 @@ import {
 import { type CatalogueFuel } from '@/lib/fuels/catalogue'
 import { vi } from '@/messages/vi'
 
-const movementOptions = Object.entries(vi.movementType)
+// Kiểm kê is not offered: tồn thực comes from Đo bồn, and a sổ that disagrees with it is
+// brought in line by an Điều chỉnh.
+const movementOptions = Object.entries(vi.movementType).filter(
+  ([type]) => type !== 'physical_count'
+)
 
 /**
  * Nhập, xuất or điều chỉnh one nhiên liệu of the kho by hand.
