@@ -23,6 +23,19 @@ describe('documentStatus', () => {
   })
 })
 
+describe('the expiry day itself', () => {
+  const expiry = new Date('2026-09-23T00:00:00.000Z') // date-only, as stored
+
+  it('is still valid during that day in Vietnam', () => {
+    expect(documentStatus(expiry, new Date('2026-09-23T10:00:00+07:00'))).toBe('expiring_soon')
+    expect(documentStatus(expiry, new Date('2026-09-23T23:59:00+07:00'))).toBe('expiring_soon')
+  })
+
+  it('is expired from the next Vietnamese day', () => {
+    expect(documentStatus(expiry, new Date('2026-09-24T00:30:00+07:00'))).toBe('expired')
+  })
+})
+
 describe('dueReminderThreshold', () => {
   it('returns the threshold the expiry lands on today', () => {
     expect(dueReminderThreshold(inDays(60), now)).toBe(60)

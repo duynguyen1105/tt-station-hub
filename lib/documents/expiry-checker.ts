@@ -8,9 +8,18 @@ export const EXPIRING_SOON_DAYS = 60
 // Reminders fire as the expiry crosses each of these day-marks.
 export const REMINDER_THRESHOLDS = [60, 30, 15] as const
 
-/** Whole days from `now` until `expiry` (negative if already past). */
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000
+
+/**
+ * Whole calendar days from today (GMT+7) until the expiry day (negative once past).
+ * A giấy tờ is valid through the whole day printed on it: the expiry is a date-only
+ * value (UTC midnight), so it is compared day to day, never against the clock.
+ */
 export function daysUntil(expiry: Date, now: Date): number {
-  return Math.floor((expiry.getTime() - now.getTime()) / DAY_MS)
+  const vn = new Date(now.getTime() + VN_OFFSET_MS)
+  const today = Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate())
+  const day = Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth(), expiry.getUTCDate())
+  return Math.round((day - today) / DAY_MS)
 }
 
 export function documentStatus(expiry: Date | null, now: Date): DocStatus {
