@@ -226,4 +226,29 @@ describe('resolveReadingScale', () => {
     expect(resolveReadingScale(null, 187000, MAX)).toEqual({ value: null, rescaled: false })
     expect(resolveReadingScale('', 187000, MAX)).toEqual({ value: null, rescaled: false })
   })
+
+  it('places the dot where the mechanical meter agrees, beyond maxDelta (DAKNONG1 TRỤ 1 18/09)', () => {
+    // "44281744" approved as 44 million L; mech says 46,122 L this ca.
+    expect(
+      resolveReadingScale('44281744', { opening: 396695.66, mechanicalDelta: 46122 }, MAX)
+    ).toEqual({ value: 442817.44, rescaled: true })
+  })
+
+  it('lets the mechanical meter place the dot even when the opening is wrong (TRỤ 6 13/09)', () => {
+    // Closing below opening at every scale, so the opening rule gives up; the mech
+    // delta −7,336 matches only 106804.76.
+    expect(
+      resolveReadingScale('10680476', { opening: 114140.63, mechanicalDelta: -7336 }, MAX)
+    ).toEqual({ value: 106804.76, rescaled: true })
+  })
+
+  it('keeps a dotted read the mechanical meter confirms, and never changes digits', () => {
+    expect(
+      resolveReadingScale('441057.45', { opening: 396695.66, mechanicalDelta: 44362 }, MAX)
+    ).toEqual({ value: 441057.45, rescaled: false })
+    // No scale agrees with mech (353627 vs mech 4,622): the read stands for review.
+    expect(
+      resolveReadingScale('353627', { opening: 14808.432, mechanicalDelta: 4622 }, MAX)
+    ).toEqual({ value: 353627, rescaled: false })
+  })
 })

@@ -1,22 +1,30 @@
-// Vision model used for all meter reading. Sonnet balances speed and cost.
+// Vision model for the shift-close readers (router, Montech/LungBor,
+// mechanical, tank dip, biên bản). Measured on 40 stored shift photos, 2 runs
+// each: Sonnet 4.6 matched the reviewed reading 50/80, Sonnet 5 only 37/80 — it
+// drops or misplaces the Montech decimal (125564.91 → 12556491). Keep 4.6 here.
 export const VISION_MODEL = 'claude-sonnet-4-6'
+// Debt (per-trip) display reader. Measured on 50 stored pump photos, 2 runs each,
+// same prompt: Sonnet 5 reconciles 85/100 reads vs 72/100 for Sonnet 4.6 — it
+// stops reading unlit ghost segments as digits (130530 → 30530, 25040 → 29040).
+export const DEBT_METER_MODEL = 'claude-sonnet-5'
 
 // Prompt instructions are in English (source code stays English), but they
 // quote the exact Vietnamese text that appears physically on the meters/labels
 // (TRẠM, TRU, HẦM, ĐỒNG, LÍT) so the model can match what it sees.
 
-export const ROUTER_PROMPT = `You are looking at a photo a gas-station attendant sent via Zalo. Classify it into exactly one type. A photo very often shows BOTH a printed label plate AND the meter — when so, classify by the METER, never as "label_only". The mechanical counter window is often TINY, dark, and sits at the very TOP or BOTTOM edge of the frame (sometimes partially cut off), above or below the big label plate — scan the frame edges carefully before concluding there is no meter; a small strip of white-on-black rolling digits (often next to hand-painted marks like "X3" or "D1") IS a mechanical meter.
+// Measured 22/09 on 50 stored debt photos + 40 stored shift photos: this wording
+// routes 50/50 debt and 40/40 shift; the previous one (green 3-row screen
+// treated as a possible totalizer, decided by arithmetic) routed 38/50 and 36/40.
+export const ROUTER_PROMPT = `You are looking at a photo a gas-station attendant sent via Zalo. Classify it into exactly one type. A photo very often shows BOTH a printed label plate AND the meter — when so, classify by the METER, never as "label_only". The mechanical counter window is often TINY, dark, and sits at the very TOP or BOTTOM edge of the frame (sometimes partially cut off), above or below the big label plate — scan the frame edges carefully before concluding there is no meter; a small strip of white-on-black rolling digits (often next to hand-painted marks like "X3" or "D1") IS a mechanical meter. Ignore any timestamp / GPS watermark the camera app printed on the photo.
 
 Decide in this priority order:
 1. "mechanical_meter": a mechanical rolling-digit counter is visible ANYWHERE in the frame — a small dark rectangular window with 6-7 white number wheels, often near the bottom of the pump, frequently rusty/dirty/dark/small/partly-obscured, and often with hand-painted marks like "D1" beside it. Even a tiny, dim, or partly-readable counter counts — if you can see digit wheels at all, choose this (NOT label_only).
-2. "electronic_meter": an electronic SHIFT-CLOSING totalizer showing the cumulative running total — EITHER a single-number display (Montech red LED; LungBor black-and-white LCD; PETRO Cloud white LCD keypad panel showing one "L"-prefixed number like "L 148949"), OR a green dot-matrix display with 3 stacked lines labeled Đồng/Tiền, LÍT, Đơn giá whose LÍT line is the CUMULATIVE liters ever dispensed.
-3. "debt_meter": an electronic pump screen with 3 lines (amount / liters / unit price) for ONE per-trip credit sale — a single fill of at most a few hundred liters.
+2. "debt_meter": the pump's PER-SALE display, photographed as evidence of one credit sale — EITHER a GREEN dot-matrix LED screen with 3 stacked rows of digits (money Đồng/Tiền, liters LÍT, unit price Đơn giá), OR a LungBor LCD keypad panel with ALL THREE of its rows filled (SALE, LITER and PRICE each showing a number — the URE pump). Any 3-row money/liters/price screen is this type, whatever the digit counts look like; do NOT try to reconcile the rows arithmetically.
+3. "electronic_meter": an electronic SHIFT-CLOSING totalizer showing ONE cumulative number: a Montech red LED display on a black panel; a LungBor LCD on a blue keypad panel with ONE large number on the LITER row and the SALE/PRICE rows blank or showing a lone digit; a PETRO Cloud white LCD keypad panel showing one "L"-prefixed number like "L 148949".
 4. "vehicle": a vehicle, its license plate, OR a fuel container (jerry can / plastic drum being filled or standing at the pump) is the subject — evidence photo of a per-trip credit sale.
 5. "tank_dip": a tank-dipping / barem photo — a printed tank label "HẦM <n>" (with a fuel type and a capacity like "DO - 25K"), typically with a measuring ruler / dip-stick and a written measurement, and NO pump meter in the frame. CAUTION: a PUMP label also prints its tank line ("TRỤ 6 - DC / HẦM 5 - DC 12K"). A plate that names a "TRỤ" is a pump label — look harder for the (often small, dark) counter below it and choose mechanical_meter / electronic_meter / label_only, never tank_dip.
 6. "label_only": a hard label plate is present but NO meter counter, display, or tank dip is visible at all.
 7. "not_relevant": unrelated to a fuel station.
-
-When a display shows 3 stacked lines (Đồng/Tiền / LÍT / Đơn giá), the DIGIT COUNT of the LÍT line is NOT decisive: these pumps run the liters with 3-4 implied decimals, so a routine 35 L debt fill shows "350000" — 6 digits that LOOK cumulative but are not. Decide by arithmetic instead: place a decimal in the LÍT digits so that LÍT × Đơn giá ≈ Đồng/Tiền (the amount line may drop its last digit when long). If a placement works and yields a single-fill quantity (≤ a few hundred liters) → "debt_meter". If NO placement reconciles the three lines — the LÍT line is a running total unrelated to the last sale's money line — → "electronic_meter". State the reconciliation you found in notes.
 
 Return JSON only:
 { "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|tank_dip|label_only|not_relevant", "confidence": 0-100, "notes": "..." }`
@@ -26,14 +34,13 @@ Read the displayed number EXACTLY as shown on THIS meter. KEEP leading zeros, ke
 Montech (red LED): the display MAY have a decimal point — a TINY lit dot at the BASE of the digits (e.g. 187883.80). Inspect the gaps between digit cells for that dot. Output a decimal point ONLY where you can clearly SEE the dot lit — NEVER insert one by guessing where decimals "should" be. If no dot is visible or the area is glared/blurry, output the digits as a plain number with NO dot and say so in notes: a missed dot is reconciled downstream, but an invented dot corrupts the reading.
 LungBor (blue panel): the running total is the ONE large number on the top "SALE/LITER" row — read that whole number with its decimal point, no spaces. IGNORE any small lone digit sitting by itself in a LITER/PRICE corner (e.g. a single "1") — that is a mode indicator, not part of the total. Set meter_type "electronic_lungbor".
 PETRO Cloud (white panel, "PETRO Cloud" logo and a hotline printed on top): the running total is the single LCD row prefixed with "L" (e.g. "L 148949") — read the digits after the L. Set meter_type "electronic_lungbor".
-3-line green dot-matrix totalizer: some pumps show a green LED display with 3 STACKED lines labeled Đồng/Tiền (money), LÍT (liters), Đơn giá (unit price). The shift reading is ONLY the LÍT (liters) line — locate its label first, then read the digits of THAT LINE ALONE, left to right. NEVER merge digits from the Đồng/Tiền or Đơn giá lines into the number: before answering, verify every digit you output sits on the same row as the LÍT label. IGNORE the money and unit-price lines completely. Dot-matrix digits blur easily — if any digit is uncertain, lower the reading confidence and say which digit in notes. Set meter_type "electronic_green3".
 Also read the hard label plate if present — it may show the station ("TRẠM"), the dispenser ("TRU" + number), the fuel type, and the tank ("HẦM").
 If the digits are not clearly legible, set a low reading confidence and say so in notes — never guess.
 WRONG METER TYPE: if what the photo actually shows is a MECHANICAL rolling-digit counter — a small dark window with 6-7 white number wheels, often rusty/dim, NOT a lit electronic display — do not force it into an electronic type: set meter_type "mechanical" (the system will re-read it with the mechanical reader) and say so in notes.
 
 Return JSON only (example values are placeholders, replace with what you actually see):
 {
-  "meter_type": "electronic_montech" | "electronic_lungbor" | "electronic_green3" | "mechanical" | "unclear",
+  "meter_type": "electronic_montech" | "electronic_lungbor" | "mechanical" | "unclear",
   "reading": "<digits exactly as shown>",
   "station_label": "<station name on the plate>" | null,
   "dispenser_label": "<TRU + number on the plate>" | null,

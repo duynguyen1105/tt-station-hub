@@ -1,7 +1,7 @@
 import { callClaudeVision, parseJsonFromText } from '@/lib/ai/claude-vision'
 import { prepareImageForAI } from '@/lib/ai/image-prep'
 import { isAiMockEnabled, mockDelay } from '@/lib/ai/mock'
-import { DEBT_METER_PROMPT, VEHICLE_PROMPT } from '@/lib/ai/prompts'
+import { DEBT_METER_MODEL, DEBT_METER_PROMPT, VEHICLE_PROMPT } from '@/lib/ai/prompts'
 import {
   type ExtractPlateResult,
   type ExtractVisitResult,
@@ -30,18 +30,33 @@ export function parseNumericString(value: string | null): number | null {
  * large enough to overflow: an ungated /10 candidate let a 10× liters misread
  * (90.00 vs 9.00) reconcile with the display and wear a green "Khớp" badge.
  *
+ * Tolerance is ONE step of the LÍT row (unit price × 0.001 L, ~30 đ): a pump
+ * stopped on a preset amount rounds its liters to 3 decimals, so LÍT × ĐƠN GIÁ
+ * lands a few đồng off the display (DAKNONG1 17/09: 46.339 × 32,370 =
+ * 1,499,993 shown as 150000). A liter-step is far below the 10× gap, so the
+ * gate above still holds.
+ *
  * Returns false when they cannot be reconciled — which also surfaces the §12.2
  * liters-format ambiguity (e.g. 4.3 L vs 43 L produces a 10× mismatch).
  */
-export function checkAmountMatch(computed: number, displayed: string | null): boolean {
+export function checkAmountMatch(
+  computed: number,
+  displayed: string | null,
+  unitPrice: number | null = null
+): boolean {
   if (displayed == null) return false
   const displayedClean = displayed.replace(/\D/g, '')
   if (displayedClean === '') return false
   const c = Math.round(computed)
-  const candidates = new Set([c.toString()])
-  if (c >= 1_000_000) candidates.add(Math.floor(c / 10).toString())
-  if (c >= 10_000_000) candidates.add(Math.floor(c / 100).toString())
-  return candidates.has(displayedClean)
+  const d = Number(displayedClean)
+  const tolerance = unitPrice && unitPrice > 0 ? unitPrice / 10 ** DEFAULT_LITERS_DECIMALS : 0
+  const scales = [1, ...(c >= 1_000_000 ? [10] : []), ...(c >= 10_000_000 ? [100] : [])]
+  // Truncation floors: d·s ≤ c < d·s + s. The tolerance widens both edges by a
+  // liter-step, which is where a preset stop lands (c a few đồng under d·s).
+  return scales.some((s) => {
+    const diff = c - d * s
+    return diff >= -tolerance && diff < s + tolerance
+  })
 }
 
 export type LitersResolution = {
@@ -52,18 +67,24 @@ export type LitersResolution = {
 /**
  * Resolves the decimal scale of the LÍT row.
  *
- * These displays print liters with IMPLIED decimals ("340000" means 340.000 L)
- * and the dot is often unlit/invisible, so the raw digits alone are ambiguous by
- * powers of ten (§12.2). The pump's arithmetic identity TIỀN = LÍT × ĐƠN GIÁ is
- * a CHECK, not a chooser: because the money row drops its last digit above
+ * These displays print liters with 3 IMPLIED decimals ("340000" means 340.000 L)
+ * and the dot is small and easily missed, so the raw digits alone are ambiguous
+ * by powers of ten (§12.2). The pump's arithmetic identity TIỀN = LÍT × ĐƠN GIÁ
+ * is a CHECK, not a chooser: because the money row drops its last digit above
  * 1,000,000, "340000" reconciles with a displayed 989740 both as 34 L (exact)
  * and as 340 L (9,897,400 truncated) — the 26/08 ×10 undercharge came from
- * letting the exact tier pick 34. So the scale is chosen by evidence in this
- * order, and arithmetic only confirms or rejects it:
+ * letting the exact tier pick 34.
  *
- * 1. a dot the model actually SAW ("182.000") — the display's own statement;
- * 2. the pump's implied decimals (`DEFAULT_LITERS_DECIMALS`);
- * 3. any other scale of the same digits, marked 'rescaled' — the read only
+ * Reading comes first; inference only where the read is not trustworthy:
+ *
+ * 1. a dot the model saw at a position the pump can print (exactly
+ *    `DEFAULT_LITERS_DECIMALS`) — the display's own statement, kept as read;
+ * 2. no dot, or a dot where the pump cannot print one ("12.9915" for a lit
+ *    129.915, PHUCTIEN 60B-087.70 — an invented dot that reconciles just as
+ *    well at ÷10): the read is uncertain, so the pump's implied decimals decide;
+ * 3. the dotted read anyway, when the convention does not add up — the URE
+ *    LungBor panel really prints 2 decimals ("14.00");
+ * 4. any other scale of the same digits, marked 'rescaled' — the read only
  *    adds up at a scale the pump does not use, so a digit was likely dropped
  *    or doubled and review is forced upstream.
  *
@@ -87,12 +108,16 @@ export function resolveLiters(
 
   const reconciles = (liters: number): boolean => {
     if (unitPrice == null || unitPrice <= 0 || liters <= 0 || displayedClean === '') return false
-    return checkAmountMatch(Math.round(liters * unitPrice), displayedClean)
+    return checkAmountMatch(Math.round(liters * unitPrice), displayedClean, unitPrice)
   }
 
+  const readDecimals = hasDot ? (rawLiters.split('.')[1]?.replace(/\D/g, '').length ?? 0) : 0
+  if (literal != null && readDecimals === DEFAULT_LITERS_DECIMALS && reconciles(literal)) {
+    return { liters: literal, resolution: 'verified' }
+  }
   const conventional = base / 10 ** DEFAULT_LITERS_DECIMALS
-  if (literal != null && reconciles(literal)) return { liters: literal, resolution: 'verified' }
   if (reconciles(conventional)) return { liters: conventional, resolution: 'verified' }
+  if (literal != null && reconciles(literal)) return { liters: literal, resolution: 'verified' }
   for (const k of [4, 3, 2, 1, 0]) {
     if (k === DEFAULT_LITERS_DECIMALS) continue
     const scaled = base / 10 ** k
@@ -133,7 +158,9 @@ export function placeLitersDecimal(meter: ExtractVisitResult): ExtractVisitResul
   const { liters, resolution } = resolveLiters(meter.liters, unitPrice, meter.displayedAmount)
   const computedAmount = liters != null && unitPrice != null ? Math.round(liters * unitPrice) : null
   const amountMatchesDisplay =
-    computedAmount != null ? checkAmountMatch(computedAmount, meter.displayedAmount) : null
+    computedAmount != null
+      ? checkAmountMatch(computedAmount, meter.displayedAmount, unitPrice)
+      : null
   return {
     ...meter,
     litersResolved: liters,
@@ -159,7 +186,11 @@ export async function extractVisitMeter(input: {
   }
 
   const image = await prepareImageForAI(input.imageBuffer)
-  const text = await callClaudeVision({ prompt: DEBT_METER_PROMPT, images: [image] })
+  const text = await callClaudeVision({
+    prompt: DEBT_METER_PROMPT,
+    images: [image],
+    model: DEBT_METER_MODEL,
+  })
   const parsed = debtMeterSchema.parse(parseJsonFromText(text))
 
   return placeLitersDecimal({

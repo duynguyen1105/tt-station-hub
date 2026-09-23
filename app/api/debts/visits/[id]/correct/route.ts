@@ -67,7 +67,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Khớp/Lệch keeps comparing the *derived* amount against the pump display: it is a
   // statement about what the AI read, which a typed thành tiền does not change.
   const matchesDisplay =
-    computedAmount !== null ? checkAmountMatch(computedAmount, displayed) : null
+    computedAmount !== null
+      ? checkAmountMatch(computedAmount, displayed, amounts.unitPriceRead)
+      : null
 
   // "Đơn giá lệch bảng giá" is re-asked of what this save leaves behind — the đơn giá,
   // nhiên liệu and trạm may all have moved — so typing the bảng giá price clears it and

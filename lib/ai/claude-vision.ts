@@ -48,10 +48,12 @@ export async function callClaudeVision(params: {
   images: VisionImage[]
   system?: string
   maxTokens?: number
+  /** Per-reader override of VISION_MODEL (the debt reader runs DEBT_METER_MODEL). */
+  model?: string
 }): Promise<string> {
   // 2048 tokens leaves room for the JSON even when the model prefixes it with a
   // long unrequested analysis (observed on the 3-line green totalizer photos).
-  const { prompt, images, maxTokens = 2048 } = params
+  const { prompt, images, maxTokens = 2048, model = VISION_MODEL } = params
   const system =
     params.system ??
     'Respond with a single JSON object only. Start your reply with "{" — no prose, no preamble.'
@@ -69,8 +71,12 @@ export async function callClaudeVision(params: {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const message = await getClient().messages.create({
-        model: VISION_MODEL,
+        model,
         max_tokens: maxTokens,
+        // Sonnet 5 thinks by default and spends the whole budget thinking on a
+        // hard photo, returning no text; digit transcription measured no better
+        // with thinking on (85/100 both ways, 50-photo A/B 22/09). Harmless on 4.6.
+        thinking: { type: 'disabled' },
         system,
         messages: [
           {

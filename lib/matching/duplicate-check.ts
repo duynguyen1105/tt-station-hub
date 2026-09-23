@@ -26,31 +26,51 @@ export type ScaleResolution = {
   rescaled: boolean
 }
 
+export type ScaleAnchors = {
+  opening: number | null
+  /** Liters the mechanical meter of the same trụ says were pumped this ca, when known. */
+  mechanicalDelta?: number | null
+}
+
 /**
- * Where the decimal point of an electronic totalizer read goes. Every display
- * type is prone to it: the Montech and LungBor print 2–3 decimals behind a tiny
- * dot the AI often cannot see, so 187883.80 comes back as "18788380", and the
- * PETRO/green displays lose a digit outright. In order:
- *  (a) a dot the AI DID see is trusted as read — unless it lands the closing
+ * Where the decimal point of an electronic totalizer read goes. The Montech
+ * prints 2–3 decimals behind a tiny dot the AI sees about half the time
+ * (30-photo A/B 22/09: 31/60 reads dotted, digits stable 26/30). The digits are
+ * never changed; only the dot moves, and only where arithmetic confirms it:
+ *  (a) the mechanical meter of the same trụ counts the same liters: of the scales
+ *      0..3 the one whose delta matches the mechanical delta within `tolerance`
+ *      is the reading, dotted or not, opening right or wrong (DAKNONG1 TRỤ 6
+ *      13/09: opening 114140.63 was itself wrong, mech −7,336 still named
+ *      106,804.76 over the approved "10680476");
+ *  (b) a dot the AI DID see is trusted as read — unless it lands the closing
  *      BELOW the opening, which a totalizer cannot do: the dot was put one cell
  *      off (TANHOA TRỤ 3: 455421.63 read as "45542.163"), so its digits are
  *      re-placed like a dotless read;
- *  (b) otherwise the opening decides: of the scales 0..3 the smallest that makes
+ *  (c) otherwise the opening decides: of the scales 0..3 the smallest that makes
  *      closing ≥ opening with delta ≤ maxDelta wins, so a raw read whose own
  *      delta is plausible is never touched, and a decimal-less display never is;
- *  (c) nothing plausible (no opening, or every scale absurd): the raw stands.
+ *  (d) nothing plausible (no opening, or every scale absurd): the raw stands and
+ *      the delta anomalies send it to review.
  */
 export function resolveReadingScale(
   raw: string | null,
-  opening: number | null,
-  maxDeltaLiters: number
+  anchors: number | null | ScaleAnchors,
+  maxDeltaLiters: number,
+  tolerance = 50
 ): ScaleResolution {
   const value = parseNumericString(raw)
+  const { opening, mechanicalDelta = null } =
+    typeof anchors === 'object' && anchors !== null ? anchors : { opening: anchors }
   if (value === null || opening === null) return { value, rescaled: false }
-  if (raw!.includes('.') && value >= opening) return { value, rescaled: false }
   const digits = Number(raw!.replace(/\D/g, ''))
-  for (let scale = 0; scale <= 3; scale++) {
-    const candidate = digits / 10 ** scale
+  const scales = [0, 1, 2, 3].map((scale) => digits / 10 ** scale)
+
+  if (mechanicalDelta !== null) {
+    const agreeing = scales.filter((c) => Math.abs(c - opening - mechanicalDelta) <= tolerance)
+    if (agreeing.length === 1) return { value: agreeing[0]!, rescaled: agreeing[0] !== value }
+  }
+  if (raw!.includes('.') && value >= opening) return { value, rescaled: false }
+  for (const candidate of scales) {
     const delta = candidate - opening
     if (delta >= 0 && delta <= maxDeltaLiters) {
       return { value: candidate, rescaled: candidate !== value }

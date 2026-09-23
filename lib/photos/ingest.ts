@@ -22,6 +22,7 @@ import { tankFuelFrom } from '@/lib/inventory/tank-fuel'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
 import {
+  type ScaleResolution,
   meterTypeRank,
   resolveDuplicateSlot,
   resolveReadingScale,
@@ -204,16 +205,24 @@ async function assembleShiftReading(
             const openElec = num(existing?.openingElectronicReading) ?? opening?.electronic ?? null
             const openMech = num(existing?.openingMechanicalReading) ?? opening?.mechanical ?? null
 
-            // Where the decimal point of an electronic read goes: inferred from
-            // the opening (see resolveReadingScale). Resolved before the duplicate check so the new
-            // read meets the prior one on the same scale.
+            // Where the decimal point of an electronic read goes: the digits are the
+            // AI's, only the dot moves, and only where arithmetic confirms it — the
+            // mechanical meter's delta first, else the opening (resolveReadingScale).
+            // Resolved before the duplicate check so the new read meets the prior one
+            // on the same scale.
             const rawReading = parseNumericString(result.reading)
+            const priorMech = num(existing?.mechanicalReading)
             const scale =
               slot === 'electronic'
                 ? resolveReadingScale(
                     result.reading,
-                    openElec,
-                    DEFAULT_ANOMALY_CONFIG.maxDeltaLiters
+                    {
+                      opening: openElec,
+                      mechanicalDelta:
+                        priorMech !== null && openMech !== null ? priorMech - openMech : null,
+                    },
+                    DEFAULT_ANOMALY_CONFIG.maxDeltaLiters,
+                    DEFAULT_ANOMALY_CONFIG.meterDivergenceTolerance
                   )
                 : null
             const reading = scale ? scale.value : rawReading
@@ -246,10 +255,42 @@ async function assembleShiftReading(
               { value: reading, conf, photoId, rank: meterTypeRank(result.meterType) }
             )
 
-            const elecReading =
-              slot === 'electronic' ? resolved.value : num(existing?.electronicReading)
             const mechReading =
               slot === 'mechanical' ? resolved.value : num(existing?.mechanicalReading)
+
+            // The mechanical photo landed after the electronic one: its delta is the
+            // arithmetic the electronic dot could not be checked against before, so the
+            // electronic read is placed again from its own raw digits. Never after a
+            // reviewer has touched the row — their number is not the AI's to move.
+            let replacedElec: ScaleResolution | null = null
+            if (
+              slot === 'mechanical' &&
+              existing?.electronicPhotoId &&
+              existing.reviewedBy == null &&
+              mechReading !== null &&
+              openMech !== null
+            ) {
+              const elecPhoto = await tx.shiftPhoto.findUnique({
+                where: { id: existing.electronicPhotoId },
+                select: { aiRawResponse: true },
+              })
+              const rawElec = (
+                elecPhoto?.aiRawResponse as { extraction?: { reading?: string | null } } | null
+              )?.extraction?.reading
+              if (rawElec) {
+                replacedElec = resolveReadingScale(
+                  rawElec,
+                  { opening: openElec, mechanicalDelta: mechReading - openMech },
+                  DEFAULT_ANOMALY_CONFIG.maxDeltaLiters,
+                  DEFAULT_ANOMALY_CONFIG.meterDivergenceTolerance
+                )
+              }
+            }
+
+            const elecReading =
+              slot === 'electronic'
+                ? resolved.value
+                : (replacedElec?.value ?? num(existing?.electronicReading))
             const elecConf =
               slot === 'electronic' ? resolved.conf : (existing?.aiElectronicConfidence ?? null)
             const mechConf =
@@ -281,7 +322,9 @@ async function assembleShiftReading(
             const rescaled =
               scale && resolved.photoId === photoId
                 ? scale.rescaled
-                : (existing?.anomalyReasons ?? []).includes(ANOMALY_REASONS.scaleRescaled)
+                : replacedElec
+                  ? replacedElec.rescaled
+                  : (existing?.anomalyReasons ?? []).includes(ANOMALY_REASONS.scaleRescaled)
             const extraReasons = [
               ...(resolved.mismatch ? [ANOMALY_REASONS.duplicatePhotoMismatch] : []),
               ...(rescaled ? [ANOMALY_REASONS.scaleRescaled] : []),

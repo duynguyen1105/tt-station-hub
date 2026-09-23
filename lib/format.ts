@@ -38,14 +38,15 @@ export function formatVND(value: Numeric): string {
 }
 
 /**
- * Liters with comma thousands and exactly 2 decimals: 1234.5 -> "1,234.50".
+ * Liters with comma thousands and a fixed number of decimals (default 2):
+ * 1234.5 -> "1,234.50". Debt cards pass 3 to mirror the pump's LÍT row.
  */
-export function formatLiters(value: Numeric): string {
+export function formatLiters(value: Numeric, decimals = 2): string {
   const num = toNumber(value)
-  if (num === null) return '0.00'
+  if (num === null) return (0).toFixed(decimals)
   return num.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   })
 }
 

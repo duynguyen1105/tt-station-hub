@@ -405,7 +405,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
           </div>
           <div className="text-muted-foreground flex items-center gap-1.5 text-sm">
             <span className="readout text-foreground">
-              {data.liters ? formatLiters(Number(data.liters)) : '—'}
+              {data.liters ? formatLiters(Number(data.liters), 3) : '—'}
             </span>
             <span>×</span>
             <span className="readout text-foreground">
@@ -423,7 +423,7 @@ export function DebtVisitCard({ data }: { data: DebtVisitCardData }) {
             <div className="text-muted-foreground text-xs">
               {vi.debtReview.aiRead}:{' '}
               <span className="readout">
-                {data.originalLiters !== null ? formatLiters(data.originalLiters) : '—'}
+                {data.originalLiters !== null ? formatLiters(data.originalLiters, 3) : '—'}
               </span>{' '}
               ×{' '}
               <span className="readout">

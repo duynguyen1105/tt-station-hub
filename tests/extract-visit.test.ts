@@ -38,6 +38,15 @@ describe('checkAmountMatch (anti-truncation §5.6, gated)', () => {
     expect(checkAmountMatch(261990, '26199')).toBe(false) // <1M: no truncation possible
     expect(checkAmountMatch(999999, '99999')).toBe(false)
   })
+  it('tolerates one LÍT step when the pump stopped on a preset amount (DAKNONG1 17-18/09)', () => {
+    // 46.339 × 32,370 = 1,499,993 — the pump shows the 1,500,000 preset, truncated
+    expect(checkAmountMatch(1499993, '150000', 32370)).toBe(true)
+    expect(checkAmountMatch(1499993, '150000')).toBe(false) // no price → floor band only
+    // 71.053 × 32,370 = 2,299,986 vs 2,300,000 preset
+    expect(checkAmountMatch(2299986, '230000', 32370)).toBe(true)
+    // a whole liter-step off is still a mismatch
+    expect(checkAmountMatch(2300000 - 45, '230000', 32370)).toBe(false)
+  })
   it('rejects a null/empty displayed value', () => {
     expect(checkAmountMatch(119368, null)).toBe(false)
     expect(checkAmountMatch(119368, 'abc')).toBe(false)
@@ -65,6 +74,16 @@ describe('resolveLiters (implied-decimal resolution)', () => {
       liters: 170,
       resolution: 'verified',
     })
+  })
+  it('does not let an invented dot outrank the 3-decimal convention (PHUCTIEN 60B-087.70)', () => {
+    // Lit "129915" read as "12.9915": 12.9915 × 28,480 = 369,998 reconciles exactly with the
+    // 370,000 preset — and so does 129.915 × 28,480 = 3,699,979 shown truncated. Convention wins.
+    expect(resolveLiters('12.9915', 28480, '370000')).toEqual({
+      liters: 129.915,
+      resolution: 'verified',
+    })
+    // URE panel: the convention does not add up, the 2-decimal literal does
+    expect(resolveLiters('14.00', 15000, '210000')).toEqual({ liters: 14, resolution: 'verified' })
   })
   it('trusts a dot the reader actually saw over the convention', () => {
     // 50F-032.52 LAMDONG01: "182.000" lit on the glass × 29,110 = 5,298,020 shown as 529802
