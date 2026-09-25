@@ -12,18 +12,18 @@ import { type FuelWordResolver } from '@/lib/fuels/catalogue'
 
 import type { BaremDefect, BaremSheet, BaremTank } from './barem'
 
-/** A Hầm as the `dispensers` table knows it. */
-export type DispenserTank = {
-  tankCode: string | null
+/** A Hầm as the `tanks` table knows it. */
+export type DbTank = {
+  code: string
   fuelType: string
-  /** Thousands of litres, as the column stores it — 25 means a 25,000 L tank. */
-  tankCapacityK: number | null
+  /** Thousands of litres — 25 means a 25,000 L tank. */
+  capacityK: number | null
 }
 
-/** What the sheet says about a Hầm, for comparison against the dispensers. */
+/** What the sheet says about a Hầm, for comparison against the database. */
 type SheetTank = Pick<BaremTank, 'tankCode' | 'fuel' | 'nominalCapacityLiters'>
 
-/** A disagreement between the Barem sheet and the `dispensers` table. */
+/** A disagreement between the Barem sheet and the `tanks` table. */
 export type BaremMismatch =
   | {
       kind: 'fuel'
@@ -33,16 +33,16 @@ export type BaremMismatch =
       /** The khóa that word resolves to, or null where the danh mục answers for
        *  nothing — in which case the Hầm's fuel is unknown, never guessed. */
       sheetFuelType: string | null
-      dispenserFuels: string[]
+      dbFuels: string[]
     }
   | {
       kind: 'capacity'
       tankCode: string
       sheetCapacityLiters: number | null
-      dispenserCapacitiesLiters: number[]
+      dbCapacitiesLiters: number[]
     }
-  | { kind: 'tank-missing-from-dispensers'; tankCode: string }
-  | { kind: 'tank-missing-from-sheet'; tankCode: string; dispenserFuels: string[] }
+  | { kind: 'tank-missing-from-db'; tankCode: string }
+  | { kind: 'tank-missing-from-sheet'; tankCode: string; dbFuels: string[] }
 
 /** One Trạm's sheet, as the checker found it. */
 export type BaremStationOutcome =
@@ -57,75 +57,62 @@ export type BaremStationOutcome =
   | { ok: false; stationCode: string; stationName: string; tab: string; error: string }
 
 /**
- * Lines up one Trạm's Barem against its dispensers. A Barem bound to the wrong
- * tank shows up here as a fuel or capacity disagreement — which is the point of
- * the check; neither side is corrected.
+ * Lines up one Trạm's Barem against its Hầm. A Barem bound to the wrong
+ * Hầm shows up as a fuel or capacity disagreement; neither side is corrected.
  *
- * The sheet writes its fuel as a word and the dispensers store a khóa, so the
- * word is resolved before the two are compared — through the same rule that
- * reads a trụ plate (`resolvePlateFuel`), which is why this takes a resolver
- * rather than a danh mục: it is called with the Trạm whose sheet this is already
- * bound in, exactly as the plate rule requires. A word nothing answers for
- * leaves the Hầm's fuel unknown and is reported as a disagreement with the trụ
- * drawing from it, rather than guessed into agreement.
+ * The sheet writes its fuel as a word and the database stores a khóa, so the
+ * word is resolved before comparison through the same rule that reads a trụ
+ * plate (`resolvePlateFuel`). An unknown word is reported, never guessed.
  */
-export function compareBaremToDispensers(
+export function compareBaremToTanks(
   sheetTanks: SheetTank[],
-  dispensers: DispenserTank[],
+  tanks: DbTank[],
   resolveFuel: FuelWordResolver
 ): BaremMismatch[] {
-  const byTank = new Map<string, DispenserTank[]>()
-  for (const d of dispensers) {
-    if (!d.tankCode) continue
-    byTank.set(d.tankCode, [...(byTank.get(d.tankCode) ?? []), d])
-  }
+  const byTank = new Map(tanks.map((tank) => [tank.code, tank]))
 
   const mismatches: BaremMismatch[] = []
   for (const tank of sheetTanks) {
-    const drawing = byTank.get(tank.tankCode)
-    if (!drawing) {
-      mismatches.push({ kind: 'tank-missing-from-dispensers', tankCode: tank.tankCode })
+    const known = byTank.get(tank.tankCode)
+    if (!known) {
+      mismatches.push({ kind: 'tank-missing-from-db', tankCode: tank.tankCode })
       continue
     }
 
-    // Several trụ can draw from one Hầm; they should all name the same fuel, and
-    // the sheet only has to agree with one of them to be consistent.
-    const dispenserFuels = distinct(drawing.map((d) => d.fuelType))
+    const dbFuels = [known.fuelType]
     const sheetFuelType = resolveFuel(tank.fuel)
-    if (sheetFuelType === null || !dispenserFuels.includes(sheetFuelType)) {
+    if (sheetFuelType === null || !dbFuels.includes(sheetFuelType)) {
       mismatches.push({
         kind: 'fuel',
         tankCode: tank.tankCode,
         sheetFuel: tank.fuel,
         sheetFuelType,
-        dispenserFuels,
+        dbFuels,
       })
     }
 
-    const dispenserCapacitiesLiters = distinct(
-      drawing.flatMap((d) => (d.tankCapacityK === null ? [] : [d.tankCapacityK * 1000]))
-    )
+    const dbCapacitiesLiters = known.capacityK === null ? [] : [known.capacityK * 1000]
     if (
-      dispenserCapacitiesLiters.length > 0 &&
+      dbCapacitiesLiters.length > 0 &&
       (tank.nominalCapacityLiters === null ||
-        !dispenserCapacitiesLiters.includes(tank.nominalCapacityLiters))
+        !dbCapacitiesLiters.includes(tank.nominalCapacityLiters))
     ) {
       mismatches.push({
         kind: 'capacity',
         tankCode: tank.tankCode,
         sheetCapacityLiters: tank.nominalCapacityLiters,
-        dispenserCapacitiesLiters,
+        dbCapacitiesLiters,
       })
     }
   }
 
   const inSheet = new Set(sheetTanks.map((t) => t.tankCode))
-  for (const [tankCode, drawing] of byTank) {
+  for (const [tankCode, known] of byTank) {
     if (inSheet.has(tankCode)) continue
     mismatches.push({
       kind: 'tank-missing-from-sheet',
       tankCode,
-      dispenserFuels: distinct(drawing.map((d) => d.fuelType)),
+      dbFuels: [known.fuelType],
     })
   }
 
@@ -155,7 +142,7 @@ export function formatBaremReport(outcomes: BaremStationOutcome[], checkedAt: Da
       }
     }
     if (outcome.mismatches.length > 0) {
-      lines.push('  Sai lệch so với bảng dispensers (không sửa bên nào):')
+      lines.push('  Sai lệch so với bảng tanks (không sửa bên nào):')
       for (const mismatch of outcome.mismatches) lines.push(`    • ${describeMismatch(mismatch)}`)
     }
   }
@@ -170,7 +157,7 @@ export function formatBaremReport(outcomes: BaremStationOutcome[], checkedAt: Da
     `  Hầm đọc được: ${tanks.length}`,
     `  Điểm chiều cao → lít: ${grouped(tanks.reduce((n, t) => n + t.points.size, 0))}`,
     `  Lỗi trong nguồn: ${tanks.reduce((n, t) => n + t.defects.length + nonIntegerPoints(t).length, 0)}`,
-    `  Sai lệch so với dispensers: ${readSheets.reduce((n, o) => n + o.mismatches.length, 0)}`
+    `  Sai lệch so với tanks: ${readSheets.reduce((n, o) => n + o.mismatches.length, 0)}`
   )
   return lines.join('\n')
 }
@@ -222,24 +209,22 @@ function describeMismatch(mismatch: BaremMismatch): string {
   const ham = hamLabel(mismatch.tankCode)
   switch (mismatch.kind) {
     case 'fuel': {
-      // A word that resolved is named by its khóa, the same vocabulary the
-      // dispensers side is printed in; one that did not is quoted as the cell
-      // writes it, so the line says which cell to go and correct.
+      // An unresolved word is quoted as written to identify the sheet cell.
       const barem =
         mismatch.sheetFuelType ??
         `"${mismatch.sheetFuel}" (không khớp tên, khóa hay mã hàng nhiên liệu nào)`
-      return `${ham}: nhiên liệu — barem ghi ${barem}, dispensers ghi ${mismatch.dispenserFuels.join(' / ')}`
+      return `${ham}: nhiên liệu — barem ghi ${barem}, DB ghi ${mismatch.dbFuels.join(' / ')}`
     }
     case 'capacity':
       return (
         `${ham}: dung tích — barem ghi ` +
         `${mismatch.sheetCapacityLiters === null ? 'không có' : `${grouped(mismatch.sheetCapacityLiters)} L`}, ` +
-        `dispensers ghi ${mismatch.dispenserCapacitiesLiters.map((l) => `${grouped(l)} L`).join(' / ')}`
+        `DB ghi ${mismatch.dbCapacitiesLiters.map((l) => `${grouped(l)} L`).join(' / ')}`
       )
-    case 'tank-missing-from-dispensers':
-      return `${ham}: có trong barem nhưng không có trong dispensers`
+    case 'tank-missing-from-db':
+      return `${ham}: có trong barem nhưng không có trong DB`
     case 'tank-missing-from-sheet':
-      return `${ham}: có trong dispensers (${mismatch.dispenserFuels.join(' / ')}) nhưng không có trong barem`
+      return `${ham}: có trong DB (${mismatch.dbFuels.join(' / ')}) nhưng không có trong barem`
   }
 }
 
@@ -254,8 +239,4 @@ function hamLabel(tankCode: string): string {
  *  to correct. */
 function grouped(value: number): string {
   return value.toLocaleString('en-US', { maximumFractionDigits: 20 })
-}
-
-function distinct<T>(values: T[]): T[] {
-  return [...new Set(values)]
 }

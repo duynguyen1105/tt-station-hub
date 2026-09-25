@@ -33,8 +33,6 @@ export type DipRowData = {
   /** What the AI read, once a người duyệt has retyped it; null until then. */
   originalDipValue: string | null
   reviewStatus: string
-  isReserve: boolean
-  isAnomaly: boolean
   role: AppRole
 }
 
@@ -146,14 +144,8 @@ export function DipRow({
         )}
       </td>
       <td className="p-2 text-right font-mono">{data.delta ?? '—'}</td>
-      <td className="space-y-1 p-2">
+      <td className="p-2">
         <StatusBadge label={info.label} tone={info.tone} />
-        {data.isReserve && <StatusBadge label={vi.inventory.reserve} tone="muted" />}
-        {data.isAnomaly && (
-          <div className="text-xs text-amber-700 dark:text-amber-400">
-            {vi.inventory.reserveChanged}
-          </div>
-        )}
       </td>
       <td className="p-2 text-right whitespace-nowrap">
         {/* A viewer never sees them. Unlike a ca's chỉ số there is no chốt that

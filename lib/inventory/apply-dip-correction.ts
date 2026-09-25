@@ -1,7 +1,6 @@
 import { writeAudit } from '@/lib/auth/audit'
 import { type Prisma, type TankDipRecord } from '@/lib/generated/prisma/client'
 import { countableDipWhere } from '@/lib/inventory/dip-review'
-import { tankIsReserve } from '@/lib/inventory/station-tanks'
 import { type ChainSide, planDipRewire } from '@/lib/inventory/tank-dip-rule'
 import { prisma } from '@/lib/prisma'
 
@@ -42,7 +41,7 @@ async function chainAround(dip: TankDipRecord, tankCode: string): Promise<ChainS
     }),
   ])
   const reduce = (row: TankDipRecord | null) =>
-    row ? { id: row.id, dipValue: Number(row.dipValue), isReserve: row.isReserve } : null
+    row ? { id: row.id, dipValue: Number(row.dipValue) } : null
   return { previous: reduce(previous), next: reduce(next) }
 }
 
@@ -76,17 +75,10 @@ export async function applyDipCorrection(params: {
   const dipValue = params.dipValue ?? Number(dip.dipValue)
   const tankCode = params.tankCode ?? dip.tankCode
   const movedTank = tankCode !== dip.tankCode
-  // isReserve is not re-derived for a retyped number: it records whether a trụ
-  // drew from the hầm when it was measured, and the number does not change that.
-  // A different hầm does — it is a fact about the hầm, and it decides which
-  // anomaly rule the row is judged by.
-  //
-  // Nothing here depends on anything else here, so the hầm it left, the hầm it
-  // joined, that hầm's trụ and its Cấu hình row are all asked at once.
-  const [from, movedTo, movedReserve, movedTankRow] = await Promise.all([
+  // Ask both chains and the new hầm's Cấu hình row at once.
+  const [from, movedTo, movedTankRow] = await Promise.all([
     chainAround(dip, dip.tankCode),
     movedTank ? chainAround(dip, tankCode) : null,
-    movedTank ? tankIsReserve(dip.stationId, tankCode) : null,
     movedTank
       ? prisma.tank.findUnique({
           where: { stationId_code: { stationId: dip.stationId, code: tankCode } },
@@ -95,11 +87,8 @@ export async function applyDipCorrection(params: {
       : null,
   ])
   const to = movedTo ?? from
-  const isReserve = movedReserve ?? dip.isReserve
-
-  const plan = planDipRewire({ self: { dipValue, isReserve }, from, to, movedTank })
-
-  const data: Prisma.TankDipRecordUpdateInput = { dipValue, isReserve, ...plan.self }
+  const plan = planDipRewire({ self: { dipValue }, from, to, movedTank })
+  const data: Prisma.TankDipRecordUpdateInput = { dipValue, ...plan.self }
   if (movedTank) data.tankCode = tankCode
   // capacityK is left alone: it is what the plate said, not what the hầm is. The
   // stored nhiên liệu follows the hầm Cấu hình knows, so the copy the row falls back

@@ -80,7 +80,7 @@ type DispenserSeed = {
   displayName: string
   fuelType: string
   tankCode: string
-  tankCapacityK: number
+  capacityK: number
   displayOrder: number
   // Last-reading cache = the opening a dispenser's next ca measures from. Without
   // it, a fresh environment reproduces the silent-zero on every dispenser's first
@@ -96,7 +96,7 @@ const DISPENSERS: DispenserSeed[] = [
     displayName: 'Trụ 1',
     fuelType: 'DO',
     tankCode: 'HAM_3',
-    tankCapacityK: 25,
+    capacityK: 25,
     displayOrder: 1,
     lastElectronicReading: 30255694,
     lastMechanicalReading: 455179,
@@ -106,7 +106,7 @@ const DISPENSERS: DispenserSeed[] = [
     displayName: 'Trụ 2',
     fuelType: 'E0',
     tankCode: 'HAM_1',
-    tankCapacityK: 15,
+    capacityK: 15,
     displayOrder: 2,
     lastElectronicReading: 18885574,
     lastMechanicalReading: 1041945,
@@ -116,7 +116,7 @@ const DISPENSERS: DispenserSeed[] = [
     displayName: 'Trụ 3',
     fuelType: 'E0',
     tankCode: 'HAM_1',
-    tankCapacityK: 15,
+    capacityK: 15,
     displayOrder: 3,
     lastElectronicReading: 9831198,
     lastMechanicalReading: 234424,
@@ -126,7 +126,7 @@ const DISPENSERS: DispenserSeed[] = [
     displayName: 'Trụ 4',
     fuelType: 'DC',
     tankCode: 'HAM_2',
-    tankCapacityK: 10,
+    capacityK: 10,
     displayOrder: 4,
     lastElectronicReading: 5875897,
     lastMechanicalReading: 213577,
@@ -136,7 +136,7 @@ const DISPENSERS: DispenserSeed[] = [
     displayName: 'Trụ 5',
     fuelType: 'DC',
     tankCode: 'HAM_2',
-    tankCapacityK: 10,
+    capacityK: 10,
     displayOrder: 5,
     lastElectronicReading: 10069152,
     lastMechanicalReading: 9003,
@@ -146,7 +146,7 @@ const DISPENSERS: DispenserSeed[] = [
     displayName: 'Trụ 6',
     fuelType: 'DO',
     tankCode: 'HAM_3',
-    tankCapacityK: 25,
+    capacityK: 25,
     displayOrder: 6,
     lastElectronicReading: 73853960,
     lastMechanicalReading: 45055,
@@ -239,27 +239,24 @@ async function main() {
     if (tankIds.has(d.tankCode)) continue
     const tank = await prisma.tank.upsert({
       where: { stationId_code: { stationId: station.id, code: d.tankCode } },
-      update: { fuelType: d.fuelType, capacityK: d.tankCapacityK },
+      update: { fuelType: d.fuelType, capacityK: d.capacityK },
       create: {
         stationId: station.id,
         code: d.tankCode,
         fuelType: d.fuelType,
-        capacityK: d.tankCapacityK,
+        capacityK: d.capacityK,
       },
     })
     tankIds.set(d.tankCode, tank.id)
   }
 
-  // Dispensers (trụ bơm), each carrying a copy of its tank's code, fuel and capacity.
+  // Dispensers (trụ bơm) and their links to the hầm they draw from.
   for (const d of DISPENSERS) {
-    await prisma.dispenser.upsert({
+    const dispenser = await prisma.dispenser.upsert({
       where: { stationId_code: { stationId: station.id, code: d.code } },
       update: {
         displayName: d.displayName,
-        tankId: tankIds.get(d.tankCode),
         fuelType: d.fuelType,
-        tankCode: d.tankCode,
-        tankCapacityK: d.tankCapacityK,
         displayOrder: d.displayOrder,
         lastElectronicReading: d.lastElectronicReading,
         lastMechanicalReading: d.lastMechanicalReading,
@@ -269,15 +266,19 @@ async function main() {
         stationId: station.id,
         code: d.code,
         displayName: d.displayName,
-        tankId: tankIds.get(d.tankCode),
         fuelType: d.fuelType,
-        tankCode: d.tankCode,
-        tankCapacityK: d.tankCapacityK,
         displayOrder: d.displayOrder,
         lastElectronicReading: d.lastElectronicReading,
         lastMechanicalReading: d.lastMechanicalReading,
         lastReadingAt: BASELINE_READING_AT,
       },
+    })
+    await prisma.dispenserTank.upsert({
+      where: {
+        dispenserId_tankId: { dispenserId: dispenser.id, tankId: tankIds.get(d.tankCode)! },
+      },
+      update: {},
+      create: { dispenserId: dispenser.id, tankId: tankIds.get(d.tankCode)! },
     })
   }
 

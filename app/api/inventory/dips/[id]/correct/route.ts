@@ -28,11 +28,8 @@ const correctDipSchema = z
   .refine((body) => Object.values(body).some((field) => field !== undefined))
 
 /**
- * Repairs what the AI misread off a hầm plate before anyone decides on it — the
- * hầm and the số đo. Admin or kế toán, at the đo hầm's own trạm, and
- * only while the row is still chờ xử lý — see `canCorrectTankDip`. Re-derives "So
- * với lần trước", the hầm dự phòng flag and both hầm's chains from the shared
- * rule, so a repaired dip reads exactly like a correct AI read.
+ * Repairs the hầm or số đo before review, then re-derives "So với lần trước"
+ * for this dip and the neighbouring rows in both hầm's chains.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()

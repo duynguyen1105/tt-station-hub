@@ -8,7 +8,8 @@ import { StationFuelAreaForm } from '@/components/stations/station-fuel-area-for
 import { TankForm } from '@/components/stations/tank-form'
 import { Badge } from '@/components/ui/badge'
 import { requireStationAccess } from '@/lib/auth/station-guard'
-import { tankNameFor, tankNumberFrom } from '@/lib/dispensers/naming'
+import { tankNameFor } from '@/lib/dispensers/naming'
+import { byTankCode, tanksOf, withTanks } from '@/lib/dispensers/tank-links'
 import { addableFuels, fuelTypeLabelFrom, stationFuels } from '@/lib/fuels/catalogue'
 import { loadFuelCatalogue } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
@@ -21,13 +22,6 @@ function meterSummary(dispenser: DispenserRow) {
     ...(dispenser.hasElectronicMeter ? [vi.dispensers.electronicMeter] : []),
     ...(dispenser.hasMechanicalMeter ? [vi.dispensers.mechanicalMeter] : []),
   ].join(', ')
-}
-
-/** Hầm 2 before Hầm 10: by số hầm, then by code for one carrying no số. */
-function byTankNumber(a: { code: string }, b: { code: string }) {
-  const numberA = tankNumberFrom(a.code) ?? Infinity
-  const numberB = tankNumberFrom(b.code) ?? Infinity
-  return numberA === numberB ? a.code.localeCompare(b.code) : numberA - numberB
 }
 
 export default async function StationConfigPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,7 +38,11 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
     prisma.tank.findMany({ where: { stationId: id } }),
     // Trụ đã ngừng are here too: this is the trạm's own list of what it lắp, not an ô
     // chọn, and Dùng lại is reachable only from the row of a trụ that is retired.
-    prisma.dispenser.findMany({ where: { stationId: id }, orderBy: { displayOrder: 'asc' } }),
+    prisma.dispenser.findMany({
+      where: { stationId: id },
+      include: withTanks,
+      orderBy: { displayOrder: 'asc' },
+    }),
   ])
   const byFuel = new Map(entries.map((e) => [e.fuelType, e]))
 
@@ -69,14 +67,20 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
     fuelType,
     name: fuelTypeLabelFrom(catalogue, fuelType),
   })
-  const tanks = tankRecords.sort(byTankNumber).map((tank) => ({
-    id: tank.id,
-    name: tankNameFor(tank.code),
-    fuel: fuelOf(tank.fuelType),
-    capacityK: tank.capacityK,
-    dispensers: dispensers.filter((d) => d.tankId === tank.id),
+  const dispenserRows = dispensers.map((d) => ({
+    ...d,
+    tankIds: tanksOf(d).map((tank) => tank.id),
   }))
-  const untanked = dispensers.filter((d) => d.tankId === null)
+  const tanks = tankRecords
+    .sort((a, b) => byTankCode(a.code, b.code))
+    .map((tank) => ({
+      id: tank.id,
+      name: tankNameFor(tank.code),
+      fuel: fuelOf(tank.fuelType),
+      capacityK: tank.capacityK,
+      dispensers: dispenserRows.filter((d) => d.tankIds.includes(tank.id)),
+    }))
+  const untanked = dispenserRows.filter((d) => d.tankIds.length === 0)
   // What the trụ form's ô chọn needs, and nothing that cannot cross to the client: the
   // trụ rows above carry Decimal đồng hồ caches.
   const tankOptions = tanks.map(({ id: tankId, name, fuel, capacityK }) => ({
@@ -211,6 +215,9 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                           fuel: tank.fuel,
                           capacityK: tank.capacityK,
                           dispenserNames: tank.dispensers.map((d) => d.displayName),
+                          sharedDispenserNames: tank.dispensers
+                            .filter((d) => d.tankIds.length > 1)
+                            .map((d) => d.displayName),
                         }}
                       />
                     )}
@@ -230,6 +237,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
                       fuels={sold}
                       tanks={tankOptions}
                       dispenser={{ ...dispenser, fuel: fuelOf(dispenser.fuelType) }}
+                      currentTankId={tank.id}
                       canEdit={canEdit}
                     />
                   ))
@@ -274,10 +282,12 @@ function DispenserTableRow({
   tanks,
   dispenser,
   canEdit,
+  currentTankId,
   showFuel = false,
 }: Pick<ComponentProps<typeof DispenserForm>, 'stationId' | 'fuels' | 'tanks'> & {
   dispenser: DispenserRow
   canEdit: boolean
+  currentTankId?: string
   showFuel?: boolean
 }) {
   return (
@@ -290,6 +300,16 @@ function DispenserTableRow({
           </Badge>
         )}
         <span className="text-muted-foreground ml-3">{meterSummary(dispenser)}</span>
+        {currentTankId && dispenser.tankIds.length > 1 && (
+          <div className="text-muted-foreground text-xs">
+            {vi.dispensers.alsoFrom(
+              tanks
+                .filter((tank) => tank.id !== currentTankId && dispenser.tankIds.includes(tank.id))
+                .map((tank) => tank.name)
+                .join(' + ')
+            )}
+          </div>
+        )}
       </td>
       <td className="p-2">{showFuel && dispenser.fuel.name}</td>
       <td className="p-2"></td>
@@ -303,7 +323,7 @@ function DispenserTableRow({
               id: dispenser.id,
               displayName: dispenser.displayName,
               fuel: dispenser.fuel,
-              tankId: dispenser.tankId,
+              tankIds: dispenser.tankIds,
               hasElectronicMeter: dispenser.hasElectronicMeter,
               hasMechanicalMeter: dispenser.hasMechanicalMeter,
               isActive: dispenser.isActive,

@@ -10,7 +10,7 @@ import {
 import { type BaremSheet, parseBaremSheet } from '@/lib/inventory/barem'
 import {
   type BaremStationOutcome,
-  compareBaremToDispensers,
+  compareBaremToTanks,
   formatBaremReport,
 } from '@/lib/inventory/barem-report'
 
@@ -25,8 +25,8 @@ function sheetTank(tankCode: string, fuel: string, nominalCapacityLiters: number
   return { tankCode, fuel, nominalCapacityLiters }
 }
 
-function dispenser(tankCode: string | null, fuelType: string, tankCapacityK: number | null) {
-  return { tankCode, fuelType, tankCapacityK }
+function tank(code: string, fuelType: string, capacityK: number | null) {
+  return { code, fuelType, capacityK }
 }
 
 // The danh mục and Đăk Nông 1's mã hàng, as seeded (prisma/seed.ts). The sheet's fuel
@@ -53,31 +53,23 @@ function resolverFor(catalogue: CatalogueFuel[] = CATALOGUE): FuelWordResolver {
 
 const resolveFuel = resolverFor()
 
-describe('compareBaremToDispensers', () => {
-  it('says nothing when the sheet and the dispensers agree', () => {
+describe('compareBaremToTanks', () => {
+  it('says nothing when the sheet and the Hầm agree', () => {
     expect(
-      compareBaremToDispensers(
-        [sheetTank('HAM_1', 'DO', 25000)],
-        [dispenser('HAM_1', 'DO', 25), dispenser('HAM_1', 'DO', 25)],
-        resolveFuel
-      )
+      compareBaremToTanks([sheetTank('HAM_1', 'DO', 25000)], [tank('HAM_1', 'DO', 25)], resolveFuel)
     ).toEqual([])
   })
 
   it('names both sides of a fuel disagreement', () => {
     expect(
-      compareBaremToDispensers(
-        [sheetTank('HAM_2', 'DC', 10000)],
-        [dispenser('HAM_2', 'DO', 10)],
-        resolveFuel
-      )
+      compareBaremToTanks([sheetTank('HAM_2', 'DC', 10000)], [tank('HAM_2', 'DO', 10)], resolveFuel)
     ).toEqual([
       {
         kind: 'fuel',
         tankCode: 'HAM_2',
         sheetFuel: 'DC',
         sheetFuelType: 'DC',
-        dispenserFuels: ['DO'],
+        dbFuels: ['DO'],
       },
     ])
   })
@@ -87,9 +79,9 @@ describe('compareBaremToDispensers', () => {
   // mã hàng, exactly as they do on a trụ plate.
   it('resolves a sheet wording through the tên and the trạm mã hàng', () => {
     expect(
-      compareBaremToDispensers(
+      compareBaremToTanks(
         [sheetTank('HAM_1', 'Dầu DO', 25000), sheetTank('HAM_2', 'DO01', 10000)],
-        [dispenser('HAM_1', 'DO', 25), dispenser('HAM_2', 'DC', 10)],
+        [tank('HAM_1', 'DO', 25), tank('HAM_2', 'DC', 10)],
         resolveFuel
       )
     ).toEqual([])
@@ -104,9 +96,9 @@ describe('compareBaremToDispensers', () => {
       { fuelType: 'XANG_RON_98', name: 'Xăng RON 98', areaIndependent: false, isActive: true },
     ]
     expect(
-      compareBaremToDispensers(
+      compareBaremToTanks(
         [sheetTank('HAM_1', 'Xăng RON 98', 15000)],
-        [dispenser('HAM_1', 'XANG_RON_98', 15)],
+        [tank('HAM_1', 'XANG_RON_98', 15)],
         resolverFor(withRon98)
       )
     ).toEqual([])
@@ -116,9 +108,9 @@ describe('compareBaremToDispensers', () => {
   // drawing from the Hầm is reported as disagreeing rather than silently agreeing.
   it('reports a fuel word the danh mục answers for nothing', () => {
     expect(
-      compareBaremToDispensers(
+      compareBaremToTanks(
         [sheetTank('HAM_1', 'Xăng RON 98', 15000)],
-        [dispenser('HAM_1', 'XANG_A95', 15)],
+        [tank('HAM_1', 'XANG_A95', 15)],
         resolveFuel
       )
     ).toEqual([
@@ -127,7 +119,7 @@ describe('compareBaremToDispensers', () => {
         tankCode: 'HAM_1',
         sheetFuel: 'Xăng RON 98',
         sheetFuelType: null,
-        dispenserFuels: ['XANG_A95'],
+        dbFuels: ['XANG_A95'],
       },
     ])
   })
@@ -137,9 +129,9 @@ describe('compareBaremToDispensers', () => {
       fuel.fuelType === 'DC' ? { ...fuel, isActive: false } : fuel
     )
     expect(
-      compareBaremToDispensers(
+      compareBaremToTanks(
         [sheetTank('HAM_2', 'DC', 10000)],
-        [dispenser('HAM_2', 'DC', 10)],
+        [tank('HAM_2', 'DC', 10)],
         resolverFor(stopped)
       )
     ).toEqual([
@@ -148,52 +140,44 @@ describe('compareBaremToDispensers', () => {
         tankCode: 'HAM_2',
         sheetFuel: 'DC',
         sheetFuelType: null,
-        dispenserFuels: ['DC'],
+        dbFuels: ['DC'],
       },
     ])
   })
 
-  it('compares capacity in litres, since dispensers record it in thousands', () => {
+  it('compares capacity in litres, since Hầm records it in thousands', () => {
     expect(
-      compareBaremToDispensers(
-        [sheetTank('HAM_2', 'DC', 5500)],
-        [dispenser('HAM_2', 'DC', 5)],
-        resolveFuel
-      )
+      compareBaremToTanks([sheetTank('HAM_2', 'DC', 5500)], [tank('HAM_2', 'DC', 5)], resolveFuel)
     ).toEqual([
       {
         kind: 'capacity',
         tankCode: 'HAM_2',
         sheetCapacityLiters: 5500,
-        dispenserCapacitiesLiters: [5000],
+        dbCapacitiesLiters: [5000],
       },
     ])
   })
 
-  it('is silent on capacity when no dispenser records one', () => {
+  it('is silent on capacity when the Hầm has no recorded capacity', () => {
     expect(
-      compareBaremToDispensers(
+      compareBaremToTanks(
         [sheetTank('HAM_1', 'DO', 25000)],
-        [dispenser('HAM_1', 'DO', null)],
+        [tank('HAM_1', 'DO', null)],
         resolveFuel
       )
     ).toEqual([])
   })
 
-  it('reports a Hầm the Barem has and the dispensers do not', () => {
-    expect(compareBaremToDispensers([sheetTank('HAM_4', 'E0', 6000)], [], resolveFuel)).toEqual([
-      { kind: 'tank-missing-from-dispensers', tankCode: 'HAM_4' },
+  it('reports a Hầm the Barem has and the database does not', () => {
+    expect(compareBaremToTanks([sheetTank('HAM_4', 'E0', 6000)], [], resolveFuel)).toEqual([
+      { kind: 'tank-missing-from-db', tankCode: 'HAM_4' },
     ])
   })
 
-  it('reports a Hầm the dispensers have and the Barem does not', () => {
-    expect(compareBaremToDispensers([], [dispenser('HAM_5', 'DO', 10)], resolveFuel)).toEqual([
-      { kind: 'tank-missing-from-sheet', tankCode: 'HAM_5', dispenserFuels: ['DO'] },
+  it('reports a Hầm without a linked Trụ when the Barem omits it', () => {
+    expect(compareBaremToTanks([], [tank('HAM_5', 'DO', 10)], resolveFuel)).toEqual([
+      { kind: 'tank-missing-from-sheet', tankCode: 'HAM_5', dbFuels: ['DO'] },
     ])
-  })
-
-  it('ignores dispensers that name no tank', () => {
-    expect(compareBaremToDispensers([], [dispenser(null, 'DO', 25)], resolveFuel)).toEqual([])
   })
 })
 
@@ -204,7 +188,7 @@ function checked(
   stationName: string,
   tab: string,
   sheet: BaremSheet,
-  mismatches: ReturnType<typeof compareBaremToDispensers> = []
+  mismatches: ReturnType<typeof compareBaremToTanks> = []
 ): BaremStationOutcome {
   return { ok: true, stationCode, stationName, tab, sheet, mismatches }
 }
@@ -218,7 +202,7 @@ describe('formatBaremReport', () => {
           tankCode: 'HAM_2',
           sheetFuel: 'DC',
           sheetFuelType: 'DC',
-          dispenserFuels: ['DO'],
+          dbFuels: ['DO'],
         },
       ]),
       checked('DAKNONGVK', 'Đăk Nông VK', 'daknongvk', daknongvk),
@@ -248,8 +232,8 @@ describe('formatBaremReport', () => {
     expect(report).toContain('310')
   })
 
-  it('lists the disagreement with the dispensers table without correcting either side', () => {
-    expect(report).toContain('barem ghi DC, dispensers ghi DO')
+  it('lists the disagreement with the tanks table without correcting either side', () => {
+    expect(report).toContain('barem ghi DC, DB ghi DO')
   })
 
   it('quotes a fuel word it could not resolve instead of naming a khóa', () => {
@@ -261,14 +245,14 @@ describe('formatBaremReport', () => {
             tankCode: 'HAM_1',
             sheetFuel: 'Xăng RON 98',
             sheetFuelType: null,
-            dispenserFuels: ['XANG_A95'],
+            dbFuels: ['XANG_A95'],
           },
         ]),
       ],
       checkedAt
     )
     expect(unresolved).toContain('barem ghi "Xăng RON 98"')
-    expect(unresolved).toContain('dispensers ghi XANG_A95')
+    expect(unresolved).toContain('DB ghi XANG_A95')
   })
 
   it('names a sheet it could not read and leaves it out of the count', () => {

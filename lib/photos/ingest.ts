@@ -13,6 +13,7 @@ import { priceMismatchOf } from '@/lib/debts/board-price'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { plateListContains } from '@/lib/debts/plate'
 import { tankCodeFor } from '@/lib/dispensers/naming'
+import { withTanks } from '@/lib/dispensers/tank-links'
 import { resolveStationPlateFuel } from '@/lib/fuels/load-catalogue'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { parseVnNumber } from '@/lib/imports/bien-ban'
@@ -788,12 +789,7 @@ export async function assembleDebtVisit(params: {
   return { visitId: visit.id, meter: null, plate }
 }
 
-/**
- * Reads a tank-dip (barem) photo, records it on the photo, and appends a
- * per-tank dip history record. A RESERVE tank (one no active dispenser draws
- * from — derived, not configured) must hold still between dips, so a change
- * beyond tolerance is flagged 'reserve_stock_changed' for review.
- */
+/** Reads a đo hầm photo and appends a per-hầm dip history record. */
 export async function ingestTankDip(
   photoId: string,
   buffer: Buffer,
@@ -804,9 +800,8 @@ export async function ingestTankDip(
   const result = precomputed ?? (await extractTankDip({ imageBuffer: buffer }))
   // The printed tank label names its station ("TANHOA / HẦM 3 / E0 - 6K") — the
   // most trustworthy source there is, exactly like the pump plate for shift and
-  // debt photos. It overrides the sender/context station: a courier forwarding
-  // several stations' dips through one Zalo thread must not file TANHOA's tank
-  // under DAKNONG3 (and poison DAKNONG3's delta/reserve chain).
+  // debt photos. It overrides the sender/context station, so forwarded dips
+  // never poison another trạm's delta chain.
   let target = station ?? null
   if (result.stationLabel) {
     const byLabel = await matchStationByLabel(result.stationLabel)
@@ -827,39 +822,38 @@ export async function ingestTankDip(
   }
   const tankNumber = result.tankNumber ?? result.tankLabel?.match(/(\d+)/)?.[1] ?? null
   const tankCode = target && tankNumber ? tankCodeFor(Number.parseInt(tankNumber, 10)) : null
-  // The trụ drawing on this hầm, and the last dip anyone still stands behind. The
-  // trụ say whether the hầm is dự phòng and what it holds; the previous dip is what
-  // this one is compared to. A read kế toán từ chối is skipped: comparing against it
-  // would put a bogus "So với lần trước" on this row and could fire a false
-  // reserve_stock_changed on a hầm that never moved.
-  const [attached, previous] =
+  // A rejected dip cannot become the comparison point for "So với lần trước".
+  const [configuredTank, attached, previous] =
     target && tankCode
       ? await Promise.all([
+          prisma.tank.findUnique({
+            where: { stationId_code: { stationId: target.id, code: tankCode } },
+            select: { fuelType: true },
+          }),
           prisma.dispenser.findMany({
-            where: { stationId: target.id, tankCode, isActive: true },
-            select: { tankCode: true, fuelType: true },
+            where: {
+              stationId: target.id,
+              isActive: true,
+              tankLinks: { some: { tank: { code: tankCode } } },
+            },
+            include: withTanks,
           }),
           prisma.tankDipRecord.findFirst({
             where: { ...countableDipWhere(target.id), tankCode },
-            // createdAt breaks a measuredAt tie — two shots of the same stick in one
-            // Zalo burst share a timestamp — so this picks the same neighbour a later
-            // correction of the row would (lib/inventory/apply-dip-correction.ts).
+            // Tie-break the same way as correction of this chain.
             orderBy: [{ measuredAt: 'desc' }, { createdAt: 'desc' }],
           }),
         ])
-      : [[], null]
-  // The prompt copies the fuel word off the hầm plate as printed, so it is only a khóa
-  // once this trạm's mã hàng and the danh mục have had a look at it. Resolved against
-  // the trạm the LABEL settled on (not the sender's), because a mã hàng belongs to the
-  // pair (trạm, nhiên liệu). A plate this trạm cannot place — worn paint, a word the
-  // AI misread — falls back to what the hầm is known to hold: the trụ drawing on it,
-  // then the previous đo hầm of the same hầm (a hầm dự phòng has no trụ, but its earlier
-  // dips were reviewed). Only a hầm nothing has ever said anything about lands with an
-  // empty nhiên liệu, for kế toán to set. Each source is a fact about THIS hầm, never a
-  // guess across hầm.
+      : [null, [], null]
+  // Cấu hình's hầm is authoritative even when the plate word is misread as a
+  // different known fuel. Otherwise the plate, linked trụ, then older dip answer.
   const plateFuel = target ? await resolveStationPlateFuel(target.id, result.fuelType) : null
   const fuelType =
-    plateFuel ?? (tankCode ? tankFuelFrom(attached, tankCode) : null) ?? previous?.fuelType ?? null
+    configuredTank?.fuelType ??
+    plateFuel ??
+    (tankCode ? tankFuelFrom(attached, tankCode) : null) ??
+    previous?.fuelType ??
+    null
   if (!plateFuel && fuelType) {
     logger.info(
       { photoId, tankCode, word: result.fuelType, fuelType },
@@ -883,11 +877,9 @@ export async function ingestTankDip(
   const dip = parseVnNumber(result.dipValue)
   if (!target || !tankCode || dip === null) return result
 
-  const isReserve = attached.length === 0
   const comparison = compareDipToPrevious({
     dipValue: dip,
     previousDipValue: previous ? Number(previous.dipValue) : null,
-    isReserve,
   })
 
   await prisma.tankDipRecord.create({
@@ -897,7 +889,6 @@ export async function ingestTankDip(
       fuelType,
       capacityK: result.capacityK,
       dipValue: dip,
-      isReserve,
       ...comparison,
       // Every đo hầm waits for a người duyệt, whatever the AI's confidence —
       // stated here rather than left to the column default so the write site reads
@@ -907,17 +898,5 @@ export async function ingestTankDip(
       measuredAt: photo.zaloReceivedAt ?? photo.createdAt,
     },
   })
-  if (comparison.isAnomaly) {
-    logger.warn(
-      {
-        stationId: target.id,
-        tankCode,
-        dip,
-        previous: previous?.dipValue?.toString(),
-        delta: comparison.deltaFromPrevious,
-      },
-      'Reserve tank dip moved beyond tolerance'
-    )
-  }
   return result
 }

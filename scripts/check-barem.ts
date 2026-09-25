@@ -6,7 +6,7 @@ import { PrismaClient } from '../lib/generated/prisma/client'
 import { fetchBaremSheet } from '../lib/inventory/barem-fetch'
 import {
   type BaremStationOutcome,
-  compareBaremToDispensers,
+  compareBaremToTanks,
   formatBaremReport,
 } from '../lib/inventory/barem-report'
 import { BAREM_SHEETS, type BaremSheetBinding } from '../lib/inventory/barem-sheets'
@@ -28,9 +28,8 @@ import { BAREM_SHEETS, type BaremSheetBinding } from '../lib/inventory/barem-she
 // Trạm's Barem is still its trang tính, and still whatever it says right now.
 
 // The database is only ever read here, and only for the two things the comparison
-// needs: the `dispensers` to line the Barem up against, and the danh mục plus each
-// Trạm's mã hàng, which are what a sheet's fuel word is resolved through. The
-// comparison corrects neither side.
+// needs: the `tanks` to line the Barem up against, and the danh mục plus each
+// Trạm's mã hàng, which resolve a sheet's fuel word. Neither side is corrected.
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? '' })
 const prisma = new PrismaClient({ adapter })
 
@@ -58,10 +57,10 @@ async function checkSheet(
   const read = await fetchBaremSheet(binding)
   if (!read.ok) return { ok: false, ...named, error: read.error }
 
-  const [dispensers, mappings] = await Promise.all([
-    prisma.dispenser.findMany({
+  const [tanks, mappings] = await Promise.all([
+    prisma.tank.findMany({
       where: { stationId: station.id },
-      select: { tankCode: true, fuelType: true, tankCapacityK: true },
+      select: { code: true, fuelType: true, capacityK: true },
     }),
     // This Trạm's mã hàng, so a sheet whose fuel column carries one reads — the
     // same two-step the plate rule uses, and it needs the Trạm bound first. Read
@@ -72,13 +71,13 @@ async function checkSheet(
       select: { fuelType: true, productCode: true },
     }),
   ])
-  const mismatches = compareBaremToDispensers(
+  const mismatches = compareBaremToTanks(
     read.sheet.tanks.map((tank) => ({
       tankCode: tank.tankCode,
       fuel: tank.fuel,
       nominalCapacityLiters: tank.nominalCapacityLiters,
     })),
-    dispensers,
+    tanks,
     fuelWordResolver(catalogue, mappings)
   )
   return { ok: true, ...named, sheet: read.sheet, mismatches }

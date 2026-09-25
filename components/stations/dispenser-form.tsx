@@ -56,8 +56,8 @@ export type DispenserRow = {
    * liệu đã ngừng still reads its tên rather than its khóa.
    */
   fuel: DispenserFuelOption
-  /** The hầm it draws from, or null for a trụ with none. */
-  tankId: string | null
+  /** Hầm the trụ draws from; empty means no hầm. */
+  tankIds: string[]
   hasElectronicMeter: boolean
   hasMechanicalMeter: boolean
   isActive: boolean
@@ -76,10 +76,6 @@ export function toInputValue(value: number | null): string {
   return value === null ? '' : String(value)
 }
 
-// Radix Select refuses an empty-string item value, so a trụ drawing from no hầm travels
-// under a sentinel; '' stays the "not yet chosen" of Thêm trụ.
-const NO_TANK = 'none'
-
 /**
  * What a box reads back as. A blank box means "không khai", not zero — the column is
  * nullable for exactly that — and so does anything that is not a number, rather than
@@ -93,25 +89,16 @@ export function numberOrNull(value: string): number | null {
 }
 
 /**
- * Lắp một trụ, sửa một trụ, or retire one. With a `dispenser` it is that row's menu —
- * Chỉnh sửa and Ngừng sử dụng / Dùng lại; without one it is Thêm trụ and the trạm gives
- * a số trụ and the hầm it draws from.
- *
- * Thêm trụ is opened from a hầm's menu, which holds `open` and hands over its `tankId`
- * as the hầm already chosen; the form has no button of its own for it.
- *
- * The hầm is the root: a trụ drawing from one pumps what the hầm holds, and only a trụ
- * with no hầm picks a nhiên liệu of its own — from `fuels`, what the trạm declared it
- * sells. Whichever way the nhiên liệu changes on an edit it is a hoán cải — the trụ
- * pumps the new nhiên liệu from here on, while every chỉ số it has already written keeps
- * the one stamped on it — so it is confirmed rather than saved with the rest.
+ * Lắp một trụ, sửa một trụ, or retire one. Thêm trụ from a hầm's menu pre-ticks
+ * that hầm. A trụ pumps the shared nhiên liệu of its chosen hầm, or selects its
+ * own when it has none. Changing nhiên liệu still requires confirmation.
  */
 export function DispenserForm({
   stationId,
   dispenser,
   fuels,
   tanks,
-  tankId,
+  initialTankId,
   open: controlledOpen,
   onOpenChange,
 }: {
@@ -119,7 +106,7 @@ export function DispenserForm({
   dispenser?: DispenserRow
   fuels: readonly DispenserFuelOption[]
   tanks: readonly DispenserTankOption[]
-  tankId?: string | null
+  initialTankId?: string
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
@@ -130,7 +117,9 @@ export function DispenserForm({
   const [standing, setStanding] = useState(false)
   const [converting, setConverting] = useState(false)
   const [pumpNumber, setPumpNumber] = useState('')
-  const [tankChoice, setTankChoice] = useState(initialTankChoice())
+  const [tankIds, setTankIds] = useState(
+    () => dispenser?.tankIds ?? (initialTankId ? [initialTankId] : [])
+  )
   const [fuelType, setFuelType] = useState(dispenser?.fuel.fuelType ?? '')
   // Both đồng hồ ticked is what every trụ at Trường Thịnh has today; a trụ without one
   // is the exception the kế toán unticks.
@@ -141,21 +130,15 @@ export function DispenserForm({
   // already pumps — a trụ đã ngừng may hold one the trạm has since stopped selling, and
   // it has to read back as what it pumps rather than as an empty box.
   const options = dispenserFuelOptions(fuels, dispenser?.fuel)
-  const chosenTank = tanks.find((tank) => tank.id === tankChoice)
+  const chosenTank = tanks.find((tank) => tank.id === tankIds[0])
   // What the trụ will pump once saved: the hầm's nhiên liệu, or its own with no hầm.
   const resultingFuel = chosenTank
     ? chosenTank.fuel
     : options.find((fuel) => fuel.fuelType === fuelType)
 
-  function initialTankChoice() {
-    if (dispenser) return dispenser.tankId ?? NO_TANK
-    if (tankId === undefined) return ''
-    return tankId ?? NO_TANK
-  }
-
   function reset() {
     setPumpNumber('')
-    setTankChoice(initialTankChoice())
+    setTankIds(dispenser?.tankIds ?? (initialTankId ? [initialTankId] : []))
     setFuelType(dispenser?.fuel.fuelType ?? '')
     setElectronic(dispenser?.hasElectronicMeter ?? true)
     setMechanical(dispenser?.hasMechanicalMeter ?? true)
@@ -168,7 +151,7 @@ export function DispenserForm({
 
   function editBody() {
     return {
-      tankId: chosenTank?.id ?? null,
+      tankIds,
       fuelType: chosenTank || !fuelType ? null : fuelType,
       hasElectronicMeter: electronic,
       hasMechanicalMeter: mechanical,
@@ -194,10 +177,6 @@ export function DispenserForm({
     const refusal = refuseDispenserShape(editBody())
     if (refusal) {
       toast.error(refusal)
-      return
-    }
-    if (tankChoice === '') {
-      toast.error(vi.dispensers.tankRequired)
       return
     }
     if (!resultingFuel) {
@@ -349,27 +328,41 @@ export function DispenserForm({
                 <FieldDescription>{vi.dispensers.pumpNumberNote}</FieldDescription>
               </Field>
             )}
-            <Field>
+            {/* Not a <Field>: Field dims every control inside once one is disabled, and the
+                hầm of another nhiên liệu are disabled while the chosen ones stay live. */}
+            <div className="flex flex-col gap-2">
               <FieldLabel>{vi.dispensers.tank}</FieldLabel>
-              <Select value={tankChoice} onValueChange={setTankChoice}>
-                <SelectTrigger>
-                  <SelectValue placeholder={vi.dispensers.selectTank} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tanks.map((tank) => (
-                    <SelectItem key={tank.id} value={tank.id}>
+              <div className="space-y-2">
+                {tanks.map((tank) => (
+                  <label key={tank.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={tankIds.includes(tank.id)}
+                      disabled={!!chosenTank && chosenTank.fuel.fuelType !== tank.fuel.fuelType}
+                      onCheckedChange={(checked) =>
+                        setTankIds((current) =>
+                          checked === true
+                            ? [...current, tank.id]
+                            : current.filter((id) => id !== tank.id)
+                        )
+                      }
+                    />
+                    <span>
                       {tank.name} — {tank.fuel.name}
                       {tank.capacityK !== null && ` (${tank.capacityK}K)`}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={NO_TANK}>{vi.dispensers.noTank}</SelectItem>
-                </SelectContent>
-              </Select>
+                    </span>
+                  </label>
+                ))}
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={tankIds.length === 0} onCheckedChange={() => setTankIds([])} />
+                  <span>{vi.dispensers.noTank}</span>
+                </label>
+              </div>
               <FieldDescription>
                 {chosenTank ? vi.dispensers.tankFuel(chosenTank.fuel.name) : vi.dispensers.tankNote}
+                {chosenTank && ` ${vi.dispensers.sameFuelHint}`}
               </FieldDescription>
-            </Field>
-            {tankChoice === NO_TANK && (
+            </div>
+            {tankIds.length === 0 && (
               <Field>
                 <FieldLabel>{vi.misaSettings.fuel}</FieldLabel>
                 <Select value={fuelType} onValueChange={setFuelType}>

@@ -11,6 +11,7 @@ import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/op
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { requireStationAccess } from '@/lib/auth/station-guard'
+import { byTankCode, tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
 import { matchingDatePreset } from '@/lib/filters/date-presets'
 import { filterHref } from '@/lib/filters/params'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
@@ -166,7 +167,7 @@ export default async function StationInventoryPage({
         orderBy: { measuredAt: 'desc' },
         take: 120,
       }),
-      prisma.dispenser.findMany({ where: { stationId: id, isActive: true } }),
+      prisma.dispenser.findMany({ where: { stationId: id, isActive: true }, include: withTanks }),
       prisma.fuelImport.findMany({
         where: selection.where,
         orderBy: selection.orderBy,
@@ -235,7 +236,7 @@ export default async function StationInventoryPage({
     where: { stationId: id, canceledAt: null, importedAt: { gte: today } },
   })
   const flows = computeTankFlows({
-    dispensers: dispensers.map((d) => ({ id: d.id, tankCode: d.tankCode })),
+    dispensers: dispensers.map((d) => ({ id: d.id, tankCodes: tankCodesOf(d) })),
     readings: todayReadings.map((r) => ({
       dispenserId: r.dispenserId,
       openingElectronicReading:
@@ -253,13 +254,18 @@ export default async function StationInventoryPage({
   for (const dip of dips) {
     if (!latestByTank.has(dip.tankCode)) latestByTank.set(dip.tankCode, dip)
   }
-  // Tanks with activity today but no dip yet still deserve a row.
-  const tankCodes = [...new Set([...latestByTank.keys(), ...flows.keys()])].sort()
+  // Configured hầm remain visible even before their first dip or sale.
+  const tankCodes = [
+    ...new Set([
+      ...configuredTanks.map((tank) => tank.code),
+      ...latestByTank.keys(),
+      ...flows.keys(),
+    ]),
+  ].sort(byTankCode)
 
   const tanks = stationTankOptions(
     {
       tanks: configuredTanks,
-      dispensers,
       dipTanks: [...latestByTank.values()],
     },
     fuelLabel
@@ -510,7 +516,9 @@ export default async function StationInventoryPage({
   const paperRoster = station ? rosterForStation(station.code) : undefined
   // Section (d)'s rows, and the Hầm each Trụ draws from — what says which (c)
   // row a moving Trụ contaminates.
-  const stationPumps = stationPumpsFromDispensers(dispensers)
+  const stationPumps = stationPumpsFromDispensers(
+    dispensers.map((d) => ({ ...d, tankCodes: tankCodesOf(d) }))
+  )
 
   const canEdit = user.role !== 'viewer'
 
@@ -788,7 +796,6 @@ export default async function StationInventoryPage({
                   <th className="p-2 text-right">{vi.inventory.importedToday}</th>
                   <th className="p-2 text-right">{vi.inventory.soldToday}</th>
                   <th className="p-2">{vi.inventory.measuredAt}</th>
-                  <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -796,13 +803,12 @@ export default async function StationInventoryPage({
                   const dip = latestByTank.get(tankCode)
                   const flow = flows.get(tankCode)
                   const lookup = actualForTank(tankCode)
-                  // What Cấu hình says the hầm holds, else the row's own nhiên liệu,
-                  // else what the trụ on this hầm sell — the same fallback
-                  // `ingestTankDip` fills a đo hầm from.
+                  // Cấu hình wins; an older hầm without it falls back to a
+                  // linked trụ, then to its latest đo hầm.
                   const fuel = dipFuel(
                     configuredFuel,
                     tankCode,
-                    dip?.fuelType ?? tankFuelFrom(dispensers, tankCode)
+                    tankFuelFrom(dispensers, tankCode) ?? dip?.fuelType ?? null
                   )
                   return (
                     <tr key={tankCode} className="border-b">
@@ -828,18 +834,22 @@ export default async function StationInventoryPage({
                       <td className="p-2 text-right font-mono">
                         {flow?.imported ? formatLiters(flow.imported) : '—'}
                       </td>
-                      <td className="p-2 text-right font-mono">
-                        {flow?.sold ? formatLiters(flow.sold) : '—'}
+                      <td className="p-2 text-right">
+                        <span className="font-mono">
+                          {flow?.sold ? formatLiters(flow.sold) : '—'}
+                        </span>
+                        {flow?.sharedWith.length ? (
+                          <span className="text-muted-foreground block text-xs">
+                            {vi.inventory.soldShared(
+                              [tankCode, ...flow.sharedWith]
+                                .sort(byTankCode)
+                                .map((code) => code.replace('HAM_', 'Hầm '))
+                                .join(' + ')
+                            )}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="p-2">{dip ? formatDate(dip.measuredAt) : '—'}</td>
-                      <td className="space-x-1 p-2">
-                        {dip?.isReserve && (
-                          <StatusBadge label={vi.inventory.reserve} tone="muted" />
-                        )}
-                        {dip?.isAnomaly && (
-                          <StatusBadge label={vi.inventory.reserveChanged} tone="danger" />
-                        )}
-                      </td>
                     </tr>
                   )
                 })}
@@ -963,8 +973,6 @@ export default async function StationInventoryPage({
                           confidence: (dip.photoId ? dipConfidence.get(dip.photoId) : null) ?? null,
                           originalDipValue: dip.originalDipValue?.toString() ?? null,
                           reviewStatus: dip.reviewStatus,
-                          isReserve: dip.isReserve,
-                          isAnomaly: dip.isAnomaly,
                           role: user.role,
                         }}
                       />

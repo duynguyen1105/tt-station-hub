@@ -207,11 +207,10 @@ export const vi = {
     fuelMapUsageLoadError: 'Không kiểm tra được nhiên liệu này ở trạm. Vui lòng thử lại.',
   },
 
-  // Trụ bơm on a trạm's Cấu hình: the trụ the trạm has, what each pumps, the hầm it
-  // draws from and the đồng hồ a ca will ask it for.
+  // Trụ bơm on a trạm's Cấu hình: hầm it draws from and the đồng hồ a ca asks for.
   dispensers: {
     title: 'Hầm & trụ bơm',
-    note: 'Hầm là gốc: mỗi hầm chứa một nhiên liệu với dung tích của nó, và trụ hút từ hầm nào thì bán nhiên liệu của hầm đó.',
+    note: 'Mỗi hầm chứa một nhiên liệu; một trụ có thể hút từ nhiều hầm cùng nhiên liệu.',
     empty:
       'Trạm chưa có hầm hay trụ nào. Bấm Thêm hầm để khai báo hầm đầu tiên, rồi chọn Thêm trụ trong menu của hầm.',
     emptyNoFuels:
@@ -234,12 +233,13 @@ export const vi = {
       `Từ giờ ca của trụ này được ghi theo ${to}. Ca đã chốt vẫn giữ ${from}, trên mọi màn hình và khi xuất lại MISA. Tồn kho không được chuyển từ ${from} sang ${to} — hầm phải được rút cạn và đổ lại ngoài thực tế, rồi ghi bằng phiếu nhập và điều chỉnh kho.`,
     tank: 'Hầm',
     tankNote:
-      'Trụ bán nhiên liệu của hầm nó hút lên. Chọn Không có hầm cho trụ lấy từ bồn rời như URE — trụ đó không có trong ô chọn hầm của phiếu nhập và không được đối chiếu barem.',
-    selectTank: 'Chọn hầm',
+      'Không có hầm dành cho trụ lấy từ bồn rời như URE — trụ đó không có trong ô chọn hầm của phiếu nhập và không được đối chiếu barem.',
     noTank: 'Không có hầm',
-    tankFuel: (fuel: string) => `Trụ bán ${fuel}, theo hầm.`,
-    tankRequired: 'Vui lòng chọn hầm, hoặc Không có hầm.',
+    tankFuel: (fuel: string) => `Trụ bán ${fuel}, theo các hầm đã chọn.`,
+    sameFuelHint: 'Chỉ chọn thêm hầm chứa cùng nhiên liệu.',
+    alsoFrom: (names: string) => `cũng hút từ ${names}`,
     notStationTank: 'Hầm này không thuộc trạm.',
+    tanksMixedFuel: 'Các hầm của một trụ phải chứa cùng một nhiên liệu.',
     meters: 'Đồng hồ',
     electronicMeter: 'Đồng hồ điện tử',
     mechanicalMeter: 'Đồng hồ cơ',
@@ -275,6 +275,8 @@ export const vi = {
     fuelNote: 'Mọi trụ hút từ hầm này bán nhiên liệu này.',
     fuelEditNote:
       'Chỉ đổi khi hầm được hoán cải thật. Mọi trụ hút từ hầm đổi theo; ca đã chốt vẫn giữ nhiên liệu lúc chốt.',
+    sharedFuelChange: (pumps: string) =>
+      `Không thể đổi nhiên liệu hầm này vì ${pumps} còn hút từ hầm khác. Bỏ liên kết hầm kia trước.`,
     capacityK: 'Dung tích (nghìn lít)',
     capacityNote:
       'Nhập 25 cho hầm 25.000 lít; để trống nếu chưa rõ. Dung tích được đối chiếu với barem.',
@@ -634,8 +636,6 @@ export const vi = {
     notStationTank: (tank: string) => `Trạm này không có ${tank}.`,
     dipDelta: 'So với lần trước',
     measuredAt: 'Đo lúc',
-    reserve: 'Hầm dự phòng',
-    reserveChanged: 'Hầm dự phòng bị chênh lệch bất thường',
     noDips: 'Chưa có lần đo hầm nào.',
     // A filtered history that matched nothing says so: "Chưa có lần đo hầm nào." would read
     // as nobody ever having measured this trạm, which is wrong and alarming when the truth
@@ -643,6 +643,7 @@ export const vi = {
     noDipsFiltered: 'Không có lần đo hầm nào khớp bộ lọc.',
     importedToday: 'Nhập hôm nay',
     soldToday: 'Bán hôm nay',
+    soldShared: (tanks: string) => `chung ${tanks}`,
     // Hàng tồn 2 phần: lý thuyết (movements) vs thực tế (đo bồn qua Barem)
     theoreticalTitle: 'Tồn sổ sách (nhập − bán)',
     theoreticalNote:

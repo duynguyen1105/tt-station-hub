@@ -18,7 +18,7 @@ import { type BindingRefusal, type TankRosterEntry, bindTankLabels } from './bin
 export type StationTank = {
   tankCode: string
   fuelType: string | null
-  /** Thousands of litres, as `dispensers.tank_capacity_k` records them. */
+  /** Thousands of litres, as `tanks.capacity_k` records them. */
   capacityK: number | null
 }
 

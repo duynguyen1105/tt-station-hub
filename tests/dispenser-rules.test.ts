@@ -1,38 +1,28 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  dispenserFuelFor,
   dispenserFuelOptions,
-  noTankFieldsFor,
   refuseDispenserShape,
-  tankFieldsFor,
 } from '@/lib/dispensers/rules'
 import { vi } from '@/messages/vi'
 
-describe('tankFieldsFor', () => {
-  const tank = { id: 't3', code: 'HAM_3', fuelType: 'DO', capacityK: 25 }
+describe('dispenserFuelFor', () => {
+  it('refuses hầm holding different nhiên liệu', () => {
+    expect(dispenserFuelFor([{ fuelType: 'DO' }, { fuelType: 'E0' }], null)).toEqual({
+      refusal: vi.dispensers.tanksMixedFuel,
+    })
+  })
 
-  it('copies the hầm onto the trụ: its nhiên liệu, its code and its dung tích', () => {
-    expect(tankFieldsFor(tank)).toEqual({
-      tankId: 't3',
+  it('pumps the shared fuel of all chosen hầm instead of the submitted fuel', () => {
+    expect(dispenserFuelFor([{ fuelType: 'DO' }, { fuelType: 'DO' }], 'E0')).toEqual({
       fuelType: 'DO',
-      tankCode: 'HAM_3',
-      tankCapacityK: 25,
     })
   })
 
-  it('copies a dung tích nobody knows as not known', () => {
-    expect(tankFieldsFor({ ...tank, capacityK: null })).toMatchObject({ tankCapacityK: null })
-  })
-})
-
-describe('noTankFieldsFor', () => {
-  it('leaves a trụ drawing from no hầm with its own nhiên liệu and no hầm columns', () => {
-    expect(noTankFieldsFor('URE')).toEqual({
-      tankId: null,
-      fuelType: 'URE',
-      tankCode: null,
-      tankCapacityK: null,
-    })
+  it('requires a fuel with no hầm, then pumps it', () => {
+    expect(dispenserFuelFor([], null)).toEqual({ refusal: vi.dispensers.fuelRequired })
+    expect(dispenserFuelFor([], 'URE')).toEqual({ fuelType: 'URE' })
   })
 })
 

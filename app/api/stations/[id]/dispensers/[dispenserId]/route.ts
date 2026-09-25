@@ -7,7 +7,8 @@ import { writeAudit } from '@/lib/auth/audit'
 import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
-import { noTankFieldsFor, refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
+import { dispenserFuelFor, refuseDispenserShape } from '@/lib/dispensers/rules'
+import { byTankCode, tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -18,8 +19,8 @@ import { vi } from '@/messages/vi'
  * matches a biển to, and it is fixed once the trụ is lắp.
  */
 const editSchema = z.strictObject({
-  // Alongside a hầm, fuelType is not read: the trụ pumps what the hầm holds.
-  tankId: z.string().uuid().nullable(),
+  // Alongside hầm, fuelType is not read: the trụ pumps what they hold.
+  tankIds: z.array(z.string().uuid()).max(10),
   fuelType: z.string().trim().min(1).nullable(),
   hasElectronicMeter: z.boolean(),
   hasMechanicalMeter: z.boolean(),
@@ -63,7 +64,10 @@ export async function PATCH(
   if (!(await canReachStation(user, stationId))) return forbidden()
   // Scoped to the trạm in the path, so a trụ id cannot be edited through a trạm the
   // person happens to be phụ trách of.
-  const dispenser = await prisma.dispenser.findFirst({ where: { id: dispenserId, stationId } })
+  const dispenser = await prisma.dispenser.findFirst({
+    where: { id: dispenserId, stationId },
+    include: withTanks,
+  })
   if (!dispenser) return notFound()
 
   if ('isActive' in parsed.data) {
@@ -82,7 +86,7 @@ export async function PATCH(
     return ok(updated)
   }
 
-  const { tankId, fuelType, ...meters } = parsed.data
+  const { tankIds, fuelType, ...meters } = parsed.data
   const refusal = refuseDispenserShape(meters)
   if (refusal) return badRequest(refusal)
 
@@ -91,24 +95,31 @@ export async function PATCH(
   // A nhiên liệu left alone passes untouched: a trụ đã ngừng may still hold one the trạm
   // has since stopped selling, and editing its đồng hồ is not the moment to refuse it.
   // A hầm's nhiên liệu was checked when the hầm was written, so it is not asked again.
-  let supply
-  if (tankId !== null) {
-    const tank = await prisma.tank.findFirst({ where: { id: tankId, stationId } })
-    if (!tank) return badRequest(vi.dispensers.notStationTank)
-    supply = tankFieldsFor(tank)
-  } else {
-    if (fuelType === null) return badRequest(vi.dispensers.fuelRequired)
-    if (fuelType !== dispenser.fuelType) {
-      const notSold = await stationFuelRefusal(stationId, fuelType)
-      if (notSold) return badRequest(notSold)
-    }
-    supply = noTankFieldsFor(fuelType)
+  const tanks = await prisma.tank.findMany({
+    where: { id: { in: tankIds }, stationId },
+    select: { id: true, code: true, fuelType: true },
+  })
+  if (tanks.length !== new Set(tankIds).size) return badRequest(vi.dispensers.notStationTank)
+  const supply = dispenserFuelFor(tanks, fuelType)
+  if ('refusal' in supply) return badRequest(supply.refusal)
+  if (tanks.length === 0 && supply.fuelType !== dispenser.fuelType) {
+    const notSold = await stationFuelRefusal(stationId, supply.fuelType)
+    if (notSold) return badRequest(notSold)
   }
   const converted = supply.fuelType !== dispenser.fuelType
 
-  const updated = await prisma.dispenser.update({
-    where: { id: dispenserId },
-    data: { ...supply, ...meters },
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.dispenser.update({
+      where: { id: dispenserId },
+      data: { fuelType: supply.fuelType, ...meters },
+    })
+    await tx.dispenserTank.deleteMany({ where: { dispenserId } })
+    if (tanks.length > 0) {
+      await tx.dispenserTank.createMany({
+        data: tanks.map((tank) => ({ dispenserId, tankId: tank.id })),
+      })
+    }
+    return row
   })
 
   await writeAudit({
@@ -123,14 +134,16 @@ export async function PATCH(
       stationId,
       code: dispenser.code,
       from: {
-        tankId: dispenser.tankId,
+        tankCodes: tankCodesOf(dispenser),
         fuelType: dispenser.fuelType,
-        tankCode: dispenser.tankCode,
-        tankCapacityK: dispenser.tankCapacityK,
         hasElectronicMeter: dispenser.hasElectronicMeter,
         hasMechanicalMeter: dispenser.hasMechanicalMeter,
       },
-      to: { ...supply, ...meters },
+      to: {
+        tankCodes: tanks.map((tank) => tank.code).sort(byTankCode),
+        fuelType: supply.fuelType,
+        ...meters,
+      },
     },
   })
   return ok(updated)

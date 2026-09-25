@@ -23,9 +23,9 @@ import { type PumpRosterEntry, bindPumpLabels } from './binding-ladder'
 /** A Trụ as the database holds it — a Trạm that has been configured. */
 export type StationPump = {
   pumpCode: string
-  fuelType: string | null
-  /** The Hầm this Trụ draws from, as `dispensers.tank_code` records it. */
-  tankCode: string | null
+  fuelType: string
+  /** The Hầm this Trụ draws from. */
+  tankCodes: string[]
 }
 
 /** One row of section (d) as the form should show it. */
@@ -35,8 +35,8 @@ export type ReviewPumpRow = {
   pumpLabel: string
   /** Null on a row the ladder could not attribute to any Trụ. */
   pumpCode: string | null
-  /** The Hầm a difference on this row would taint, where the Trạm says one. */
-  tankCode: string | null
+  /** The Hầm a difference on this row would taint, where the Trạm says any. */
+  tankCodes: string[]
   /** What the paper read off the totalisers, or null on a Trụ it never mentioned. */
   checks: { before: PumpSideCheck; after: PumpSideCheck } | null
 }
@@ -47,15 +47,15 @@ export type ReviewPumpRow = {
  * the same order then holds wherever the form is opened from.
  */
 export function stationPumpsFromDispensers(
-  dispensers: readonly { code: string; fuelType: string; tankCode: string | null }[]
+  dispensers: readonly { code: string; fuelType: string; tankCodes: readonly string[] }[]
 ): StationPump[] {
   return dispensers
-    .map((d) => ({ pumpCode: d.code, fuelType: d.fuelType, tankCode: d.tankCode }))
+    .map((d) => ({ pumpCode: d.code, fuelType: d.fuelType, tankCodes: [...d.tankCodes] }))
     .sort((a, b) => a.pumpCode.localeCompare(b.pumpCode, undefined, { numeric: true }))
 }
 
 /** The roster as this module needs it, whichever side it came from. */
-type PumpSeed = { pumpCode: string; fuel: string | null; tankCode: string | null }
+type PumpSeed = { pumpCode: string; fuel: string | null; tankCodes: string[] }
 
 /**
  * Merges what the AI read off one biên bản into the Trạm's Trụ rows.
@@ -72,13 +72,17 @@ export function reviewPumpRows(
 ): ReviewPumpRow[] {
   const roster: PumpSeed[] =
     stationPumps.length > 0
-      ? stationPumps.map((p) => ({ pumpCode: p.pumpCode, fuel: p.fuelType, tankCode: p.tankCode }))
-      : paperRoster.map((p) => ({ pumpCode: p.pumpCode, fuel: p.fuel, tankCode: null }))
+      ? stationPumps.map((p) => ({
+          pumpCode: p.pumpCode,
+          fuel: p.fuelType,
+          tankCodes: p.tankCodes,
+        }))
+      : paperRoster.map((p) => ({ pumpCode: p.pumpCode, fuel: p.fuel, tankCodes: [] }))
 
   const rows: ReviewPumpRow[] = roster.map((p) => ({
     pumpLabel: pumpName(p.pumpCode),
     pumpCode: p.pumpCode,
-    tankCode: p.tankCode,
+    tankCodes: p.tankCodes,
     checks: null,
   }))
   const byCode = new Map(rows.map((row) => [row.pumpCode, row]))
@@ -107,7 +111,7 @@ export function reviewPumpRows(
     const row: ReviewPumpRow = {
       pumpLabel: paper.pumpLabel || (bound === null ? '' : pumpName(bound)),
       pumpCode: bound,
-      tankCode: null,
+      tankCodes: [],
       checks,
     }
     rows.push(row)
@@ -133,8 +137,8 @@ export type PumpMovement = { pumpCode: string; liters: number }
 /** One Trụ's totalisers as section (d) resolved them. */
 export type PumpReading = {
   pumpCode: string | null
-  /** The Hầm this Trụ draws from, where the Trạm configured one. */
-  tankCode: string | null
+  /** The Hầm this Trụ draws from, where the Trạm configured any. */
+  tankCodes: string[]
   /** After − before; null where the paper gave nothing to subtract. */
   movedLiters: number | null
 }
@@ -148,11 +152,13 @@ export type PumpReading = {
 export function tankTaints(readings: readonly PumpReading[]): Map<string, PumpMovement[]> {
   const taints = new Map<string, PumpMovement[]>()
   for (const reading of readings) {
-    if (!reading.pumpCode || !reading.tankCode) continue
+    if (!reading.pumpCode || reading.tankCodes.length === 0) continue
     if (reading.movedLiters === null || reading.movedLiters === 0) continue
-    const moved = taints.get(reading.tankCode) ?? []
-    moved.push({ pumpCode: reading.pumpCode, liters: reading.movedLiters })
-    taints.set(reading.tankCode, moved)
+    for (const tankCode of reading.tankCodes) {
+      const moved = taints.get(tankCode) ?? []
+      moved.push({ pumpCode: reading.pumpCode, liters: reading.movedLiters })
+      taints.set(tankCode, moved)
+    }
   }
   return taints
 }

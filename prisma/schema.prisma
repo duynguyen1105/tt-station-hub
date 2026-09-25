@@ -87,41 +87,54 @@ model StationAccountant {
 }
 
 // A hầm: the root of a trạm's equipment. Its nhiên liệu and dung tích are facts of
-// the hầm, stated once here, and every trụ drawing from it pumps that nhiên liệu.
-// Step one of ADR 0006: the trụ still carry copies (fuel_type, tank_code,
-// tank_capacity_k), rewritten whenever the hầm or the trụ is saved, so every reader
-// of those columns keeps working until it is moved onto this table.
+// the hầm, stated once here. Which trụ draw from it is DispenserTank: a trụ may draw
+// from several hầm (two DO hầm feeding the same two trụ), and each of them holds the
+// nhiên liệu the trụ pumps.
 model Tank {
-  id        String   @id @default(uuid()) @db.Uuid
-  stationId String   @map("station_id") @db.Uuid
-  code      String // "HAM_3" — fixed once created: đo hầm and phiếu nhập name it by this
-  fuelType  String   @map("fuel_type") // khóa nhiên liệu of a Fuel row
-  capacityK Int?     @map("capacity_k") // 25 = 25,000 L; null = không rõ
-  createdAt DateTime @default(now()) @map("created_at")
+  id             String          @id @default(uuid()) @db.Uuid
+  stationId      String          @map("station_id") @db.Uuid
+  code           String // "HAM_3" — fixed once created: đo hầm and phiếu nhập name it by this
+  fuelType       String          @map("fuel_type") // khóa nhiên liệu of a Fuel row
+  capacityK      Int?            @map("capacity_k") // 25 = 25,000 L; null = không rõ
+  createdAt      DateTime        @default(now()) @map("created_at")
+  dispenserLinks DispenserTank[]
 
   @@unique([stationId, code])
   @@map("tanks")
 }
 
+// Which hầm a trụ draws from. Many-to-many: one hầm can feed several trụ and one trụ
+// can draw from several hầm of the same nhiên liệu. A trụ with no row draws from no
+// hầm (a URE trụ fed from a bồn rời).
+model DispenserTank {
+  dispenserId String    @map("dispenser_id") @db.Uuid
+  tankId      String    @map("tank_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  dispenser   Dispenser @relation(fields: [dispenserId], references: [id], onDelete: Cascade)
+  tank        Tank      @relation(fields: [tankId], references: [id], onDelete: Cascade)
+
+  @@id([dispenserId, tankId])
+  @@index([tankId], map: "idx_dispenser_tanks_tank")
+  @@map("dispenser_tanks")
+}
+
 model Dispenser {
-  id                    String    @id @default(uuid()) @db.Uuid
-  stationId             String    @map("station_id") @db.Uuid
+  id                    String          @id @default(uuid()) @db.Uuid
+  stationId             String          @map("station_id") @db.Uuid
   code                  String // "TRU_1"
-  displayName           String    @map("display_name") // "Trụ 1"
-  // The hầm it draws from; null for a trụ with none (URE). When set, fuelType,
-  // tankCode and tankCapacityK are copies of that Tank row.
-  tankId                String?   @map("tank_id") @db.Uuid
-  fuelType              String    @map("fuel_type") // khóa nhiên liệu of a Fuel row
-  tankCode              String?   @map("tank_code") // "HAM_3"
-  tankCapacityK         Int?      @map("tank_capacity_k") // 25
-  hasElectronicMeter    Boolean   @default(true) @map("has_electronic_meter")
-  hasMechanicalMeter    Boolean   @default(true) @map("has_mechanical_meter")
-  lastElectronicReading Decimal?  @map("last_electronic_reading") @db.Decimal(15, 3)
-  lastMechanicalReading Decimal?  @map("last_mechanical_reading") @db.Decimal(15, 3)
-  lastReadingAt         DateTime? @map("last_reading_at")
-  displayOrder          Int       @default(0) @map("display_order")
-  isActive              Boolean   @default(true) @map("is_active")
-  createdAt             DateTime  @default(now()) @map("created_at")
+  displayName           String          @map("display_name") // "Trụ 1"
+  // What it pumps: the nhiên liệu of the hầm it draws from (DispenserTank), or its
+  // own for a trụ with no hầm (URE).
+  fuelType              String          @map("fuel_type") // khóa nhiên liệu of a Fuel row
+  hasElectronicMeter    Boolean         @default(true) @map("has_electronic_meter")
+  hasMechanicalMeter    Boolean         @default(true) @map("has_mechanical_meter")
+  lastElectronicReading Decimal?        @map("last_electronic_reading") @db.Decimal(15, 3)
+  lastMechanicalReading Decimal?        @map("last_mechanical_reading") @db.Decimal(15, 3)
+  lastReadingAt         DateTime?       @map("last_reading_at")
+  displayOrder          Int             @default(0) @map("display_order")
+  isActive              Boolean         @default(true) @map("is_active")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  tankLinks             DispenserTank[]
 
   @@unique([stationId, code])
   @@map("dispensers")
@@ -295,8 +308,7 @@ model InventoryOpeningBalance {
 
 // One tank-dip measurement, RAW as written on the dip photo (unit conversion
 // to liters waits for the dip-photo format, §12.6). History per (station, tank)
-// lets consecutive dips be compared: a RESERVE tank (no dispenser draws from it)
-// must stay stable, so a large change between dips is flagged for review.
+// lets consecutive dips be compared ("So với lần trước").
 model TankDipRecord {
   id                String    @id @default(uuid()) @db.Uuid
   stationId         String    @map("station_id") @db.Uuid
@@ -304,11 +316,7 @@ model TankDipRecord {
   fuelType          String?   @map("fuel_type")
   capacityK         Int?      @map("capacity_k")
   dipValue          Decimal   @map("dip_value") @db.Decimal(15, 3)
-  // Derived at ingest: no active dispenser references this tank.
-  isReserve         Boolean   @default(false) @map("is_reserve")
   deltaFromPrevious Decimal?  @map("delta_from_previous") @db.Decimal(15, 3)
-  isAnomaly         Boolean   @default(false) @map("is_anomaly")
-  anomalyReason     String?   @map("anomaly_reason") // 'reserve_stock_changed'
   photoId           String?   @map("photo_id") @db.Uuid
   measuredAt        DateTime  @map("measured_at")
   // A đo hầm is an AI read of a dip-stick photo, so it waits for a người duyệt

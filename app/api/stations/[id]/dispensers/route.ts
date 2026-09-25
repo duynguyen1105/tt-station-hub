@@ -8,7 +8,8 @@ import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { dispenserCodeFor, dispenserNameFor } from '@/lib/dispensers/naming'
-import { noTankFieldsFor, refuseDispenserShape, tankFieldsFor } from '@/lib/dispensers/rules'
+import { dispenserFuelFor, refuseDispenserShape } from '@/lib/dispensers/rules'
+import { byTankCode } from '@/lib/dispensers/tank-links'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -16,9 +17,8 @@ import { vi } from '@/messages/vi'
 const createSchema = z.object({
   // A số trụ is what is painted on the biển; no trạm has three digits of them.
   pumpNumber: z.number().int().min(1).max(99),
-  // The hầm it draws from, whose nhiên liệu it pumps. Only a trụ with no hầm (URE)
-  // names a nhiên liệu of its own; alongside a hầm, fuelType is not read.
-  tankId: z.string().uuid().nullable(),
+  // Empty means a trụ drawing from no hầm; it names its own nhiên liệu.
+  tankIds: z.array(z.string().uuid()).max(10),
   fuelType: z.string().trim().min(1).nullable(),
   hasElectronicMeter: z.boolean(),
   hasMechanicalMeter: z.boolean(),
@@ -29,7 +29,7 @@ const createSchema = z.object({
  * the photo matcher resolves a biển to and the tên every screen shows, so a trạm and a
  * photo cannot end up on two naming schemes.
  *
- * A trụ drawing from a hầm pumps the hầm's nhiên liệu. A trụ with no hầm names its own,
+ * A trụ drawing from hầm pumps their shared nhiên liệu. A trụ with no hầm names its own,
  * narrowed to what the trạm declared it sells — the same rule the picker draws — so a
  * trụ can never pump something the trạm has no mã hàng and no giá for.
  */
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const parsed = createSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
-  const { pumpNumber, tankId, fuelType, ...meters } = parsed.data
+  const { pumpNumber, tankIds, fuelType, ...meters } = parsed.data
   const refusal = refuseDispenserShape(meters)
   if (refusal) return badRequest(refusal)
 
@@ -49,16 +49,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!station) return notFound()
   if (!(await canReachStation(user, station.id))) return forbidden()
 
-  let supply
-  if (tankId !== null) {
-    const tank = await prisma.tank.findFirst({ where: { id: tankId, stationId } })
-    if (!tank) return badRequest(vi.dispensers.notStationTank)
-    supply = tankFieldsFor(tank)
-  } else {
-    if (fuelType === null) return badRequest(vi.dispensers.fuelRequired)
-    const notSold = await stationFuelRefusal(stationId, fuelType)
+  const tanks = await prisma.tank.findMany({
+    where: { id: { in: tankIds }, stationId },
+    select: { id: true, code: true, fuelType: true },
+  })
+  if (tanks.length !== new Set(tankIds).size) return badRequest(vi.dispensers.notStationTank)
+  const supply = dispenserFuelFor(tanks, fuelType)
+  if ('refusal' in supply) return badRequest(supply.refusal)
+  if (tanks.length === 0) {
+    const notSold = await stationFuelRefusal(stationId, supply.fuelType)
     if (notSold) return badRequest(notSold)
-    supply = noTankFieldsFor(fuelType)
   }
 
   // One số trụ per trạm: the code is what a photo matches on, so two trụ sharing one
@@ -71,16 +71,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
   if (taken) return badRequest(vi.dispensers.numberTaken(taken.displayName))
 
-  const dispenser = await prisma.dispenser.create({
-    data: {
-      stationId,
-      code,
-      displayName: dispenserNameFor(pumpNumber),
-      ...supply,
-      ...meters,
-      // The số trụ is the order a trạm reads its trụ in, on screen and on paper.
-      displayOrder: pumpNumber,
-    },
+  const dispenser = await prisma.$transaction(async (tx) => {
+    const created = await tx.dispenser.create({
+      data: {
+        stationId,
+        code,
+        displayName: dispenserNameFor(pumpNumber),
+        fuelType: supply.fuelType,
+        ...meters,
+        // The số trụ is the order a trạm reads its trụ in, on screen and on paper.
+        displayOrder: pumpNumber,
+      },
+    })
+    if (tanks.length > 0) {
+      await tx.dispenserTank.createMany({
+        data: tanks.map((tank) => ({ dispenserId: created.id, tankId: tank.id })),
+      })
+    }
+    return created
   })
 
   await writeAudit({
@@ -88,7 +96,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     action: 'dispenser.create',
     entity: 'dispenser',
     entityId: dispenser.id,
-    metadata: { stationId, ...parsed.data, ...supply, code },
+    metadata: {
+      stationId,
+      pumpNumber,
+      tankCodes: tanks.map((tank) => tank.code).sort(byTankCode),
+      fuelType: supply.fuelType,
+      ...meters,
+      code,
+    },
   })
   return created(dispenser)
 }

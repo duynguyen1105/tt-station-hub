@@ -105,8 +105,8 @@ type PumpRow = {
   pumpLabel: string
   /** Empty on a row the binding ladder could not attribute to a Trụ. */
   pumpCode: string
-  /** The Hầm a difference on this row taints, where the Trạm configured one. */
-  tankCode: string
+  /** The Hầm a difference on this row taints, where the Trạm configured any. */
+  tankCodes: string[]
   before: { electronic: string; mechanical: string }
   after: { electronic: string; mechanical: string }
 }
@@ -121,7 +121,7 @@ const emptySide = (): SideCells => ({
 const emptyPump = (): PumpRow => ({
   pumpLabel: '',
   pumpCode: '',
-  tankCode: '',
+  tankCodes: [],
   before: { electronic: '', mechanical: '' },
   after: { electronic: '', mechanical: '' },
 })
@@ -156,7 +156,7 @@ function formPumpRows(
   const rows = reviewPumpRows(stationPumps, extracted, paperPumps).map((row) => ({
     pumpLabel: row.pumpLabel,
     pumpCode: row.pumpCode ?? '',
-    tankCode: row.tankCode ?? '',
+    tankCodes: row.tankCodes,
     before: {
       electronic: cellOf(row.checks?.before.electronic),
       mechanical: cellOf(row.checks?.before.mechanical),
@@ -438,15 +438,15 @@ export function FuelImportForm({
     return () => clearTimeout(timer)
   }, [needed, stationId])
 
-  // A Trụ that moved was drawing fuel out of its Hầm while that Hầm's height
-  // was being measured, so the measured intake on that (c) row is suspect. Said
-  // where the reviewer is looking — and never as a block on confirming.
+  // A Trụ that moved was drawing fuel out of its Hầm while those Hầm's
+  // heights were measured, so their measured intake is suspect. Said where
+  // the reviewer is looking — never as a block on confirming.
   const taints = useMemo(
     () =>
       tankTaints(
         pumps.map((p) => ({
           pumpCode: p.pumpCode || null,
-          tankCode: p.tankCode || null,
+          tankCodes: p.tankCodes,
           movedLiters: pumpMovedLiters(p),
         }))
       ),

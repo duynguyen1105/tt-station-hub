@@ -5,16 +5,17 @@ import { dipFuel, tankFuelFrom } from '@/lib/inventory/tank-fuel'
 
 describe('tankFuelFrom', () => {
   const dispensers = [
-    { tankCode: 'HAM_3', fuelType: 'DO' },
-    { tankCode: null, fuelType: 'URE' },
+    { fuelType: 'DO', tankLinks: [{ tank: { code: 'HAM_3' } }, { tank: { code: 'HAM_4' } }] },
+    { fuelType: 'URE', tankLinks: [] },
   ]
 
-  it('names the nhiên liệu of a hầm from the trụ drawing on it', () => {
+  it('finds the nhiên liệu through any of a trụ’s linked hầm', () => {
     expect(tankFuelFrom(dispensers, tankCodeFor(3))).toBe('DO')
+    expect(tankFuelFrom(dispensers, tankCodeFor(4))).toBe('DO')
   })
 
-  it('knows nothing about a hầm dự phòng no trụ draws from', () => {
-    expect(tankFuelFrom(dispensers, tankCodeFor(4))).toBeNull()
+  it('knows nothing about a hầm no active trụ draws from', () => {
+    expect(tankFuelFrom(dispensers, tankCodeFor(5))).toBeNull()
   })
 })
 

@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg'
 import 'dotenv/config'
 
+import { tankCodesOf, withTanks } from '../lib/dispensers/tank-links'
 import { PrismaClient } from '../lib/generated/prisma/client'
 import {
   type RosterStationOutcome,
@@ -46,23 +47,21 @@ async function main() {
       continue
     }
 
-    const dispensers = await prisma.dispenser.findMany({
-      where: { stationId: station.id, isActive: true },
-      select: { code: true, fuelType: true, tankCode: true, tankCapacityK: true },
-      orderBy: { displayOrder: 'asc' },
-    })
-    // A Hầm nobody dispenses from is still a Hầm — a reserve tank shows up only
-    // in what the station has measured.
-    const dipTanks = await prisma.tankDipRecord.findMany({
-      where: { stationId: station.id },
-      select: { tankCode: true, fuelType: true, capacityK: true },
-      distinct: ['tankCode', 'fuelType', 'capacityK'],
-    })
+    const [dispensers, tanks] = await Promise.all([
+      prisma.dispenser.findMany({
+        where: { stationId: station.id, isActive: true },
+        include: withTanks,
+        orderBy: { displayOrder: 'asc' },
+      }),
+      prisma.tank.findMany({
+        where: { stationId: station.id },
+        select: { code: true, fuelType: true, capacityK: true },
+      }),
+    ])
     // A Trạm row on its own says nothing about its Hầm and Trụ. Comparing
     // against nothing would report every printed row as missing, which reads as
-    // a wall of disagreements where the truth is simply that nobody has set the
-    // Trạm up yet.
-    if (dispensers.length === 0 && dipTanks.length === 0) {
+    // a wall of disagreements where nobody has set the Trạm up yet.
+    if (dispensers.length === 0 && tanks.length === 0) {
       outcomes.push(unconfigured)
       continue
     }
@@ -72,7 +71,11 @@ async function main() {
       stationCode: roster.stationCode,
       roster,
       defects,
-      mismatches: compareRosterToStation(roster, dispensers, dipTanks),
+      mismatches: compareRosterToStation(
+        roster,
+        dispensers.map((d) => ({ code: d.code, fuelType: d.fuelType, tankCodes: tankCodesOf(d) })),
+        tanks
+      ),
     })
   }
 

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { type ReceiptPumpCheck } from '@/lib/imports/bien-ban'
-import { type StationPump, movedLiters, reviewPumpRows, tankTaints } from '@/lib/imports/pump-rows'
+import {
+  type StationPump,
+  movedLiters,
+  reviewPumpRows,
+  stationPumpsFromDispensers,
+  tankTaints,
+} from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 
 /** The Trụ the Trạm's own pre-printed biên bản lists. */
@@ -51,24 +57,38 @@ describe('section (d) is the Trạm’s Trụ, not whatever the AI happened to r
   it('keeps a Trụ the roster does not know rather than dropping it', () => {
     const rows = reviewPumpRows([], [paperPump('9- DO', [10, 20])], paperRoster('DAKNONG1'))
     expect(rows).toHaveLength(7)
-    expect(rows[6]).toMatchObject({ pumpLabel: '9- DO', pumpCode: 'TRU_9', tankCode: null })
+    expect(rows[6]).toMatchObject({ pumpLabel: '9- DO', pumpCode: 'TRU_9', tankCodes: [] })
   })
 
   it('keeps a row the ladder could not attribute at all', () => {
     // LAMDONG02 prints two E0 Trụ and no numbers, so a bare `E0` names neither.
     const rows = reviewPumpRows([], [paperPump('E0', [10, 20])], paperRoster('LAMDONG02'))
     expect(rows).toHaveLength(5)
-    expect(rows[4]).toMatchObject({ pumpLabel: 'E0', pumpCode: null, tankCode: null })
+    expect(rows[4]).toMatchObject({ pumpLabel: 'E0', pumpCode: null, tankCodes: [] })
     expect(rows[4]?.checks?.after.electronic).toBe(20)
+  })
+})
+
+describe('stationPumpsFromDispensers', () => {
+  it('keeps all linked Hầm while ordering Trụ by number', () => {
+    expect(
+      stationPumpsFromDispensers([
+        { code: 'TRU_10', fuelType: 'DO', tankCodes: ['HAM_3', 'HAM_4'] },
+        { code: 'TRU_2', fuelType: 'E0', tankCodes: [] },
+      ])
+    ).toEqual([
+      { pumpCode: 'TRU_2', fuelType: 'E0', tankCodes: [] },
+      { pumpCode: 'TRU_10', fuelType: 'DO', tankCodes: ['HAM_3', 'HAM_4'] },
+    ])
   })
 })
 
 describe('a configured Trạm — the database is the roster, and it knows the Hầm', () => {
   const stationPumps: StationPump[] = [
-    { pumpCode: 'TRU_1', fuelType: 'DO', tankCode: 'HAM_3' },
-    { pumpCode: 'TRU_2', fuelType: 'E0', tankCode: 'HAM_1' },
-    { pumpCode: 'TRU_3', fuelType: 'E0', tankCode: 'HAM_1' },
-    { pumpCode: 'TRU_4', fuelType: 'DC', tankCode: 'HAM_2' },
+    { pumpCode: 'TRU_1', fuelType: 'DO', tankCodes: ['HAM_3', 'HAM_4'] },
+    { pumpCode: 'TRU_2', fuelType: 'E0', tankCodes: ['HAM_1'] },
+    { pumpCode: 'TRU_3', fuelType: 'E0', tankCodes: ['HAM_1'] },
+    { pumpCode: 'TRU_4', fuelType: 'DC', tankCodes: ['HAM_2'] },
   ]
 
   it('binds the paper rows onto the Trạm’s own Trụ, carrying the Hầm each draws from', () => {
@@ -78,8 +98,9 @@ describe('a configured Trạm — the database is the roster, and it knows the H
       paperRoster('DAKNONG1')
     )
     expect(rows).toHaveLength(4)
-    expect(rows[1]).toMatchObject({ pumpLabel: '2- E0', pumpCode: 'TRU_2', tankCode: 'HAM_1' })
+    expect(rows[1]).toMatchObject({ pumpLabel: '2- E0', pumpCode: 'TRU_2', tankCodes: ['HAM_1'] })
     expect(rows[0]?.checks).toBeNull()
+    expect(rows[0]?.tankCodes).toEqual(['HAM_3', 'HAM_4'])
   })
 
   it('binds an unnumbered row by its fuel, as the ladder does for a Hầm', () => {
@@ -88,7 +109,7 @@ describe('a configured Trạm — the database is the roster, and it knows the H
       [paperPump('DC', [500, 500])],
       paperRoster('LAMDONG02')
     )
-    expect(rows[3]).toMatchObject({ pumpCode: 'TRU_4', tankCode: 'HAM_2' })
+    expect(rows[3]).toMatchObject({ pumpCode: 'TRU_4', tankCodes: ['HAM_2'] })
   })
 
   it('never writes back into the extraction it was given', () => {
@@ -124,16 +145,16 @@ describe('whether a Trụ moved at all', () => {
 describe('what a moving Trụ means for the Hầm it drew from', () => {
   it('taints nothing when every Trụ stood still', () => {
     const taints = tankTaints([
-      { pumpCode: 'TRU_1', tankCode: 'HAM_3', movedLiters: 0 },
-      { pumpCode: 'TRU_2', tankCode: 'HAM_1', movedLiters: 0 },
+      { pumpCode: 'TRU_1', tankCodes: ['HAM_3'], movedLiters: 0 },
+      { pumpCode: 'TRU_2', tankCodes: ['HAM_1'], movedLiters: 0 },
     ])
     expect(taints.size).toBe(0)
   })
 
   it('names the Trụ and its litres on the Hầm it draws from', () => {
     const taints = tankTaints([
-      { pumpCode: 'TRU_1', tankCode: 'HAM_3', movedLiters: 0 },
-      { pumpCode: 'TRU_2', tankCode: 'HAM_1', movedLiters: 12 },
+      { pumpCode: 'TRU_1', tankCodes: ['HAM_3'], movedLiters: 0 },
+      { pumpCode: 'TRU_2', tankCodes: ['HAM_1'], movedLiters: 12 },
     ])
     expect([...taints.keys()]).toEqual(['HAM_1'])
     expect(taints.get('HAM_1')).toEqual([{ pumpCode: 'TRU_2', liters: 12 }])
@@ -141,8 +162,8 @@ describe('what a moving Trụ means for the Hầm it drew from', () => {
 
   it('reports two Trụ on one Hầm together, not as competing warnings', () => {
     const taints = tankTaints([
-      { pumpCode: 'TRU_2', tankCode: 'HAM_1', movedLiters: 12 },
-      { pumpCode: 'TRU_3', tankCode: 'HAM_1', movedLiters: 5 },
+      { pumpCode: 'TRU_2', tankCodes: ['HAM_1'], movedLiters: 12 },
+      { pumpCode: 'TRU_3', tankCodes: ['HAM_1'], movedLiters: 5 },
     ])
     expect(taints.get('HAM_1')).toEqual([
       { pumpCode: 'TRU_2', liters: 12 },
@@ -150,18 +171,28 @@ describe('what a moving Trụ means for the Hầm it drew from', () => {
     ])
   })
 
+  it('taints both Hầm a moving Trụ draws from', () => {
+    const taints = tankTaints([
+      { pumpCode: 'TRU_3', tankCodes: ['HAM_3', 'HAM_4'], movedLiters: 8 },
+    ])
+    expect([...taints.entries()]).toEqual([
+      ['HAM_3', [{ pumpCode: 'TRU_3', liters: 8 }]],
+      ['HAM_4', [{ pumpCode: 'TRU_3', liters: 8 }]],
+    ])
+  })
+
   it('taints nothing for a Trụ whose Hầm the Trạm never configured', () => {
-    const taints = tankTaints([{ pumpCode: 'TRU_2', tankCode: null, movedLiters: 12 }])
+    const taints = tankTaints([{ pumpCode: 'TRU_2', tankCodes: [], movedLiters: 12 }])
     expect(taints.size).toBe(0)
   })
 
   it('taints nothing where the paper gave no totals to compare', () => {
-    const taints = tankTaints([{ pumpCode: 'TRU_2', tankCode: 'HAM_1', movedLiters: null }])
+    const taints = tankTaints([{ pumpCode: 'TRU_2', tankCodes: ['HAM_1'], movedLiters: null }])
     expect(taints.size).toBe(0)
   })
 
   it('reports a Trụ that ran backwards — a total that fell is not a total that agreed', () => {
-    const taints = tankTaints([{ pumpCode: 'TRU_2', tankCode: 'HAM_1', movedLiters: -8 }])
+    const taints = tankTaints([{ pumpCode: 'TRU_2', tankCodes: ['HAM_1'], movedLiters: -8 }])
     expect(taints.get('HAM_1')).toEqual([{ pumpCode: 'TRU_2', liters: -8 }])
   })
 })

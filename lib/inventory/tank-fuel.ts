@@ -1,22 +1,15 @@
-// What a hầm holds. Cấu hình states it once, on the hầm's `tanks` row, and every
-// screen showing a hầm's nhiên liệu defers to that row. A hầm with no row yet —
-// one seen only through its đo hầm, or a trạm whose hầm were never backfilled —
-// is still answered from the trụ that draw on it, or from what its dips carry.
+// Cấu hình's Tank row states a hầm's fuel. For an old hầm without that row,
+// an active linked trụ or an earlier dip can still supply its fuel.
 
-/**
- * The nhiên liệu of a hầm, from the trụ drawing on it — the first active trụ whose
- * `tankCode` is the hầm's, or null for a hầm dự phòng no trụ names. Callers hand in
- * the trạm's active trụ; a trụ that has been retired says nothing about the hầm.
- *
- * Pure, and shared by `ingestTankDip` (which fills a đo hầm whose plate word the
- * trạm could not place) and the Tổng quan tab (which shows the same answer for a
- * hầm whose latest đo hầm carries none), so a row and its screen cannot disagree.
- */
+/** Fallback fuel from an active trụ linked to this hầm. */
 export function tankFuelFrom(
-  dispensers: readonly { tankCode: string | null; fuelType: string }[],
+  dispensers: readonly { fuelType: string; tankLinks: readonly { tank: { code: string } }[] }[],
   tankCode: string
 ): string | null {
-  return dispensers.find((d) => d.tankCode === tankCode)?.fuelType ?? null
+  return (
+    dispensers.find((d) => d.tankLinks.some((link) => link.tank.code === tankCode))?.fuelType ??
+    null
+  )
 }
 
 /**

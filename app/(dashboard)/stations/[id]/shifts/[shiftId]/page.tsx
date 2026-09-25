@@ -15,6 +15,7 @@ import {
 } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
+import { tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
 import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
 import {
   fuelTypeLabeller,
@@ -91,6 +92,7 @@ export default async function ShiftDetailPage({
       prisma.shiftReading.findMany({ where: { shiftId } }),
       prisma.dispenser.findMany({
         where: { stationId: shift.stationId, isActive: true },
+        include: withTanks,
         orderBy: { displayOrder: 'asc' },
       }),
       // The hầm as Cấu hình states them, for the nhập hàng picker — see `stationTankOptions`.
@@ -179,7 +181,9 @@ export default async function ShiftDetailPage({
   // What this Trạm's own pre-printed biên bản lists, and section (d)'s rows with
   // the Hầm each Trụ draws from — what says which (c) row a moving Trụ taints.
   const paperRoster = station ? rosterForStation(station.code) : undefined
-  const stationPumps = stationPumpsFromDispensers(dispensers)
+  const stationPumps = stationPumpsFromDispensers(
+    dispensers.map((d) => ({ ...d, tankCodes: tankCodesOf(d) }))
+  )
 
   const customersById = new Map<string, DebtCustomerInput>(
     customerRows.map((c) => [c.id, { name: c.name, misaCode: c.misaCode }])
@@ -312,7 +316,7 @@ export default async function ShiftDetailPage({
               stationId={shift.stationId}
               fuels={stationFuels}
               fuelMappings={fuelMappings}
-              tanks={stationTankOptions({ tanks, dispensers, dipTanks: [] }, fuelLabel)}
+              tanks={stationTankOptions({ tanks, dipTanks: [] }, fuelLabel)}
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
               paperPumps={paperRoster?.pumps ?? []}

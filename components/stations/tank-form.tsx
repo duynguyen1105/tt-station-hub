@@ -56,6 +56,8 @@ export type TankRow = {
   capacityK: number | null
   /** The trụ drawing from it, retired ones included, by tên. */
   dispenserNames: string[]
+  /** Trụ also drawing from another hầm; this hầm's fuel cannot change while linked. */
+  sharedDispenserNames: string[]
 }
 
 /**
@@ -120,6 +122,10 @@ export function TankForm({
       return
     }
     if (tank) {
+      if (fuelType !== tank.fuel.fuelType && tank.sharedDispenserNames.length > 0) {
+        toast.error(vi.tanks.sharedFuelChange(tank.sharedDispenserNames.join(', ')))
+        return
+      }
       if (fuelType !== tank.fuel.fuelType) {
         setConverting(true)
         return
@@ -181,7 +187,7 @@ export function TankForm({
           stationId={stationId}
           fuels={fuels}
           tanks={tanks}
-          tankId={tank.id}
+          initialTankId={tank.id}
           open
           onOpenChange={setAdding}
         />

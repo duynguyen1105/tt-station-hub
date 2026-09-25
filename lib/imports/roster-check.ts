@@ -1,8 +1,7 @@
 // Lines the 13 pre-printed forms up against what the app's database holds, and
 // says where they disagree. It repairs neither side — the paper is Trường
-// Thịnh's document and the `dispensers` table is the app's configuration, and a
-// disagreement is a question for a human, not something to smooth over
-// (ADR 0003).
+// Thịnh's document and the `tanks`/`dispensers` tables are the app's
+// configuration (ADR 0003).
 //
 // Pure: it compares two sets of rows and formats what it found. The database
 // reading lives in `scripts/check-rosters.ts`; `pnpm roster:check` runs it.
@@ -21,20 +20,11 @@ export type RosterDefect =
   /** The document is named for one Trạm and prints another's code. */
   | { kind: 'file-name-mismatch'; fileCode: string; stationCode: string }
 
-/** A Trụ as the `dispensers` table holds it, with the Hầm it draws from. */
-export type DispenserRow = {
-  code: string
-  fuelType: string
-  tankCode: string | null
-  tankCapacityK: number | null
-}
+/** A Trụ as the `dispensers` table holds it, with every Hầm it draws from. */
+export type DispenserRow = { code: string; fuelType: string; tankCodes: string[] }
 
-/** A Hầm the app has only ever seen measured — no Trụ draws from it. */
-export type DipTankRow = {
-  tankCode: string
-  fuelType: string | null
-  capacityK: number | null
-}
+/** A Hầm in the `tanks` table, including those without a Trụ. */
+export type TankRow = { code: string; fuelType: string; capacityK: number | null }
 
 /** A disagreement between the printed form and the database. */
 export type RosterMismatch =
@@ -46,7 +36,7 @@ export type RosterMismatch =
       dbCapacitiesK: number[]
     }
   | { kind: 'tank-missing-from-db'; tankCode: string }
-  | { kind: 'tank-missing-from-paper'; tankCode: string; dbFuels: string[]; dipOnly: boolean }
+  | { kind: 'tank-missing-from-paper'; tankCode: string; dbFuels: string[]; unlinked: boolean }
   | { kind: 'pump-fuel'; pumpCode: string; paperFuel: string; dbFuel: string }
   | { kind: 'pump-missing-from-db'; pumpCode: string; paperFuel: string }
   | { kind: 'pump-missing-from-paper'; pumpCode: string; dbFuel: string }
@@ -103,9 +93,7 @@ export function rosterDefects(roster: StationRoster): RosterDefect[] {
 }
 
 /**
- * Compares one Trạm's printed roster against its configuration. A Hầm counts as
- * known to the database if any Trụ draws from it or the app has ever measured
- * it — a reserve tank nobody dispenses from is still a Hầm.
+ * Compares one Trạm's printed roster against its Hầm and Trụ configuration.
  *
  * Only what the biên bản is about is compared: a urê dispenser is not a Trụ the
  * form ever printed, so it is neither expected on the paper nor missing from it.
@@ -113,36 +101,25 @@ export function rosterDefects(roster: StationRoster): RosterDefect[] {
 export function compareRosterToStation(
   roster: StationRoster,
   allDispensers: DispenserRow[],
-  allDipTanks: DipTankRow[]
+  allTanks: TankRow[]
 ): RosterMismatch[] {
   const dispensers = allDispensers.filter((d) => BIEN_BAN_FUELS.includes(d.fuelType))
-  // A measured Hầm whose fuel nobody recorded is still a Hầm the form should list.
-  const dipTanks = allDipTanks.filter(
-    (t) => t.fuelType === null || BIEN_BAN_FUELS.includes(t.fuelType)
-  )
-
+  const linkedCodes = new Set(dispensers.flatMap((d) => d.tankCodes))
   const dbTanks = new Map<
     string,
     { fuels: string[]; capacitiesK: number[]; fromDispenser: boolean }
-  >()
-  function noteTank(
-    tankCode: string,
-    fuel: string | null,
-    capacityK: number | null,
-    fromDispenser: boolean
-  ): void {
-    const entry = dbTanks.get(tankCode) ?? { fuels: [], capacitiesK: [], fromDispenser: false }
-    if (fuel !== null && !entry.fuels.includes(fuel)) entry.fuels.push(fuel)
-    if (capacityK !== null && !entry.capacitiesK.includes(capacityK)) {
-      entry.capacitiesK.push(capacityK)
-    }
-    entry.fromDispenser ||= fromDispenser
-    dbTanks.set(tankCode, entry)
-  }
-  for (const d of dispensers) {
-    if (d.tankCode) noteTank(d.tankCode, d.fuelType, d.tankCapacityK, true)
-  }
-  for (const t of dipTanks) noteTank(t.tankCode, t.fuelType, t.capacityK, false)
+  >(
+    allTanks
+      .filter((t) => BIEN_BAN_FUELS.includes(t.fuelType))
+      .map((t) => [
+        t.code,
+        {
+          fuels: [t.fuelType],
+          capacitiesK: t.capacityK === null ? [] : [t.capacityK],
+          fromDispenser: linkedCodes.has(t.code),
+        },
+      ])
+  )
 
   const mismatches: RosterMismatch[] = []
 
@@ -183,7 +160,7 @@ export function compareRosterToStation(
       kind: 'tank-missing-from-paper',
       tankCode,
       dbFuels: known.fuels,
-      dipOnly: !known.fromDispenser,
+      unlinked: !known.fromDispenser,
     })
   }
 
@@ -291,7 +268,7 @@ function describeMismatch(mismatch: RosterMismatch): string {
     case 'tank-missing-from-paper':
       return (
         `${hamLabel(mismatch.tankCode)}: có trong DB${describeFuels(mismatch.dbFuels)} ` +
-        `nhưng không có trên giấy${mismatch.dipOnly ? ' (chỉ thấy qua số đo hầm)' : ''}`
+        `nhưng không có trên giấy${mismatch.unlinked ? ' (không gắn trụ)' : ''}`
       )
     case 'pump-fuel':
       return `${truLabel(mismatch.pumpCode)}: nhiên liệu — giấy ghi ${mismatch.paperFuel}, DB ghi ${mismatch.dbFuel}`

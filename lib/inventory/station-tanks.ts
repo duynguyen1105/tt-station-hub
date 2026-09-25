@@ -4,22 +4,13 @@ import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
 /**
- * Every hầm one trạm has — the ones Cấu hình lists, the trụ that draw from one,
- * plus the hầm seen only through their đo hầm (a hầm dự phòng carries no trụ). The
- * same three sources `stationTankOptions` builds the ô chọn from, so what a route
- * accepts and what a picker offers cannot drift apart.
- *
- * Cached per request, so a route that both validates a write and re-derives from
- * the same list pays for one set of queries.
+ * Every hầm one trạm has: its Cấu hình rows and any codes preserved on older
+ * đo hầm. Linked trụ cannot add codes because every link points to a Tank row.
+ * Cached per request for the picker and route validation.
  */
 export const loadStationTankCodes = cache(async (stationId: string): Promise<string[]> => {
-  const [tanks, dispensers, dips] = await Promise.all([
+  const [tanks, dips] = await Promise.all([
     prisma.tank.findMany({ where: { stationId }, select: { code: true } }),
-    prisma.dispenser.findMany({
-      where: { stationId, isActive: true, tankCode: { not: null } },
-      select: { tankCode: true },
-      distinct: ['tankCode'],
-    }),
     prisma.tankDipRecord.findMany({
       where: { stationId },
       select: { tankCode: true },
@@ -27,7 +18,6 @@ export const loadStationTankCodes = cache(async (stationId: string): Promise<str
     }),
   ])
   const codes = new Set([...tanks.map((tank) => tank.code), ...dips.map((dip) => dip.tankCode)])
-  for (const d of dispensers) if (d.tankCode) codes.add(d.tankCode)
   return [...codes].sort()
 })
 
@@ -43,17 +33,4 @@ export async function stationTankRefusal(
 ): Promise<string | null> {
   const codes = await loadStationTankCodes(stationId)
   return codes.includes(tankCode) ? null : vi.inventory.notStationTank(tankCode)
-}
-
-/**
- * Whether a hầm holds stock no trụ draws on. Derived, never configured — the same
- * question `ingestTankDip` asks when it first records a đo hầm, asked again when a
- * correction moves that dip to a different hầm, because the answer belongs to the
- * hầm and not to the reading.
- */
-export async function tankIsReserve(stationId: string, tankCode: string): Promise<boolean> {
-  const attached = await prisma.dispenser.count({
-    where: { stationId, tankCode, isActive: true },
-  })
-  return attached === 0
 }

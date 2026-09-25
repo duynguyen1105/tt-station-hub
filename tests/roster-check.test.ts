@@ -20,37 +20,34 @@ function roster(stationCode: string): StationRoster {
   return found
 }
 
-function dispenser(
-  code: string,
-  fuelType: string,
-  tankCode: string | null,
-  tankCapacityK: number | null
-) {
-  return { code, fuelType, tankCode, tankCapacityK }
+function dispenser(code: string, fuelType: string, ...tankCodes: string[]) {
+  return { code, fuelType, tankCodes }
 }
 
-/** DAKNONG1's fuel trụ exactly as the database holds them today. */
+function tank(code: string, fuelType: string, capacityK: number | null) {
+  return { code, fuelType, capacityK }
+}
+
+const DAKNONG1_TANKS = [tank('HAM_1', 'E0', 15), tank('HAM_2', 'DC', 10), tank('HAM_3', 'DO', 25)]
 const DAKNONG1_DISPENSERS = [
-  dispenser('TRU_1', 'DO', 'HAM_3', 25),
-  dispenser('TRU_2', 'E0', 'HAM_1', 15),
-  dispenser('TRU_3', 'E0', 'HAM_1', 15),
-  dispenser('TRU_4', 'DC', 'HAM_2', 10),
-  dispenser('TRU_5', 'DC', 'HAM_2', 10),
-  dispenser('TRU_6', 'DO', 'HAM_3', 25),
+  dispenser('TRU_1', 'DO', 'HAM_3'),
+  dispenser('TRU_2', 'E0', 'HAM_1'),
+  dispenser('TRU_3', 'E0', 'HAM_1'),
+  dispenser('TRU_4', 'DC', 'HAM_2'),
+  dispenser('TRU_5', 'DC', 'HAM_2'),
+  dispenser('TRU_6', 'DO', 'HAM_3'),
 ]
 
 /** …and the two urê dispensers it also has, which no biên bản prints. */
-const DAKNONG1_URE_DISPENSERS = [
-  dispenser('URE_1', 'URE', null, null),
-  dispenser('URE_2', 'URE', null, null),
-]
+const DAKNONG1_URE_DISPENSERS = [dispenser('URE_1', 'URE'), dispenser('URE_2', 'URE')]
 
 const LAMDONG02_DISPENSERS = [
-  dispenser('TRU_1', 'DC', 'HAM_1', 9),
-  dispenser('TRU_2', 'DO', 'HAM_2', 9),
-  dispenser('TRU_3', 'E0', 'HAM_3', 25),
-  dispenser('TRU_4', 'E0', 'HAM_3', 25),
+  dispenser('TRU_1', 'DC', 'HAM_1'),
+  dispenser('TRU_2', 'DO', 'HAM_2'),
+  dispenser('TRU_3', 'E0', 'HAM_3'),
+  dispenser('TRU_4', 'E0', 'HAM_3'),
 ]
+const LAMDONG02_TANKS = [tank('HAM_1', 'DC', 9), tank('HAM_2', 'DO', 9), tank('HAM_3', 'E0', 25)]
 
 describe('rosterDefects', () => {
   it('finds nothing wrong with a form that numbers every row once', () => {
@@ -84,14 +81,14 @@ describe('rosterDefects', () => {
 
 describe('compareRosterToStation', () => {
   it('says nothing when the paper and the database agree', () => {
-    expect(compareRosterToStation(daknong1, DAKNONG1_DISPENSERS, [])).toEqual([])
+    expect(compareRosterToStation(daknong1, DAKNONG1_DISPENSERS, DAKNONG1_TANKS)).toEqual([])
   })
 
   it('shows both sides of a fuel disagreement, repairing neither', () => {
     const mismatches = compareRosterToStation(
       daknong1,
-      DAKNONG1_DISPENSERS.map((d) => (d.tankCode === 'HAM_2' ? { ...d, fuelType: 'DO' } : d)),
-      []
+      DAKNONG1_DISPENSERS.map((d) => (d.code === 'TRU_4' ? { ...d, fuelType: 'DO' } : d)),
+      DAKNONG1_TANKS.map((t) => (t.code === 'HAM_2' ? { ...t, fuelType: 'DO' } : t))
     )
     expect(mismatches).toContainEqual({
       kind: 'tank-fuel',
@@ -107,13 +104,12 @@ describe('compareRosterToStation', () => {
     })
   })
 
-  it('accepts a Hầm whose trụ disagree among themselves if the paper matches one', () => {
-    // Several trụ draw from one Hầm; the paper only has to agree with one of them.
+  it('reads Hầm fuel from the Tank row even when its Trụ has a different fuel', () => {
     expect(
       compareRosterToStation(
         daknong1,
         DAKNONG1_DISPENSERS.map((d) => (d.code === 'TRU_4' ? { ...d, fuelType: 'DO' } : d)),
-        []
+        DAKNONG1_TANKS
       )
     ).toEqual([{ kind: 'pump-fuel', pumpCode: 'TRU_4', paperFuel: 'DC', dbFuel: 'DO' }])
   })
@@ -122,8 +118,8 @@ describe('compareRosterToStation', () => {
     expect(
       compareRosterToStation(
         daknong1,
-        DAKNONG1_DISPENSERS.map((d) => (d.tankCode === 'HAM_3' ? { ...d, tankCapacityK: 20 } : d)),
-        []
+        DAKNONG1_DISPENSERS,
+        DAKNONG1_TANKS.map((t) => (t.code === 'HAM_3' ? { ...t, capacityK: 20 } : t))
       )
     ).toEqual([
       { kind: 'tank-capacity', tankCode: 'HAM_3', paperCapacityK: 25, dbCapacitiesK: [20] },
@@ -134,37 +130,52 @@ describe('compareRosterToStation', () => {
     expect(
       compareRosterToStation(
         daknong1,
-        DAKNONG1_DISPENSERS.filter((d) => d.tankCode !== 'HAM_2').concat(
-          dispenser('TRU_4', 'DC', 'HAM_9', 10),
-          dispenser('TRU_5', 'DC', 'HAM_9', 10)
+        DAKNONG1_DISPENSERS.filter((d) => !d.tankCodes.includes('HAM_2')).concat(
+          dispenser('TRU_4', 'DC', 'HAM_9'),
+          dispenser('TRU_5', 'DC', 'HAM_9')
         ),
-        []
+        DAKNONG1_TANKS.filter((t) => t.code !== 'HAM_2').concat(tank('HAM_9', 'DC', 10))
       )
     ).toEqual([
       { kind: 'tank-missing-from-db', tankCode: 'HAM_2' },
-      { kind: 'tank-missing-from-paper', tankCode: 'HAM_9', dbFuels: ['DC'], dipOnly: false },
+      { kind: 'tank-missing-from-paper', tankCode: 'HAM_9', dbFuels: ['DC'], unlinked: false },
     ])
   })
 
-  it('counts a hầm seen only through dip records as one the database knows', () => {
+  it('counts both Hầm linked to one Trụ as in use', () => {
     expect(
       compareRosterToStation(
         daknong1,
         DAKNONG1_DISPENSERS.map((d) =>
-          d.tankCode === 'HAM_2' ? { ...d, tankCode: null, tankCapacityK: null } : d
+          d.code === 'TRU_1' ? { ...d, tankCodes: ['HAM_3', 'HAM_4'] } : d
         ),
-        [{ tankCode: 'HAM_2', fuelType: 'DC', capacityK: 10 }]
+        [...DAKNONG1_TANKS, tank('HAM_4', 'DO', 25)]
+      )
+    ).toEqual([
+      { kind: 'tank-missing-from-paper', tankCode: 'HAM_4', dbFuels: ['DO'], unlinked: false },
+    ])
+  })
+
+  it('counts a Hầm with no linked Trụ as normal station configuration', () => {
+    expect(
+      compareRosterToStation(
+        daknong1,
+        DAKNONG1_DISPENSERS.map((d) =>
+          d.tankCodes.includes('HAM_2') ? { ...d, tankCodes: [] } : d
+        ),
+        DAKNONG1_TANKS
       )
     ).toEqual([])
   })
 
-  it('reports a dip-only hầm the paper never mentions as dip-only', () => {
+  it('reports an unlinked Hầm the paper never mentions', () => {
     expect(
       compareRosterToStation(daknong1, DAKNONG1_DISPENSERS, [
-        { tankCode: 'HAM_7', fuelType: 'DO', capacityK: 5 },
+        ...DAKNONG1_TANKS,
+        tank('HAM_7', 'DO', 5),
       ])
     ).toEqual([
-      { kind: 'tank-missing-from-paper', tankCode: 'HAM_7', dbFuels: ['DO'], dipOnly: true },
+      { kind: 'tank-missing-from-paper', tankCode: 'HAM_7', dbFuels: ['DO'], unlinked: true },
     ])
   })
 
@@ -172,7 +183,11 @@ describe('compareRosterToStation', () => {
     // DAKNONG1 sells urê from two dispensers. The form's goods columns are
     // E0/EA/DO/DC, so urê is outside what it describes — not missing from it.
     expect(
-      compareRosterToStation(daknong1, [...DAKNONG1_DISPENSERS, ...DAKNONG1_URE_DISPENSERS], [])
+      compareRosterToStation(
+        daknong1,
+        [...DAKNONG1_DISPENSERS, ...DAKNONG1_URE_DISPENSERS],
+        DAKNONG1_TANKS
+      )
     ).toEqual([])
   })
 
@@ -181,9 +196,9 @@ describe('compareRosterToStation', () => {
       compareRosterToStation(
         daknong1,
         DAKNONG1_DISPENSERS.filter((d) => d.code !== 'TRU_6').concat(
-          dispenser('TRU_7', 'DO', 'HAM_3', 25)
+          dispenser('TRU_7', 'DO', 'HAM_3')
         ),
-        []
+        DAKNONG1_TANKS
       )
     ).toEqual([
       { kind: 'pump-missing-from-db', pumpCode: 'TRU_6', paperFuel: 'DO' },
@@ -210,7 +225,8 @@ describe('formatRosterReport', () => {
 
   function outcome(
     stationRoster: StationRoster,
-    dispensers: typeof DAKNONG1_DISPENSERS | null
+    dispensers: typeof DAKNONG1_DISPENSERS | null,
+    tanks = stationRoster === lamdong02 ? LAMDONG02_TANKS : DAKNONG1_TANKS
   ): RosterStationOutcome {
     const defects = rosterDefects(stationRoster)
     return dispensers
@@ -219,7 +235,7 @@ describe('formatRosterReport', () => {
           stationCode: stationRoster.stationCode,
           roster: stationRoster,
           defects,
-          mismatches: compareRosterToStation(stationRoster, dispensers, []),
+          mismatches: compareRosterToStation(stationRoster, dispensers, tanks),
         }
       : {
           configured: false,
@@ -246,12 +262,16 @@ describe('formatRosterReport', () => {
   it('counts the hầm it could compare, not the rows the paper printed', () => {
     // HTGDONGNAI prints four rows under three numbers; the fourth went unchecked.
     const text = report([
-      outcome(htgdongnai, [
-        dispenser('TRU_1', 'DO', 'HAM_2', 15),
-        dispenser('TRU_2', 'E0', 'HAM_3', 15),
-        dispenser('TRU_3', 'E0', 'HAM_3', 15),
-        dispenser('TRU_4', 'DC', 'HAM_1', 10),
-      ]),
+      outcome(
+        htgdongnai,
+        [
+          dispenser('TRU_1', 'DO', 'HAM_2'),
+          dispenser('TRU_2', 'E0', 'HAM_3'),
+          dispenser('TRU_3', 'E0', 'HAM_3'),
+          dispenser('TRU_4', 'DC', 'HAM_1'),
+        ],
+        [tank('HAM_1', 'DC', 10), tank('HAM_2', 'DO', 15), tank('HAM_3', 'E0', 15)]
+      ),
     ])
     expect(text).toContain('chỉ đối chiếu được một dòng với DB')
     expect(text).toContain('✓ 3 hầm, 4 trụ — khớp')
@@ -279,7 +299,8 @@ describe('formatRosterReport', () => {
     const text = report([
       outcome(
         daknong1,
-        DAKNONG1_DISPENSERS.map((d) => (d.tankCode === 'HAM_2' ? { ...d, fuelType: 'DO' } : d))
+        DAKNONG1_DISPENSERS,
+        DAKNONG1_TANKS.map((t) => (t.code === 'HAM_2' ? { ...t, fuelType: 'DO' } : t))
       ),
     ])
     expect(text).toContain('Hầm 2: nhiên liệu — giấy ghi DC, DB ghi DO')

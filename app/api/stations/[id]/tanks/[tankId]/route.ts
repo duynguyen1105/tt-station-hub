@@ -8,7 +8,6 @@ import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { tankNameFor } from '@/lib/dispensers/naming'
-import { tankFieldsFor } from '@/lib/dispensers/rules'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -23,12 +22,8 @@ const editSchema = z.strictObject({
 })
 
 /**
- * Chỉnh sửa a hầm. Every trụ drawing from it is rewritten in the same transaction, so
- * the copy each trụ carries (nhiên liệu, dung tích) never disagrees with the hầm.
- *
- * Changing the nhiên liệu converts every one of those trụ from here on, exactly as
- * converting a single trụ does: each chỉ số already written keeps the nhiên liệu stamped
- * on it, and tồn kho is not migrated.
+ * Chỉnh sửa a hầm. A nhiên liệu change converts its linked trụ only when none of
+ * them draw from another hầm, which would otherwise leave a trụ mixing fuels.
  */
 export async function PATCH(
   req: NextRequest,
@@ -55,15 +50,30 @@ export async function PATCH(
   if (converted) {
     const notSold = await stationFuelRefusal(stationId, fuelType)
     if (notSold) return badRequest(notSold)
+    const shared = await prisma.dispenser.findFirst({
+      where: {
+        AND: [
+          { tankLinks: { some: { tankId } } },
+          { tankLinks: { some: { tankId: { not: tankId } } } },
+        ],
+      },
+      select: { displayName: true },
+    })
+    if (shared) return badRequest(vi.tanks.sharedFuelChange(shared.displayName))
   }
 
-  const [updated, dispensers] = await prisma.$transaction([
-    prisma.tank.update({ where: { id: tankId }, data: { fuelType, capacityK } }),
-    prisma.dispenser.updateMany({
-      where: { tankId },
-      data: tankFieldsFor({ ...tank, fuelType, capacityK }),
-    }),
-  ])
+  const { updated, dispensersRewritten } = await prisma.$transaction(async (tx) => {
+    const updated = await tx.tank.update({ where: { id: tankId }, data: { fuelType, capacityK } })
+    const dispensersRewritten = converted
+      ? (
+          await tx.dispenser.updateMany({
+            where: { tankLinks: { some: { tankId } } },
+            data: { fuelType },
+          })
+        ).count
+      : 0
+    return { updated, dispensersRewritten }
+  })
 
   await writeAudit({
     userId: user.id,
@@ -75,7 +85,7 @@ export async function PATCH(
       code: tank.code,
       from: { fuelType: tank.fuelType, capacityK: tank.capacityK },
       to: { fuelType, capacityK },
-      dispensersRewritten: dispensers.count,
+      dispensersRewritten,
     },
   })
   return ok(updated)
@@ -83,8 +93,7 @@ export async function PATCH(
 
 /**
  * Xóa a hầm no trụ draws from — one created by mistake. A hầm with trụ, retired ones
- * included, is refused: those trụ would be left carrying a copy of a hầm that is gone.
- * Đo hầm and phiếu nhập name the hầm by its code, not this row, so they are untouched.
+ * included, is refused. Đo hầm and phiếu nhập name the hầm by its code, not this row.
  */
 export async function DELETE(
   _req: NextRequest,
@@ -100,7 +109,7 @@ export async function DELETE(
   if (!tank) return notFound()
 
   const attached = await prisma.dispenser.findMany({
-    where: { tankId },
+    where: { tankLinks: { some: { tankId } } },
     select: { displayName: true },
     orderBy: { displayOrder: 'asc' },
   })
