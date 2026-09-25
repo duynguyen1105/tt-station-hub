@@ -578,6 +578,9 @@ export default async function StationInventoryPage({
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
               paperPumps={paperRoster?.pumps ?? []}
+              openingDates={Object.fromEntries(
+                openings.map((o) => [o.fuelType, o.effectiveDate.toISOString().slice(0, 10)])
+              )}
             />
           )}
           {canEdit && <MovementForm stationId={id} fuels={stationFuels} />}

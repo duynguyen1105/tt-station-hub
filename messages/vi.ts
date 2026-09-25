@@ -726,6 +726,10 @@ export const vi = {
     canceled: 'Đã hủy',
     cancelAction: 'Hủy phiếu',
     cancelConfirm: 'Hủy phiếu nhập này? Số lít sẽ được trừ lại khỏi tồn kho.',
+    // Saving a phiếu dated before a nhiên liệu's số đầu kỳ: the sổ sách counts from
+    // đầu kỳ, so the phiếu would not add to tồn sổ sách.
+    beforeOpeningConfirm: (fuels: string) =>
+      `Ngày nhập trước ngày hiệu lực của số đầu kỳ: ${fuels}. Phiếu này sẽ KHÔNG được cộng vào tồn sổ sách (coi như đã nằm trong số đầu kỳ). Nếu số đầu kỳ chưa gồm chuyến hàng này, hãy nhờ Quản trị viên sửa ngày hiệu lực đầu kỳ. Vẫn lưu phiếu?`,
     saved: 'Đã lưu phiếu nhập',
     selectTank: 'Vui lòng chọn hầm.',
     selectFuel: 'Vui lòng chọn loại nhiên liệu.',

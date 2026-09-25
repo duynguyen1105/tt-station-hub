@@ -4,6 +4,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -36,7 +37,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         quantity: -liters,
         sourceRef: id,
         note: 'Hủy phiếu nhập hàng',
-        movementDate: new Date(),
+        // The slip's own GMT+7 day: it nets to zero where it was booked, and a slip
+        // dated before đầu kỳ is not taken out of a sổ it never entered.
+        movementDate: shiftDateFor(record.importedAt.getTime()),
         createdBy: user.id,
       },
     })

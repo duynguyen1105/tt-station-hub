@@ -7,6 +7,7 @@ import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
+import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 
@@ -103,7 +104,8 @@ export async function POST(req: NextRequest) {
         quantity: data.litersActual,
         sourceRef: row.id,
         note: data.invoiceNo ? `Nhập hàng — HĐ ${data.invoiceNo}` : 'Nhập hàng',
-        movementDate: data.importedAt,
+        // The GMT+7 day of the delivery: the day the sổ sách and đầu kỳ are kept in.
+        movementDate: shiftDateFor(data.importedAt.getTime()),
         createdBy: user.id,
       },
     })

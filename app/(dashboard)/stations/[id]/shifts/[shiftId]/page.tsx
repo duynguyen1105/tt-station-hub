@@ -70,9 +70,14 @@ export default async function ShiftDetailPage({
   // What this trạm sells, for the nhập hàng dialog's ô chọn nhiên liệu, and its mã
   // hàng, which is what reads a goods column on a biên bản. Labels above resolve every
   // khóa; this narrows what a new hầm row may be given.
-  const [stationFuels, fuelMappings] = await Promise.all([
+  const [stationFuels, fuelMappings, openings] = await Promise.all([
     loadStationFuels(shift.stationId),
     loadStationFuelMappings(shift.stationId),
+    // Each nhiên liệu's đầu kỳ date: the dialog warns on a phiếu dated before it.
+    prisma.inventoryOpeningBalance.findMany({
+      where: { stationId: shift.stationId },
+      select: { fuelType: true, effectiveDate: true },
+    }),
   ])
 
   const [station, readings, dispensers, tanks, visits, priceRows, cashEntryRows] =
@@ -311,6 +316,9 @@ export default async function ShiftDetailPage({
               paperTanks={paperRoster?.tanks ?? []}
               stationPumps={stationPumps}
               paperPumps={paperRoster?.pumps ?? []}
+              openingDates={Object.fromEntries(
+                openings.map((o) => [o.fuelType, o.effectiveDate.toISOString().slice(0, 10)])
+              )}
             />
           )}
           {/* Chốt ca follows canReviewShift; a viewer never sees the control. The

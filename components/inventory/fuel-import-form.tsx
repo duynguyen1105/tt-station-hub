@@ -318,6 +318,7 @@ export function FuelImportForm({
   paperTanks,
   stationPumps,
   paperPumps,
+  openingDates,
 }: {
   stationId: string
   /** What section (c) may name as the nhiên liệu of a Hầm: what this Trạm sells,
@@ -336,6 +337,9 @@ export function FuelImportForm({
   /** The Trụ the pre-printed biên bản lists, for a Trạm with no dispensers
    *  configured. It says no Hầm, so on its word alone a Trụ taints nothing. */
   paperPumps: readonly PumpRosterEntry[]
+  /** Nhiên liệu → YYYY-MM-DD its số đầu kỳ counts from. A phiếu dated before it is
+   *  already inside đầu kỳ and adds nothing to tồn sổ sách, so saving one asks first. */
+  openingDates: Readonly<Record<string, string>>
 }) {
   const router = useRouter()
   // The danh mục whole, not this Trạm's slice: a goods column is resolved by the
@@ -641,6 +645,34 @@ export function FuelImportForm({
     }
     if (receiving.some((t) => !t.fuelType)) {
       toast.error(vi.imports.selectFuel)
+      return
+    }
+    // A delivery dated before a nhiên liệu's đầu kỳ is treated as already inside that
+    // đầu kỳ: the sổ sách would not move. Say so before saving rather than let the
+    // litres go missing from Hàng tồn unexplained.
+    const deliveryDay = importedAt.slice(0, 10) // datetime-local: already GMT+7
+    const beforeOpening = [
+      ...new Set(
+        receiving.flatMap((t) =>
+          t.fuelType && openingDates[t.fuelType] && deliveryDay < openingDates[t.fuelType]!
+            ? [t.fuelType]
+            : []
+        )
+      ),
+    ]
+    if (
+      beforeOpening.length > 0 &&
+      !window.confirm(
+        vi.imports.beforeOpeningConfirm(
+          beforeOpening
+            .map((f) => {
+              const [y, m, d] = openingDates[f]!.split('-')
+              return `${fuels.find((x) => x.fuelType === f)?.name ?? f} (${d}/${m}/${y})`
+            })
+            .join(', ')
+        )
+      )
+    ) {
       return
     }
 
