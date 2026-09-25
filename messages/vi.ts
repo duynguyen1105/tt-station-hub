@@ -708,9 +708,15 @@ export const vi = {
     tank: 'Hầm nhận',
     otherTank: 'Hầm khác...',
     otherTankCode: 'Mã hầm',
-    liters: 'Số lít thực tế',
     litersV15: 'Số lít V15',
-    temperature: 'Nhiệt độ (°C)',
+    // Nhập hàng list: what the sổ sách booked vs what the hầm measured (Barem).
+    bookedLiters: 'Số lượng nhập hàng',
+    bookedLitersHint: 'Số lít đưa vào tồn sổ sách (nhập − bán).',
+    measuredLiters: 'Số lít thực tế',
+    measuredLitersHint:
+      'Số lít đo được ở hầm theo Barem (sau nhập − trước nhập). Chỉ để tham khảo và tính chênh lệch.',
+    measuredDiff: 'Chênh lệch',
+    measuredDiffHint: 'Số lít thực tế − Số lượng nhập hàng.',
     importedAt: 'Ngày giờ nhập',
     supplier: 'Nhà cung cấp',
     invoiceNo: 'Số hóa đơn',

@@ -6,6 +6,7 @@ import { forbidden, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation, reachableStationIds } from '@/lib/auth/station-guard'
 import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
+import { measuredIntakeByTank } from '@/lib/imports/measured-intake'
 import { loadImportFilterOptions } from '@/lib/inventory/import-filter-options'
 import { importSelection } from '@/lib/inventory/import-selection'
 import { prisma } from '@/lib/prisma'
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
     where: selection.where,
     orderBy: { importedAt: 'asc' },
   })
-  const [stations, docs, profiles] = await Promise.all([
+  const [stations, docs, profiles, receipts] = await Promise.all([
     prisma.station.findMany({ select: { id: true, code: true } }),
     prisma.fuelImportDocument.findMany({
       where: {
@@ -62,7 +63,12 @@ export async function GET(req: NextRequest) {
       select: { importId: true, receiptId: true },
     }),
     prisma.profile.findMany({ select: { id: true, fullName: true } }),
+    prisma.fuelImportReceipt.findMany({
+      where: { id: { in: imports.map((i) => i.receiptId).filter((r): r is string => !!r) } },
+      select: { id: true, tankChecks: true },
+    }),
   ])
+  const measuredByReceipt = new Map(receipts.map((r) => [r.id, measuredIntakeByTank(r.tankChecks)]))
   const stationById = new Map(stations.map((s) => [s.id, s]))
   const nameById = new Map(profiles.map((p) => [p.id, p.fullName]))
   const docCount = new Map<string, number>()
@@ -81,9 +87,10 @@ export async function GET(req: NextRequest) {
     { header: 'Trạm', key: 'station', width: 16 },
     { header: 'Hầm', key: 'tank', width: 10 },
     { header: 'Loại hàng', key: 'fuel', width: 12 },
-    { header: 'Số lít thực tế', key: 'liters', width: 14 },
+    { header: 'Số lượng nhập hàng', key: 'liters', width: 18 },
+    { header: 'Số lít thực tế', key: 'measured', width: 14 },
+    { header: 'Chênh lệch', key: 'diff', width: 12 },
     { header: 'Số lít V15', key: 'litersV15', width: 12 },
-    { header: 'Nhiệt độ (°C)', key: 'temp', width: 12 },
     { header: 'Nhà cung cấp', key: 'supplier', width: 20 },
     { header: 'Số hóa đơn', key: 'invoice', width: 16 },
     { header: 'Xe bồn', key: 'truck', width: 14 },
@@ -99,15 +106,20 @@ export async function GET(req: NextRequest) {
   const fuelLabel = await fuelTypeLabeller()
   for (const row of imports) {
     const station = stationById.get(row.stationId)
+    const booked = Number(row.litersActual)
+    const measured = row.receiptId
+      ? (measuredByReceipt.get(row.receiptId)?.get(row.tankCode) ?? null)
+      : null
     ws.addRow({
       importedAt: row.importedAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       savedAt: row.createdAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
       station: station?.code ?? '',
       tank: row.tankCode.replace('HAM_', 'Hầm '),
       fuel: fuelLabel(row.fuelType),
-      liters: Number(row.litersActual),
+      liters: booked,
+      measured: measured ?? '',
+      diff: measured === null ? '' : Math.round((measured - booked) * 1000) / 1000,
       litersV15: row.litersV15 === null ? '' : Number(row.litersV15),
-      temp: row.temperatureC === null ? '' : Number(row.temperatureC),
       supplier: row.supplier ?? '',
       invoice: row.invoiceNo ?? '',
       truck: row.truckPlate ?? '',

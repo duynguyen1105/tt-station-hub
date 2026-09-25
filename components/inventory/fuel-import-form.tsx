@@ -62,6 +62,7 @@ import {
   savedCell,
   shownCell,
 } from '@/lib/inventory/barem-form'
+import { fuelsBookedBeforeOpening } from '@/lib/inventory/book-stock'
 import { vi } from '@/messages/vi'
 
 export type TankOption = {
@@ -650,16 +651,11 @@ export function FuelImportForm({
     // A delivery dated before a nhiên liệu's đầu kỳ is treated as already inside that
     // đầu kỳ: the sổ sách would not move. Say so before saving rather than let the
     // litres go missing from Hàng tồn unexplained.
-    const deliveryDay = importedAt.slice(0, 10) // datetime-local: already GMT+7
-    const beforeOpening = [
-      ...new Set(
-        receiving.flatMap((t) =>
-          t.fuelType && openingDates[t.fuelType] && deliveryDay < openingDates[t.fuelType]!
-            ? [t.fuelType]
-            : []
-        )
-      ),
-    ]
+    const beforeOpening = fuelsBookedBeforeOpening(
+      importedAt.slice(0, 10), // datetime-local: already the GMT+7 day
+      receiving,
+      openingDates
+    )
     if (
       beforeOpening.length > 0 &&
       !window.confirm(

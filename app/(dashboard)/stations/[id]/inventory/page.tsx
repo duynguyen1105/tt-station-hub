@@ -19,6 +19,7 @@ import {
   loadStationFuelMappings,
   loadStationFuels,
 } from '@/lib/fuels/load-catalogue'
+import { measuredIntakeByTank } from '@/lib/imports/measured-intake'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
 import { type BaremLookup, lookupBaremLiters } from '@/lib/inventory/barem'
@@ -319,6 +320,20 @@ export default async function StationInventoryPage({
       : []
   // One bulk signing call for the whole table (was one round-trip per doc).
   const docUrlByPath = await signedUrlsForPaths(docs.map((d) => d.storagePath))
+  // What each wizard phiếu's hầm measured receiving (Barem), shown beside the booked
+  // litres as a reference and the Chênh lệch between them.
+  const measuredByReceipt = new Map(
+    tab === 'nhap-hang'
+      ? (
+          await prisma.fuelImportReceipt.findMany({
+            where: { id: { in: receiptIds } },
+            select: { id: true, tankChecks: true },
+          })
+        ).map((r) => [r.id, measuredIntakeByTank(r.tankChecks)])
+      : []
+  )
+  const measuredOf = (row: { receiptId: string | null; tankCode: string }) =>
+    row.receiptId ? (measuredByReceipt.get(row.receiptId)?.get(row.tankCode) ?? null) : null
   const docLinks = new Map<string, { url: string; name: string }[]>()
   const receiptLinks = new Map<string, { url: string; name: string }[]>()
   for (const doc of docs) {
@@ -998,8 +1013,15 @@ export default async function StationInventoryPage({
                   <th className="p-2">{vi.imports.savedAt}</th>
                   <th className="p-2">{vi.inventory.tank}</th>
                   <th className="p-2">{vi.inventory.fuelType}</th>
-                  <th className="p-2 text-right">{vi.imports.liters}</th>
-                  <th className="p-2 text-right">{vi.imports.temperature}</th>
+                  <th className="p-2 text-right" title={vi.imports.bookedLitersHint}>
+                    {vi.imports.bookedLiters}
+                  </th>
+                  <th className="p-2 text-right" title={vi.imports.measuredLitersHint}>
+                    {vi.imports.measuredLiters}
+                  </th>
+                  <th className="p-2 text-right" title={vi.imports.measuredDiffHint}>
+                    {vi.imports.measuredDiff}
+                  </th>
                   <th className="p-2">{vi.imports.invoiceNo}</th>
                   <th className="p-2">{vi.imports.creator}</th>
                   <th className="p-2">{vi.imports.documents}</th>
@@ -1007,58 +1029,69 @@ export default async function StationInventoryPage({
                 </tr>
               </thead>
               <tbody>
-                {imports.map((row) => (
-                  <tr key={row.id} className={`border-b ${row.canceledAt ? 'opacity-50' : ''}`}>
-                    <td className="p-2">
-                      {row.receiptId ? (
-                        // A wizard slip opens its saved biên bản for cross-checking.
-                        <Link
-                          href={`/stations/${id}/imports/${row.receiptId}`}
-                          className="text-primary underline underline-offset-2"
-                        >
-                          {formatDate(row.importedAt)}
-                        </Link>
-                      ) : (
-                        formatDate(row.importedAt)
-                      )}
-                    </td>
-                    {/* When the slip was keyed into the app — the delivery date
+                {imports.map((row) => {
+                  const booked = Number(row.litersActual)
+                  const measured = measuredOf(row)
+                  const gap =
+                    measured === null ? null : Math.round((measured - booked) * 1000) / 1000
+                  return (
+                    <tr key={row.id} className={`border-b ${row.canceledAt ? 'opacity-50' : ''}`}>
+                      <td className="p-2">
+                        {row.receiptId ? (
+                          // A wizard slip opens its saved biên bản for cross-checking.
+                          <Link
+                            href={`/stations/${id}/imports/${row.receiptId}`}
+                            className="text-primary underline underline-offset-2"
+                          >
+                            {formatDate(row.importedAt)}
+                          </Link>
+                        ) : (
+                          formatDate(row.importedAt)
+                        )}
+                      </td>
+                      {/* When the slip was keyed into the app — the delivery date
                         beside it can be days older than the data entry. */}
-                    <td className="p-2">{formatDateTime(row.createdAt)}</td>
-                    <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
-                    <td className="p-2">{fuelLabel(row.fuelType)}</td>
-                    <td className="p-2 text-right font-mono">
-                      {formatLiters(Number(row.litersActual))}
-                    </td>
-                    <td className="p-2 text-right font-mono">
-                      {row.temperatureC === null ? '—' : `${row.temperatureC}°C`}
-                    </td>
-                    <td className="p-2">{row.invoiceNo ?? '—'}</td>
-                    <td className="p-2">
-                      {(row.createdBy && creatorById.get(row.createdBy)) ?? '—'}
-                    </td>
-                    <td className="space-x-2 p-2">
-                      {linksForImport(row).map((doc, index) => (
-                        <a
-                          key={index}
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary underline underline-offset-2"
-                        >
-                          {doc.name}
-                        </a>
-                      ))}
-                    </td>
-                    <td className="p-2 text-right">
-                      {row.canceledAt ? (
-                        <StatusBadge label={vi.imports.canceled} tone="muted" />
-                      ) : canEdit ? (
-                        <ImportCancelButton importId={row.id} />
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="p-2">{formatDateTime(row.createdAt)}</td>
+                      <td className="p-2">{row.tankCode.replace('HAM_', 'Hầm ')}</td>
+                      <td className="p-2">{fuelLabel(row.fuelType)}</td>
+                      <td className="p-2 text-right font-mono font-semibold">
+                        {formatLiters(booked)}
+                      </td>
+                      <td className="text-muted-foreground p-2 text-right font-mono">
+                        {measured === null ? '—' : formatLiters(measured)}
+                      </td>
+                      <td
+                        className={`p-2 text-right font-mono ${gap !== null && gap < 0 ? 'text-destructive' : ''}`}
+                      >
+                        {gap === null ? '—' : `${gap > 0 ? '+' : ''}${formatLiters(gap)}`}
+                      </td>
+                      <td className="p-2">{row.invoiceNo ?? '—'}</td>
+                      <td className="p-2">
+                        {(row.createdBy && creatorById.get(row.createdBy)) ?? '—'}
+                      </td>
+                      <td className="space-x-2 p-2">
+                        {linksForImport(row).map((doc, index) => (
+                          <a
+                            key={index}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary underline underline-offset-2"
+                          >
+                            {doc.name}
+                          </a>
+                        ))}
+                      </td>
+                      <td className="p-2 text-right">
+                        {row.canceledAt ? (
+                          <StatusBadge label={vi.imports.canceled} tone="muted" />
+                        ) : canEdit ? (
+                          <ImportCancelButton importId={row.id} />
+                        ) : null}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}

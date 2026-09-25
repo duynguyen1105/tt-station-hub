@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { bookSummary, dailyLedger } from '@/lib/inventory/book-stock'
+import { bookSummary, dailyLedger, fuelsBookedBeforeOpening } from '@/lib/inventory/book-stock'
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`)
 
@@ -62,5 +62,32 @@ describe('dailyLedger', () => {
 
   it('returns nothing when no movement falls inside the anchor window', () => {
     expect(dailyLedger(500, d('2026-09-01'), MOVES)).toEqual([])
+  })
+})
+
+describe('fuelsBookedBeforeOpening', () => {
+  const openings = { E0: '2026-09-24', DC: '2026-09-24' }
+
+  it('flags a phiếu dated before đầu kỳ (the LAMDONG01 23/09 delivery)', () => {
+    const tanks = [
+      { fuelType: 'E0', importedLiters: 4000 },
+      { fuelType: 'DC', importedLiters: 6000 },
+    ]
+    expect(fuelsBookedBeforeOpening('2026-09-23', tanks, openings)).toEqual(['E0', 'DC'])
+  })
+
+  it('does not flag a phiếu on or after the đầu kỳ day', () => {
+    const tanks = [{ fuelType: 'E0', importedLiters: 4000 }]
+    expect(fuelsBookedBeforeOpening('2026-09-24', tanks, openings)).toEqual([])
+    expect(fuelsBookedBeforeOpening('2026-09-25', tanks, openings)).toEqual([])
+  })
+
+  it('ignores hầm booking nothing and nhiên liệu with no đầu kỳ', () => {
+    const tanks = [
+      { fuelType: 'E0', importedLiters: 0 },
+      { fuelType: 'DC', importedLiters: null },
+      { fuelType: 'DO', importedLiters: 3000 },
+    ]
+    expect(fuelsBookedBeforeOpening('2026-09-23', tanks, openings)).toEqual([])
   })
 })

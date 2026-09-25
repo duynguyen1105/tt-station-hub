@@ -420,7 +420,7 @@ export default async function ImportReceiptPage({
               <tr className="text-muted-foreground border-b text-left">
                 <th className="p-2">{vi.inventory.tank}</th>
                 <th className="p-2">{vi.inventory.fuelType}</th>
-                <th className="p-2 text-right">{vi.imports.liters}</th>
+                <th className="p-2 text-right">{vi.imports.bookedLiters}</th>
                 <th className="p-2"></th>
               </tr>
             </thead>

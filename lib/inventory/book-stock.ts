@@ -108,3 +108,20 @@ export function dailyLedger(
   }
   return rows.reverse()
 }
+
+/**
+ * The nhiên liệu of a phiếu nhập that the sổ sách would leave out: those booking
+ * litres on a day (YYYY-MM-DD, GMT+7) before their đầu kỳ's effective day, which the
+ * sổ treats as already inside đầu kỳ. A hầm booking nothing is not asked about.
+ */
+export function fuelsBookedBeforeOpening(
+  day: string,
+  tanks: readonly { fuelType: string | null; importedLiters: number | null }[],
+  openingDates: Readonly<Record<string, string>>
+): string[] {
+  const fuels = tanks.flatMap((t) => {
+    const opening = t.fuelType ? openingDates[t.fuelType] : undefined
+    return t.fuelType && opening && (t.importedLiters ?? 0) > 0 && day < opening ? [t.fuelType] : []
+  })
+  return [...new Set(fuels)]
+}
