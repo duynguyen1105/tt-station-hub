@@ -5,7 +5,11 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { isApprovedReading } from '@/lib/shifts/completion'
-import { laterShiftRefusal, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
+import {
+  lockOpenShift,
+  propagateApprovedClosing,
+  shiftLockRefusal,
+} from '@/lib/shifts/opening-reading'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -27,6 +31,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const updated = await prisma
     .$transaction(
       async (db) => {
+        await lockOpenShift(db, reading.shiftId)
         const rejected = await db.shiftReading.update({
           where: { id },
           data: { reviewStatus: 'rejected', reviewedBy: user.id, reviewedAt: new Date() },
@@ -63,7 +68,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       },
       { timeout: 15000 }
     )
-    .catch(laterShiftRefusal)
+    .catch(shiftLockRefusal)
   if (updated instanceof Response) return updated
   return ok(updated)
 }

@@ -4,7 +4,7 @@ import { type Dispenser, type Prisma, type ShiftReading } from '@/lib/generated/
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { prisma } from '@/lib/prisma'
 import { isApprovedReading } from '@/lib/shifts/completion'
-import { propagateApprovedClosing } from '@/lib/shifts/opening-reading'
+import { lockOpenShift, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
 
 // Readings are stored as strings to preserve leading zeros (see lib/ai). A field
 // left `undefined` is untouched; an explicit `null` clears it.
@@ -90,6 +90,8 @@ export async function applyReadingCorrection(params: {
 
   return prisma.$transaction(
     async (db) => {
+      // Before the write: a Chốt ca in flight either sees this number or refuses it.
+      await lockOpenShift(db, reading.shiftId)
       const updated = await db.shiftReading.update({ where: { id: reading.id }, data })
       if (
         (patch.electronicReading !== undefined || patch.mechanicalReading !== undefined) &&

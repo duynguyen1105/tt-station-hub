@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { applyReadingCorrection } from '@/lib/readings/apply-correction'
-import { laterShiftRefusal } from '@/lib/shifts/opening-reading'
+import { shiftLockRefusal } from '@/lib/shifts/opening-reading'
 
 // Readings are stored as strings to preserve leading zeros (see lib/ai).
 const correctClosingSchema = z.object({
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     userId: user.id,
     auditAction: 'reading.correct',
     auditMetadata: parsed.data,
-  }).catch(laterShiftRefusal)
+  }).catch(shiftLockRefusal)
   if (updated instanceof Response) return updated
   return ok(updated)
 }

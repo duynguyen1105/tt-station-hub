@@ -7,7 +7,11 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { CONFIRM_REQUIRED_ANOMALIES, hasMissingOpening } from '@/lib/matching/anomaly-detection'
 import { prisma } from '@/lib/prisma'
-import { laterShiftRefusal, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
+import {
+  lockOpenShift,
+  propagateApprovedClosing,
+  shiftLockRefusal,
+} from '@/lib/shifts/opening-reading'
 import { anomalyLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -55,6 +59,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const updated = await prisma
     .$transaction(
       async (db) => {
+        await lockOpenShift(db, reading.shiftId)
         const approved = await db.shiftReading.update({
           where: { id },
           data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date() },
@@ -82,7 +87,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
       { timeout: 15000 }
     )
-    .catch(laterShiftRefusal)
+    .catch(shiftLockRefusal)
   if (updated instanceof Response) return updated
   return ok(updated)
 }

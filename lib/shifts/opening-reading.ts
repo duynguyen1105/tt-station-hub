@@ -95,10 +95,38 @@ export class LaterShiftCompletedError extends Error {
   }
 }
 
-/** A route's answer to a refused carry-forward; any other error is not ours to swallow. */
-export function laterShiftRefusal(error: unknown) {
-  if (error instanceof LaterShiftCompletedError) return badRequest(error.message)
+/** Thrown inside an edit's transaction when its own ca was chốt'd while the edit was on its way. */
+export class ShiftCompletedError extends Error {
+  constructor() {
+    super(vi.shifts.completedLocked)
+  }
+}
+
+/** A route's answer to a refused edit on a chốt'd ca; any other error is not ours to swallow. */
+export function shiftLockRefusal(error: unknown) {
+  if (error instanceof LaterShiftCompletedError || error instanceof ShiftCompletedError) {
+    return badRequest(error.message)
+  }
   throw error
+}
+
+/**
+ * Row-locks a ca until the transaction ends and returns its status as of now. Chốt ca
+ * and Mở lại ca claim the same row with their first statement, before they read a
+ * single reading, so an edit holding it is either seen whole by that chốt or finds the
+ * ca already chốt'd — never slipped in between chốt reading the numbers and posting
+ * the sale.
+ */
+export async function lockShift(db: Prisma.TransactionClient, shiftId: string): Promise<string> {
+  const [row] = await db.$queryRaw<{ status: string }[]>`
+    SELECT status FROM shifts WHERE id = ${shiftId}::uuid FOR UPDATE
+  `
+  return row?.status ?? ''
+}
+
+/** Locks the ca an edit writes into, and refuses the edit if it has been chốt'd. */
+export async function lockOpenShift(db: Prisma.TransactionClient, shiftId: string) {
+  if ((await lockShift(db, shiftId)) === 'completed') throw new ShiftCompletedError()
 }
 
 const sameNumber = (a: Prisma.Decimal | null, b: number | null) =>
@@ -110,6 +138,10 @@ const sameNumber = (a: Prisma.Decimal | null, b: number | null) =>
  * too, keeping its verdict, since an đầu that disagrees with the cuối before it counts
  * the difference twice in the kho. A later ca already chốt'd refuses the whole edit.
  * On rejecting the last approved read, restore the opening that preceded it.
+ *
+ * Every later ca is locked (in date order, before the trụ cache Chốt ca also writes)
+ * before its status is trusted, so a chốt in flight either finishes first — and this
+ * edit is refused — or waits and reads the đầu this edit leaves.
  */
 export async function propagateApprovedClosing(
   dispenser: Pick<Dispenser, 'id' | 'hasElectronicMeter' | 'hasMechanicalMeter'>,
@@ -121,6 +153,17 @@ export async function propagateApprovedClosing(
     where: { id: shiftId },
     select: { shiftDate: true },
   })
+  const later = await db.$queryRaw<{ reading_id: string; shift_id: string; shift_date: Date }[]>`
+    SELECT r.id AS reading_id, r.shift_id, s.shift_date
+      FROM shift_readings r JOIN shifts s ON s.id = r.shift_id
+     WHERE r.dispenser_id = ${dispenser.id}::uuid
+       AND s.shift_date > ${shift.shiftDate.toISOString().slice(0, 10)}::date
+     ORDER BY s.shift_date ASC, s.id ASC
+  `
+  const statusOf = new Map<string, string>()
+  for (const { shift_id } of later) {
+    if (!statusOf.has(shift_id)) statusOf.set(shift_id, await lockShift(db, shift_id))
+  }
   const latest = await latestApprovedClosings(dispenser.id, null, db)
   if (latest.electronic !== null || latest.mechanical !== null || fallback) {
     await db.dispenser.update({
@@ -135,23 +178,14 @@ export async function propagateApprovedClosing(
       },
     })
   }
-  const later = await db.$queryRaw<
-    { reading_id: string; shift_date: Date; shift_status: string }[]
-  >`
-    SELECT r.id AS reading_id, s.shift_date, s.status AS shift_status
-      FROM shift_readings r JOIN shifts s ON s.id = r.shift_id
-     WHERE r.dispenser_id = ${dispenser.id}::uuid
-       AND s.shift_date > ${shift.shiftDate.toISOString().slice(0, 10)}::date
-     ORDER BY s.shift_date ASC
-  `
-  for (const { reading_id, shift_date, shift_status } of later) {
+  for (const { reading_id, shift_id, shift_date } of later) {
     const row = await db.shiftReading.findUniqueOrThrow({ where: { id: reading_id } })
     const opening = await openingReadingsFor(dispenser.id, shift_date, db)
     const moved =
       !sameNumber(row.openingElectronicReading, opening.electronic) ||
       !sameNumber(row.openingMechanicalReading, opening.mechanical)
     if (!moved) continue
-    if (shift_status === 'completed') throw new LaterShiftCompletedError(shift_date)
+    if (statusOf.get(shift_id) === 'completed') throw new LaterShiftCompletedError(shift_date)
     const review = deriveReviewState({
       electronicReading: row.electronicReading == null ? null : Number(row.electronicReading),
       mechanicalReading: row.mechanicalReading == null ? null : Number(row.mechanicalReading),

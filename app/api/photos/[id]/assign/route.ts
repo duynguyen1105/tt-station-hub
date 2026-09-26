@@ -9,7 +9,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { runShiftExtraction } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
-import { laterShiftRefusal } from '@/lib/shifts/opening-reading'
+import { shiftLockRefusal } from '@/lib/shifts/opening-reading'
 import { downloadPhoto } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       confidence: 100,
       notes: 'slot assigned by reviewer',
     }
-  ).catch(laterShiftRefusal)
+  ).catch(shiftLockRefusal)
   if (result instanceof Response) return result
   const updated = await prisma.shiftReading.findUnique({
     where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId } },

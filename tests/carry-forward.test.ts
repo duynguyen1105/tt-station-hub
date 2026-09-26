@@ -30,19 +30,14 @@ function dbWith(later: { shiftStatus: string; reviewStatus: string; opening: num
     // (the old pending-only carry-forward) does not see a duyệt'd row.
     $queryRaw: async (sql: TemplateStringsArray) => {
       const text = sql.join('')
+      if (text.includes('FOR UPDATE')) return [{ status: later.shiftStatus }]
       if (!text.includes('AS reading_id')) return [{ electronic: dec(110), mechanical: dec(500) }]
       if (
         text.includes('r.review_status IN') &&
         !['pending', 'needs_review'].includes(row.reviewStatus)
       )
         return []
-      return [
-        {
-          reading_id: 'r2',
-          shift_date: new Date('2026-09-26T00:00:00Z'),
-          shift_status: later.shiftStatus,
-        },
-      ]
+      return [{ reading_id: 'r2', shift_id: 's2', shift_date: new Date('2026-09-26T00:00:00Z') }]
     },
   }
   return { db: db as unknown as Prisma.TransactionClient, update }

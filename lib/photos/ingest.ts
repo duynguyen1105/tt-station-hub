@@ -37,7 +37,11 @@ import { deriveReviewState } from '@/lib/matching/review-state'
 import { matchStationByLabel } from '@/lib/matching/station-label'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
-import { openingReadingsFor, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
+import {
+  lockOpenShift,
+  openingReadingsFor,
+  propagateApprovedClosing,
+} from '@/lib/shifts/opening-reading'
 
 type ShiftRef = { id: string; stationId: string }
 
@@ -179,10 +183,7 @@ async function assembleShiftReading(
             // which Prisma's raw deserializer rejects — the outer SELECT yields int.
             await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`${shift.id}:${dispenser.id}`}, 0)) AS l) AS t`
             // Serialize against Chốt ca/Mở lại ca, not just other photos for this trụ.
-            const [current] = await tx.$queryRaw<{ status: string }[]>`
-              SELECT status FROM shifts WHERE id = ${shift.id}::uuid FOR UPDATE
-            `
-            if (current?.status === 'completed') throw new Error('Shift is completed')
+            await lockOpenShift(tx, shift.id)
             const existing = await tx.shiftReading.findUnique({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
             })

@@ -10,6 +10,7 @@ import { canReachStation } from '@/lib/auth/station-guard'
 import { type Prisma } from '@/lib/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { refuseAirPurge } from '@/lib/shifts/air-purge'
+import { lockOpenShift, shiftLockRefusal } from '@/lib/shifts/opening-reading'
 import { electronicGap, readingMeters } from '@/lib/shifts/reading-totals'
 
 // Litres arrive as a string, like every other number the reading cells post. What that
@@ -62,13 +63,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data.airPurgeLiters = parsed.data.airPurgeLiters
   }
 
-  const updated = await prisma.shiftReading.update({ where: { id }, data })
-  await writeAudit({
-    userId: user.id,
-    action: 'reading.air_purge.set',
-    entity: 'shift_reading',
-    entityId: id,
-    metadata: parsed.data,
-  })
+  // Xả gió moves the ca's sale, so it takes the ca's lock like a số liệu edit.
+  const updated = await prisma
+    .$transaction(async (db) => {
+      await lockOpenShift(db, reading.shiftId)
+      const row = await db.shiftReading.update({ where: { id }, data })
+      await writeAudit(
+        {
+          userId: user.id,
+          action: 'reading.air_purge.set',
+          entity: 'shift_reading',
+          entityId: id,
+          metadata: parsed.data,
+        },
+        db
+      )
+      return row
+    })
+    .catch(shiftLockRefusal)
+  if (updated instanceof Response) return updated
   return ok(updated)
 }
