@@ -519,6 +519,8 @@ export const vi = {
     notCompleted: 'Ca này chưa được chốt.',
     alreadyCompleted: 'Ca này đã được chốt.',
     completedLocked: 'Ca đã chốt — quản trị viên cần Mở lại ca trước khi sửa số liệu.',
+    laterShiftCompleted: (day: string) =>
+      `Ca ngày ${day} đã chốt và đang lấy số này làm số đầu — Mở lại ca ngày ${day} trước, sửa xong thì chốt lại cả hai ca.`,
     cannotCompletePending: 'Vẫn còn số liệu chưa được duyệt trong ca này.',
     cannotCompleteNoReadings: 'Ca này chưa có số liệu trụ bơm.',
     // A ca is chốt'd around 15:00 but its ngày runs to midnight, so an evening duyệt

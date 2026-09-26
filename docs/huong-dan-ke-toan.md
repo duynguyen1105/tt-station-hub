@@ -120,10 +120,15 @@ Kế toán sửa được số **chưa duyệt** của ca **chưa chốt**. Số
 hoặc ca đã chốt thì chỉ **quản trị viên** sửa được:
 
 - **Chốt ca, dòng đã Duyệt / Từ chối**: quản trị viên bấm vào số để sửa. Dòng giữ
-  nguyên trạng thái, số AI đọc gốc vẫn được giữ, số đầu của ca sau tự cập nhật.
+  nguyên trạng thái, số AI đọc gốc vẫn được giữ, số đầu của các ca sau (kể cả dòng
+  đã duyệt) tự cập nhật theo.
 - **Ca đã chốt**: quản trị viên bấm **Mở lại ca** → phần bán đã trừ kho được hoàn
   lại, ca về "chờ duyệt" → sửa → bấm **Chốt ca** lại. Sau đó **xuất lại file
   MISA** của ca đó.
+- **Sửa số cuối của một ca mà ca ngày sau đã chốt**: hệ thống từ chối và báo ngày
+  của ca sau, vì ca đó đã trừ kho theo số đầu cũ. Mở lại **cả ca sau**, sửa ca
+  trước (số đầu ca sau tự đổi theo), rồi chốt lại cả hai ca — tổng bán không bị
+  tính trùng.
 - **Công nợ**: ở **Cần duyệt → Công nợ → Đã xử lý** (chọn ngày bán), quản trị viên
   sửa số / từ chối lượt xe đã duyệt, hoặc duyệt lại lượt đã từ chối. Sổ công nợ
   của khách tự cập nhật đúng một lần ghi nợ.

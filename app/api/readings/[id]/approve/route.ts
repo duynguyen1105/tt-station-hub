@@ -7,7 +7,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { CONFIRM_REQUIRED_ANOMALIES, hasMissingOpening } from '@/lib/matching/anomaly-detection'
 import { prisma } from '@/lib/prisma'
-import { propagateApprovedClosing } from '@/lib/shifts/opening-reading'
+import { laterShiftRefusal, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
 import { anomalyLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -52,34 +52,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
   }
 
-  const updated = await prisma.$transaction(
-    async (db) => {
-      const approved = await db.shiftReading.update({
-        where: { id },
-        data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date() },
-      })
-      const dispenser = await db.dispenser.findUnique({
-        where: { id: reading.dispenserId },
-        select: { id: true, hasElectronicMeter: true, hasMechanicalMeter: true },
-      })
-      if (dispenser) await propagateApprovedClosing(dispenser, reading.shiftId, db)
-      await writeAudit(
-        {
-          userId: user.id,
-          action: 'reading.approve',
-          entity: 'shift_reading',
-          entityId: id,
-          metadata: {
-            from: reading.reviewStatus,
-            to: approved.reviewStatus,
-            ...(blocking.length > 0 ? { confirmedAnomalies: blocking } : {}),
+  const updated = await prisma
+    .$transaction(
+      async (db) => {
+        const approved = await db.shiftReading.update({
+          where: { id },
+          data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date() },
+        })
+        const dispenser = await db.dispenser.findUnique({
+          where: { id: reading.dispenserId },
+          select: { id: true, hasElectronicMeter: true, hasMechanicalMeter: true },
+        })
+        if (dispenser) await propagateApprovedClosing(dispenser, reading.shiftId, db)
+        await writeAudit(
+          {
+            userId: user.id,
+            action: 'reading.approve',
+            entity: 'shift_reading',
+            entityId: id,
+            metadata: {
+              from: reading.reviewStatus,
+              to: approved.reviewStatus,
+              ...(blocking.length > 0 ? { confirmedAnomalies: blocking } : {}),
+            },
           },
-        },
-        db
-      )
-      return approved
-    },
-    { timeout: 15000 }
-  )
+          db
+        )
+        return approved
+      },
+      { timeout: 15000 }
+    )
+    .catch(laterShiftRefusal)
+  if (updated instanceof Response) return updated
   return ok(updated)
 }

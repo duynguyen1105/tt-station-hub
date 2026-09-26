@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import { isApprovedReading } from '@/lib/shifts/completion'
-import { propagateApprovedClosing } from '@/lib/shifts/opening-reading'
+import { laterShiftRefusal, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -24,43 +24,46 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   )
     return forbidden()
 
-  const updated = await prisma.$transaction(
-    async (db) => {
-      const rejected = await db.shiftReading.update({
-        where: { id },
-        data: { reviewStatus: 'rejected', reviewedBy: user.id, reviewedAt: new Date() },
-      })
-      if (isApprovedReading(reading)) {
-        const dispenser = await db.dispenser.findUnique({
-          where: { id: reading.dispenserId },
-          select: { id: true, hasElectronicMeter: true, hasMechanicalMeter: true },
+  const updated = await prisma
+    .$transaction(
+      async (db) => {
+        const rejected = await db.shiftReading.update({
+          where: { id },
+          data: { reviewStatus: 'rejected', reviewedBy: user.id, reviewedAt: new Date() },
         })
-        if (dispenser) {
-          await propagateApprovedClosing(dispenser, reading.shiftId, db, {
-            electronic:
-              reading.openingElectronicReading == null
-                ? null
-                : Number(reading.openingElectronicReading),
-            mechanical:
-              reading.openingMechanicalReading == null
-                ? null
-                : Number(reading.openingMechanicalReading),
+        if (isApprovedReading(reading)) {
+          const dispenser = await db.dispenser.findUnique({
+            where: { id: reading.dispenserId },
+            select: { id: true, hasElectronicMeter: true, hasMechanicalMeter: true },
           })
+          if (dispenser) {
+            await propagateApprovedClosing(dispenser, reading.shiftId, db, {
+              electronic:
+                reading.openingElectronicReading == null
+                  ? null
+                  : Number(reading.openingElectronicReading),
+              mechanical:
+                reading.openingMechanicalReading == null
+                  ? null
+                  : Number(reading.openingMechanicalReading),
+            })
+          }
         }
-      }
-      await writeAudit(
-        {
-          userId: user.id,
-          action: 'reading.reject',
-          entity: 'shift_reading',
-          entityId: id,
-          metadata: { from: reading.reviewStatus, to: rejected.reviewStatus },
-        },
-        db
-      )
-      return rejected
-    },
-    { timeout: 15000 }
-  )
+        await writeAudit(
+          {
+            userId: user.id,
+            action: 'reading.reject',
+            entity: 'shift_reading',
+            entityId: id,
+            metadata: { from: reading.reviewStatus, to: rejected.reviewStatus },
+          },
+          db
+        )
+        return rejected
+      },
+      { timeout: 15000 }
+    )
+    .catch(laterShiftRefusal)
+  if (updated instanceof Response) return updated
   return ok(updated)
 }

@@ -3,10 +3,14 @@
 // straight off the số liệu rather than off `Dispenser.lastElectronicReading`.
 // The cache is updated by approval/correction/completion and remains the
 // fallback for a trụ with no approved history (a fresh lắp, a seeded baseline).
+import { badRequest } from '@/lib/api/response'
+import { reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
+import { formatDate } from '@/lib/format'
 import { type Dispenser, Prisma } from '@/lib/generated/prisma/client'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { prisma } from '@/lib/prisma'
-import { APPROVED_REVIEW_STATUSES, PENDING_REVIEW_STATUSES } from '@/lib/shifts/completion'
+import { APPROVED_REVIEW_STATUSES } from '@/lib/shifts/completion'
+import { vi } from '@/messages/vi'
 
 export type OpeningReadings = { electronic: number | null; mechanical: number | null }
 
@@ -81,7 +85,30 @@ export async function openingReadingsFor(
 }
 
 /**
- * Carry a changed decision/closing forward in the same transaction as its row.
+ * Thrown inside the edit's transaction when a changed closing would move the chỉ số đầu
+ * of a ca already chốt'd: that ca posted its sales from the old đầu, so moving it
+ * would count the difference twice. The admin Mở lại ca that ca first.
+ */
+export class LaterShiftCompletedError extends Error {
+  constructor(shiftDate: Date) {
+    super(vi.shifts.laterShiftCompleted(formatDate(shiftDate)))
+  }
+}
+
+/** A route's answer to a refused carry-forward; any other error is not ours to swallow. */
+export function laterShiftRefusal(error: unknown) {
+  if (error instanceof LaterShiftCompletedError) return badRequest(error.message)
+  throw error
+}
+
+const sameNumber = (a: Prisma.Decimal | null, b: number | null) =>
+  (a == null ? null : Number(a)) === b
+
+/**
+ * Carry a changed decision/closing forward in the same transaction as its row: every
+ * later reading of the trụ whose đầu comes from it follows — a duyệt'd / từ chối'd one
+ * too, keeping its verdict, since an đầu that disagrees with the cuối before it counts
+ * the difference twice in the kho. A later ca already chốt'd refuses the whole edit.
  * On rejecting the last approved read, restore the opening that preceded it.
  */
 export async function propagateApprovedClosing(
@@ -108,17 +135,23 @@ export async function propagateApprovedClosing(
       },
     })
   }
-  const later = await db.$queryRaw<{ reading_id: string; shift_date: Date }[]>`
-    SELECT r.id AS reading_id, s.shift_date
+  const later = await db.$queryRaw<
+    { reading_id: string; shift_date: Date; shift_status: string }[]
+  >`
+    SELECT r.id AS reading_id, s.shift_date, s.status AS shift_status
       FROM shift_readings r JOIN shifts s ON s.id = r.shift_id
      WHERE r.dispenser_id = ${dispenser.id}::uuid
        AND s.shift_date > ${shift.shiftDate.toISOString().slice(0, 10)}::date
-       AND r.review_status IN (${Prisma.join([...PENDING_REVIEW_STATUSES])})
      ORDER BY s.shift_date ASC
   `
-  for (const { reading_id, shift_date } of later) {
+  for (const { reading_id, shift_date, shift_status } of later) {
     const row = await db.shiftReading.findUniqueOrThrow({ where: { id: reading_id } })
     const opening = await openingReadingsFor(dispenser.id, shift_date, db)
+    const moved =
+      !sameNumber(row.openingElectronicReading, opening.electronic) ||
+      !sameNumber(row.openingMechanicalReading, opening.mechanical)
+    if (!moved) continue
+    if (shift_status === 'completed') throw new LaterShiftCompletedError(shift_date)
     const review = deriveReviewState({
       electronicReading: row.electronicReading == null ? null : Number(row.electronicReading),
       mechanicalReading: row.mechanicalReading == null ? null : Number(row.mechanicalReading),
@@ -138,7 +171,7 @@ export async function propagateApprovedClosing(
         openingMechanicalReading: opening.mechanical,
         isAnomaly: review.isAnomaly,
         anomalyReasons: review.anomalyReasons,
-        reviewStatus: review.reviewStatus,
+        reviewStatus: reviewStatusAfterEdit(row.reviewStatus, review.reviewStatus),
       },
     })
   }

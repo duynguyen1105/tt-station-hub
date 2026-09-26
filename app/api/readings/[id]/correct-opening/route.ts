@@ -7,6 +7,7 @@ import { canEditOpening, isReadingFrozen } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
 import { applyReadingCorrection } from '@/lib/readings/apply-correction'
+import { laterShiftRefusal } from '@/lib/shifts/opening-reading'
 
 // Readings are stored as strings to preserve leading zeros (see lib/ai).
 const correctOpeningSchema = z.object({
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     patch: parsed.data,
     userId: user.id,
     auditAction: 'reading.correct_opening',
-  })
+  }).catch(laterShiftRefusal)
+  if (updated instanceof Response) return updated
   return ok(updated)
 }
