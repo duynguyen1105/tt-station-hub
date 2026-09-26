@@ -105,11 +105,22 @@ export class ShiftCompletedError extends Error {
 /** Thrown when a row was duyệt'd / từ chối'd by someone else while a non-admin's edit was on its way. */
 export class ReadingFrozenError extends Error {}
 
+/** A Duyệt refused on the row as read under the lock — carries the 400's message and details. */
+export class ReviewRefusal extends Error {
+  constructor(
+    message: string,
+    readonly details?: unknown
+  ) {
+    super(message)
+  }
+}
+
 /** A route's answer to a refused edit on a chốt'd ca; any other error is not ours to swallow. */
 export function shiftLockRefusal(error: unknown) {
   if (error instanceof LaterShiftCompletedError || error instanceof ShiftCompletedError) {
     return badRequest(error.message)
   }
+  if (error instanceof ReviewRefusal) return badRequest(error.message, error.details)
   if (error instanceof ReadingFrozenError) return forbidden()
   throw error
 }

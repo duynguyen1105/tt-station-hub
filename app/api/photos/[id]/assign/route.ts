@@ -67,7 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     photo.id,
     buffer,
     { id: shift.id, stationId: shift.stationId },
-    { dispenserId, slot },
+    { dispenserId, slot, role: user.role },
     {
       image_type: slot === 'mechanical' ? 'mechanical_meter' : 'electronic_meter',
       confidence: 100,

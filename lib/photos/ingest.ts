@@ -8,7 +8,8 @@ import {
   type ExtractVisitResult,
   type RouterResult,
 } from '@/lib/ai/types'
-import { isReadingDecided, reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
+import { type AppRole } from '@/lib/auth/permissions'
+import { isReadingDecided, isReadingFrozen, reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
 import { priceMismatchOf } from '@/lib/debts/board-price'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { plateListContains } from '@/lib/debts/plate'
@@ -38,6 +39,7 @@ import { matchStationByLabel } from '@/lib/matching/station-label'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import {
+  ReadingFrozenError,
   lockOpenShift,
   openingReadingsFor,
   propagateApprovedClosing,
@@ -48,7 +50,12 @@ type ShiftRef = { id: string; stationId: string }
 // Manual assignment by a reviewer (POST /api/photos/[id]/assign): force the
 // pump/meter slot when the AI can't read the label (e.g. a Lungbor LCD with no
 // plate in frame, or a mechanical window the router missed).
-export type ManualOverride = { dispenserId?: string | null; slot?: MeterSlot | null }
+// `role` is the reviewer's, so the decided-row freeze is re-checked under the ca's lock.
+export type ManualOverride = {
+  dispenserId?: string | null
+  slot?: MeterSlot | null
+  role?: AppRole
+}
 
 // A per-trip debt photo is either the pump meter (liters + unit price) or the vehicle plate.
 export type DebtPhotoType = 'debt_meter' | 'vehicle'
@@ -196,6 +203,15 @@ async function assembleShiftReading(
                 data: { matchStatus: 'unmatched', matchedReadingId: null },
               })
               return undefined
+            }
+            // Gán ảnh by someone who may not repair a decided row, onto a row decided
+            // since the route looked: refuse rather than retype it.
+            if (
+              existing &&
+              override?.role &&
+              isReadingFrozen(override.role, existing.reviewStatus)
+            ) {
+              throw new ReadingFrozenError()
             }
             // Snapshot the opening the first time this reading is assembled: the
             // latest duyệt'd closing of this trụ from an earlier ngày, else the trụ's

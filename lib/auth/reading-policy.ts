@@ -84,6 +84,14 @@ export function isReadingFrozen(role: AppRole, reviewStatus: string | null): boo
   return role !== 'admin' && isReadingDecided(reviewStatus)
 }
 
+/**
+ * Whether this person may Duyệt / Từ chối the row as it stands: admin always; anyone
+ * else only while nobody — neither a person nor the AI's own auto-duyệt — has decided.
+ */
+export function mayDecideReading(role: AppRole, reviewStatus: string | null): boolean {
+  return role === 'admin' || !(isReadingDecided(reviewStatus) || reviewStatus === 'auto_approved')
+}
+
 /** New AI warnings do not undo a human Duyệt / Từ chối when a value is repaired. */
 export function reviewStatusAfterEdit(previous: string | null, derived: string): string {
   return isReadingDecided(previous) ? previous : derived

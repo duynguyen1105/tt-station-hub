@@ -10,6 +10,7 @@ import {
   canReviewShift,
   isReadingDecided,
   isReadingFrozen,
+  mayDecideReading,
   reviewStatusAfterEdit,
 } from '@/lib/auth/reading-policy'
 
@@ -171,5 +172,20 @@ describe('canEditCashEntries', () => {
     expect(canEditCashEntries('admin')).toBe(true)
     expect(canEditCashEntries('accountant')).toBe(true)
     expect(canEditCashEntries('viewer')).toBe(false)
+  })
+})
+
+describe('mayDecideReading', () => {
+  it('lets anyone who reviews decide a row nobody has decided', () => {
+    for (const status of ['pending', 'needs_review', 'corrected']) {
+      expect(mayDecideReading('accountant', status)).toBe(true)
+    }
+  })
+
+  it('keeps a decided or auto-duyệt row for the admin alone', () => {
+    for (const status of ['approved', 'rejected', 'auto_approved']) {
+      expect(mayDecideReading('accountant', status)).toBe(false)
+      expect(mayDecideReading('admin', status)).toBe(true)
+    }
   })
 })
