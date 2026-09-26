@@ -81,4 +81,15 @@ describe('propagateApprovedClosing', () => {
     await propagateApprovedClosing(dispenser, 's1', db)
     expect(update).not.toHaveBeenCalled()
   })
+
+  it("counts an đầu stored before rounding as unmoved, so an old chốt'd ca is neither refused nor rewritten", async () => {
+    // Stored as 110.66 before readings were rounded down; its closing now gives 110.
+    const { db, update } = dbWith({
+      shiftStatus: 'completed',
+      reviewStatus: 'approved',
+      opening: 110.66,
+    })
+    await propagateApprovedClosing(dispenser, 's1', db)
+    expect(update).not.toHaveBeenCalled()
+  })
 })

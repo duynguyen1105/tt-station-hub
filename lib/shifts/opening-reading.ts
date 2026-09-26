@@ -58,8 +58,18 @@ export async function latestApprovedClosings(
 }
 
 /**
+ * A chốt ca number read off a photo counts in whole units: the fraction an electronic
+ * totalizer shows (396695.66) is dropped, never rounded up. Applied to AI reads and to
+ * the đầu a new row is snapshotted with; what a person types is kept as typed.
+ */
+export function floorReading(value: number | null): number | null {
+  return value === null ? null : Math.floor(value)
+}
+
+/**
  * The chỉ số đầu a trụ's reading in the ca of `shiftDate` should be snapshotted with:
- * the latest duyệt'd closing from an earlier ngày, per meter, else the trụ's cache.
+ * the latest duyệt'd closing from an earlier ngày, per meter, else the trụ's cache —
+ * rounded down, like every chốt ca number read off a photo.
  * Every place an đầu is snapshotted (photo ingest, hand-typed row, re-snapshot after a
  * correction) asks here, so no two can disagree.
  */
@@ -69,18 +79,22 @@ export async function openingReadingsFor(
   db: Prisma.TransactionClient = prisma
 ): Promise<OpeningReadings> {
   const closings = await latestApprovedClosings(dispenserId, shiftDate, db)
-  if (closings.electronic !== null && closings.mechanical !== null) return closings
-  const cache = await db.dispenser.findUnique({
-    where: { id: dispenserId },
-    select: { lastElectronicReading: true, lastMechanicalReading: true },
-  })
+  const cache =
+    closings.electronic !== null && closings.mechanical !== null
+      ? null
+      : await db.dispenser.findUnique({
+          where: { id: dispenserId },
+          select: { lastElectronicReading: true, lastMechanicalReading: true },
+        })
   return {
-    electronic:
+    electronic: floorReading(
       closings.electronic ??
-      (cache?.lastElectronicReading == null ? null : Number(cache.lastElectronicReading)),
-    mechanical:
+        (cache?.lastElectronicReading == null ? null : Number(cache.lastElectronicReading))
+    ),
+    mechanical: floorReading(
       closings.mechanical ??
-      (cache?.lastMechanicalReading == null ? null : Number(cache.lastMechanicalReading)),
+        (cache?.lastMechanicalReading == null ? null : Number(cache.lastMechanicalReading))
+    ),
   }
 }
 
@@ -144,8 +158,11 @@ export async function lockOpenShift(db: Prisma.TransactionClient, shiftId: strin
   if ((await lockShift(db, shiftId)) === 'completed') throw new ShiftCompletedError()
 }
 
-const sameNumber = (a: Prisma.Decimal | null, b: number | null) =>
-  (a == null ? null : Number(a)) === b
+// An đầu stored before rounding (396695.66) still stands for the closing it came from,
+// so it counts as unmoved when it rounds down to the đầu that closing gives now: a ca
+// kept its fractions, and a chốt'd one is not refused over them.
+const sameNumber = (stored: Prisma.Decimal | null, opening: number | null) =>
+  floorReading(stored == null ? null : Number(stored)) === opening
 
 /**
  * Carry a changed decision/closing forward in the same transaction as its row: every

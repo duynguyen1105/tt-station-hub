@@ -40,6 +40,7 @@ import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import {
   ReadingFrozenError,
+  floorReading,
   lockOpenShift,
   openingReadingsFor,
   propagateApprovedClosing,
@@ -255,7 +256,9 @@ async function assembleShiftReading(
                     DEFAULT_ANOMALY_CONFIG.meterDivergenceTolerance
                   )
                 : null
-            const reading = scale ? scale.value : rawReading
+            // Rounded down only now, once the dot is placed: flooring the raw digits
+            // would throw away the very decimal resolveReadingScale reasons about.
+            const reading = floorReading(scale ? scale.value : rawReading)
             const conf = result.readingConfidence
 
             // Staff shoot the same totalizer twice on purpose to cross-check.
@@ -284,9 +287,14 @@ async function assembleShiftReading(
               { ...priorSlot, rank: meterTypeRank(priorPhoto?.meterType) },
               { value: reading, conf, photoId, rank: meterTypeRank(result.meterType) }
             )
+            // A cross-check can derive a value with a fraction from two whole reads (a
+            // missed dot: 18788380 vs 187883 → 187883.80), so the slot's value is rounded
+            // down once more — unless it is the row's own prior value, which may be a
+            // number a person typed or one stored before rounding, and stays as it is.
+            const slotValue =
+              resolved.value === priorSlot.value ? resolved.value : floorReading(resolved.value)
 
-            const mechReading =
-              slot === 'mechanical' ? resolved.value : num(existing?.mechanicalReading)
+            const mechReading = slot === 'mechanical' ? slotValue : num(existing?.mechanicalReading)
 
             // The mechanical photo landed after the electronic one: its delta is the
             // arithmetic the electronic dot could not be checked against before, so the
@@ -319,8 +327,8 @@ async function assembleShiftReading(
 
             const elecReading =
               slot === 'electronic'
-                ? resolved.value
-                : (replacedElec?.value ?? num(existing?.electronicReading))
+                ? slotValue
+                : (floorReading(replacedElec?.value ?? null) ?? num(existing?.electronicReading))
             const elecConf =
               slot === 'electronic' ? resolved.conf : (existing?.aiElectronicConfidence ?? null)
             const mechConf =
@@ -470,7 +478,7 @@ export async function runShiftExtraction(
     data: {
       aiProcessedAt: new Date(),
       meterType: result.meterType,
-      extractedReading: parseNumericString(result.reading),
+      extractedReading: floorReading(parseNumericString(result.reading)),
       extractedStationCode: result.stationLabel,
       extractedDispenserCode: result.dispenserLabel,
       extractedFuelType: result.fuelType,
