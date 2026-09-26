@@ -72,27 +72,33 @@ export async function POST(
   if (!existing && !canCreateReading(user.role, status)) return forbidden()
   if (existing && isReadingFrozen(user.role, existing.reviewStatus)) return forbidden()
 
-  // Upsert rather than create: a photo for this Trụ may land between the lookup
-  // above and the write, and the compound unique would otherwise collide.
-  // The opening is snapshotted exactly as ingest does it — the Trụ's latest
-  // duyệt'd closing from an earlier ngày, else its cache — so a hand-made row
-  // starts where the prior ca left off.
-  const opening = existing ? null : await openingReadingsFor(dispenserId, shift.shiftDate)
-  const reading = await prisma.shiftReading.upsert({
-    where: { shiftId_dispenserId: { shiftId: id, dispenserId } },
-    create: {
-      shiftId: id,
-      dispenserId,
-      fuelType: dispenser.fuelType,
-      openingElectronicReading: opening?.electronic ?? null,
-      openingMechanicalReading: opening?.mechanical ?? null,
-      reviewStatus: 'needs_review',
-    },
-    update: {},
-  })
-
+  // The row is created inside the correction's ca-locked transaction, so a Chốt ca
+  // that lands first refuses the entry rather than leaving an empty chờ duyệt row on
+  // a chốt'd ca. The opening is snapshotted exactly as ingest does it — the Trụ's
+  // latest duyệt'd closing from an earlier ngày, else its cache — so a hand-made row
+  // starts where the prior ca left off. Upsert, not create: a row that appeared since
+  // the lookup is simply the one corrected.
+  const key = { shiftId_dispenserId: { shiftId: id, dispenserId } }
   const updated = await applyReadingCorrection({
-    reading,
+    shiftId: id,
+    load: async (db) => {
+      const current = await db.shiftReading.findUnique({ where: key })
+      if (current) return current
+      const opening = await openingReadingsFor(dispenserId, shift.shiftDate, db)
+      return db.shiftReading.upsert({
+        where: key,
+        create: {
+          shiftId: id,
+          dispenserId,
+          fuelType: dispenser.fuelType,
+          openingElectronicReading: opening.electronic,
+          openingMechanicalReading: opening.mechanical,
+          reviewStatus: 'needs_review',
+        },
+        update: {},
+      })
+    },
+    role: user.role,
     dispenser,
     patch,
     userId: user.id,

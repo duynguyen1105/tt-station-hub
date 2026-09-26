@@ -36,7 +36,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!dispenser) return notFound()
 
   const updated = await applyReadingCorrection({
-    reading,
+    shiftId: reading.shiftId,
+    load: (db) => db.shiftReading.findUniqueOrThrow({ where: { id } }),
+    role: user.role,
     dispenser,
     patch: parsed.data,
     userId: user.id,

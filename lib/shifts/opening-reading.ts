@@ -3,7 +3,7 @@
 // straight off the số liệu rather than off `Dispenser.lastElectronicReading`.
 // The cache is updated by approval/correction/completion and remains the
 // fallback for a trụ with no approved history (a fresh lắp, a seeded baseline).
-import { badRequest } from '@/lib/api/response'
+import { badRequest, forbidden } from '@/lib/api/response'
 import { reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
 import { formatDate } from '@/lib/format'
 import { type Dispenser, Prisma } from '@/lib/generated/prisma/client'
@@ -102,11 +102,15 @@ export class ShiftCompletedError extends Error {
   }
 }
 
+/** Thrown when a row was duyệt'd / từ chối'd by someone else while a non-admin's edit was on its way. */
+export class ReadingFrozenError extends Error {}
+
 /** A route's answer to a refused edit on a chốt'd ca; any other error is not ours to swallow. */
 export function shiftLockRefusal(error: unknown) {
   if (error instanceof LaterShiftCompletedError || error instanceof ShiftCompletedError) {
     return badRequest(error.message)
   }
+  if (error instanceof ReadingFrozenError) return forbidden()
   throw error
 }
 

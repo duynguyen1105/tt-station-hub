@@ -1,10 +1,15 @@
 import { writeAudit } from '@/lib/auth/audit'
-import { reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
+import { type AppRole } from '@/lib/auth/permissions'
+import { isReadingFrozen, reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
 import { type Dispenser, type Prisma, type ShiftReading } from '@/lib/generated/prisma/client'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { prisma } from '@/lib/prisma'
 import { isApprovedReading } from '@/lib/shifts/completion'
-import { lockOpenShift, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
+import {
+  ReadingFrozenError,
+  lockOpenShift,
+  propagateApprovedClosing,
+} from '@/lib/shifts/opening-reading'
 
 // Readings are stored as strings to preserve leading zeros (see lib/ai). A field
 // left `undefined` is untouched; an explicit `null` clears it.
@@ -22,17 +27,72 @@ function num(value: unknown): number | null {
 /**
  * Apply a correction and its dependent openings/cache together. Human decisions
  * remain in place; recompute anomaly fields without undoing Duyệt / Từ chối.
+ *
+ * The row is read — or, for a Trụ with none yet, created — only after the ca is
+ * locked, so the correction is computed from the row as it stands and a Chốt ca in
+ * flight either sees all of it or refuses it. The freeze is re-checked there too.
  */
 export async function applyReadingCorrection(params: {
-  reading: ShiftReading
+  shiftId: string
+  load: (db: Prisma.TransactionClient) => Promise<ShiftReading>
+  role: AppRole
   dispenser: Dispenser
   patch: ReadingCorrectionPatch
   userId: string
   auditAction: string
   auditMetadata?: unknown
 }): Promise<ShiftReading> {
-  const { reading, dispenser, patch, userId, auditAction, auditMetadata } = params
+  const { shiftId, load, role, dispenser, patch, userId, auditAction, auditMetadata } = params
+  return prisma.$transaction(
+    async (db) => {
+      await lockOpenShift(db, shiftId)
+      const reading = await load(db)
+      if (isReadingFrozen(role, reading.reviewStatus)) throw new ReadingFrozenError()
+      const data = correctionData(reading, dispenser, patch, userId)
+      const updated = await db.shiftReading.update({ where: { id: reading.id }, data })
+      if (
+        (patch.electronicReading !== undefined || patch.mechanicalReading !== undefined) &&
+        isApprovedReading(updated)
+      ) {
+        await propagateApprovedClosing(dispenser, reading.shiftId, db)
+      }
+      await writeAudit(
+        {
+          userId,
+          action: auditAction,
+          entity: 'shift_reading',
+          entityId: reading.id,
+          metadata: {
+            ...(auditMetadata as Record<string, unknown>),
+            from: {
+              openingElectronicReading: reading.openingElectronicReading?.toString() ?? null,
+              openingMechanicalReading: reading.openingMechanicalReading?.toString() ?? null,
+              electronicReading: reading.electronicReading?.toString() ?? null,
+              mechanicalReading: reading.mechanicalReading?.toString() ?? null,
+            },
+            to: {
+              openingElectronicReading: updated.openingElectronicReading?.toString() ?? null,
+              openingMechanicalReading: updated.openingMechanicalReading?.toString() ?? null,
+              electronicReading: updated.electronicReading?.toString() ?? null,
+              mechanicalReading: updated.mechanicalReading?.toString() ?? null,
+            },
+          },
+        },
+        db
+      )
+      return updated
+    },
+    { timeout: 15000 }
+  )
+}
 
+/** The column writes a correction makes on `reading`, as it stands under the lock. */
+function correctionData(
+  reading: ShiftReading,
+  dispenser: Dispenser,
+  patch: ReadingCorrectionPatch,
+  userId: string
+): Prisma.ShiftReadingUpdateInput {
   const data: Prisma.ShiftReadingUpdateInput = {
     reviewedBy: userId,
     reviewedAt: new Date(),
@@ -88,43 +148,5 @@ export async function applyReadingCorrection(params: {
   data.anomalyReasons = review.anomalyReasons
   data.reviewStatus = reviewStatusAfterEdit(reading.reviewStatus, review.reviewStatus)
 
-  return prisma.$transaction(
-    async (db) => {
-      // Before the write: a Chốt ca in flight either sees this number or refuses it.
-      await lockOpenShift(db, reading.shiftId)
-      const updated = await db.shiftReading.update({ where: { id: reading.id }, data })
-      if (
-        (patch.electronicReading !== undefined || patch.mechanicalReading !== undefined) &&
-        isApprovedReading(updated)
-      ) {
-        await propagateApprovedClosing(dispenser, reading.shiftId, db)
-      }
-      await writeAudit(
-        {
-          userId,
-          action: auditAction,
-          entity: 'shift_reading',
-          entityId: reading.id,
-          metadata: {
-            ...(auditMetadata as Record<string, unknown>),
-            from: {
-              openingElectronicReading: reading.openingElectronicReading?.toString() ?? null,
-              openingMechanicalReading: reading.openingMechanicalReading?.toString() ?? null,
-              electronicReading: reading.electronicReading?.toString() ?? null,
-              mechanicalReading: reading.mechanicalReading?.toString() ?? null,
-            },
-            to: {
-              openingElectronicReading: updated.openingElectronicReading?.toString() ?? null,
-              openingMechanicalReading: updated.openingMechanicalReading?.toString() ?? null,
-              electronicReading: updated.electronicReading?.toString() ?? null,
-              mechanicalReading: updated.mechanicalReading?.toString() ?? null,
-            },
-          },
-        },
-        db
-      )
-      return updated
-    },
-    { timeout: 15000 }
-  )
+  return data
 }
