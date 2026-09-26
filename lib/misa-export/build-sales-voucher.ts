@@ -207,8 +207,8 @@ export type MisaBuildResult = {
   fuelSummary: FuelSummary[]
 }
 
-/** dd/MM/yyyy — the format all date columns carry. */
-function formatDate(d: Date): string {
+/** dd/MM/yyyy — the format all date columns carry, in every MISA voucher. */
+export function formatDate(d: Date): string {
   const day = String(d.getUTCDate()).padStart(2, '0')
   const month = String(d.getUTCMonth() + 1).padStart(2, '0')
   return `${day}/${month}/${d.getUTCFullYear()}`

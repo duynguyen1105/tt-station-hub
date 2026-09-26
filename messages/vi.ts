@@ -338,7 +338,15 @@ export const vi = {
     postingDate: 'Ngày hạch toán',
     voucherDate: 'Ngày chứng từ',
     invoiceDate: 'Ngày hóa đơn',
-    download: 'Tải xuống',
+    // The three files one ca exports: the sales voucher, then the Phiếu thu / Phiếu chi built
+    // from its Thu chi tiền mặt – Khách CK table (one line per Thu, one per Chi).
+    downloadTitle: 'Tải file MISA',
+    downloadSales: 'Chứng từ bán hàng',
+    cashVoucher: { receipt: 'Phiếu thu', payment: 'Phiếu chi' },
+    downloadCash: (label: string, count: number) => `${label} (${count} dòng)`,
+    cashHint:
+      'Phiếu thu / Phiếu chi lấy từ bảng Thu chi tiền mặt của ca, dùng Ngày hạch toán và Ngày chứng từ ở trên. Các cột còn lại kế toán tự điền trong MISA.',
+    noCashRows: (label: string) => `Ca này không có dòng nào cho ${label}.`,
     errorCodes: {
       missing_global_config: 'Thiếu cấu hình MISA chung',
       missing_fuel_map: 'Thiếu map nhiên liệu',

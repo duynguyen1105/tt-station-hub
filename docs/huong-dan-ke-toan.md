@@ -108,7 +108,14 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 ## 9. Xuất MISA (mục **Báo cáo MISA**)
 
-- Chọn ca → tải file Excel để import vào MISA Nội bộ.
+- Chọn ca → bấm **Xuất MISA** → tải file Excel để import vào MISA. Mỗi ca có 3 file:
+  - **Chứng từ bán hàng** (như trước).
+  - **Phiếu thu**: mỗi dòng có số **Thu** trong bảng Thu chi tiền mặt của ca là 1 dòng.
+  - **Phiếu chi**: mỗi dòng có số **Chi** là 1 dòng.
+- Phiếu thu / Phiếu chi chỉ điền sẵn Ngày hạch toán, Ngày chứng từ (lấy theo ngày chọn
+  trong hộp), Diễn giải lý do (= Nội dung), Diễn giải, TK tiền mặt 11111 (Nợ ở phiếu
+  thu, Có ở phiếu chi) và Số tiền. **Các cột còn lại kế toán tự điền trong MISA** (Số
+  chứng từ, đối tượng, tài khoản đối ứng…). Nút mờ đi nếu ca không có dòng Thu / Chi.
 - Bảng chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 ## 10. Nguyên tắc quan trọng

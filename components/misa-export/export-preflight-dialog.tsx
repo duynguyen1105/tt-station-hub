@@ -16,6 +16,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { formatLiters } from '@/lib/format'
+import type { CashVoucherKind } from '@/lib/misa-export/build-cash-vouchers'
 import type {
   FuelSummary,
   PreflightError,
@@ -28,6 +29,7 @@ type PreflightResult = {
   fuelSummary: FuelSummary[]
   errors: PreflightError[]
   warnings: PreflightWarning[]
+  cashVoucherCounts: Record<CashVoucherKind, number>
 }
 
 /** The Settings screen that fixes each blocking error, given the station. */
@@ -197,51 +199,68 @@ export function ExportPreflightDialog({
               </section>
             )}
 
-            {!hasErrors && (
-              <section>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Field>
-                    <FieldLabel htmlFor="postingDate">{vi.misaExport.postingDate}</FieldLabel>
-                    <Input
-                      id="postingDate"
-                      type="date"
-                      value={postingDate}
-                      onChange={(e) => setPostingDate(e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="voucherDate">{vi.misaExport.voucherDate}</FieldLabel>
-                    <Input
-                      id="voucherDate"
-                      type="date"
-                      value={voucherDate}
-                      onChange={(e) => setVoucherDate(e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="invoiceDate">{vi.misaExport.invoiceDate}</FieldLabel>
-                    <Input
-                      id="invoiceDate"
-                      type="date"
-                      value={invoiceDate}
-                      onChange={(e) => setInvoiceDate(e.target.value)}
-                    />
-                  </Field>
-                </div>
-              </section>
-            )}
+            {/* The dates also stamp Phiếu thu / Phiếu chi, which a sales-voucher error does
+                not block — so they stay on screen either way. */}
+            <section>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field>
+                  <FieldLabel htmlFor="postingDate">{vi.misaExport.postingDate}</FieldLabel>
+                  <Input
+                    id="postingDate"
+                    type="date"
+                    value={postingDate}
+                    onChange={(e) => setPostingDate(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="voucherDate">{vi.misaExport.voucherDate}</FieldLabel>
+                  <Input
+                    id="voucherDate"
+                    type="date"
+                    value={voucherDate}
+                    onChange={(e) => setVoucherDate(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="invoiceDate">{vi.misaExport.invoiceDate}</FieldLabel>
+                  <Input
+                    id="invoiceDate"
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                  />
+                </Field>
+              </div>
+            </section>
 
-            {!hasErrors && (
-              <div className="flex justify-end">
+            <section className="space-y-2">
+              <h3 className="text-sm font-medium">{vi.misaExport.downloadTitle}</h3>
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button asChild={canDownload} disabled={!canDownload}>
                   {canDownload ? (
-                    <a href={downloadUrl}>{vi.misaExport.download}</a>
+                    <a href={downloadUrl}>{vi.misaExport.downloadSales}</a>
                   ) : (
-                    <span>{vi.misaExport.download}</span>
+                    <span>{vi.misaExport.downloadSales}</span>
                   )}
                 </Button>
+                {(['receipt', 'payment'] as const).map((kind) => {
+                  const count = result.cashVoucherCounts[kind]
+                  const label = vi.misaExport.downloadCash(vi.misaExport.cashVoucher[kind], count)
+                  const enabled = count > 0 && datesFilled
+                  const href = `/api/shifts/${shiftId}/export-misa/cash?${new URLSearchParams({
+                    kind,
+                    postingDate,
+                    voucherDate,
+                  }).toString()}`
+                  return (
+                    <Button key={kind} variant="outline" asChild={enabled} disabled={!enabled}>
+                      {enabled ? <a href={href}>{label}</a> : <span>{label}</span>}
+                    </Button>
+                  )
+                })}
               </div>
-            )}
+              <p className="text-muted-foreground text-xs">{vi.misaExport.cashHint}</p>
+            </section>
           </div>
         )}
       </DialogContent>

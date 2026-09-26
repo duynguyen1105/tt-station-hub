@@ -1,0 +1,258 @@
+[
+  {
+    "sheet": "Phiếu chi",
+    "column": "A",
+    "range": "A1:A1001",
+    "header": "Hiển thị trên sổ",
+    "title": "MISA SME.NET",
+    "note": "Nhập thông tin Hiển thị trên sổ.\nNhập 0: Tài chính\nNhập 1: Quản trị\nNhập 2 hoặc bỏ trống:\nSổ tài chính và quản trị"
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "B",
+    "range": "B1:B1001",
+    "header": "Ngày hạch toán (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày hạch toán."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "C",
+    "range": "C1:C1001",
+    "header": "Ngày chứng từ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày chứng từ."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "D",
+    "range": "D1:D1001",
+    "header": "Số chứng từ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số chứng từ: tối đa 20 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "E",
+    "range": "E1:E1001",
+    "header": "Mã đối tượng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã đối tương."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "F",
+    "range": "F1:F1001",
+    "header": "Tên đối tượng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tên đối tượng: Tối đa 128 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "G",
+    "range": "G1:G1001",
+    "header": "Địa chỉ",
+    "title": "MISA SME.NET",
+    "note": "Nhập Địa chỉ đối tượng: Tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "H",
+    "range": "H1:H1001",
+    "header": "Nhân viên",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã nhân viên."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "I",
+    "range": "I1:I1001",
+    "header": "Kèm theo",
+    "title": "MISA SME.NET",
+    "note": "Nhập Kèm theo: Tối đa 50 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "J",
+    "range": "J1:J1001",
+    "header": "Lý do chi",
+    "title": "MISA SME.NET",
+    "note": "Nhập Lý do chi.\nNhập 21: Tạm ứng nhân viên\nNhập 22: Gửi tiền vào ngân hàng\nNhập 23: Chi khác\nNếu để trống mặc định là 23 (Thu khác)."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "K",
+    "range": "K1:K1001",
+    "header": "Diễn giải lý do chi",
+    "title": "MISA SME.NET",
+    "note": "Nhập Diễn giải lý do chi. Tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "L",
+    "range": "L1:L1001",
+    "header": "Người nhận",
+    "title": "MISA SME.NET",
+    "note": "Nhập tên người nhận. Tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "M",
+    "range": "M1:M1001",
+    "header": "Diễn giải",
+    "title": "MISA SME.NET",
+    "note": "Nhập Diễn giải: tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "N",
+    "range": "N1:N1001",
+    "header": "TK Nợ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản Nợ."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "O",
+    "range": "O1:O1001",
+    "header": "TK Có (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản Có."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "P",
+    "range": "P1:P1001",
+    "header": "Số tiền",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số tiền nguyên tệ: tối đa 14 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "Q",
+    "range": "Q1:Q1001",
+    "header": "Đối tượng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã đối tượng."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "R",
+    "range": "R1:R1001",
+    "header": "TK ngân hàng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số tài khoản ngân hàng."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "S",
+    "range": "S1:S1001",
+    "header": "Diễn giải (Thuế)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Diễn giải (Thuế): tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "T",
+    "range": "T1:T1001",
+    "header": "TK thuế GTGT",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản thuế giá trị gia tăng."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "U",
+    "range": "U1:U1001",
+    "header": "Tiền thuế GTGT",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tiền thuế giá trị gia tăng: tối đa 14 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "V",
+    "range": "V1:V1001",
+    "header": "% thuế GTGT",
+    "title": "MISA SME.NET",
+    "note": "Nhập % thuế giá trị gia tăng:\nNhập 0: 0%\nNhập 5: 5%\nNhập 8: 8%\nNhập 10: 10%\nNhập KCT: KCT\nNhập KKKNT: Không kê khai, nộp thuế\nNhập KHAC: Thuế suất khác\nNếu để trống mặc định là 10 (10%)."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "W",
+    "range": "W1:W1001",
+    "header": "Tỷ lệ tính thuế (Thuế suất KHAC)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tỷ lệ tính thuế (Thuế suất KHAC)\nNếu thuế suất là KHAC thì nhập giá trị lớn hơn 0 đến 100"
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "X",
+    "range": "X1:X1001",
+    "header": "Giá trị HHDV chưa thuế",
+    "title": "MISA SME.NET",
+    "note": "Nhập Giá trị hàng hóa dịch vụ chưa thuế: tối đa 14 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "Y",
+    "range": "Y1:Y1001",
+    "header": "Ngày hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày hóa đơn."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "Z",
+    "range": "Z1:Z1001",
+    "header": "Số hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ký hiệu hóa đơn: tối đa 25 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "AA",
+    "range": "AA1:AA1001",
+    "header": "Mẫu số hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số hóa đơn: tối đa 25 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "AB",
+    "range": "AB1:AB1001",
+    "header": "Ký hiệu hóa đơn",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số hóa đơn: tối đa 20 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "AC",
+    "range": "AC1:AC1001",
+    "header": "Nhóm HHDV mua vào",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã nhóm hàng hóa dịch vụ mua vào."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "AD",
+    "range": "AD1:AD1001",
+    "header": "Mã nhà cung cấp",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã nhà cung cấp."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "AE",
+    "range": "AE1:AE1001",
+    "header": "Tên nhà cung cấp",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tên nhà cung cấp: tối đa 128 ký tự."
+  },
+  {
+    "sheet": "Phiếu chi",
+    "column": "AF",
+    "range": "AF1:AF1001",
+    "header": "Mã số thuế nhà cung cấp",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã số thuế nhà cung cấp: tối đa 20 ký tự."
+  }
+]

@@ -1,0 +1,146 @@
+[
+  {
+    "sheet": "Phiếu thu",
+    "column": "A",
+    "range": "A1:A1001",
+    "header": "Hiển thị trên sổ",
+    "title": "MISA SME.NET",
+    "note": "Nhập thông tin Hiển thị trên sổ.\nNhập 0: Tài chính\nNhập 1: Quản trị\nNhập 2 hoặc bỏ trống:\nSổ tài chính và quản trị"
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "B",
+    "range": "B1:B1001",
+    "header": "Ngày hạch toán (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày hạch toán."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "C",
+    "range": "C1:C1001",
+    "header": "Ngày chứng từ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Ngày chứng từ."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "D",
+    "range": "D1:D1001",
+    "header": "Số chứng từ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số chứng từ: tối đa 20 ký tự."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "E",
+    "range": "E1:E1001",
+    "header": "Mã đối tượng",
+    "title": "MISA SME.NET",
+    "note": "Mã đối tượng tại Thông tin chung"
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "F",
+    "range": "F1:F1001",
+    "header": "Tên đối tượng",
+    "title": "MISA SME.NET",
+    "note": "Tên đối tượng tại Thông tin chung. Tối đa 128 ký tự"
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "G",
+    "range": "G1:G1001",
+    "header": "Địa chỉ",
+    "title": "MISA SME.NET",
+    "note": "Nhập Địa chỉ đối tượng: Tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "H",
+    "range": "H1:H1001",
+    "header": "Lý do nộp",
+    "title": "MISA SME.NET",
+    "note": "Nhập Lý do nộp.\nNhập 10: Rút tiền gửi nộp quỹ\nNhập 11: Hoàn thuế GTGT\nNhập 12: Thu hoàn ứng\nNhập 13: Thu khác\nNếu bỏ trống mặc định là 13 (Thu khác)."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "I",
+    "range": "I1:I1001",
+    "header": "Diễn giải lý do nộp",
+    "title": "MISA SME.NET",
+    "note": "Nhập diễn giải lý do nộp. Tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "J",
+    "range": "J1:J1001",
+    "header": "Người nộp",
+    "title": "MISA SME.NET",
+    "note": "Nhập tên người nộp. Tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "K",
+    "range": "K1:K1001",
+    "header": "Nhân viên thu",
+    "title": "MISA SME.NET",
+    "note": "Nhập Mã nhân viên."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "L",
+    "range": "L1:L1001",
+    "header": "Kèm theo",
+    "title": "MISA SME.NET",
+    "note": "Nhập Kèm theo. Tối đa 50 ký tự."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "M",
+    "range": "M1:M1001",
+    "header": "Diễn giải",
+    "title": "MISA SME.NET",
+    "note": "Nhập Diễn giải: tối đa 255 ký tự."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "N",
+    "range": "N1:N1001",
+    "header": "TK Nợ (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản Nợ."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "O",
+    "range": "O1:O1001",
+    "header": "TK Có (*)",
+    "title": "MISA SME.NET",
+    "note": "Nhập Tài khoản Có."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "P",
+    "range": "P1:P1001",
+    "header": "Số tiền",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số tiền nguyên tệ: Tối đa 14 ký tự."
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "Q",
+    "range": "Q1:Q1001",
+    "header": "Đối tượng",
+    "title": "MISA SME.NET",
+    "note": "Mã đối tượng thông tin hạch toán"
+  },
+  {
+    "sheet": "Phiếu thu",
+    "column": "R",
+    "range": "R1:R1001",
+    "header": "TK ngân hàng",
+    "title": "MISA SME.NET",
+    "note": "Nhập Số tài khoản ngân hàng."
+  }
+]

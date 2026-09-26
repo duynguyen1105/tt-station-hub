@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { forbidden, notFound, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { cashVoucherCounts } from '@/lib/misa-export/build-cash-vouchers'
 import {
   type CreditCustomer,
   type CreditVisit,
@@ -146,13 +147,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     customers,
   })
 
-  // Preflight mode → per-fuel math + fix-list + warnings as JSON, no file generated.
+  // Preflight mode → per-fuel math + fix-list + warnings as JSON, no file generated. It also
+  // says how many Phiếu thu / Phiếu chi lines the ca's Thu chi table holds, so the dialog can
+  // offer those two files (app/api/shifts/[id]/export-misa/cash) only when they have lines.
   if (preflight) {
+    const cashEntries = await prisma.shiftCashEntry.findMany({
+      where: { shiftId: id },
+      select: { content: true, receipt: true, payment: true },
+    })
     return NextResponse.json({
       stationId,
       fuelSummary: result.fuelSummary,
       errors: result.errors,
       warnings: result.warnings,
+      cashVoucherCounts: cashVoucherCounts(
+        cashEntries.map((e) => ({
+          content: e.content,
+          receipt: num(e.receipt),
+          payment: num(e.payment),
+        }))
+      ),
     })
   }
 
