@@ -4,10 +4,13 @@ import { notFound } from 'next/navigation'
 
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { ReceiptDocUpload } from '@/components/inventory/receipt-doc-upload'
+import { ReceiptEditForm } from '@/components/inventory/receipt-edit-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireStationAccess } from '@/lib/auth/station-guard'
+import { VN_OFFSET_MS } from '@/lib/filters/params'
 import { formatDateTime, formatLiters } from '@/lib/format'
 import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
+import { rosterForStation } from '@/lib/imports/station-rosters'
 import { baremIntakeOf } from '@/lib/inventory/barem-form'
 import { prisma } from '@/lib/prisma'
 import { REVIEW_URL_TTL_SECONDS, signedUrlsForPaths } from '@/lib/storage/photo-storage'
@@ -96,9 +99,8 @@ function diff(a: number | null | undefined, b: number | null | undefined): numbe
 }
 
 /**
- * Read-only view of one saved biên bản giao nhận: every section as confirmed,
- * who booked it, the biên bản pages, and the "tài liệu nhập hàng" gallery for
- * cross-checking the paper — with an upload box to add documents later.
+ * One saved biên bản giao nhận: confirmed sections, who booked it, attached
+ * documents for cross-checking, and admin correction of its booked figures.
  */
 export default async function ImportReceiptPage({
   params,
@@ -112,7 +114,7 @@ export default async function ImportReceiptPage({
   const receipt = await prisma.fuelImportReceipt.findUnique({ where: { id: receiptId } })
   if (!receipt || receipt.stationId !== stationId) notFound()
 
-  const [docs, childImports, creator] = await Promise.all([
+  const [docs, childImports, creator, station, configuredTanks, openings] = await Promise.all([
     prisma.fuelImportDocument.findMany({
       where: { receiptId },
       orderBy: { createdAt: 'asc' },
@@ -121,12 +123,41 @@ export default async function ImportReceiptPage({
     receipt.createdBy
       ? prisma.profile.findUnique({ where: { id: receipt.createdBy }, select: { fullName: true } })
       : null,
+    prisma.station.findUnique({ where: { id: stationId }, select: { code: true } }),
+    prisma.tank.findMany({ where: { stationId }, select: { code: true, fuelType: true } }),
+    prisma.inventoryOpeningBalance.findMany({
+      where: { stationId },
+      select: { fuelType: true, effectiveDate: true },
+    }),
   ])
 
   const products = productsSchema.parse(receipt.products ?? [])
   const compartments = compartmentsSchema.parse(receipt.compartments ?? [])
   const tanks = tanksSchema.parse(receipt.tankChecks ?? [])
   const pumps = pumpsSchema.parse(receipt.pumpChecks ?? [])
+  const offeredTanks = new Map(
+    (rosterForStation(station?.code ?? '')?.tanks ?? []).map((tank) => [tank.tankCode, tank.fuel])
+  )
+  for (const tank of configuredTanks) if (tank.fuelType) offeredTanks.set(tank.code, tank.fuelType)
+  const usedTankIndices = new Set<number>()
+  const editLines = childImports.map((row) => {
+    const tankIndex = tanks.findIndex(
+      (tank, index) =>
+        !usedTankIndices.has(index) &&
+        tank.tankCode === row.tankCode &&
+        tank.importedLiters === Number(row.litersActual)
+    )
+    if (tankIndex >= 0) usedTankIndices.add(tankIndex)
+    const tank = tanks[tankIndex]
+    return {
+      id: row.id,
+      tankIndex,
+      tankCode: row.tankCode,
+      litersActual: Number(row.litersActual),
+      beforeBaremLiters: tank?.before.baremLiters ?? null,
+      measuredLiters: tank ? baremIntakeOf(tank.before.baremLiters, tank.after.baremLiters) : null,
+    }
+  })
 
   // One bulk signing call for every gallery on the page.
   const urlByPath = await signedUrlsForPaths(
@@ -183,6 +214,43 @@ export default async function ImportReceiptPage({
           {vi.imports.creator}: {creator?.fullName ?? '—'} · {vi.imports.savedAt}{' '}
           {formatDateTime(receipt.createdAt)}
         </p>
+        {user.role === 'admin' &&
+          childImports.every((row) => !row.canceledAt) &&
+          editLines.every((line) => line.tankIndex >= 0 && offeredTanks.has(line.tankCode)) && (
+            <ReceiptEditForm
+              receiptId={receiptId}
+              header={{
+                importedAt: new Date(receipt.receiptDate.getTime() + VN_OFFSET_MS)
+                  .toISOString()
+                  .slice(0, 16),
+                staffName: receipt.staffName ?? '',
+                driverName: receipt.driverName ?? '',
+                truckPlate: receipt.truckPlate ?? '',
+                vehicleCheck: receipt.vehicleCheck ?? '',
+                sealNo: receipt.sealNo ?? '',
+                note: receipt.note ?? '',
+                invoiceNo: childImports[0]?.invoiceNo ?? '',
+              }}
+              lines={editLines}
+              products={products.map((product, index) => ({
+                index,
+                productLabel: product.productLabel ?? '',
+                warehouse: product.warehouse ?? '',
+                exportSlipNo: product.exportSlipNo ?? '',
+              }))}
+              tanks={[...offeredTanks].map(([code, fuelType]) => ({
+                code,
+                fuelType,
+                label: `${code.replace('HAM_', 'Hầm ')} — ${fuelLabel(fuelType)}`,
+              }))}
+              openingDates={Object.fromEntries(
+                openings.map((opening) => [
+                  opening.fuelType,
+                  opening.effectiveDate.toISOString().slice(0, 10),
+                ])
+              )}
+            />
+          )}
       </div>
 
       {/* Header fields as on the paper */}

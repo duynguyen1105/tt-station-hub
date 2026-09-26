@@ -240,6 +240,15 @@ Hủy **không xóa** gì cả: phiếu được đóng dấu "Đã hủy" (mờ
 được **trừ lại** khỏi tồn bằng một bút toán điều chỉnh, và mọi thao tác đều ghi vào
 nhật ký kiểm toán (ai, lúc nào).
 
+### Sửa phiếu (chỉ admin)
+
+Trên trang chi tiết phiếu, admin có nút **Sửa phiếu**: sửa ngày giờ nhập, nhân
+viên, tài xế, xe bồn, số phiếu xuất kho, và từng hầm (hầm, số lượng nhập, số lít
+barem trước/sau). Tồn kho điều chỉnh **theo chênh lệch** trên chính bút toán nhập
+của phiếu (không sinh bút toán mới); đổi hầm sang nhiên liệu khác thì trừ bên cũ,
+cộng bên mới. Phiếu đã có dòng bị hủy thì không sửa được. Mọi lần sửa ghi nhật
+ký với số cũ và số mới.
+
 ### Xuất Excel
 
 Nút **"Xuất Excel"** ở đầu bảng Nhập hàng gần đây. Mặc định xuất **31 ngày gần nhất**
@@ -267,11 +276,11 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 
 ## 3. Phân quyền
 
-| Vai trò   | Tạo phiếu | Hủy phiếu | Xem + xuất Excel |
-| --------- | --------- | --------- | ---------------- |
-| Admin     | ✅        | ✅        | ✅               |
-| Kế toán   | ✅        | ✅        | ✅               |
-| Người xem | ❌        | ❌        | ✅               |
+| Vai trò   | Tạo phiếu | Sửa phiếu | Hủy phiếu | Xem + xuất Excel |
+| --------- | --------- | --------- | --------- | ---------------- |
+| Admin     | ✅        | ✅        | ✅        | ✅               |
+| Kế toán   | ✅        | ❌        | ✅        | ✅               |
+| Người xem | ❌        | ❌        | ❌        | ✅               |
 
 ## 4. Kỹ thuật
 
@@ -301,6 +310,7 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 | `/api/imports/extract`                 | POST   | AI đọc hình biên bản (`photos` + `stationId`) → JSON điền form + kết quả đối chiếu trạm (chưa lưu gì) |
 | `/api/barem/lookup`                    | POST   | Tra một lô (mã hầm, chiều cao mm) → số lít hoặc lý do từ chối                                         |
 | `/api/imports/receipts`                | POST   | Xác nhận biên bản: lưu receipt + phiếu theo hầm + hình biên bản                                       |
+| `/api/imports/receipts/[id]`           | PATCH  | (Admin) sửa biên bản + phiếu theo hầm, điều chỉnh tồn theo chênh lệch                                 |
 | `/api/imports/receipts/[id]/documents` | POST   | Bước 3: lưu trữ toàn bộ hình liên quan ca nhập (`photos`)                                             |
 | `/api/imports`                         | POST   | (Kiểu cũ) tạo phiếu đơn lẻ — vẫn hoạt động                                                            |
 | `/api/imports/[id]/cancel`             | POST   | Hủy phiếu + bút toán trừ lại                                                                          |

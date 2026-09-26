@@ -6,7 +6,9 @@ import { badRequest, created, forbidden, ok, unauthorized } from '@/lib/api/resp
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
+import { UNKNOWN_STATION_CODE } from '@/lib/matching/station-label'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -21,8 +23,12 @@ export async function GET() {
 }
 
 const createStationSchema = z.object({
-  code: z.string().min(1),
-  name: z.string().min(1),
+  code: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((value) => value.toUpperCase()),
+  name: z.string().trim().min(1),
   branch: z.string().optional(),
   address: z.string().optional(),
   // No kế toán: phụ trách is settled on the Kế toán screen, which is the one
@@ -36,8 +42,16 @@ export async function POST(req: NextRequest) {
 
   const parsed = createStationSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
+  if (parsed.data.code === UNKNOWN_STATION_CODE) return badRequest(vi.stations.reservedCode)
 
-  const station = await prisma.station.create({ data: parsed.data })
+  let station
+  try {
+    station = await prisma.station.create({ data: parsed.data })
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'P2002')
+      return badRequest(vi.stations.duplicateCode)
+    throw error
+  }
   await writeAudit({
     userId: user.id,
     action: 'station.create',

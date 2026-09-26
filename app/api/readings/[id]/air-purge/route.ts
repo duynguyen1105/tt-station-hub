@@ -26,11 +26,9 @@ const airPurgeSchema = z.object({
  * push air out of the line, which both đồng hồ counted and nobody bought. `null`
  * returns the trụ to having no purge rather than to a purge of zero.
  *
- * Admin at any status, accountant until the ca is chốt — `canEditAirPurge`, the same
- * predicate the cell on screen asks. A reading already duyệt/từ chối is deliberately
- * **not** frozen against it: duyệt settles how the meter was read, and a purge is an
- * unrelated assertion about what happened at the trạm. See
- * docs/adr/0002-air-purge-is-not-frozen-by-reading-approval.md.
+ * Admin and accountant may record it before Chốt ca, never after. A reading
+ * already duyệt/từ chối is not independently frozen against Xả gió: that
+ * decision settled the meter value, not what happened at the trạm.
  *
  * A purge above the trụ's own Lít ĐT is refused here, by the same rule the cell on
  * screen applies, so the two can never disagree about what is recordable.

@@ -24,25 +24,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useSaveAction } from '@/hooks/use-save-action'
 import { vi } from '@/messages/vi'
 
 const docTypeOptions = Object.entries(vi.docType)
 
-export function DocumentForm({ stationId }: { stationId: string }) {
+export function DocumentForm({
+  stationId,
+  document,
+}: {
+  stationId: string
+  document?: {
+    id: string
+    docType: string
+    docName: string
+    docNumber: string | null
+    issuedDate: string | null
+    expiryDate: string | null
+    issuingAuthority: string | null
+    notes: string | null
+  }
+}) {
   const router = useRouter()
   const scanRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [docType, setDocType] = useState('business_license')
-  const [docName, setDocName] = useState('')
-  const [docNumber, setDocNumber] = useState('')
-  const [issuedDate, setIssuedDate] = useState('')
-  const [expiryDate, setExpiryDate] = useState('')
-  const [issuingAuthority, setIssuingAuthority] = useState('')
+  const [docType, setDocType] = useState(document?.docType ?? 'business_license')
+  const [docName, setDocName] = useState(document?.docName ?? '')
+  const [docNumber, setDocNumber] = useState(document?.docNumber ?? '')
+  const [issuedDate, setIssuedDate] = useState(document?.issuedDate ?? '')
+  const [expiryDate, setExpiryDate] = useState(document?.expiryDate ?? '')
+  const [issuingAuthority, setIssuingAuthority] = useState(document?.issuingAuthority ?? '')
+  const [notes, setNotes] = useState(document?.notes ?? '')
 
   async function submit() {
     if (!docName.trim()) {
-      toast.error('Vui lòng nhập tên giấy tờ.')
+      toast.error(vi.documents.missingName)
       return
     }
     setBusy(true)
@@ -50,33 +67,44 @@ export function DocumentForm({ stationId }: { stationId: string }) {
     form.set('stationId', stationId)
     form.set('docType', docType)
     form.set('docName', docName)
-    if (docNumber) form.set('docNumber', docNumber)
-    if (issuedDate) form.set('issuedDate', issuedDate)
-    if (expiryDate) form.set('expiryDate', expiryDate)
-    if (issuingAuthority) form.set('issuingAuthority', issuingAuthority)
+    if (document || docNumber) form.set('docNumber', docNumber)
+    if (document || issuedDate) form.set('issuedDate', issuedDate)
+    if (document || expiryDate) form.set('expiryDate', expiryDate)
+    if (document || issuingAuthority) form.set('issuingAuthority', issuingAuthority)
+    if (document || notes) form.set('notes', notes)
     const scan = scanRef.current?.files?.[0]
     if (scan) form.set('scan', scan)
 
-    const res = await fetch('/api/documents', { method: 'POST', body: form })
+    const res = await fetch(document ? `/api/documents/${document.id}` : '/api/documents', {
+      method: document ? 'PATCH' : 'POST',
+      body: form,
+    })
     setBusy(false)
     if (res.ok) {
+      if (document) toast.success(vi.documents.saved)
       setOpen(false)
-      setDocName('')
-      setDocNumber('')
-      setIssuedDate('')
-      setExpiryDate('')
-      setIssuingAuthority('')
+      if (!document) {
+        setDocName('')
+        setDocNumber('')
+        setIssuedDate('')
+        setExpiryDate('')
+        setIssuingAuthority('')
+        setNotes('')
+      }
       if (scanRef.current) scanRef.current.value = ''
       router.refresh()
     } else {
-      toast.error(vi.errors.generic)
+      const data = await res.json().catch(() => null)
+      toast.error(data?.error ?? vi.errors.generic)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">{vi.common.add}</Button>
+        <Button size="sm" variant={document ? 'ghost' : 'default'}>
+          {document ? vi.common.edit : vi.common.add}
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -99,31 +127,43 @@ export function DocumentForm({ stationId }: { stationId: string }) {
             </Select>
           </Field>
           <Field>
-            <FieldLabel htmlFor="docName">{vi.documents.name}</FieldLabel>
-            <Input id="docName" value={docName} onChange={(e) => setDocName(e.target.value)} />
+            <FieldLabel htmlFor={`docName-${document?.id ?? 'new'}`}>
+              {vi.documents.name}
+            </FieldLabel>
+            <Input
+              id={`docName-${document?.id ?? 'new'}`}
+              value={docName}
+              onChange={(e) => setDocName(e.target.value)}
+            />
           </Field>
           <Field>
-            <FieldLabel htmlFor="docNumber">{vi.documents.number}</FieldLabel>
+            <FieldLabel htmlFor={`docNumber-${document?.id ?? 'new'}`}>
+              {vi.documents.number}
+            </FieldLabel>
             <Input
-              id="docNumber"
+              id={`docNumber-${document?.id ?? 'new'}`}
               value={docNumber}
               onChange={(e) => setDocNumber(e.target.value)}
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field>
-              <FieldLabel htmlFor="issuedDate">{vi.documents.signedDate}</FieldLabel>
+              <FieldLabel htmlFor={`issuedDate-${document?.id ?? 'new'}`}>
+                {vi.documents.signedDate}
+              </FieldLabel>
               <Input
-                id="issuedDate"
+                id={`issuedDate-${document?.id ?? 'new'}`}
                 type="date"
                 value={issuedDate}
                 onChange={(e) => setIssuedDate(e.target.value)}
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="expiryDate">{vi.documents.expiry}</FieldLabel>
+              <FieldLabel htmlFor={`expiryDate-${document?.id ?? 'new'}`}>
+                {vi.documents.expiry}
+              </FieldLabel>
               <Input
-                id="expiryDate"
+                id={`expiryDate-${document?.id ?? 'new'}`}
                 type="date"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
@@ -131,11 +171,21 @@ export function DocumentForm({ stationId }: { stationId: string }) {
             </Field>
           </div>
           <Field>
-            <FieldLabel htmlFor="authority">{vi.documents.authority}</FieldLabel>
+            <FieldLabel htmlFor={`authority-${document?.id ?? 'new'}`}>
+              {vi.documents.authority}
+            </FieldLabel>
             <Input
-              id="authority"
+              id={`authority-${document?.id ?? 'new'}`}
               value={issuingAuthority}
               onChange={(e) => setIssuingAuthority(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`notes-${document?.id ?? 'new'}`}>{vi.documents.notes}</FieldLabel>
+            <Input
+              id={`notes-${document?.id ?? 'new'}`}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </Field>
           <Field>
@@ -153,5 +203,22 @@ export function DocumentForm({ stationId }: { stationId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+export function DocumentDelete({ id }: { id: string }) {
+  const { busy, save } = useSaveAction()
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      loading={busy}
+      onClick={() => {
+        if (window.confirm(vi.documents.confirmDelete))
+          save(`/api/documents/${id}`, { method: 'DELETE', success: vi.documents.deleted })
+      }}
+    >
+      {vi.common.delete}
+    </Button>
   )
 }

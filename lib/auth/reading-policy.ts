@@ -22,36 +22,23 @@ export type ShiftStatus =
   | 'cancelled'
 
 /**
- * Editing an opening reading (Đầu ĐT / Đầu Cơ) — admin only, at any shift status.
- * The opening is the immutable carry-forward of the prior ca's closing, so
- * repairing it is an exceptional, admin-only act. The same rule governs a khách
- * hàng's nợ đầu kỳ: it re-anchors their whole sổ công nợ.
+ * Opening repair is admin-only. Shift locking is checked at call sites: debt
+ * opening balances also use this predicate and have no shift status.
  */
 export function canEditOpening(role: AppRole): boolean {
   return role === 'admin'
 }
 
 /**
- * Editing a closing reading (Cuối ĐT / Cuối Cơ) — admin at any status, or
- * accountant while the ca is not yet `completed`. viewer never. After chốt only
- * the admin remains, as the escape hatch.
+ * A completed ca is locked until an admin reopens it, including for the admin.
  */
 export function canEditClosing(role: AppRole, shiftStatus: ShiftStatus): boolean {
-  if (role === 'admin') return true
-  if (role === 'accountant') return shiftStatus !== 'completed'
-  return false
+  return (role === 'admin' || role === 'accountant') && shiftStatus !== 'completed'
 }
 
 /**
- * Recording an air purge (Xả gió) on a ca's reading — the litres pumped only to push
- * air out of the line. Follows the same rule as editing a closing, since an air purge
- * moves the same money: admin at any status, accountant until the ca is chốt, viewer
- * never. A kế toán turned away on a ca đã chốt is told so at the cell, rather than
- * handed a control that does nothing.
- *
- * Takes no `reviewStatus`, because the `isReadingDecided` freeze the meter values obey
- * is no part of this rule: a reading already duyệt / từ chối can still gain an air
- * purge. See docs/adr/0002-air-purge-is-not-frozen-by-reading-approval.md.
+ * Air purge changes the ca's sale, so it follows the completed-ca lock.
+ * Human approval of a reading does not independently freeze air purge.
  */
 export function canEditAirPurge(role: AppRole, shiftStatus: ShiftStatus): boolean {
   return canEditClosing(role, shiftStatus)
@@ -66,9 +53,8 @@ export function canReviewShift(role: AppRole, shiftStatus: ShiftStatus): boolean
 }
 
 /**
- * Creating a ca's reading by hand — for a Trụ no photo ever arrived for — follows
- * the same rule as editing a closing: admin at any status, accountant until chốt.
- * The opening of the row so created is still admin-only, per `canEditOpening`.
+ * Creating a ca's reading by hand follows the closing rule. Editing an opening
+ * on that row additionally requires canEditOpening.
  */
 export function canCreateReading(role: AppRole, shiftStatus: ShiftStatus): boolean {
   return canEditClosing(role, shiftStatus)
@@ -85,12 +71,20 @@ export function canEditCashEntries(role: AppRole): boolean {
 }
 
 /**
- * Whether a row's Duyệt / Từ chối call has been made. A decided row's values are
- * frozen for every role — the numbers are what the decision was made on, so
- * changing them behind the decision would silently un-decide the row. Note
- * `auto_approved` is the AI's own high-confidence pass, not a human decision, so
- * it does not freeze the row: correcting an AI misread before chốt is routine.
+ * Whether a human has decided on a row (as opposed to AI auto-approval).
  */
-export function isReadingDecided(reviewStatus: string | null): boolean {
+export function isReadingDecided(
+  reviewStatus: string | null
+): reviewStatus is 'approved' | 'rejected' {
   return reviewStatus === 'approved' || reviewStatus === 'rejected'
+}
+
+/** Only admin may repair a decided reading; its decision remains in place. */
+export function isReadingFrozen(role: AppRole, reviewStatus: string | null): boolean {
+  return role !== 'admin' && isReadingDecided(reviewStatus)
+}
+
+/** New AI warnings do not undo a human Duyệt / Từ chối when a value is repaired. */
+export function reviewStatusAfterEdit(previous: string | null, derived: string): string {
+  return isReadingDecided(previous) ? previous : derived
 }

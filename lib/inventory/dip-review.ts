@@ -10,7 +10,7 @@ import { type AppRole } from '@/lib/auth/permissions'
 /** The one status that takes a đo hầm out of the tồn thực tế. */
 export const REJECTED_DIP = 'rejected'
 
-/** A đo hầm nobody has decided on yet — the only kind whose số đo may be repaired. */
+/** A đo hầm nobody has decided on yet. */
 export const PENDING_DIP = 'pending'
 
 /**
@@ -26,17 +26,11 @@ export function canReviewTankDip(role: AppRole): boolean {
 }
 
 /**
- * Who may repair an AI-misread số đo: a người duyệt, on a chờ xử lý dip only.
- *
- * Narrower than `canReviewTankDip` on purpose, and the one place a status does
- * gate a đo hầm. Duyệt / từ chối is a judgement, and an admin can reverse it; the
- * số đo is the fact underneath it, feeding the hầm's tồn thực tế and its Quy ra
- * lít. Moving that number after someone has decided would change what was
- * approved without anyone approving it again — so a decided dip's số đo is fixed,
- * and a genuinely misread one is từ chối instead, which is what từ chối is for.
+ * Admin may repair any số đo; a kế toán may repair only a pending one.
+ * A repair keeps its existing review decision and rewires neighboring dips.
  */
 export function canCorrectTankDip(role: AppRole, reviewStatus: string): boolean {
-  return canReviewTankDip(role) && reviewStatus === PENDING_DIP
+  return role === 'admin' || (role === 'accountant' && reviewStatus === PENDING_DIP)
 }
 
 /**

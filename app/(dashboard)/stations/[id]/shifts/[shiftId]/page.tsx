@@ -5,7 +5,7 @@ import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { CashEntriesTable } from '@/components/shifts/cash-entries-table'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
-import { ShiftCompleteButton } from '@/components/shifts/shift-complete-button'
+import { ShiftCompleteButton, ShiftReopenButton } from '@/components/shifts/shift-complete-button'
 import { UnmatchedPhotos } from '@/components/shifts/unmatched-photos'
 import {
   type ShiftStatus,
@@ -329,22 +329,18 @@ export default async function ShiftDetailPage({
               )}
             />
           )}
-          {/* Chốt ca follows canReviewShift; a viewer never sees the control. The
-              refusal is spoken beside the disabled button, so what the ca is
-              waiting for is on the page rather than only in a failed request. */}
+          {completed && user.role === 'admin' && <ShiftReopenButton shiftId={shift.id} />}
           {canReviewShift(user.role, shift.status as ShiftStatus) && (
             <div className="flex items-center gap-2">
-              {!completed && completionRefusal && (
+              {completionRefusal && (
                 <p className="text-muted-foreground text-sm">{completionRefusal}</p>
               )}
-              <ShiftCompleteButton
-                shiftId={shift.id}
-                disabled={completed || completionRefusal !== null}
-              />
+              <ShiftCompleteButton shiftId={shift.id} disabled={completionRefusal !== null} />
             </div>
           )}
         </div>
       </div>
+      {completed && <p className="text-muted-foreground text-sm">{vi.shifts.completedLocked}</p>}
 
       {rows.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.shifts.noReadings}</p>

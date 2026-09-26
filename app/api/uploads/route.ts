@@ -8,7 +8,13 @@ import { type ShiftStatus, canEditClosing } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
-import { PHOTO_COUNTS, UPLOAD_KINDS, ingestUpload, uploadTimestamp } from '@/lib/photos/upload'
+import {
+  PHOTO_COUNTS,
+  ShiftClosedError,
+  UPLOAD_KINDS,
+  ingestUpload,
+  uploadTimestamp,
+} from '@/lib/photos/upload'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -63,8 +69,9 @@ export async function POST(req: NextRequest) {
   const timestamp = uploadTimestamp(day, Date.now())
   if (timestamp === null) return badRequest(vi.upload.badDay)
 
-  // A chốt'd ca takes no more ảnh chốt ca, except from whoever may still edit it —
-  // the same rule as Gán ảnh (POST /api/photos/[id]/assign).
+  // A chốt'd ca takes no more ảnh chốt ca until an admin Mở lại ca — the same rule as
+  // Gán ảnh (POST /api/photos/[id]/assign). Checked here before the AI read is paid for;
+  // ingestUpload checks again for a photo whose printed label names another trạm.
   if (kind === 'shift') {
     const shift = await prisma.shift.findUnique({
       where: {
@@ -85,14 +92,20 @@ export async function POST(req: NextRequest) {
   const buffers = (await Promise.all(
     (photos as File[]).map(async (p) => Buffer.from(await p.arrayBuffer()))
   )) as [Buffer] | [Buffer, Buffer]
-  const photoIds = await ingestUpload({
-    kind,
-    station,
-    timestamp,
-    senderName: user.fullName,
-    note,
-    buffers,
-  })
+  let photoIds: string[]
+  try {
+    photoIds = await ingestUpload({
+      kind,
+      station,
+      timestamp,
+      senderName: user.fullName,
+      note,
+      buffers,
+    })
+  } catch (error) {
+    if (error instanceof ShiftClosedError) return badRequest(vi.upload.shiftClosed)
+    throw error
+  }
   await writeAudit({
     userId: user.id,
     action: 'photo.upload',

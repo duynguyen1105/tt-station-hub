@@ -5,9 +5,8 @@ import { formatLiters, vnTime } from '@/lib/format'
 import { vi } from '@/messages/vi'
 
 /**
- * Where the lượt xe a kế toán duyệt'd today went: a read-only summary under the
- * hàng đợi, each row linking to the ca the lượt xe now belongs to. Nothing here
- * duyệt's, sửa's or huỷ's — the card that could do that has already left the queue.
+ * A quick link from today's approvals back to their ca. Admins can edit decided
+ * visits in the separate Đã xử lý view; this summary stays read-only.
  */
 export function ApprovedTodayList({ rows }: { rows: ApprovedTodayRow[] }) {
   return (

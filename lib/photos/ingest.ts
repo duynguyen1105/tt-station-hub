@@ -8,6 +8,7 @@ import {
   type ExtractVisitResult,
   type RouterResult,
 } from '@/lib/ai/types'
+import { isReadingDecided, reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
 import { priceMismatchOf } from '@/lib/debts/board-price'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { plateListContains } from '@/lib/debts/plate'
@@ -36,7 +37,7 @@ import { deriveReviewState } from '@/lib/matching/review-state'
 import { matchStationByLabel } from '@/lib/matching/station-label'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
-import { openingReadingsFor } from '@/lib/shifts/opening-reading'
+import { openingReadingsFor, propagateApprovedClosing } from '@/lib/shifts/opening-reading'
 
 type ShiftRef = { id: string; stationId: string }
 
@@ -170,17 +171,31 @@ async function assembleShiftReading(
     // dropped slots under a 12-photo burst). The lock releases at commit/rollback
     // and is pooler-safe (one connection per transaction). Retries with jittered
     // backoff remain as a belt-and-braces for transient failures.
-    let row: { id: string } | undefined
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
-        row = await prisma.$transaction(
+        await prisma.$transaction(
           async (tx) => {
             // Wrapped in a subquery because pg_advisory_xact_lock returns void,
             // which Prisma's raw deserializer rejects — the outer SELECT yields int.
             await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`${shift.id}:${dispenser.id}`}, 0)) AS l) AS t`
+            // Serialize against Chốt ca/Mở lại ca, not just other photos for this trụ.
+            const [current] = await tx.$queryRaw<{ status: string }[]>`
+              SELECT status FROM shifts WHERE id = ${shift.id}::uuid FOR UPDATE
+            `
+            if (current?.status === 'completed') throw new Error('Shift is completed')
             const existing = await tx.shiftReading.findUnique({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
             })
+            // Automatic uploads cannot retype a human-decided row (including when
+            // the uploader is kế toán). Leave the photo in Ảnh chưa ghép trụ so an
+            // admin can explicitly Gán ảnh after checking it.
+            if (existing && isReadingDecided(existing.reviewStatus) && !override?.dispenserId) {
+              await tx.shiftPhoto.update({
+                where: { id: photoId },
+                data: { matchStatus: 'unmatched', matchedReadingId: null },
+              })
+              return undefined
+            }
             // Snapshot the opening the first time this reading is assembled: the
             // latest duyệt'd closing of this trụ from an earlier ngày, else the trụ's
             // cache (lib/shifts/opening-reading.ts). A re-ingested photo (or an
@@ -346,7 +361,10 @@ async function assembleShiftReading(
               aiMechanicalConfidence: mechConf,
               isAnomaly: review.isAnomaly,
               anomalyReasons: review.anomalyReasons,
-              reviewStatus: review.reviewStatus,
+              reviewStatus: reviewStatusAfterEdit(
+                existing?.reviewStatus ?? null,
+                review.reviewStatus
+              ),
               // Preserve the first AI value so a later correction can show the original.
               originalElectronicReading:
                 num(existing?.originalElectronicReading) ??
@@ -356,10 +374,9 @@ async function assembleShiftReading(
                 (slot === 'mechanical' ? rawReading : null),
             }
 
-            return tx.shiftReading.upsert({
+            const updated = await tx.shiftReading.upsert({
               where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId: dispenser.id } },
-              // The nhiên liệu is stamped once, at creation: this ca sold what the
-              // trụ pumps today, and keeps saying so if the trụ is later converted.
+              // The fuel is stamped once: conversion of the trụ cannot rewrite this ca.
               create: {
                 shiftId: shift.id,
                 dispenserId: dispenser.id,
@@ -368,6 +385,14 @@ async function assembleShiftReading(
               },
               update: data,
             })
+            if (existing?.reviewStatus === 'approved') {
+              await propagateApprovedClosing(dispenser, shift.id, tx)
+            }
+            await tx.shiftPhoto.update({
+              where: { id: photoId },
+              data: { matchStatus: 'matched', matchedReadingId: updated.id },
+            })
+            return updated
           },
           // A burst can queue several writers on one dispenser's lock — give the
           // queue room to drain instead of timing out the transaction.
@@ -389,12 +414,6 @@ async function assembleShiftReading(
         throw error
       }
     }
-    if (row) {
-      await prisma.shiftPhoto.update({
-        where: { id: photoId },
-        data: { matchStatus: 'matched', matchedReadingId: row.id },
-      })
-    }
   }
 
   // Advance the shift out of "collecting photos" now that AI has processed a photo.
@@ -404,11 +423,16 @@ async function assembleShiftReading(
   await prisma.shift.update({
     where: { id: shift.id },
     data: {
-      status: 'pending_review',
       totalDispensers: dispensers.length,
       readingsPendingReviewCount: pendingCount,
       photosUploadedCount: { increment: 1 },
     },
+  })
+  // A chốt'd ca stays chốt'd: flipping it back would reopen the kế toán's edit window
+  // and let Chốt ca run again, posting the ca's sales to the kho a second time.
+  await prisma.shift.updateMany({
+    where: { id: shift.id, status: { not: 'completed' } },
+    data: { status: 'pending_review' },
   })
 }
 

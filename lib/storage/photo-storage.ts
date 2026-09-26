@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -30,6 +30,16 @@ export async function uploadPhoto(
   })
   if (error) throw error
   return { path }
+}
+
+/** Deletes a stored scan/photo (including files in the local storage mock). */
+export async function deletePhoto(path: string): Promise<void> {
+  if (MOCK_ROOT) {
+    await unlink(join(MOCK_ROOT, path))
+    return
+  }
+  const { error } = await createAdminClient().storage.from(BUCKET).remove([path])
+  if (error) throw error
 }
 
 /** Reads a stored photo back as bytes — for re-running AI on a photo already parked. */

@@ -70,11 +70,9 @@ export function DipRow({
   const approveDisabled = disabled || alreadyApproved || (alreadyRejected && !canReverse)
   const rejectDisabled = disabled || alreadyRejected || (alreadyApproved && !canReverse)
   const mayReview = canReviewTankDip(data.role)
-  // Only while nobody has decided: the hầm and the số đo are the
-  // facts the duyệt was made on. The lock says so in the same words a chốt-ca row
-  // uses, because it is the same rule.
+  // The shared policy keeps decided rows editable for admin, but not kế toán.
   const mayCorrect = canCorrectTankDip(data.role, data.reviewStatus)
-  const lockHint = mayReview ? vi.correction.decisionLocked : undefined
+  const lockHint = data.role === 'accountant' ? vi.correction.decisionLocked : undefined
 
   function act(action: 'approve' | 'reject') {
     setActing(action)
@@ -126,10 +124,7 @@ export function DipRow({
           that hầm shows it — moving the dip to another hầm is how it changes. */}
       <td className="p-2">{data.fuelLabel}</td>
       <td className="p-2 text-right font-mono">
-        {/* The photo sits with the number it was read from, so checking the AI
-            against the dip-stick — and repairing it — never means leaving the
-            table. Once decided, a lock icon says why the number stopped moving;
-            a viewer sees neither the lock nor the edit, just the value. */}
+        {/* The source photo and AI original stay visible beside the corrected value. */}
         <EditableReading
           value={data.dipValue}
           canEdit={mayCorrect}

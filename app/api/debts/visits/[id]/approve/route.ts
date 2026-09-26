@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { plateListContains } from '@/lib/debts/plate'
 import { chargeAmountOf } from '@/lib/debts/visit-amount'
+import { canEditDebtVisit, debtVisitDecision } from '@/lib/debts/visit-review'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -29,13 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // The lượt xe belongs to the trạm it was pumped at; another person's trạm is
   // refused here as well as absent from the queue.
   if (!(await canReachStation(user, visit.stationId))) return forbidden()
+  if (!canEditDebtVisit(user.role, visit.reviewStatus)) return forbidden()
 
   const customerId = parsed.data.customerId ?? visit.customerId
-  if (!customerId) return badRequest('Chưa gán khách hàng cho lượt xe này.')
-  // Duyệt writes a charge that nothing reverses, so a second click must not post a
-  // second one. Corrected visits now stay in the queue, so a card lives long enough
-  // for two kế toán sharing a trạm to reach it.
-  if (visit.reviewStatus === 'approved') return badRequest(vi.debtReview.alreadyApproved)
+  if (!customerId) return badRequest(vi.debtReview.needCustomer)
+  // A second approval must not post a second charge; only an admin can reopen a rejection.
+  if (!debtVisitDecision(visit.reviewStatus, 'approve'))
+    return badRequest(vi.debtReview.alreadyApproved)
   // What the trạm charged: the reviewer's typed thành tiền when there is one, else
   // số lít × đơn giá.
   const amount = chargeAmountOf({
@@ -43,43 +44,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     unitPriceRead: visit.unitPriceRead !== null ? Number(visit.unitPriceRead) : null,
     amountOverride: visit.amountOverride !== null ? Number(visit.amountOverride) : null,
   })
-  if (amount === null) return badRequest('Chưa có thành tiền để ghi nợ.')
+  if (amount === null) return badRequest(vi.debtReview.needAmount)
 
   // Approving a visit charges the customer's debt ledger.
-  const updated = await prisma.$transaction(async (db) => {
-    const v = await db.debtVehicleVisit.update({
-      where: { id },
-      data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date(), customerId },
-    })
-    await db.debtTransaction.create({
-      data: {
-        customerId,
-        txType: 'charge',
-        amount,
-        sourceRef: id,
-        // The GMT+7 day of the fill, the same day its ca and the sổ file it under.
-        txDate: shiftDateFor(visit.visitDate.getTime()),
-        createdBy: user.id,
-      },
-    })
-    // Learn the plate: approving the visit confirms this vehicle belongs to
-    // the customer, so an unseen plate joins their known list and the next
-    // visit of the same truck auto-assigns.
-    const plate = visit.plateConfirmed ?? visit.plateRead
-    if (plate && plate.trim().toLowerCase() !== 'unclear') {
-      const customer = await db.debtCustomer.findUnique({
-        where: { id: customerId },
-        select: { knownPlates: true },
+  let updated
+  try {
+    updated = await prisma.$transaction(async (db) => {
+      const changed = await db.debtVehicleVisit.updateMany({
+        where: { id, reviewStatus: visit.reviewStatus, reviewedAt: visit.reviewedAt },
+        data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date(), customerId },
       })
-      if (customer && !plateListContains(customer.knownPlates, plate)) {
-        await db.debtCustomer.update({
+      if (changed.count !== 1) throw new Error('stale')
+      if (await db.debtTransaction.count({ where: { sourceRef: id, txType: 'charge' } }))
+        throw new Error('charge')
+      await db.debtTransaction.create({
+        data: {
+          customerId,
+          txType: 'charge',
+          amount,
+          sourceRef: id,
+          // The GMT+7 day of the fill, the same day its ca and the sổ file it under.
+          txDate: shiftDateFor(visit.visitDate.getTime()),
+          createdBy: user.id,
+        },
+      })
+      // Learn the plate: approving the visit confirms this vehicle belongs to
+      // the customer, so an unseen plate joins their known list and the next
+      // visit of the same truck auto-assigns.
+      const plate = visit.plateConfirmed ?? visit.plateRead
+      if (plate && plate.trim().toLowerCase() !== 'unclear') {
+        const customer = await db.debtCustomer.findUnique({
           where: { id: customerId },
-          data: { knownPlates: { push: plate.toUpperCase() } },
+          select: { knownPlates: true },
         })
+        if (customer && !plateListContains(customer.knownPlates, plate)) {
+          await db.debtCustomer.update({
+            where: { id: customerId },
+            data: { knownPlates: { push: plate.toUpperCase() } },
+          })
+        }
       }
-    }
-    return v
-  })
+      return db.debtVehicleVisit.findUniqueOrThrow({ where: { id } })
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'stale')
+      return badRequest(vi.debtReview.changedSinceOpen)
+    if (error instanceof Error && error.message === 'charge')
+      return badRequest(vi.debtReview.chargeMissing)
+    throw error
+  }
 
   await writeAudit({
     userId: user.id,
@@ -87,7 +100,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     entity: 'debt_vehicle_visit',
     entityId: id,
     // `override` marks a charge a human decided rather than one derived from the read.
-    metadata: { customerId, amount, override: visit.amountOverride !== null },
+    metadata: {
+      customerId,
+      amount,
+      override: visit.amountOverride !== null,
+      previousStatus: visit.reviewStatus,
+    },
   })
   return ok(updated)
 }

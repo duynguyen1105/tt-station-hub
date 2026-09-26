@@ -48,14 +48,11 @@ describe('canCorrectTankDip', () => {
     expect(canCorrectTankDip('accountant', 'pending')).toBe(true)
   })
 
-  // The one place a status DOES gate a đo hầm, unlike duyệt / từ chối. The số đo
-  // is the fact the decision was made on: moving it afterwards would change what
-  // the hầm's tồn thực tế and Quy ra lít say without anyone approving the new
-  // number. A genuinely misread dip is từ chối instead.
-  it('freezes the số đo once someone has decided, even for an admin', () => {
-    expect(canCorrectTankDip('admin', 'approved')).toBe(false)
-    expect(canCorrectTankDip('admin', 'rejected')).toBe(false)
+  it('lets admin correct a decided dip while accountant remains frozen', () => {
+    expect(canCorrectTankDip('admin', 'approved')).toBe(true)
+    expect(canCorrectTankDip('admin', 'rejected')).toBe(true)
     expect(canCorrectTankDip('accountant', 'approved')).toBe(false)
+    expect(canCorrectTankDip('accountant', 'rejected')).toBe(false)
   })
 
   it('never lets a viewer retype a số đo, at any status', () => {

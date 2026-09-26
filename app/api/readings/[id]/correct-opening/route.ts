@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { type NextRequest } from 'next/server'
 
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
-import { canEditOpening, isReadingDecided } from '@/lib/auth/reading-policy'
+import { canEditOpening, isReadingFrozen } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { prisma } from '@/lib/prisma'
 import { applyReadingCorrection } from '@/lib/readings/apply-correction'
@@ -14,14 +14,7 @@ const correctOpeningSchema = z.object({
   openingMechanicalReading: z.string().nullable().optional(),
 })
 
-/**
- * Repairs a ca's opening readings (Đầu ĐT / Đầu Cơ). Admin only at any shift
- * status — the opening is the carry-forward of the prior ca's closing, so
- * `canEditOpening` rejects every non-admin caller even when hit directly. A row
- * already duyệt/từ chối is closed to the admin too — `isReadingDecided` — since
- * re-deriving its review state would silently un-decide it. The repair is
- * audited with old and new opening values. See docs/adr/0001.
- */
+/** Repairs an opening, for admin only and only before Chốt ca. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
@@ -33,24 +26,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const reading = await prisma.shiftReading.findUnique({ where: { id } })
   if (!reading) return notFound()
-  if (isReadingDecided(reading.reviewStatus)) return forbidden()
+  if (isReadingFrozen(user.role, reading.reviewStatus)) return forbidden()
+  const shift = await prisma.shift.findUnique({ where: { id: reading.shiftId } })
+  if (!shift) return notFound()
+  if (shift.status === 'completed') return forbidden()
   const dispenser = await prisma.dispenser.findUnique({ where: { id: reading.dispenserId } })
   if (!dispenser) return notFound()
-
-  const oldOpening = {
-    openingElectronicReading: reading.openingElectronicReading?.toString() ?? null,
-    openingMechanicalReading: reading.openingMechanicalReading?.toString() ?? null,
-  }
-  const newOpening = {
-    openingElectronicReading:
-      parsed.data.openingElectronicReading !== undefined
-        ? parsed.data.openingElectronicReading
-        : oldOpening.openingElectronicReading,
-    openingMechanicalReading:
-      parsed.data.openingMechanicalReading !== undefined
-        ? parsed.data.openingMechanicalReading
-        : oldOpening.openingMechanicalReading,
-  }
 
   const updated = await applyReadingCorrection({
     reading,
@@ -58,7 +39,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     patch: parsed.data,
     userId: user.id,
     auditAction: 'reading.correct_opening',
-    auditMetadata: { old: oldOpening, new: newOpening },
   })
   return ok(updated)
 }

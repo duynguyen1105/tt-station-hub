@@ -9,6 +9,8 @@ import {
   canEditOpening,
   canReviewShift,
   isReadingDecided,
+  isReadingFrozen,
+  reviewStatusAfterEdit,
 } from '@/lib/auth/reading-policy'
 
 // A representative pre-completed status and the one status that locks the ca.
@@ -23,7 +25,7 @@ const PRE_COMPLETED: ShiftStatus[] = [
 ]
 
 describe('canEditOpening', () => {
-  // Opening = admin-only, at any shift status.
+  // Debt opening balances use the same admin-only predicate without a shift.
   it('lets only the admin edit an opening', () => {
     expect(canEditOpening('admin')).toBe(true)
     expect(canEditOpening('accountant')).toBe(false)
@@ -32,10 +34,9 @@ describe('canEditOpening', () => {
 })
 
 describe('canEditClosing', () => {
-  it('lets the admin edit a closing at any status', () => {
-    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
-      expect(canEditClosing('admin', status)).toBe(true)
-    }
+  it('lets admin edit until the ca is completed, never after', () => {
+    for (const status of PRE_COMPLETED) expect(canEditClosing('admin', status)).toBe(true)
+    expect(canEditClosing('admin', 'completed')).toBe(false)
   })
 
   it('lets the accountant edit a closing until the ca is completed', () => {
@@ -56,10 +57,9 @@ describe('canReviewShift', () => {
   // Reviewing (approve / reject / chốt) follows the same rule as editing a
   // closing. Every review cell is asserted against a concrete expected boolean
   // rather than compared to canEditClosing, so the rule is pinned independently.
-  it('lets the admin review at any status', () => {
-    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
-      expect(canReviewShift('admin', status)).toBe(true)
-    }
+  it('lets admin review until the ca is completed, never after', () => {
+    for (const status of PRE_COMPLETED) expect(canReviewShift('admin', status)).toBe(true)
+    expect(canReviewShift('admin', 'completed')).toBe(false)
   })
 
   it('lets the accountant review until the ca is completed', () => {
@@ -79,10 +79,9 @@ describe('canReviewShift', () => {
 describe('canCreateReading', () => {
   // Entering a Trụ no photo arrived for follows the closing rule, pinned here
   // against concrete booleans rather than against canEditClosing.
-  it('lets the admin create a reading at any status', () => {
-    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
-      expect(canCreateReading('admin', status)).toBe(true)
-    }
+  it('lets admin create a reading until the ca is completed, never after', () => {
+    for (const status of PRE_COMPLETED) expect(canCreateReading('admin', status)).toBe(true)
+    expect(canCreateReading('admin', 'completed')).toBe(false)
   })
 
   it('lets the accountant create a reading until the ca is completed', () => {
@@ -100,8 +99,7 @@ describe('canCreateReading', () => {
 })
 
 describe('isReadingDecided', () => {
-  // Duyệt / Từ chối freeze the row's values for every role — including the admin,
-  // who keeps only the button that reverses the call.
+  // Decision state is independent of whether admin may correct the row.
   it('treats a duyệt or từ chối row as decided', () => {
     expect(isReadingDecided('approved')).toBe(true)
     expect(isReadingDecided('rejected')).toBe(true)
@@ -118,14 +116,32 @@ describe('isReadingDecided', () => {
   })
 })
 
+describe('isReadingFrozen', () => {
+  it('freezes decided rows for accountant and viewer, but not admin', () => {
+    for (const decision of ['approved', 'rejected']) {
+      expect(isReadingFrozen('admin', decision)).toBe(false)
+      expect(isReadingFrozen('accountant', decision)).toBe(true)
+      expect(isReadingFrozen('viewer', decision)).toBe(true)
+    }
+    expect(isReadingFrozen('accountant', 'auto_approved')).toBe(false)
+  })
+})
+
+describe('reviewStatusAfterEdit', () => {
+  it('keeps a human decision while recomputing an edited row, but updates undecided rows', () => {
+    expect(reviewStatusAfterEdit('approved', 'needs_review')).toBe('approved')
+    expect(reviewStatusAfterEdit('rejected', 'auto_approved')).toBe('rejected')
+    expect(reviewStatusAfterEdit('pending', 'corrected')).toBe('corrected')
+  })
+})
+
 describe('canEditAirPurge', () => {
   // An air purge mirrors the closing rule — it moves the same money a closing
   // correction does — so the role × status matrix is pinned against concrete
   // booleans here rather than compared to canEditClosing.
-  it('lets the admin record an air purge at any status, including a ca đã chốt', () => {
-    for (const status of [...PRE_COMPLETED, 'completed' as ShiftStatus]) {
-      expect(canEditAirPurge('admin', status)).toBe(true)
-    }
+  it('lets admin purge until the ca is chốt, never after', () => {
+    for (const status of PRE_COMPLETED) expect(canEditAirPurge('admin', status)).toBe(true)
+    expect(canEditAirPurge('admin', 'completed')).toBe(false)
   })
 
   it('lets the accountant record an air purge until the ca is chốt', () => {
@@ -141,21 +157,11 @@ describe('canEditAirPurge', () => {
     }
   })
 
-  // The carve-out of docs/adr/0002, stated as the pair of facts it consists of: the
-  // verdict that freezes the meter values is real, and the answer for an air purge on
-  // the same row is the ca's alone. There is no reviewStatus to vary here because the
-  // rule has no such axis — which is the carve-out. What this cannot reach is a caller
-  // that re-applies the freeze itself; the row and the route are the only two, and
-  // neither has a test in this suite.
-  it('answers on the ca alone, on a reading duyệt / từ chối as on an undecided one', () => {
+  it('does not freeze purge on a decided row, but still locks a completed ca', () => {
     expect(isReadingDecided('approved')).toBe(true)
-    expect(isReadingDecided('rejected')).toBe(true)
-    expect(isReadingDecided(null)).toBe(false)
-    // Kế toán while the ca is open, admin once it is chốt — the two the ticket turns on.
     expect(canEditAirPurge('accountant', 'pending_review')).toBe(true)
-    expect(canEditAirPurge('admin', 'completed')).toBe(true)
-    expect(canEditAirPurge('accountant', 'completed')).toBe(false)
-    expect(canEditAirPurge('viewer', 'pending_review')).toBe(false)
+    expect(canEditAirPurge('admin', 'pending_review')).toBe(true)
+    expect(canEditAirPurge('admin', 'completed')).toBe(false)
   })
 })
 

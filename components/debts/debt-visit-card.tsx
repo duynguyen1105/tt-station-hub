@@ -154,10 +154,12 @@ function CustomerPicker({
   customers,
   value,
   onChange,
+  disabled,
 }: {
   customers: { id: string; name: string }[]
   value: string | null
   onChange: (id: string) => void
+  disabled: boolean
 }) {
   const [open, setOpen] = useState(false)
   const selected = customers.find((c) => c.id === value)
@@ -166,6 +168,7 @@ function CustomerPicker({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          disabled={disabled}
           role="combobox"
           aria-expanded={open}
           title={selected?.name}
@@ -208,7 +211,7 @@ function CustomerPicker({
   )
 }
 
-/** `canAct` false (người xem) shows the card read-only: no Duyệt / Sửa số / Từ chối. */
+/** Read-only cards have no review actions or editable customer/station controls. */
 export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAct: boolean }) {
   const router = useRouter()
   // The tên of the nhiên liệu the AI read: labels resolve for every nhiên liệu, while
@@ -234,6 +237,8 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
   const [stationId, setStationId] = useState(data.stationId)
 
   const info = reviewStatusInfo(data.reviewStatus)
+  const approved = data.reviewStatus === 'approved'
+  const rejected = data.reviewStatus === 'rejected'
   const mismatch = data.amountMatchesDisplay === false
   const priceOff =
     data.boardPrice !== null &&
@@ -475,7 +480,12 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
           )}
           <div className="flex gap-2">
             <div className="min-w-0 flex-1">
-              <CustomerPicker customers={customers} value={customerId} onChange={setCustomerId} />
+              <CustomerPicker
+                customers={customers}
+                value={customerId}
+                onChange={setCustomerId}
+                disabled={!canAct}
+              />
             </div>
             {canAct && (
               <CustomerForm
@@ -501,14 +511,16 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
         {/* Actions */}
         {canAct && (
           <div className="flex gap-2">
-            <Button
-              className="flex-1"
-              loading={action === 'approve'}
-              disabled={busy}
-              onClick={approve}
-            >
-              {vi.common.approve}
-            </Button>
+            {!approved && (
+              <Button
+                className="flex-1"
+                loading={action === 'approve'}
+                disabled={busy}
+                onClick={approve}
+              >
+                {vi.common.approve}
+              </Button>
+            )}
 
             <Dialog open={openCorrect} onOpenChange={setOpenCorrect}>
               <DialogTrigger asChild>
@@ -612,35 +624,41 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
 
             {/* Controlled so the click can be intercepted: the default Action closes
               the dialog immediately, which would unmount the spinner on sight. */}
-            <AlertDialog open={openReject} onOpenChange={setOpenReject}>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  disabled={busy}
-                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
-                >
-                  {vi.common.reject}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{vi.debtReview.rejectConfirmTitle}</AlertDialogTitle>
-                  <AlertDialogDescription>{vi.debtReview.rejectConfirmBody}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
-                  <AlertDialogAction
-                    loading={action === 'reject'}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      void reject()
-                    }}
+            {!rejected && (
+              <AlertDialog open={openReject} onOpenChange={setOpenReject}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    disabled={busy}
+                    className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
                   >
                     {vi.common.reject}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{vi.debtReview.rejectConfirmTitle}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {approved
+                        ? vi.debtReview.rejectApprovedBody
+                        : vi.debtReview.rejectConfirmBody}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+                    <AlertDialogAction
+                      loading={action === 'reject'}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        void reject()
+                      }}
+                    >
+                      {vi.common.reject}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         )}
       </CardContent>

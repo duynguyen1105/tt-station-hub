@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { isApprovedReading, refuseShiftCompletion } from '@/lib/shifts/completion'
+import { Prisma } from '@/lib/generated/prisma/client'
+import { computeShiftSales } from '@/lib/inventory/shift-sales'
+import {
+  isApprovedReading,
+  refuseShiftCompletion,
+  reversedShiftSales,
+} from '@/lib/shifts/completion'
 import { vi } from '@/messages/vi'
 
 describe('isApprovedReading', () => {
@@ -60,5 +66,33 @@ describe('refuseShiftCompletion', () => {
     expect(refuseShiftCompletion([{ reviewStatus: 'pending' }])).toBe(
       vi.shifts.cannotCompletePending
     )
+  })
+})
+
+describe('reversedShiftSales', () => {
+  it('reverses posted sales exactly; a second chốt posts only the revised sale', () => {
+    const dispenser = [{ id: 'pump', fuelType: 'diesel' }]
+    const reading = {
+      dispenserId: 'pump',
+      fuelType: 'diesel',
+      openingElectronicReading: 100,
+      electronicReading: 160,
+      airPurgeLiters: 5,
+    }
+    const first = computeShiftSales([reading], dispenser).sales
+    const posted = first.map((sale) => ({
+      fuelType: sale.fuelType,
+      quantity: new Prisma.Decimal(-sale.liters),
+    }))
+    const reopened = reversedShiftSales(posted)
+    const revised = computeShiftSales([{ ...reading, electronicReading: 170 }], dispenser).sales
+    const stockBefore = new Prisma.Decimal('1000')
+    const stockAfterFirst = stockBefore.plus(posted[0]!.quantity)
+    const stockAfterReopen = stockAfterFirst.plus(reopened[0]!.liters)
+    const stockAfterSecond = stockAfterReopen.minus(revised[0]!.liters)
+
+    expect(reopened).toEqual([{ fuelType: 'diesel', liters: new Prisma.Decimal('55') }])
+    expect(stockAfterReopen.equals(stockBefore)).toBe(true)
+    expect(stockAfterSecond.equals(stockBefore.minus('65'))).toBe(true)
   })
 })

@@ -21,43 +21,52 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const record = await prisma.fuelImport.findUnique({ where: { id } })
   if (!record) return notFound()
   if (!(await canReachStation(user, record.stationId))) return forbidden()
-  if (record.canceledAt) return badRequest('Phiếu nhập này đã được hủy trước đó.')
 
-  const liters = Number(record.litersActual)
-  await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
+    // Receipt edits lock the parent first; cancellation takes the same lock so
+    // the compensating movement always uses the latest liters, fuel and day.
+    if (record.receiptId) {
+      await tx.$queryRaw`SELECT id FROM fuel_import_receipts WHERE id = ${record.receiptId}::uuid FOR UPDATE`
+    }
+    await tx.$queryRaw`SELECT id FROM fuel_imports WHERE id = ${id}::uuid FOR UPDATE`
+    const current = await tx.fuelImport.findUnique({ where: { id } })
+    if (!current || current.canceledAt) return null
+    const liters = Number(current.litersActual)
     await tx.fuelImport.update({
       where: { id },
       data: { canceledAt: new Date(), canceledBy: user.id },
     })
     await tx.inventoryMovement.create({
       data: {
-        stationId: record.stationId,
-        fuelType: record.fuelType,
+        stationId: current.stationId,
+        fuelType: current.fuelType,
         movementType: 'adjustment',
         quantity: -liters,
         sourceRef: id,
         note: 'Hủy phiếu nhập hàng',
         // The slip's own GMT+7 day: it nets to zero where it was booked, and a slip
         // dated before đầu kỳ is not taken out of a sổ it never entered.
-        movementDate: shiftDateFor(record.importedAt.getTime()),
+        movementDate: shiftDateFor(current.importedAt.getTime()),
         createdBy: user.id,
       },
     })
     await tx.inventoryBalance.upsert({
       where: {
-        stationId_fuelType: { stationId: record.stationId, fuelType: record.fuelType },
+        stationId_fuelType: { stationId: current.stationId, fuelType: current.fuelType },
       },
       update: { estimatedStock: { increment: -liters } },
-      create: { stationId: record.stationId, fuelType: record.fuelType, estimatedStock: -liters },
+      create: { stationId: current.stationId, fuelType: current.fuelType, estimatedStock: -liters },
     })
+    return liters
   })
+  if (result === null) return badRequest('Phiếu nhập này đã được hủy trước đó.')
 
   await writeAudit({
     userId: user.id,
     action: 'fuel_import.cancel',
     entity: 'fuel_import',
     entityId: id,
-    metadata: { liters },
+    metadata: { liters: result },
   })
   return ok({ id })
 }

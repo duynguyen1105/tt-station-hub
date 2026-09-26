@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { type NextRequest } from 'next/server'
 
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
-import { type ShiftStatus, canEditClosing, isReadingDecided } from '@/lib/auth/reading-policy'
+import { type ShiftStatus, canEditClosing, isReadingFrozen } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
@@ -15,15 +15,7 @@ const correctClosingSchema = z.object({
   mechanicalReading: z.string().nullable().optional(),
 })
 
-/**
- * Repairs a ca's closing readings (Cuối ĐT / Cuối Cơ) — the accountant's daily
- * review surface. Admin at any status, accountant until the ca is chốt; after
- * `completed` only the admin remains, so `canEditClosing` rejects a locked-out
- * caller even when hit directly. A row already duyệt/từ chối is closed to every
- * role — `isReadingDecided` — since re-deriving its review state would silently
- * un-decide it. Writes only the closing fields and audits the repair as
- * `reading.correct`. See docs/adr/0001.
- */
+/** Repairs a closing before Chốt ca; admin may also repair decided rows. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
@@ -38,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!shift) return notFound()
   if (!(await canReachStation(user, shift.stationId))) return forbidden()
   if (!canEditClosing(user.role, shift.status as ShiftStatus)) return forbidden()
-  if (isReadingDecided(reading.reviewStatus)) return forbidden()
+  if (isReadingFrozen(user.role, reading.reviewStatus)) return forbidden()
   const dispenser = await prisma.dispenser.findUnique({ where: { id: reading.dispenserId } })
   if (!dispenser) return notFound()
 

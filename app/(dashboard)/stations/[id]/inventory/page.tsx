@@ -6,7 +6,7 @@ import { FuelImportForm, type TankOption } from '@/components/inventory/fuel-imp
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { ImportFilterForm } from '@/components/inventory/import-filter-form'
 import { LedgerFilterForm } from '@/components/inventory/ledger-filter-form'
-import { MovementForm } from '@/components/inventory/movement-form'
+import { ManualMovementDelete, MovementForm } from '@/components/inventory/movement-form'
 import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ import {
   importSelection,
 } from '@/lib/inventory/import-selection'
 import { hasLedgerFilter, ledgerSelection } from '@/lib/inventory/ledger-selection'
+import { isManualMovement } from '@/lib/inventory/manual-movement'
 import { loadStationTankCodes } from '@/lib/inventory/station-tanks'
 import { isLowStock } from '@/lib/inventory/stock-calculator'
 import { dipFuel, tankFuelFrom } from '@/lib/inventory/tank-fuel'
@@ -182,12 +183,7 @@ export default async function StationInventoryPage({
             where: { stationId: id },
             orderBy: { movementDate: 'asc' },
           })
-        : ([] as {
-            movementType: string
-            quantity: unknown
-            movementDate: Date
-            fuelType: string
-          }[]),
+        : ([] as never[]),
       tab === 'nhap-hang' ? prisma.fuelImport.count({ where: selection.where }) : 0,
     ])
 
@@ -783,6 +779,67 @@ export default async function StationInventoryPage({
             </table>
           </div>
           {pager(ledger.total)}
+          {user.role === 'admin' && (
+            <div className="space-y-2 pt-4">
+              <h3 className="text-sm font-semibold">{vi.inventory.manualMovements}</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[44rem] text-sm">
+                  <thead>
+                    <tr className="text-muted-foreground border-b text-left">
+                      <th className="p-2">{vi.inventory.date}</th>
+                      <th className="p-2">{vi.inventory.fuelType}</th>
+                      <th className="p-2">{vi.inventory.movementKind}</th>
+                      <th className="p-2 text-right">{vi.inventory.quantity}</th>
+                      <th className="p-2">{vi.inventory.note}</th>
+                      <th className="p-2">{vi.common.actions}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {movements
+                      .filter((m) => {
+                        const day = m.movementDate.toISOString().slice(0, 10)
+                        return (
+                          isManualMovement(m) &&
+                          (!ledger.from || day >= ledger.from) &&
+                          (!ledger.to || day <= ledger.to) &&
+                          (ledger.fuels.length === 0 || ledger.fuels.includes(m.fuelType))
+                        )
+                      })
+                      .reverse()
+                      .map((m) => (
+                        <tr key={m.id} className="border-b">
+                          <td className="p-2">{formatDate(m.movementDate)}</td>
+                          <td className="p-2">{fuelLabel(m.fuelType)}</td>
+                          <td className="p-2">
+                            {(vi.movementType as Record<string, string>)[m.movementType] ??
+                              m.movementType}
+                          </td>
+                          <td className="p-2 text-right font-mono">
+                            {formatLiters(Number(m.quantity))}
+                          </td>
+                          <td className="p-2">{m.note ?? '—'}</td>
+                          <td className="flex p-2">
+                            <MovementForm
+                              stationId={id}
+                              fuels={stationFuels}
+                              movement={{
+                                id: m.id,
+                                fuelType: m.fuelType,
+                                movementType: m.movementType,
+                                quantity: m.quantity.toString(),
+                                movementDate: m.movementDate.toISOString().slice(0, 10),
+                                note: m.note,
+                              }}
+                            />
+                            <ManualMovementDelete id={m.id} />
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

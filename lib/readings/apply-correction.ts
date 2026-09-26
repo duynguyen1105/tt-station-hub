@@ -1,4 +1,5 @@
 import { writeAudit } from '@/lib/auth/audit'
+import { reviewStatusAfterEdit } from '@/lib/auth/reading-policy'
 import { type Dispenser, type Prisma, type ShiftReading } from '@/lib/generated/prisma/client'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { prisma } from '@/lib/prisma'
@@ -19,11 +20,8 @@ function num(value: unknown): number | null {
 }
 
 /**
- * The shared tail of every reading correction: apply the patch (preserving the
- * original AI value the first time a closing field is corrected), re-derive the
- * review state so an entered opening clears the missing-opening flag, persist,
- * and write the audit entry. The role gate lives in each route; this helper is
- * reached only after it passes. See docs/adr/0001.
+ * Apply a correction and its dependent openings/cache together. Human decisions
+ * remain in place; recompute anomaly fields without undoing Duyệt / Từ chối.
  */
 export async function applyReadingCorrection(params: {
   reading: ShiftReading
@@ -31,7 +29,7 @@ export async function applyReadingCorrection(params: {
   patch: ReadingCorrectionPatch
   userId: string
   auditAction: string
-  auditMetadata: unknown
+  auditMetadata?: unknown
 }): Promise<ShiftReading> {
   const { reading, dispenser, patch, userId, auditAction, auditMetadata } = params
 
@@ -88,23 +86,43 @@ export async function applyReadingCorrection(params: {
   })
   data.isAnomaly = review.isAnomaly
   data.anomalyReasons = review.anomalyReasons
-  data.reviewStatus = review.reviewStatus
+  data.reviewStatus = reviewStatusAfterEdit(reading.reviewStatus, review.reviewStatus)
 
-  const updated = await prisma.shiftReading.update({ where: { id: reading.id }, data })
-  await writeAudit({
-    userId,
-    action: auditAction,
-    entity: 'shift_reading',
-    entityId: reading.id,
-    metadata: auditMetadata,
-  })
-  // A closing that counts is what the next ngày opens from, so a corrected one
-  // travels forward instead of leaving the old number in place.
-  if (
-    (patch.electronicReading !== undefined || patch.mechanicalReading !== undefined) &&
-    isApprovedReading(updated)
-  ) {
-    await propagateApprovedClosing(dispenser, reading.shiftId)
-  }
-  return updated
+  return prisma.$transaction(
+    async (db) => {
+      const updated = await db.shiftReading.update({ where: { id: reading.id }, data })
+      if (
+        (patch.electronicReading !== undefined || patch.mechanicalReading !== undefined) &&
+        isApprovedReading(updated)
+      ) {
+        await propagateApprovedClosing(dispenser, reading.shiftId, db)
+      }
+      await writeAudit(
+        {
+          userId,
+          action: auditAction,
+          entity: 'shift_reading',
+          entityId: reading.id,
+          metadata: {
+            ...(auditMetadata as Record<string, unknown>),
+            from: {
+              openingElectronicReading: reading.openingElectronicReading?.toString() ?? null,
+              openingMechanicalReading: reading.openingMechanicalReading?.toString() ?? null,
+              electronicReading: reading.electronicReading?.toString() ?? null,
+              mechanicalReading: reading.mechanicalReading?.toString() ?? null,
+            },
+            to: {
+              openingElectronicReading: updated.openingElectronicReading?.toString() ?? null,
+              openingMechanicalReading: updated.openingMechanicalReading?.toString() ?? null,
+              electronicReading: updated.electronicReading?.toString() ?? null,
+              mechanicalReading: updated.mechanicalReading?.toString() ?? null,
+            },
+          },
+        },
+        db
+      )
+      return updated
+    },
+    { timeout: 15000 }
+  )
 }

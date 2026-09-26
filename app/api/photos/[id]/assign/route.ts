@@ -4,7 +4,7 @@ import { type NextRequest } from 'next/server'
 
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
-import { type ShiftStatus, canEditClosing, isReadingDecided } from '@/lib/auth/reading-policy'
+import { type ShiftStatus, canEditClosing, isReadingFrozen } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { runShiftExtraction } from '@/lib/photos/ingest'
@@ -25,10 +25,8 @@ const assignSchema = z.object({
  * the matching reader is the one that reads the number: the reading lands in the
  * row exactly as a recognised photo would have.
  *
- * Gates follow the reading policy: whoever may edit a closing may attach a photo
- * to it (admin at any status, accountant until chốt), and a row already duyệt'd /
- * từ chối'd is closed — attaching re-derives its value and would silently
- * un-decide it.
+ * Gates follow the closing rule: no assignment on a completed ca. Only admin
+ * may attach another photo to a decided row, without reversing its decision.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -59,9 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const existing = await prisma.shiftReading.findUnique({
     where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId } },
-    select: { reviewStatus: true },
+    select: { reviewStatus: true, electronicReading: true, mechanicalReading: true },
   })
-  if (existing && isReadingDecided(existing.reviewStatus)) return forbidden()
+  if (existing && isReadingFrozen(user.role, existing.reviewStatus)) return forbidden()
 
   const buffer = await downloadPhoto(photo.storagePath)
   const result = await runShiftExtraction(
@@ -75,12 +73,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       notes: 'slot assigned by reviewer',
     }
   )
+  const updated = await prisma.shiftReading.findUnique({
+    where: { shiftId_dispenserId: { shiftId: shift.id, dispenserId } },
+  })
   await writeAudit({
     userId: user.id,
     action: 'photo.assign',
     entity: 'shift_photo',
     entityId: photo.id,
-    metadata: { shiftId: shift.id, dispenserId, slot, reading: result.reading },
+    metadata: {
+      shiftId: shift.id,
+      dispenserId,
+      slot,
+      from: existing && {
+        electronicReading: existing.electronicReading?.toString() ?? null,
+        mechanicalReading: existing.mechanicalReading?.toString() ?? null,
+      },
+      to: updated && {
+        electronicReading: updated.electronicReading?.toString() ?? null,
+        mechanicalReading: updated.mechanicalReading?.toString() ?? null,
+      },
+    },
   })
   return ok({ reading: result.reading, meterType: result.meterType })
 }

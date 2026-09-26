@@ -60,9 +60,8 @@ async function chainAround(dip: TankDipRecord, tankCode: string): Promise<ChainS
  * the next one's, and moving the row to another hầm changes a third: the hầm it
  * left closes over the gap. `planDipRewire` decides which; see its comment.
  *
- * `reviewStatus` / `reviewedBy` / `reviewedAt` are deliberately left alone.
- * Correcting is not deciding — only a chờ xử lý dip is correctable at all, and it
- * stays chờ xử lý so someone still has to click Duyệt on the repaired row.
+ * `reviewStatus` / `reviewedBy` / `reviewedAt` remain unchanged: an admin's
+ * correction does not reverse an earlier Duyệt / Từ chối.
  */
 export async function applyDipCorrection(params: {
   dip: TankDipRecord
@@ -104,34 +103,32 @@ export async function applyDipCorrection(params: {
     data.originalDipValue = dip.dipValue
   }
 
-  const [updated] = await prisma.$transaction([
-    prisma.tankDipRecord.update({ where: { id: dip.id }, data }),
-    ...plan.neighbours.map(({ id, ...comparison }) =>
-      prisma.tankDipRecord.update({ where: { id }, data: comparison })
-    ),
-  ])
-
-  await writeAudit({
-    userId,
-    action: 'tank_dip.correct',
-    entity: 'tank_dip_record',
-    entityId: dip.id,
-    // The displaced values go in the metadata as well as originalDipValue: once
-    // that column is stamped, every value between it and the newest one is
-    // otherwise unrecoverable — and it only ever holds the số đo, so a displaced
-    // hầm or nhiên liệu has nowhere else to be remembered at all.
-    metadata: {
-      from: {
-        ...(params.dipValue !== undefined ? { dipValue: dip.dipValue.toString() } : {}),
-        ...(movedTank ? { tankCode: dip.tankCode } : {}),
-        ...(changedFuel ? { fuelType: dip.fuelType } : {}),
+  return prisma.$transaction(async (db) => {
+    const updated = await db.tankDipRecord.update({ where: { id: dip.id }, data })
+    for (const { id, ...comparison } of plan.neighbours) {
+      await db.tankDipRecord.update({ where: { id }, data: comparison })
+    }
+    await writeAudit(
+      {
+        userId,
+        action: 'tank_dip.correct',
+        entity: 'tank_dip_record',
+        entityId: dip.id,
+        metadata: {
+          from: {
+            ...(params.dipValue !== undefined ? { dipValue: dip.dipValue.toString() } : {}),
+            ...(movedTank ? { tankCode: dip.tankCode } : {}),
+            ...(changedFuel ? { fuelType: dip.fuelType } : {}),
+          },
+          to: {
+            ...(params.dipValue !== undefined ? { dipValue: updated.dipValue.toString() } : {}),
+            ...(movedTank ? { tankCode: updated.tankCode } : {}),
+            ...(changedFuel ? { fuelType: updated.fuelType } : {}),
+          },
+        },
       },
-      to: {
-        ...(params.dipValue !== undefined ? { dipValue: updated.dipValue.toString() } : {}),
-        ...(movedTank ? { tankCode: updated.tankCode } : {}),
-        ...(changedFuel ? { fuelType: updated.fuelType } : {}),
-      },
-    },
+      db
+    )
+    return updated
   })
-  return updated
 }

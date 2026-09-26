@@ -1,11 +1,18 @@
+import Link from 'next/link'
+
 import { ApprovedTodayList } from '@/components/debts/approved-today-list'
 import { DebtVisitCard } from '@/components/debts/debt-visit-card'
 import { ReviewTabs } from '@/components/review/review-tabs'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
 import { approvedTodaySelection, buildApprovedTodayList } from '@/lib/debts/approved-today'
 import { boardPriceOf } from '@/lib/debts/board-price'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
+import { todayKey } from '@/lib/debts/load-ledger'
+import { canEditDebtVisit } from '@/lib/debts/visit-review'
+import { readDayKey, readInstantBound } from '@/lib/filters/params'
 import { vnTime } from '@/lib/format'
 import { loadStationFuels } from '@/lib/fuels/load-catalogue'
 import { shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
@@ -13,8 +20,15 @@ import { prisma } from '@/lib/prisma'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
-export default async function ReviewDebtsPage() {
+export default async function ReviewDebtsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; day?: string }>
+}) {
   const user = await requireUser()
+  const params = await searchParams
+  const decided = user.role === 'admin' && params.view === 'decided'
+  const day = readDayKey(params.day) ?? todayKey()
 
   // The same boundary the Ca queue draws: a kế toán confirms the lượt xe of the
   // trạm they are phụ trách of, and is offered no other trạm to move one to.
@@ -22,20 +36,22 @@ export default async function ReviewDebtsPage() {
 
   const [visits, approved, customers, stations] = await Promise.all([
     prisma.debtVehicleVisit.findMany({
-      // 'corrected' belongs here: Sửa số stamps that status, so leaving it out made a
-      // corrected lượt xe vanish from the only screen that can duyệt it — saved, and
-      // never charged.
       where: {
-        reviewStatus: { in: ['pending', 'needs_review', 'corrected'] },
+        reviewStatus: {
+          in: decided ? ['approved', 'rejected'] : ['pending', 'needs_review', 'corrected'],
+        },
         stationId: { in: stationIds },
+        ...(decided && {
+          visitDate: { gte: readInstantBound(day, 'start'), lte: readInstantBound(day, 'end') },
+        }),
       },
       orderBy: { visitDate: 'desc' },
-      take: 100,
+      ...(!decided && { take: 100 }),
     }),
     // What left the hàng đợi today, so a duyệt'd lượt xe stops vanishing without
     // trace. Selected by thời điểm duyệt, so yesterday's lượt xe duyệt'd this
     // morning is here — pointing at yesterday's ca.
-    prisma.debtVehicleVisit.findMany(approvedTodaySelection(stationIds, new Date())),
+    decided ? [] : prisma.debtVehicleVisit.findMany(approvedTodaySelection(stationIds, new Date())),
     prisma.debtCustomer.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
@@ -151,15 +167,45 @@ export default async function ReviewDebtsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{vi.debtReview.title}</h1>
       </div>
       <ReviewTabs />
+      {user.role === 'admin' && (
+        <nav className="flex gap-3 border-b text-sm font-medium" aria-label={vi.debtReview.title}>
+          <Link
+            href="/review/debts"
+            className={decided ? 'text-muted-foreground p-2' : 'border-primary border-b-2 p-2'}
+          >
+            {vi.debtReview.pendingView}
+          </Link>
+          <Link
+            href={`/review/debts?view=decided&day=${day}`}
+            className={decided ? 'border-primary border-b-2 p-2' : 'text-muted-foreground p-2'}
+          >
+            {vi.debtReview.decidedView}
+          </Link>
+        </nav>
+      )}
+      {decided && (
+        <form className="flex items-end gap-2">
+          <input type="hidden" name="view" value="decided" />
+          <label className="space-y-1 text-sm">
+            <span className="block">{vi.debtReview.visitDay}</span>
+            <Input type="date" name="day" defaultValue={day} />
+          </label>
+          <Button type="submit" variant="outline">
+            {vi.debtReview.filterDay}
+          </Button>
+        </form>
+      )}
 
       {visits.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{vi.debtReview.empty}</p>
+        <p className="text-muted-foreground text-sm">
+          {decided ? vi.debtReview.decidedEmpty : vi.debtReview.empty}
+        </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visits.map((v) => (
             <DebtVisitCard
               key={v.id}
-              canAct={user.role !== 'viewer'}
+              canAct={canEditDebtVisit(user.role, v.reviewStatus)}
               data={{
                 visitId: v.id,
                 stationId: v.stationId,
@@ -197,7 +243,7 @@ export default async function ReviewDebtsPage() {
         </div>
       )}
 
-      <ApprovedTodayList rows={approvedRows} />
+      {!decided && <ApprovedTodayList rows={approvedRows} />}
     </div>
   )
 }

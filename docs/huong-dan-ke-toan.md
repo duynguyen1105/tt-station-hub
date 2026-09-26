@@ -53,11 +53,13 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
    - **Từ chối** nếu ảnh không dùng được.
 4. Dấu cảnh báo (số giảm, chênh lệch lớn, hai đồng hồ lệch, ảnh mờ, thiếu ảnh)
    sẽ được tô để ưu tiên kiểm tra.
-5. Khi tất cả dòng đã duyệt → bấm **Chốt ca**.
+5. Khi tất cả dòng đã duyệt → bấm **Chốt ca**. Ca đã chốt bị **khoá với mọi
+   người**; muốn sửa thì nhờ quản trị viên **Mở lại ca** (xem mục 11).
 
 ## 5. Giấy tờ pháp lý (tab **Giấy tờ**)
 
-- Thêm/sửa giấy tờ, đính kèm bản scan, nhập ngày hết hạn.
+- Thêm giấy tờ, đính kèm bản scan, nhập ngày hết hạn. Sửa hoặc xóa giấy tờ đã
+  lưu: nhờ quản trị viên.
 - Màu trạng thái: **xanh** (còn hạn), **vàng** (sắp hết — trong 60 ngày),
   **đỏ** (hết hạn). Hệ thống tự nhắc trước **60 / 30 / 15 ngày**.
 
@@ -96,8 +98,8 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
    hình trụ là một lượt riêng, không cần ghép cặp; ghi tên khách trong
    **Tin nhắn**.
 6. Bấm **Gửi** ở phần cần tải. Ảnh **Chốt ca** có nhãn trạm khác sẽ vào đúng
-   trạm ghi trên trụ; kế toán không thể thêm ảnh chốt ca vào ca **đã chốt**
-   (quản trị viên vẫn có thể). Kết quả đọc ảnh chốt ca/công nợ nằm trong
+   trạm ghi trên trụ. Không ai thêm được ảnh chốt ca vào ca **đã chốt**; quản
+   trị viên phải **Mở lại ca** trước. Kết quả đọc ảnh chốt ca/công nợ nằm trong
    **Cần duyệt** để kiểm tra, sửa số và duyệt; ảnh đo bồn nằm ở **Tồn kho**.
 
 ## 9. Xuất MISA (mục **Báo cáo MISA**)
@@ -111,3 +113,26 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
   những gì bạn đọc được.
 - AI chỉ **làm nháp**; kế toán là người **duyệt cuối**.
 - Mọi chỉnh sửa đều được ghi nhật ký (ai sửa, sửa gì, khi nào).
+
+## 11. Quản trị viên sửa số liệu đã duyệt / đã chốt
+
+Kế toán sửa được số **chưa duyệt** của ca **chưa chốt**. Số đã Duyệt / Từ chối
+hoặc ca đã chốt thì chỉ **quản trị viên** sửa được:
+
+- **Chốt ca, dòng đã Duyệt / Từ chối**: quản trị viên bấm vào số để sửa. Dòng giữ
+  nguyên trạng thái, số AI đọc gốc vẫn được giữ, số đầu của ca sau tự cập nhật.
+- **Ca đã chốt**: quản trị viên bấm **Mở lại ca** → phần bán đã trừ kho được hoàn
+  lại, ca về "chờ duyệt" → sửa → bấm **Chốt ca** lại. Sau đó **xuất lại file
+  MISA** của ca đó.
+- **Công nợ**: ở **Cần duyệt → Công nợ → Đã xử lý** (chọn ngày bán), quản trị viên
+  sửa số / từ chối lượt xe đã duyệt, hoặc duyệt lại lượt đã từ chối. Sổ công nợ
+  của khách tự cập nhật đúng một lần ghi nợ.
+- **Đo bồn** đã duyệt / từ chối: sửa số đo, hầm ngay trên dòng; "So với lần
+  trước" tự tính lại.
+- **Nhập hàng**: mở phiếu → **Sửa phiếu** (ngày, tài xế, xe bồn, số lượng / số
+  lít từng hầm…). Tồn kho tự điều chỉnh theo chênh lệch.
+- **Phát sinh nhập tay** (Hàng tồn → Sổ sách theo ngày): Sửa / Xóa.
+- **Giấy tờ pháp lý**: Sửa / Xóa. **Thông tin trạm**: nút **Sửa thông tin trạm**
+  ở đầu trang trạm (mã, tên, chi nhánh, địa chỉ).
+
+Mọi lần sửa đều ghi nhật ký (ai sửa, số cũ, số mới, lúc nào).

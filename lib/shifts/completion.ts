@@ -3,6 +3,7 @@
 //
 // The refusals are Vietnamese here rather than in the route, in the style of
 // lib/dispensers/rules.ts: when a ca may close is a fact of the rule, not of the screen.
+import { Prisma } from '@/lib/generated/prisma/client'
 import { vi } from '@/messages/vi'
 
 /** A ca's số liệu in the one part chốt weighs: where it stands with the kế toán. */
@@ -28,12 +29,8 @@ export function isApprovedReading(reading: ReviewedReading): boolean {
  * **Số liệu chưa duyệt** is the older refusal and is spoken first: a number nobody has
  * looked at must not be turned into a trừ kho.
  *
- * **No số liệu that counts** is refused because chốt is one-way — no reopen, no huỷ ca —
- * and a ca closed empty deducts nothing from kho while the meter photos that were still
- * coming land in a ca that can never be closed properly. It is reachable when a ca's
- * photos never matched a trụ, and when every số liệu written was từ chối. The way out is
- * the one that already exists: a kế toán types the số liệu in by hand for the trụ no
- * photo arrived for, duyệt, then chốts normally.
+ * **No số liệu that counts** is refused because a chốt without sales posts
+ * nothing to inventory and should not close the review workflow.
  */
 export function refuseShiftCompletion(readings: readonly ReviewedReading[]): string | null {
   if (
@@ -45,4 +42,18 @@ export function refuseShiftCompletion(readings: readonly ReviewedReading[]): str
     return vi.shifts.cannotCompleteNoReadings
   }
   return null
+}
+
+/** Reverse the posted movements, not today's (possibly edited) readings. */
+export function reversedShiftSales(
+  movements: readonly { fuelType: string; quantity: Prisma.Decimal }[]
+): { fuelType: string; liters: Prisma.Decimal }[] {
+  const byFuel = new Map<string, Prisma.Decimal>()
+  for (const movement of movements) {
+    byFuel.set(
+      movement.fuelType,
+      (byFuel.get(movement.fuelType) ?? new Prisma.Decimal(0)).minus(movement.quantity)
+    )
+  }
+  return [...byFuel].map(([fuelType, liters]) => ({ fuelType, liters }))
 }

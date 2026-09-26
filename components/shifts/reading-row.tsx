@@ -30,7 +30,7 @@ import {
   canEditClosing,
   canEditOpening,
   canReviewShift,
-  isReadingDecided,
+  isReadingFrozen,
 } from '@/lib/auth/reading-policy'
 import { formatLiters, formatVND } from '@/lib/format'
 import { CONFIRM_REQUIRED_ANOMALIES } from '@/lib/matching/anomaly-detection'
@@ -247,26 +247,26 @@ export function ReadingRow({
   const canAct = data.readingId !== null
   const alreadyApproved = data.reviewStatus === 'approved' || data.reviewStatus === 'auto_approved'
   const alreadyRejected = data.reviewStatus === 'rejected'
-  // A decided row closes both buttons — the call is made. Only an admin keeps the
-  // opposite action live, as the escape hatch for a mistaken duyệt / từ chối.
+  // An admin can reverse a decision or repair its values; accountant cannot.
   const canReverse = data.role === 'admin'
   const approveDisabled = !canAct || busy || alreadyApproved || (alreadyRejected && !canReverse)
   const rejectDisabled = !canAct || busy || alreadyRejected || (alreadyApproved && !canReverse)
-  // The call has been made, so the values it was made on are frozen — for the
-  // admin too, otherwise a correction would silently un-decide the row (the
-  // correction endpoints re-derive reviewStatus). Tự duyệt is the AI's own pass,
-  // not a human decision, so it leaves the row editable.
-  const decided = isReadingDecided(data.reviewStatus)
-  const adminOpening = canEditOpening(data.role) && !decided
-  const mayEditClosing = canEditClosing(data.role, data.shiftStatus) && !decided
+  const frozen = isReadingFrozen(data.role, data.reviewStatus)
+  const completed = data.shiftStatus === 'completed'
+  const adminOpening = canEditOpening(data.role) && !completed && !frozen
+  const mayEditClosing = canEditClosing(data.role, data.shiftStatus) && !frozen
   // Xả gió follows the closing rule but not the duyệt freeze: duyệt settles how the
   // đồng hồ was read, a purge says what happened at the trạm (docs/adr/0002). A Trụ
   // with no reading row has no meter litres to purge from, so there is nothing to
   // record against yet either.
   const mayEditAirPurge = canEditAirPurge(data.role, data.shiftStatus) && canAct
   const mayReview = canReviewShift(data.role, data.shiftStatus)
-  // A viewer sees plain read-only values with no lock hints; the lock cue is for
-  // a kế toán who edits closings in the same row but is barred from openings.
+  const openingLockHint = completed
+    ? vi.correction.closingLocked
+    : frozen
+      ? vi.correction.decisionLocked
+      : vi.correction.adminOnly
+  // A viewer sees plain values, without controls or lock hints.
   const showLocks = data.role !== 'viewer'
 
   // Duyệt past a confirm-gated anomaly asks first: the same set the endpoint
@@ -374,13 +374,7 @@ export function ReadingRow({
         <EditableReading
           value={data.openingElectronicReading}
           canEdit={adminOpening}
-          lockHint={
-            showLocks
-              ? decided
-                ? vi.correction.decisionLocked
-                : vi.correction.adminOnly
-              : undefined
-          }
+          lockHint={showLocks ? openingLockHint : undefined}
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingElectronicReading', next)}
         />
@@ -391,7 +385,7 @@ export function ReadingRow({
           canEdit={mayEditClosing}
           lockHint={
             showLocks
-              ? decided
+              ? frozen && !completed
                 ? vi.correction.decisionLocked
                 : vi.correction.closingLocked
               : undefined
@@ -422,13 +416,7 @@ export function ReadingRow({
         <EditableReading
           value={data.openingMechanicalReading}
           canEdit={adminOpening}
-          lockHint={
-            showLocks
-              ? decided
-                ? vi.correction.decisionLocked
-                : vi.correction.adminOnly
-              : undefined
-          }
+          lockHint={showLocks ? openingLockHint : undefined}
           busy={busy}
           onSave={(next) => saveField('correct-opening', 'openingMechanicalReading', next)}
         />
@@ -439,7 +427,7 @@ export function ReadingRow({
           canEdit={mayEditClosing}
           lockHint={
             showLocks
-              ? decided
+              ? frozen && !completed
                 ? vi.correction.decisionLocked
                 : vi.correction.closingLocked
               : undefined
@@ -510,10 +498,8 @@ export function ReadingRow({
       </td>
       <td className="p-2 text-right whitespace-nowrap">
         <div className="inline-flex gap-1">
-          {/* Approve / reject follow canReviewShift: admin at any status,
-              accountant until chốt; a viewer never sees them. Once the row is
-              decided both close — an admin alone keeps the opposite one live to
-              reverse the call. */}
+          {/* A completed ca has no review controls; admin must reopen it first.
+              Only admin may reverse an already-decided reading. */}
           {mayReview && (
             <Button
               size="sm"

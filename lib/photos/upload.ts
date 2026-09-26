@@ -110,6 +110,9 @@ function traceFailure(photoId: string, what: string) {
   }
 }
 
+/** A chốt'd ca takes no ảnh chốt ca — also when the printed label moved the photo onto one. */
+export class ShiftClosedError extends Error {}
+
 /** Stores one item and runs it through its section's reader. Returns the new photo ids. */
 export async function ingestUpload(item: UploadItem): Promise<string[]> {
   const { station, timestamp } = item
@@ -133,6 +136,7 @@ export async function ingestUpload(item: UploadItem): Promise<string[]> {
       }
     }
     const shift = await findOrCreateShift(target.id, timestamp)
+    if (shift.status === 'completed') throw new ShiftClosedError()
     const photo = await savePhoto(item, target.code, 'shift', buffer, shift.id)
     await runShiftExtraction(
       photo.id,

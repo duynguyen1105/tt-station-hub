@@ -8,7 +8,7 @@ import {
   canCreateReading,
   canEditClosing,
   canEditOpening,
-  isReadingDecided,
+  isReadingFrozen,
 } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
@@ -30,12 +30,8 @@ const readingSchema = z.object({
  * the correction endpoints to key off. The first value saved creates the row;
  * from then on it is an ordinary reading and the row's own endpoints take over.
  *
- * The gates are per field, so this route can never be looser than the cells it
- * serves: an opening still asks `canEditOpening` (admin only), a closing
- * `canEditClosing`, and conjuring a reading no photo backs asks
- * `canCreateReading`. A row that already exists and has been duyệt/từ chối is
- * closed to every role, exactly as the correction endpoints close it. See
- * docs/adr/0001.
+ * A completed ca is locked for everyone, even when editing an opening or
+ * creating a reading. On a decided row only admin may repair its values.
  */
 export async function POST(
   req: NextRequest,
@@ -54,6 +50,7 @@ export async function POST(
   // The ca's own trạm decides, as it does for every other write on a reading.
   if (!(await canReachStation(user, shift.stationId))) return forbidden()
   const status = shift.status as ShiftStatus
+  if (status === 'completed') return forbidden()
 
   // A Trụ of another trạm — or one since retired — is not addressable through
   // this ca, however the identifier was come by.
@@ -73,7 +70,7 @@ export async function POST(
     where: { shiftId_dispenserId: { shiftId: id, dispenserId } },
   })
   if (!existing && !canCreateReading(user.role, status)) return forbidden()
-  if (existing && isReadingDecided(existing.reviewStatus)) return forbidden()
+  if (existing && isReadingFrozen(user.role, existing.reviewStatus)) return forbidden()
 
   // Upsert rather than create: a photo for this Trụ may land between the lookup
   // above and the write, and the compound unique would otherwise collide.

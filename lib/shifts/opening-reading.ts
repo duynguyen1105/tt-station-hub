@@ -1,10 +1,8 @@
 // Where a ca's chỉ số đầu comes from. The đầu ca of a trụ is the cuối ca the kế toán
 // last duyệt for it on an earlier ngày — whatever that ca sold, even nothing — read
-// straight off the số liệu rather than off `Dispenser.lastElectronicReading`. That
-// cache is written only when a ca is chốt'd, so a ca still chờ duyệt at midnight, or a
-// trụ that sold 0 L, used to leave the next ngày without an đầu (report L1 #9/#10).
-// The cache remains the fallback for a trụ with no duyệt'd history at all (a fresh
-// lắp, a seeded baseline).
+// straight off the số liệu rather than off `Dispenser.lastElectronicReading`.
+// The cache is updated by approval/correction/completion and remains the
+// fallback for a trụ with no approved history (a fresh lắp, a seeded baseline).
 import { type Dispenser, Prisma } from '@/lib/generated/prisma/client'
 import { deriveReviewState } from '@/lib/matching/review-state'
 import { prisma } from '@/lib/prisma'
@@ -83,32 +81,34 @@ export async function openingReadingsFor(
 }
 
 /**
- * Carries a duyệt'd closing forward, after a reading is duyệt'd or a duyệt'd one is
- * corrected: the trụ's cache is refreshed to its latest duyệt'd closing, and every
- * undecided reading of a later ngày has its đầu snapshotted again and its review state
- * re-derived — a `missing_opening` born of a ca that was still chờ duyệt when the next
- * ngày's photos landed, or a `reading_decreased` born of an old number, goes with it.
- * Decided later rows are frozen, as everywhere else.
+ * Carry a changed decision/closing forward in the same transaction as its row.
+ * On rejecting the last approved read, restore the opening that preceded it.
  */
 export async function propagateApprovedClosing(
   dispenser: Pick<Dispenser, 'id' | 'hasElectronicMeter' | 'hasMechanicalMeter'>,
-  shiftId: string
+  shiftId: string,
+  db: Prisma.TransactionClient = prisma,
+  fallback?: OpeningReadings
 ): Promise<void> {
-  const shift = await prisma.shift.findUniqueOrThrow({
+  const shift = await db.shift.findUniqueOrThrow({
     where: { id: shiftId },
     select: { shiftDate: true },
   })
-  const latest = await latestApprovedClosings(dispenser.id, null)
-  if (latest.electronic !== null || latest.mechanical !== null) {
-    await prisma.dispenser.update({
+  const latest = await latestApprovedClosings(dispenser.id, null, db)
+  if (latest.electronic !== null || latest.mechanical !== null || fallback) {
+    await db.dispenser.update({
       where: { id: dispenser.id },
       data: {
-        ...(latest.electronic !== null && { lastElectronicReading: latest.electronic }),
-        ...(latest.mechanical !== null && { lastMechanicalReading: latest.mechanical }),
+        ...(latest.electronic !== null || fallback
+          ? { lastElectronicReading: latest.electronic ?? fallback?.electronic ?? null }
+          : {}),
+        ...(latest.mechanical !== null || fallback
+          ? { lastMechanicalReading: latest.mechanical ?? fallback?.mechanical ?? null }
+          : {}),
       },
     })
   }
-  const later = await prisma.$queryRaw<{ reading_id: string; shift_date: Date }[]>`
+  const later = await db.$queryRaw<{ reading_id: string; shift_date: Date }[]>`
     SELECT r.id AS reading_id, s.shift_date
       FROM shift_readings r JOIN shifts s ON s.id = r.shift_id
      WHERE r.dispenser_id = ${dispenser.id}::uuid
@@ -117,8 +117,8 @@ export async function propagateApprovedClosing(
      ORDER BY s.shift_date ASC
   `
   for (const { reading_id, shift_date } of later) {
-    const row = await prisma.shiftReading.findUniqueOrThrow({ where: { id: reading_id } })
-    const opening = await openingReadingsFor(dispenser.id, shift_date)
+    const row = await db.shiftReading.findUniqueOrThrow({ where: { id: reading_id } })
+    const opening = await openingReadingsFor(dispenser.id, shift_date, db)
     const review = deriveReviewState({
       electronicReading: row.electronicReading == null ? null : Number(row.electronicReading),
       mechanicalReading: row.mechanicalReading == null ? null : Number(row.mechanicalReading),
@@ -131,7 +131,7 @@ export async function propagateApprovedClosing(
       hasElectronicPhoto: row.electronicPhotoId != null,
       hasMechanicalPhoto: row.mechanicalPhotoId != null,
     })
-    await prisma.shiftReading.update({
+    await db.shiftReading.update({
       where: { id: row.id },
       data: {
         openingElectronicReading: opening.electronic,

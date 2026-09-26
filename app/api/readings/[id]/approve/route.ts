@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
-import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
+import { type ShiftStatus, canReviewShift, isReadingDecided } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { CONFIRM_REQUIRED_ANOMALIES, hasMissingOpening } from '@/lib/matching/anomaly-detection'
@@ -30,6 +30,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // The ca's own trạm decides, not the queue the row was reached from.
   if (!(await canReachStation(user, shift.stationId))) return forbidden()
   if (!canReviewShift(user.role, shift.status as ShiftStatus)) return forbidden()
+  if (
+    user.role !== 'admin' &&
+    (isReadingDecided(reading.reviewStatus) || reading.reviewStatus === 'auto_approved')
+  )
+    return forbidden()
 
   // A meter with a closing reading but no opening books zero liters. Hard-block
   // approval until the accountant enters it — the number is on the pump and in
@@ -47,23 +52,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
   }
 
-  const updated = await prisma.shiftReading.update({
-    where: { id },
-    data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date() },
-  })
-  await writeAudit({
-    userId: user.id,
-    action: 'reading.approve',
-    entity: 'shift_reading',
-    entityId: id,
-    metadata: blocking.length > 0 ? { confirmedAnomalies: blocking } : undefined,
-  })
-  // This closing is now what the next ngày opens from: refresh the trụ's cache and
-  // any later ngày whose photos landed while this ca was still chờ duyệt.
-  const dispenser = await prisma.dispenser.findUnique({
-    where: { id: reading.dispenserId },
-    select: { id: true, hasElectronicMeter: true, hasMechanicalMeter: true },
-  })
-  if (dispenser) await propagateApprovedClosing(dispenser, reading.shiftId)
+  const updated = await prisma.$transaction(
+    async (db) => {
+      const approved = await db.shiftReading.update({
+        where: { id },
+        data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date() },
+      })
+      const dispenser = await db.dispenser.findUnique({
+        where: { id: reading.dispenserId },
+        select: { id: true, hasElectronicMeter: true, hasMechanicalMeter: true },
+      })
+      if (dispenser) await propagateApprovedClosing(dispenser, reading.shiftId, db)
+      await writeAudit(
+        {
+          userId: user.id,
+          action: 'reading.approve',
+          entity: 'shift_reading',
+          entityId: id,
+          metadata: {
+            from: reading.reviewStatus,
+            to: approved.reviewStatus,
+            ...(blocking.length > 0 ? { confirmedAnomalies: blocking } : {}),
+          },
+        },
+        db
+      )
+      return approved
+    },
+    { timeout: 15000 }
+  )
   return ok(updated)
 }
