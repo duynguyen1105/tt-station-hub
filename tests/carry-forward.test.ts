@@ -8,7 +8,12 @@ import { LaterShiftCompletedError, propagateApprovedClosing } from '@/lib/shifts
 // 10 lít and day 2 sells them again.
 const dec = (n: number) => new Prisma.Decimal(n)
 
-function dbWith(later: { shiftStatus: string; reviewStatus: string; opening: number }) {
+function dbWith(later: {
+  shiftStatus: string
+  reviewStatus: string
+  opening: number
+  closing?: number
+}) {
   const row = {
     id: 'r2',
     reviewStatus: later.reviewStatus,
@@ -31,7 +36,8 @@ function dbWith(later: { shiftStatus: string; reviewStatus: string; opening: num
     $queryRaw: async (sql: TemplateStringsArray) => {
       const text = sql.join('')
       if (text.includes('FOR UPDATE')) return [{ status: later.shiftStatus }]
-      if (!text.includes('AS reading_id')) return [{ electronic: dec(110), mechanical: dec(500) }]
+      if (!text.includes('AS reading_id'))
+        return [{ electronic: dec(later.closing ?? 110), mechanical: dec(500) }]
       if (
         text.includes('r.review_status IN') &&
         !['pending', 'needs_review'].includes(row.reviewStatus)
@@ -82,14 +88,28 @@ describe('propagateApprovedClosing', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it("counts an đầu stored before rounding as unmoved, so an old chốt'd ca is neither refused nor rewritten", async () => {
-    // Stored as 110.66 before readings were rounded down; its closing now gives 110.
+  it('keeps a fractional đầu that still matches its cuối', async () => {
     const { db, update } = dbWith({
       shiftStatus: 'completed',
       reviewStatus: 'approved',
       opening: 110.66,
+      closing: 110.66,
     })
     await propagateApprovedClosing(dispenser, 's1', db)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it("refuses a fractional cuối moving under a chốt'd ca, even within the same whole litre", async () => {
+    // 110.66 → 110.90: both round down to 110, but the chốt'd ca sold from 110.66.
+    const { db, update } = dbWith({
+      shiftStatus: 'completed',
+      reviewStatus: 'approved',
+      opening: 110.66,
+      closing: 110.9,
+    })
+    await expect(propagateApprovedClosing(dispenser, 's1', db)).rejects.toBeInstanceOf(
+      LaterShiftCompletedError
+    )
     expect(update).not.toHaveBeenCalled()
   })
 })

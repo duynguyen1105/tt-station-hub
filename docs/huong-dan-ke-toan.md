@@ -47,7 +47,7 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 1. AI đọc số đồng hồ từ ảnh được tải lên ở mục **Tải ảnh** và điền sẵn (bản nháp).
    Số đọc từ ảnh chốt ca (điện tử và cơ) được **làm tròn xuống** số nguyên, vd
-   `12345.7` → `12345`; số đầu ca mới lấy từ số cuối ca trước cũng làm tròn xuống.
+   `12345.7` → `12345`; số đầu ca luôn lấy **đúng** số cuối ca trước (kể cả số lẻ cũ), nên không lít nào bị tính trùng.
    Số bạn tự gõ (Sửa số, nhập tay) giữ nguyên như gõ. Ảnh công nợ và đo bồn không
    làm tròn.
 2. Mỗi dòng hiển thị: trụ, số điện tử, số cơ, ảnh, độ tin cậy (%).
