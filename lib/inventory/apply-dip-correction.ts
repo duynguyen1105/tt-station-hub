@@ -10,7 +10,7 @@ import { prisma } from '@/lib/prisma'
  * Anchored at the corrected row's own measuredAt rather than "the latest", because
  * a correction can land on a dip that is no longer the newest.
  *
- * Two shots of the same dip-stick in one Zalo burst share a measuredAt, so
+ * Two shots of the same dip-stick uploaded for one earlier ngày share a measuredAt, so
  * createdAt breaks the tie — and it has to break it the same way on both sides,
  * or the one neighbour would count as both the dip before this one and the dip
  * after it. Strict comparisons on the tie-break also exclude the row itself,

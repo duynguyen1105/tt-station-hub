@@ -497,7 +497,13 @@ export default async function StationInventoryPage({
   const dipPhotos = dipPhotoIds.length
     ? await prisma.shiftPhoto.findMany({
         where: { id: { in: dipPhotoIds } },
-        select: { id: true, storagePath: true, aiConfidence: true },
+        select: {
+          id: true,
+          storagePath: true,
+          aiConfidence: true,
+          senderName: true,
+          senderNote: true,
+        },
       })
     : []
   const dipPhotoPathUrl = await signedUrlsForPaths(dipPhotos.map((p) => p.storagePath))
@@ -510,6 +516,10 @@ export default async function StationInventoryPage({
   // How sure the AI was of this số đo. Read off the photo rather than copied onto
   // the đo hầm row, so there is only ever one number to trust.
   const dipConfidence = new Map(dipPhotos.map((p) => [p.id, p.aiConfidence] as const))
+  // Who uploaded each dip photo, and the message typed with it.
+  const dipPhotoMeta = new Map(
+    dipPhotos.map((p) => [p.id, { sender: p.senderName, note: p.senderNote }] as const)
+  )
 
   // The Hầm and Trụ this Trạm's own pre-printed biên bản lists — resolved here
   // rather than in the form, so the 13 rosters stay out of the browser bundle.
@@ -971,6 +981,10 @@ export default async function StationInventoryPage({
                           delta: dip.deltaFromPrevious?.toString() ?? null,
                           photoUrl: (dip.photoId ? dipPhotoUrl.get(dip.photoId) : null) ?? null,
                           confidence: (dip.photoId ? dipConfidence.get(dip.photoId) : null) ?? null,
+                          sender:
+                            (dip.photoId ? dipPhotoMeta.get(dip.photoId)?.sender : null) ?? null,
+                          senderNote:
+                            (dip.photoId ? dipPhotoMeta.get(dip.photoId)?.note : null) ?? null,
                           originalDipValue: dip.originalDipValue?.toString() ?? null,
                           reviewStatus: dip.reviewStatus,
                           role: user.role,

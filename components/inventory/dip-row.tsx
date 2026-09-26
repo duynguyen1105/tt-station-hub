@@ -30,6 +30,9 @@ export type DipRowData = {
   photoUrl: string | null
   /** The AI's confidence in this dip read, off the ShiftPhoto it came from. */
   confidence: number | null
+  /** Who uploaded the photo, and the message typed with the upload. */
+  sender: string | null
+  senderNote: string | null
   /** What the AI read, once a người duyệt has retyped it; null until then. */
   originalDipValue: string | null
   reviewStatus: string
@@ -99,7 +102,13 @@ export function DipRow({
 
   return (
     <tr className="border-b">
-      <td className="p-2">{data.measuredAt}</td>
+      <td className="p-2">
+        {data.measuredAt}
+        {data.sender && <div className="text-muted-foreground text-xs">{data.sender}</div>}
+        {data.senderNote && (
+          <div className="max-w-48 text-xs whitespace-normal">💬 {data.senderNote}</div>
+        )}
+      </td>
       <td className="p-2 font-medium">
         {/* The hầm is read off the same plate as the số đo and misread the same
             way, so it is repaired in place beside it. */}

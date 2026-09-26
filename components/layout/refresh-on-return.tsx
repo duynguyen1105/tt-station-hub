@@ -31,7 +31,7 @@ export function announceSaved() {
  * - another tab of this browser saved something (`announceSaved`) — at once if this tab
  *   is showing, else as soon as it is shown again;
  * - it comes back after being away longer than AWAY_MS, which is how a change made by
- *   someone else, or by the Zalo ingest, reaches a screen left open.
+ *   someone else, or by a photo upload, reaches a screen left open.
  *
  * `router.refresh()` keeps client state, so a half-typed form survives it.
  */

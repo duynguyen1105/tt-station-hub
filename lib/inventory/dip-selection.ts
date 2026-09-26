@@ -99,8 +99,8 @@ function fuelWhere(
  * is reached. Both ngày bounds are inclusive, any criterion may be left off, and a range
  * running backwards simply matches nothing.
  *
- * Ordered newest-first by `measuredAt`, with `id` breaking the tie: a burst of Zalo photos
- * lands on one instant, and an unordered tie could hide a đo hầm between two pages.
+ * Ordered newest-first by `measuredAt`, with `id` breaking the tie: the photos of one tải bù ngày
+ * land on one instant, and an unordered tie could hide a đo hầm between two pages.
  */
 export function dipSelection(
   params: DipSelectionParams,

@@ -27,7 +27,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // Local demo only (DEMO_MODE=true): act as the seeded admin and skip Supabase
   // auth. Off by default; safe to leave in place for production (gated by env).
   if (process.env.DEMO_MODE === 'true') {
-    const demo = await prisma.profile.findFirst({ where: { role: 'admin', isActive: true } })
+    // DEMO_USER_EMAIL acts as another seeded profile (a kế toán, a người xem) to see what that role sees.
+    const email = process.env.DEMO_USER_EMAIL
+    const demo = await prisma.profile.findFirst({
+      where: email ? { email, isActive: true } : { role: 'admin', isActive: true },
+    })
     if (demo && isAppRole(demo.role)) {
       return { id: demo.id, email: demo.email, fullName: demo.fullName, role: demo.role }
     }

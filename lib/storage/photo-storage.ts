@@ -1,6 +1,15 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const BUCKET = process.env.STORAGE_BUCKET ?? 'station-photos'
+
+// Local testing only: with STORAGE_MOCK=true photos are plain files under
+// public/dev-storage, served by `next dev` at /dev-storage/… — no Supabase project.
+const MOCK_ROOT =
+  process.env.STORAGE_MOCK === 'true' ? join(process.cwd(), 'public', 'dev-storage') : null
+const mockUrl = (path: string) => `/dev-storage/${path}`
 
 /** Uploads a photo to the private bucket and returns its storage path. */
 export async function uploadPhoto(
@@ -8,6 +17,12 @@ export async function uploadPhoto(
   data: Buffer | Uint8Array,
   contentType = 'image/jpeg'
 ): Promise<{ path: string }> {
+  if (MOCK_ROOT) {
+    const file = join(MOCK_ROOT, path)
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(file, data)
+    return { path }
+  }
   const supabase = createAdminClient()
   const { error } = await supabase.storage.from(BUCKET).upload(path, data, {
     contentType,
@@ -19,6 +34,7 @@ export async function uploadPhoto(
 
 /** Reads a stored photo back as bytes — for re-running AI on a photo already parked. */
 export async function downloadPhoto(path: string): Promise<Buffer> {
+  if (MOCK_ROOT) return readFile(join(MOCK_ROOT, path))
   const supabase = createAdminClient()
   const { data, error } = await supabase.storage.from(BUCKET).download(path)
   if (error) throw error
@@ -27,6 +43,7 @@ export async function downloadPhoto(path: string): Promise<Buffer> {
 
 /** Creates a short-lived signed URL to view a stored photo. */
 export async function getSignedUrl(path: string, expiresInSeconds = 3600): Promise<string> {
+  if (MOCK_ROOT) return mockUrl(path)
   const supabase = createAdminClient()
   const { data, error } = await supabase.storage
     .from(BUCKET)
@@ -50,6 +67,7 @@ export async function signedUrlsForPaths(
 ): Promise<Map<string, string>> {
   const unique = [...new Set(paths.filter((p): p is string => !!p))]
   if (!unique.length) return new Map()
+  if (MOCK_ROOT) return new Map(unique.map((p) => [p, mockUrl(p)]))
   const supabase = createAdminClient()
   const { data, error } = await supabase.storage
     .from(BUCKET)

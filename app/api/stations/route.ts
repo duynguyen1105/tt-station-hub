@@ -25,8 +25,6 @@ const createStationSchema = z.object({
   name: z.string().min(1),
   branch: z.string().optional(),
   address: z.string().optional(),
-  zaloGroupId: z.string().optional(),
-  zaloDebtGroupId: z.string().optional(),
   // No kế toán: phụ trách is settled on the Kế toán screen, which is the one
   // write path into the join table and the one place it is audited.
 })

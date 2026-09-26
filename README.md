@@ -1,8 +1,8 @@
 # TT Station Hub — Hồ sơ Trạm (Module 5)
 
 Station management for **Trường Thịnh** (petroleum distributor): AI meter reading
-from Zalo photos, daily shift closing, legal documents, fuel inventory, per-trip
-debt, MISA export, and an all-stations operations overview.
+from photos uploaded on the Tải ảnh page, daily shift closing, legal documents,
+fuel inventory, per-trip debt, MISA export, and an all-stations operations overview.
 
 UI text is Vietnamese; source code is English.
 
@@ -10,7 +10,7 @@ UI text is Vietnamese; source code is English.
 
 Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind v4 · shadcn/ui ·
 TanStack Query · Zustand · react-hook-form + zod · **Prisma 7** · Supabase
-(Postgres / Auth / Storage) · Anthropic Claude (vision) · Zalo OA · pnpm.
+(Postgres / Auth / Storage) · Anthropic Claude (vision) · pnpm.
 
 ## Quick start (local demo — no accounts needed)
 
@@ -34,7 +34,6 @@ pnpm dev                           # http://localhost:3000
 - [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — what's built, external services, blockers, next steps
 - [`docs/huong-dan-ke-toan.md`](docs/huong-dan-ke-toan.md) — accountant guide (Vietnamese)
 - [`docs/huong-dan-nhan-vien-tram.md`](docs/huong-dan-nhan-vien-tram.md) — station-staff guide (Vietnamese)
-- [`docs/huong-dan-zalo-oa.md`](docs/huong-dan-zalo-oa.md) — Zalo OA setup sheet (Vietnamese)
 
 ## Scripts
 

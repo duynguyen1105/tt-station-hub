@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   type LucideIcon,
   Settings,
+  Upload,
   Users,
 } from 'lucide-react'
 
@@ -39,6 +40,7 @@ const NAV_ITEMS: {
   roles?: AppRole[]
 }[] = [
   { href: '/', label: vi.nav.overview, icon: LayoutDashboard },
+  { href: '/upload', label: vi.nav.upload, icon: Upload, roles: ['admin', 'accountant'] },
   { href: '/stations', label: vi.nav.stations, icon: Building2 },
   { href: '/review/shifts', label: vi.nav.review, icon: ClipboardCheck },
   { href: '/reports/misa-export', label: vi.nav.misaReport, icon: FileSpreadsheet },

@@ -4,7 +4,6 @@ import { extractTankDip } from '@/lib/ai/extract-tank-dip'
 import { extractPlate, extractVisitMeter, parseNumericString } from '@/lib/ai/extract-visit'
 import {
   type ExtractMeterResult,
-  type ExtractPlateResult,
   type ExtractTankDipResult,
   type ExtractVisitResult,
   type RouterResult,
@@ -34,9 +33,7 @@ import {
   pickDispenserByFuel,
 } from '@/lib/matching/photo-to-reading'
 import { deriveReviewState } from '@/lib/matching/review-state'
-import { getOrCreateUnknownStation, matchStationByLabel } from '@/lib/matching/station-label'
-import { LONE_PAIR_WINDOW_MS, pickOpenHalf } from '@/lib/matching/visit-pairing'
-import { type PhotoStationSource, resolveVisitStation } from '@/lib/matching/visit-station'
+import { matchStationByLabel } from '@/lib/matching/station-label'
 import { inferFuelTypeFromPrice } from '@/lib/misa-export/build-sales-voucher'
 import { prisma } from '@/lib/prisma'
 import { openingReadingsFor } from '@/lib/shifts/opening-reading'
@@ -83,7 +80,7 @@ export async function findOrCreateShift(stationId: string, timestamp: number) {
   })
   if (existing) return existing
 
-  // When many photos arrive at once each webhook races to create the shift. The
+  // When many photos arrive at once each upload races to create the shift. The
   // (station, date, type) unique constraint guarantees only one create wins; the
   // losers catch the violation (P2002) and read back the shift the winner made.
   try {
@@ -167,7 +164,7 @@ async function assembleShiftReading(
   if (dispenser && slot) {
     // Read-compute-upsert must be atomic: with many photos arriving at once, the
     // electronic and mechanical photo of the SAME dispenser are processed by
-    // parallel webhook invocations writing the same row. A transaction-scoped
+    // parallel uploads writing the same row. A transaction-scoped
     // advisory lock keyed by (shift, dispenser) makes concurrent writers QUEUE
     // behind each other (instead of Serializable's abort-and-retry roulette, which
     // dropped slots under a 12-photo burst). The lock releases at commit/rollback
@@ -478,250 +475,67 @@ function debtReview(
   return { reviewStatus, anomalies }
 }
 
-/**
- * The pairing key, stated once for both assembly branches: this submitter's open
- * half of a fill, still missing the kind of photo that has just arrived, chosen by
- * how close in Zalo time the two photos were sent (pickOpenHalf). Stated once so
- * the two branches can never drift into two different definitions of a pair.
- *
- * The station is deliberately NOT part of the key — the two halves of one fill
- * resolve it independently and can disagree, which is exactly what used to split
- * them. See docs/adr/0001-pair-debt-photos-by-submitter.md.
- *
- * A photo with no identifiable submitter has no key and so pairs with nothing: an
- * absent submitter must never match another absent submitter.
- *
- * One indexed query (idx_visits_submitter). It runs holding the global pairing lock
- * every debt photo queues behind, so a scan here stalls all debt intake, not one visit.
- */
-export async function findOpenHalf(
-  tx: Prisma.TransactionClient,
-  arriving: DebtPhotoType,
-  submittedBy: string | null,
-  at: number
-) {
-  if (!submittedBy) return { visit: null, ambiguous: false }
-  const nearby = await tx.debtVehicleVisit.findMany({
-    where: {
-      submittedBy,
-      visitDate: {
-        gte: new Date(at - LONE_PAIR_WINDOW_MS),
-        lte: new Date(at + LONE_PAIR_WINDOW_MS),
-      },
-    },
-  })
-  return pickOpenHalf(
-    nearby.map((v) => ({
-      ...v,
-      open:
-        arriving === 'debt_meter'
-          ? v.meterPhotoId == null && v.vehiclePhotoId != null
-          : v.vehiclePhotoId == null && v.meterPhotoId != null,
-    })),
-    at
-  )
-}
-
-/**
- * Per-trip debt counterpart to assembleShiftReading: reads the photo (meter ->
- * liters + unit price + computed amount; or vehicle -> plate), then upserts a
- * `debt_vehicle_visit`, pairing a meter photo with a recent vehicle photo (or
- * vice-versa) from the SAME SUBMITTER within a 5-min window (build plan §4.2). A
- * vehicle plate is cross-checked against known customer plates to auto-assign.
- *
- * The pairing key is the submitter, never the station: the two halves of one fill
- * resolve their station independently and can disagree, but they always agree on
- * who sent them. See docs/adr/0001-pair-debt-photos-by-submitter.md.
- */
-export async function assembleDebtVisit(params: {
-  photoId: string
-  station: { id: string }
-  // True when the sender declared the station for this message (its caption or
-  // their still-fresh typed context). A human statement beats the pump's printed
-  // plate — the plate wins only when nothing was declared.
-  stationDeclared: boolean
-  timestamp: number
-  type: DebtPhotoType
-  buffer: Buffer
-  // The pairing key: who handed this photo in, namespaced by intake door
-  // (see lib/matching/submitter.ts). Null when no submitter is identifiable, in
-  // which case the photo opens its own visit rather than joining a stranger's.
-  submittedBy: string | null
-  // Zalo message text sent with the photo — stored on the visit for the reviewer.
-  caption?: string | null
-  // A meter result already extracted upstream (station identification) — reused
-  // here to avoid a second AI pass.
-  precomputedMeter?: ExtractVisitResult
-}): Promise<{
-  visitId: string
-  meter: ExtractVisitResult | null
-  plate: ExtractPlateResult | null
-}> {
-  const { photoId, station, stationDeclared, timestamp, type, buffer, submittedBy } = params
-  const caption = params.caption?.trim() || null
-  const visitDate = new Date(timestamp)
-
-  if (type === 'debt_meter') {
-    const meter = params.precomputedMeter ?? (await extractVisitMeter({ imageBuffer: buffer }))
-    await prisma.shiftPhoto.update({
-      where: { id: photoId },
-      data: {
-        aiProcessedAt: new Date(),
-        meterType: meter.meterType,
-        aiConfidence: debtConfidence(meter),
-        aiRawResponse: meter.raw as Prisma.InputJsonValue,
-      },
-    })
-    // The pump plate often names the STATION too ("ĐAKNONG 1 / TRỤ 1 – DO") — let it
-    // override the sender's station, mirroring shift photos, unless the sender
-    // declared the station for this message: "công nợ daknong1" is a statement
-    // about THIS fill, while the plate is a read that can land on the wrong trạm
-    // (a tank plate "DAKNONG5 HẦM 1" in the frame). The reviewer can still change
-    // the station manually on the review card.
-    let target = station
-    let source: PhotoStationSource = stationDeclared ? 'declared' : 'inherited'
-    if (meter.stationLabel) {
-      const byLabel = await matchStationByLabel(meter.stationLabel)
-      if (byLabel && stationDeclared) {
-        if (byLabel.id !== station.id) {
-          logger.warn(
-            { declared: station.id, label: byLabel.code },
-            'Debt visit pump plate disagrees with the declared station — declaration wins'
-          )
-        }
-      } else if (byLabel) {
-        source = 'pump_plate'
-        if (byLabel.id !== station.id) {
-          logger.info(
-            { from: station.id, to: byLabel.code, label: meter.stationLabel },
-            'Debt visit station label overrides sender station'
-          )
-        }
-        target = { id: byLabel.id }
-      }
-    }
-    // Prefer the fuel word read off the printed pump label ("TRỤ 1 – DO"): it is the
-    // ground truth and, unlike a price, is unaffected by contract/debt pricing. It is
-    // resolved HERE, below the station override, because a mã hàng belongs to the pair
-    // (trạm, nhiên liệu) — reading it against the sender's trạm rather than the one the
-    // plate just moved the photo to would look up the wrong trạm's mã hàng. Pairing can
-    // still move the visit somewhere else again, which is what the second pass below the
-    // transaction is for. Fall back to inferring from the pump price via the station's
-    // fuel area retail prices, and finally to null (the accountant sets it in review).
-    const labelFuel = await resolveStationPlateFuel(target.id, meter.fuelType)
-    // Retail prices are keyed by the station's fuel area (retail zone), not by station.
-    const unitPriceRead = parseNumericString(meter.unitPrice)
-    const litersRead = meter.litersResolved
-    const prices = await loadStationPrices(target.id)
-    const priceFuel =
-      unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null
-    // Guardrails the AI numbers must pass before they can sit quietly in the
-    // queue: physical bounds, an unresolved liters decimal, and the pump price
-    // matching the bảng giá of the station's fuel area. The read price stands
-    // either way — any hit forces needs_review, and the reviewer sees exactly why
-    // on the card, next to the bảng giá price, and decides in Sửa số.
-    const guardAnomalies: string[] = []
-    if (litersRead != null && (litersRead <= 0 || litersRead > LITERS_MAX)) {
-      guardAnomalies.push('liters_implausible')
-    }
-    if (litersRead != null && meter.litersResolution === 'unverified') {
-      guardAnomalies.push('liters_unverified')
-    }
-    if (litersRead != null && meter.litersResolution === 'rescaled') {
-      guardAnomalies.push('liters_rescaled')
-    }
-    if (
-      unitPriceRead != null &&
-      (unitPriceRead < UNIT_PRICE_MIN || unitPriceRead > UNIT_PRICE_MAX)
-    ) {
-      guardAnomalies.push('price_implausible')
-    } else if (priceMismatchOf(prices, labelFuel ?? priceFuel, visitDate, unitPriceRead)) {
-      guardAnomalies.push('price_mismatch')
-    }
-    const { reviewStatus, anomalies } = debtReview(meter, guardAnomalies)
-    const meterData = {
-      litersRead,
-      unitPriceRead,
-      fuelType: labelFuel ?? priceFuel,
-      displayedAmount: parseNumericString(meter.displayedAmount),
-      computedAmount: meter.computedAmount,
-      amountMatchesDisplay: meter.amountMatchesDisplay,
-      meterPhotoId: photoId,
+/** Màn hình trụ half: liters, đơn giá, thành tiền and the guardrails, as visit columns. */
+async function readDebtMeter(photoId: string, buffer: Buffer, stationId: string, visitDate: Date) {
+  const meter = await extractVisitMeter({ imageBuffer: buffer })
+  await prisma.shiftPhoto.update({
+    where: { id: photoId },
+    data: {
+      aiProcessedAt: new Date(),
+      meterType: meter.meterType,
       aiConfidence: debtConfidence(meter),
       aiRawResponse: meter.raw as Prisma.InputJsonValue,
-      anomalyReasons: anomalies,
-      reviewStatus,
-      // Keep an existing caption when this photo carries none.
-      ...(caption ? { zaloCaption: caption } : {}),
-    }
-    // Pair with this submitter's recent vehicle-only visit, else open a new one.
-    // The whole find-or-create runs under a global debt-pairing advisory lock: Zalo
-    // delivers the vehicle and pump photo of ONE fill as parallel webhooks, and
-    // without the lock both sides see "no open visit" and create two visits instead
-    // of one. Debt volume is low, so one global queue is plenty.
-    const unknownStation = await getOrCreateUnknownStation()
-    const visit = await prisma.$transaction(
-      async (tx) => {
-        await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
-        const { visit: open, ambiguous } = await findOpenHalf(
-          tx,
-          'debt_meter',
-          submittedBy,
-          timestamp
-        )
-        return open
-          ? tx.debtVehicleVisit.update({
-              where: { id: open.id },
-              data: {
-                stationId: resolveVisitStation({
-                  visitStationId: open.stationId,
-                  photoStationId: target.id,
-                  photoStationSource: source,
-                  unknownStationId: unknownStation.id,
-                }),
-                ...meterData,
-              },
-            })
-          : tx.debtVehicleVisit.create({
-              data: {
-                stationId: target.id,
-                visitDate,
-                submittedBy,
-                ...meterData,
-                ...(ambiguous
-                  ? {
-                      anomalyReasons: [...anomalies, 'pairing_ambiguous'],
-                      reviewStatus: 'needs_review',
-                    }
-                  : {}),
-              },
-            })
-      },
-      { timeout: 15000 }
-    )
-    // The photo now sits in a lượt xe: it is no longer waiting to be placed, so it
-    // leaves the ca's unmatched list (components/shifts/unmatched-photos.tsx).
-    await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus: 'matched' } })
-    // The pairing lock has the last word on the trạm, and it can disagree with the one
-    // the plate word was just read against: a photo from an unidentified sender arrives
-    // parked on the UNKNOWN trạm, and a label-less one joining an existing visit leaves
-    // that visit's trạm standing (resolveVisitStation). Either way the mã hàng consulted
-    // above were the wrong trạm's, so ask the trạm the visit actually settled on. A word
-    // that trạm cannot place falls back to the price like any unread plate.
-    if (meter.fuelType && visit.stationId !== target.id) {
-      const settledFuel =
-        (await resolveStationPlateFuel(visit.stationId, meter.fuelType)) ?? priceFuel
-      if (settledFuel !== visit.fuelType) {
-        await prisma.debtVehicleVisit.update({
-          where: { id: visit.id },
-          data: { fuelType: settledFuel },
-        })
-      }
-    }
-    return { visitId: visit.id, meter, plate: null }
+    },
+  })
+  // Prefer the fuel word read off the printed pump label ("TRỤ 1 – DO"): it is the
+  // ground truth and, unlike a price, is unaffected by contract/debt pricing. A mã
+  // hàng belongs to the pair (trạm, nhiên liệu), read against the chosen trạm. Fall
+  // back to inferring from the pump price via the station's fuel area retail prices,
+  // and finally to null (the accountant sets it in review).
+  const labelFuel = await resolveStationPlateFuel(stationId, meter.fuelType)
+  // Retail prices are keyed by the station's fuel area (retail zone), not by station.
+  const unitPriceRead = parseNumericString(meter.unitPrice)
+  const litersRead = meter.litersResolved
+  const prices = await loadStationPrices(stationId)
+  const priceFuel =
+    unitPriceRead !== null ? inferFuelTypeFromPrice(unitPriceRead, prices, visitDate) : null
+  // Guardrails the AI numbers must pass before they can sit quietly in the
+  // queue: physical bounds, an unresolved liters decimal, and the pump price
+  // matching the bảng giá of the station's fuel area. The read price stands
+  // either way — any hit forces needs_review, and the reviewer sees exactly why
+  // on the card, next to the bảng giá price, and decides in Sửa số.
+  const guardAnomalies: string[] = []
+  if (litersRead != null && (litersRead <= 0 || litersRead > LITERS_MAX)) {
+    guardAnomalies.push('liters_implausible')
   }
+  if (litersRead != null && meter.litersResolution === 'unverified') {
+    guardAnomalies.push('liters_unverified')
+  }
+  if (litersRead != null && meter.litersResolution === 'rescaled') {
+    guardAnomalies.push('liters_rescaled')
+  }
+  if (unitPriceRead != null && (unitPriceRead < UNIT_PRICE_MIN || unitPriceRead > UNIT_PRICE_MAX)) {
+    guardAnomalies.push('price_implausible')
+  } else if (priceMismatchOf(prices, labelFuel ?? priceFuel, visitDate, unitPriceRead)) {
+    guardAnomalies.push('price_mismatch')
+  }
+  const { reviewStatus, anomalies } = debtReview(meter, guardAnomalies)
+  return {
+    litersRead,
+    unitPriceRead,
+    fuelType: labelFuel ?? priceFuel,
+    displayedAmount: parseNumericString(meter.displayedAmount),
+    computedAmount: meter.computedAmount,
+    amountMatchesDisplay: meter.amountMatchesDisplay,
+    aiConfidence: debtConfidence(meter),
+    aiRawResponse: meter.raw as Prisma.InputJsonValue,
+    anomalyReasons: anomalies,
+    reviewStatus,
+  }
+}
 
-  // Vehicle / plate photo.
+/** Xe half: the plate, matched against the trạm's known customer plates. */
+async function readDebtVehicle(photoId: string, buffer: Buffer, stationId: string) {
   const plate = await extractPlate({ imageBuffer: buffer })
   await prisma.shiftPhoto.update({
     where: { id: photoId },
@@ -737,56 +551,57 @@ export async function assembleDebtVisit(params: {
   let customer: { id: string } | null = null
   if (plate.plate) {
     const candidates = await prisma.debtCustomer.findMany({
-      where: { stationId: station.id, isActive: true },
+      where: { stationId, isActive: true },
       select: { id: true, knownPlates: true },
     })
     customer = candidates.find((c) => plateListContains(c.knownPlates, plate.plate)) ?? null
   }
-  // Same global pairing lock and same key as the meter branch (see the comment
-  // there). A pump photo that landed first is found wherever its plate put it —
-  // including a station this sender has never been registered to.
-  const unknownStation = await getOrCreateUnknownStation()
-  const visit = await prisma.$transaction(
-    async (tx) => {
-      await tx.$queryRaw`SELECT 1 AS ok FROM (SELECT pg_advisory_xact_lock(hashtextextended(${'debt-pairing'}, 0)) AS l) AS t`
-      const { visit: open, ambiguous } = await findOpenHalf(tx, 'vehicle', submittedBy, timestamp)
-      return open
-        ? tx.debtVehicleVisit.update({
-            where: { id: open.id },
-            data: {
-              // A vehicle photo has no pump plate to read a station off: it carries
-              // the sender's declaration when there is one, otherwise only an
-              // inherited guess that never overwrites what the visit concluded.
-              stationId: resolveVisitStation({
-                visitStationId: open.stationId,
-                photoStationId: station.id,
-                photoStationSource: stationDeclared ? 'declared' : 'inherited',
-                unknownStationId: unknownStation.id,
-              }),
-              vehiclePhotoId: photoId,
-              plateRead: plate.plate,
-              customerId: open.customerId ?? customer?.id ?? null,
-              ...(caption ? { zaloCaption: caption } : {}),
-            },
-          })
-        : tx.debtVehicleVisit.create({
-            data: {
-              stationId: station.id,
-              visitDate,
-              submittedBy,
-              vehiclePhotoId: photoId,
-              plateRead: plate.plate,
-              customerId: customer?.id ?? null,
-              reviewStatus: 'needs_review',
-              anomalyReasons: ambiguous ? ['pairing_ambiguous'] : [],
-              zaloCaption: caption,
-            },
-          })
+  return { plateRead: plate.plate, customerId: customer?.id ?? null }
+}
+
+/**
+ * One lượt xe công nợ from the photos the uploader handed in together: the màn hình
+ * trụ, plus the xe unless it was a walk-in/can sale. Nothing here guesses which photos
+ * belong together, so the fill is written once. A half the AI cannot read still joins
+ * the visit — its photo is there for the reviewer, its numbers left for Sửa số.
+ */
+export async function assembleDebtVisit(params: {
+  station: { id: string }
+  timestamp: number
+  meter: { photoId: string; buffer: Buffer }
+  vehicle: { photoId: string; buffer: Buffer } | null
+  note: string | null
+}): Promise<{ visitId: string }> {
+  const { station, meter, vehicle, note } = params
+  const visitDate = new Date(params.timestamp)
+  const [meterRead, vehicleRead] = await Promise.allSettled([
+    readDebtMeter(meter.photoId, meter.buffer, station.id, visitDate),
+    vehicle ? readDebtVehicle(vehicle.photoId, vehicle.buffer, station.id) : null,
+  ])
+  if (meterRead.status === 'rejected') {
+    logger.error({ error: meterRead.reason, photoId: meter.photoId }, 'Debt meter read failed')
+  }
+  if (vehicleRead.status === 'rejected') {
+    logger.error({ error: vehicleRead.reason, photoId: vehicle?.photoId }, 'Debt plate read failed')
+  }
+  const visit = await prisma.debtVehicleVisit.create({
+    data: {
+      stationId: station.id,
+      visitDate,
+      senderNote: note,
+      meterPhotoId: meter.photoId,
+      vehiclePhotoId: vehicle?.photoId ?? null,
+      reviewStatus: 'needs_review',
+      ...(vehicleRead.status === 'fulfilled' && vehicleRead.value ? vehicleRead.value : {}),
+      ...(meterRead.status === 'fulfilled' ? meterRead.value : {}),
     },
-    { timeout: 15000 }
-  )
-  await prisma.shiftPhoto.update({ where: { id: photoId }, data: { matchStatus: 'matched' } })
-  return { visitId: visit.id, meter: null, plate }
+  })
+  // Both photos now sit in a lượt xe, so neither waits in the ca's unmatched list.
+  await prisma.shiftPhoto.updateMany({
+    where: { id: { in: [meter.photoId, ...(vehicle ? [vehicle.photoId] : [])] } },
+    data: { matchStatus: 'matched' },
+  })
+  return { visitId: visit.id }
 }
 
 /** Reads a đo hầm photo and appends a per-hầm dip history record. */
@@ -895,7 +710,7 @@ export async function ingestTankDip(
       // the same as the rule.
       reviewStatus: 'pending',
       photoId,
-      measuredAt: photo.zaloReceivedAt ?? photo.createdAt,
+      measuredAt: photo.receivedAt ?? photo.createdAt,
     },
   })
   return result

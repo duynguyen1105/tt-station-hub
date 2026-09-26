@@ -62,8 +62,6 @@ model Station {
   branch          String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
   fuelArea        FuelArea @default(FUEL_AREA_1) @map("fuel_area") // retail price zone
   address         String?
-  zaloGroupId     String?  @map("zalo_group_id") // shift-photo Zalo group
-  zaloDebtGroupId String?  @map("zalo_debt_group_id") // debt group (if separated)
   // Admin-written requirement shown on the legal-documents tab
   // ("giấy tờ từ 1-10 ..."), so every reviewer sees what must be on file.
   documentsNote   String?  @map("documents_note")
@@ -158,7 +156,7 @@ model Shift {
   createdAt                  DateTime  @default(now()) @map("created_at")
 
   // One shift per station per date per type — lets findOrCreateShift upsert
-  // atomically so a burst of concurrent webhooks can't create duplicate shifts.
+  // atomically so concurrent uploads can't create duplicate shifts.
   @@unique([stationId, shiftDate, shiftType], map: "uq_shifts_station_date_type")
   @@index([stationId, shiftDate(sort: Desc)], map: "idx_shifts_station_date")
   @@map("shifts")
@@ -227,12 +225,10 @@ model ShiftCashEntry {
 model ShiftPhoto {
   id                     String    @id @default(uuid()) @db.Uuid
   shiftId                String?   @map("shift_id") @db.Uuid
-  source                 String // 'zalo' | 'web_upload'
-  zaloMessageId          String?   @map("zalo_message_id")
-  zaloSenderUserId       String?   @map("zalo_sender_user_id")
-  zaloSenderName         String?   @map("zalo_sender_name")
-  zaloGroupId            String?   @map("zalo_group_id")
-  zaloReceivedAt         DateTime? @map("zalo_received_at") // trusted time; do NOT trust watermark
+  source                 String // 'web_upload'; 'zalo' on photos from before the Tải ảnh page
+  senderName             String?   @map("sender_name") // who uploaded it (the Zalo sender on older photos)
+  senderNote             String?   @map("sender_note") // the message typed with the upload
+  receivedAt             DateTime? @map("received_at") // the instant it counts for: upload time, or 23:59:59.999 of a tải bù ngày; never the watermark
   storageUrl             String    @map("storage_url")
   storagePath            String?   @map("storage_path")
   fileSizeBytes          Int?      @map("file_size_bytes")
@@ -248,7 +244,6 @@ model ShiftPhoto {
   matchStatus            String    @default("unmatched") @map("match_status") // 'unmatched'|'matched'|'ambiguous'|'rejected'
   createdAt              DateTime  @default(now()) @map("created_at")
 
-  @@index([zaloGroupId, zaloReceivedAt(sort: Desc)], map: "idx_photos_zalo_group")
   @@map("shift_photos")
 }
 
@@ -322,7 +317,7 @@ model TankDipRecord {
   // A đo hầm is an AI read of a dip-stick photo, so it waits for a người duyệt
   // like every other AI-read number. Only a từ chối read stops counting as the
   // hầm's tồn thực tế — a chờ duyệt one still does, or Tổng quan would go stale
-  // between the Zalo photo and the click. The AI's confidence is NOT copied here:
+  // between the photo and the click. The AI's confidence is NOT copied here:
   // it lives on the ShiftPhoto this row points at, so one copy cannot disagree.
   reviewStatus      String    @default("pending") @map("review_status") // 'pending'|'approved'|'rejected'
   // What the AI read, kept from the first correction that actually moved it — the
@@ -461,10 +456,6 @@ model DebtVehicleVisit {
   customerId           String?   @map("customer_id") @db.Uuid // assigned after identifying customer
   stationId            String    @map("station_id") @db.Uuid
   visitDate            DateTime  @map("visit_date")
-  // Who handed the photos in, namespaced by intake door ("zalo:<id>" / "app:<id>").
-  // This — with visitDate — is what makes two photos one visit; null on rows written
-  // before the submitter key existed and on photos with no identifiable submitter.
-  submittedBy          String?   @map("submitted_by")
   fuelType             String?   @map("fuel_type") // defaulted by price→product inference; editable in review
   // AI reads from the meter photo
   litersRead           Decimal?  @map("liters_read") @db.Decimal(15, 4) // liters read by AI
@@ -484,9 +475,9 @@ model DebtVehicleVisit {
   // Vehicle plate
   plateRead            String?   @map("plate_read") // AI-read plate
   plateConfirmed       String?   @map("plate_confirmed") // accountant-confirmed plate
-  // The Zalo message text sent with the photos (e.g. "công nợ anh Ba can 30L") —
-  // shown to the reviewer so walk-in/can sales can be assigned without opening Zalo.
-  zaloCaption          String?   @map("zalo_caption")
+  // The message typed with the upload (e.g. "anh Ba can 30L") — shown on the review
+  // card so a walk-in/can sale can be assigned to the right khách.
+  senderNote           String?   @map("sender_note")
   // Photos
   vehiclePhotoId       String?   @map("vehicle_photo_id") @db.Uuid
   meterPhotoId         String?   @map("meter_photo_id") @db.Uuid
@@ -501,9 +492,6 @@ model DebtVehicleVisit {
 
   @@index([customerId, visitDate(sort: Desc)], map: "idx_visits_customer")
   @@index([reviewStatus], map: "idx_visits_review")
-  // The pairing lookup runs inside the global debt-pairing advisory lock that every
-  // debt photo queues behind, so it must never degrade into a scan.
-  @@index([submittedBy, visitDate(sort: Desc)], map: "idx_visits_submitter")
   @@map("debt_vehicle_visits")
 }
 
@@ -576,47 +564,4 @@ model AuditLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("audit_logs")
-}
-
-// === ZALO SENDER ALLOWLIST ===
-// Authorized station staff: maps a Zalo OA sender user id to the station whose
-// photos they may submit (build plan §12.3). A 1-1 Zalo photo is only processed
-// when its sender is a registered, active sender here — strangers are ignored.
-model ZaloSender {
-  id          String   @id @default(uuid()) @db.Uuid
-  stationId   String   @map("station_id") @db.Uuid
-  zaloUserId  String   @unique @map("zalo_user_id")
-  displayName String?  @map("display_name")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@index([stationId], map: "idx_zalo_senders_station")
-  @@map("zalo_senders")
-}
-
-/// The latest routing declaration a sender typed in chat ("chốt ca daknong1").
-/// Forwarded photos reach the OA as separate image messages with NO caption,
-/// so the accompanying text message's intent is remembered here and applied to
-/// the photos that follow it (within a sliding window).
-model ZaloSenderContext {
-  zaloUserId String   @id @map("zalo_user_id")
-  stationId  String?  @map("station_id") @db.Uuid
-  kind       String? // 'shift' | 'debt' | 'inventory'
-  declaredAt DateTime @map("declared_at")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@map("zalo_sender_contexts")
-}
-
-/// Zalo OA OAuth tokens (single "default" row). The access token expires ~25h and
-/// is refreshed via the rotating refresh token, so replies keep working unattended.
-model ZaloOaToken {
-  id           String   @id @default("default")
-  oaId         String?  @map("oa_id")
-  accessToken  String   @map("access_token")
-  refreshToken String   @map("refresh_token")
-  expiresAt    DateTime @map("expires_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  @@map("zalo_oa_tokens")
 }

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // TODO: deliver reminders (Zalo OA / email) once channels are configured.
+  // TODO: deliver reminders (email) once channels are configured.
   logger.info({ checked: documents.length, reminders: reminders.length }, 'document-reminders cron')
   return NextResponse.json({ checked: documents.length, reminders })
 }

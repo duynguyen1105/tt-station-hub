@@ -1,7 +1,7 @@
 # CHUẨN DÁN NHÃN TRỤ BƠM & HẦM — áp dụng cho tất cả 13 trạm
 
 > Nhãn in trên trụ là thứ hệ thống AI đọc để tự nhận: **trạm nào → trụ nào → nhiên liệu gì**.
-> Nhãn đúng chuẩn = ảnh gửi Zalo tự vào đúng chỗ, không cần cấu hình gì thêm.
+> Nhãn đúng chuẩn giúp ảnh Chốt ca, Đo bồn tải ở **Tải ảnh** vào đúng trạm; ảnh Chốt ca còn khớp đúng trụ.
 > Chuẩn này đúc kết từ thí nghiệm 185 ảnh thật của 12 trạm (các lỗi nhận diện còn lại
 > hầu hết do nhãn thiếu/không thống nhất).
 
@@ -72,7 +72,7 @@
 3. ☐ Nhiên liệu chỉ dùng 5 mã: DO / E0 / DC / A95 / URE.
 4. ☐ Mỗi hầm có nhãn `HAM <số> - <sức chứa>K` tại điểm đo.
 5. ☐ **Chụp thử từng đồng hồ bằng điện thoại**: nhãn + mặt số lọt cùng khung, chữ đọc rõ.
-6. ☐ Gửi loạt ảnh thử qua Zalo → kiểm tra trên app: ảnh vào đúng trạm, đúng trụ, đủ nhiên liệu.
+6. ☐ Kế toán phụ trách tải loạt ảnh thử ở phần **Chốt ca** của **Tải ảnh** → kiểm tra: ảnh vào đúng trạm, đúng trụ, đủ nhiên liệu.
 
 ## 7. Vì sao chuẩn này khớp hệ thống (cho dev/quản trị)
 

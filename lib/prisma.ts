@@ -16,8 +16,8 @@ const globalForPrisma = globalThis as unknown as {
 /**
  * Connection string for the runtime adapter. On Supabase the Session pooler
  * (port 5432) keeps one backend connection per client for the whole session, so a
- * burst of concurrent serverless invocations — e.g. someone sending 17 Zalo photos
- * at once, each firing its own webhook — quickly hits the 15-connection cap
+ * burst of concurrent serverless invocations — e.g. someone uploading 17 photos
+ * at once, each its own request — quickly hits the 15-connection cap
  * (EMAXCONNSESSION) and takes the whole app down. The Transaction pooler (port 6543)
  * releases the connection after each statement and multiplexes many clients, which is
  * what serverless needs, so we target it at runtime. Migrations (db push / migrate)

@@ -1,8 +1,8 @@
 # TT Station Hub — Hồ sơ Trạm (Module 5)
 
 Full-stack station-management app for **Trường Thịnh** (petroleum distributor): AI
-meter reading from Zalo photos, daily shift closing, legal documents, fuel
-inventory, per-trip debt, MISA export, and an all-stations operations overview.
+meter reading from photos uploaded on the Tải ảnh page, daily shift closing, legal
+documents, fuel inventory, per-trip debt, MISA export, and an all-stations operations overview.
 Source code is in English; user-facing UI text is Vietnamese (`messages/vi.ts`).
 
 ## Stack
@@ -10,7 +10,7 @@ Source code is in English; user-facing UI text is Vietnamese (`messages/vi.ts`).
 Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind v4 ·
 shadcn/ui (radix-vega) · TanStack Query · Zustand · react-hook-form + zod ·
 **Prisma 7** · **Supabase** (Postgres / Auth / Storage) · Anthropic Claude
-(vision) · Zalo OA · pnpm.
+(vision) · pnpm.
 
 ## This is NOT the Next.js you know
 
@@ -29,7 +29,7 @@ template in `.env.example`).
 - `pnpm dev` — dev server on `http://localhost:3000`
 - `pnpm build` / `pnpm start` — production build / serve
 - `pnpm lint` · `pnpm format` · `pnpm type-check`
-- `pnpm test` — **Vitest** unit tests for the domain logic (currently 362 passing)
+- `pnpm test` — **Vitest** unit tests for the domain logic
 - `pnpm validate` — type-check + lint
 - `pnpm db:push` · `pnpm db:seed` · `pnpm db:studio` — Prisma
 

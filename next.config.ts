@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     //
     // Writes stay correct: router.refresh() (called after every mutation here)
     // bumps a *global* cache version, invalidating every route rather than just
-    // the current one. Only changes made elsewhere — another user, or the Zalo
+    // the current one. Only changes made elsewhere — another user, or a
     // photo ingest — can be up to 30s stale.
     //
     // Only observable in a production build: prefetching is disabled in `next dev`

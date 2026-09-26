@@ -3,8 +3,8 @@
 How to run TT Station Hub on your machine. There are two ways to run it:
 
 - **Demo mode (fastest)** — a local Postgres + a dev-only auth bypass + mocked
-  AI/Zalo. **No external accounts needed.** Best for exploring the UI. ← this guide
-- **Real mode** — a Supabase project + Anthropic API key + Zalo OA. See
+  AI and photo storage. **No external accounts needed.** Best for exploring the UI. ← this guide
+- **Real mode** — a Supabase project + Anthropic API key. See
   [`PROJECT_STATUS.md`](../PROJECT_STATUS.md) §3.
 
 ---
@@ -59,13 +59,13 @@ DIRECT_URL="postgresql://tt:tt@localhost:5432/tt_station_hub"
 
 # Dev-only: auto-login as the seeded admin (skip Supabase). NEVER use in production.
 DEMO_MODE=true
-# Mock external services so no API keys are needed.
+# Mock AI and photo storage so no external API or Storage project is needed.
 AI_MOCK=true
-ZALO_MOCK=true
+STORAGE_MOCK=true
 
 STORAGE_BUCKET=station-photos
 
-# Leave empty in demo mode (DEMO_MODE bypasses Supabase auth/storage).
+# Leave empty in demo mode (DEMO_MODE bypasses auth; STORAGE_MOCK bypasses Storage).
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SECRET_KEY=
@@ -93,11 +93,12 @@ needed. Open `/login` to see the login screen itself.
 
 ## What the flags do
 
-| Flag             | Effect                                                                                 |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| `DEMO_MODE=true` | Skips Supabase auth; acts as the seeded admin (`lib/auth/session.ts`). **Local only.** |
-| `AI_MOCK=true`   | Meter reading returns fixtures from `test-fixtures/` (no Anthropic key).               |
-| `ZALO_MOCK=true` | Zalo webhook logs to console instead of calling Zalo.                                  |
+| Flag                | Effect                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `DEMO_MODE=true`    | Skips Supabase auth; acts as the seeded admin (`lib/auth/session.ts`). **Local only.**                                       |
+| `DEMO_USER_EMAIL`   | With demo mode, acts as a seeded profile such as `vi@truongthinh.local` (kế toán) or `viewer@truongthinh.local` (người xem). |
+| `AI_MOCK=true`      | Meter reading returns fixtures from `test-fixtures/` (no Anthropic key).                                                     |
+| `STORAGE_MOCK=true` | Stores photos in `public/dev-storage/`, served by `next dev` at `/dev-storage/…`.                                            |
 
 ## Handy scripts
 
@@ -111,15 +112,17 @@ pnpm db:push | db:seed
 ## One-off migrations
 
 The project has no migration history — schema changes go through `db:push`, which
-will drop a removed column and its data together. Where a change moves data rather
-than discarding it, a script under `scripts/` does the move first and `db:push` then
-finds nothing left to do. Run it **before** `db:push`, on any database that predates
-the change; each one is idempotent, so it is safe on a database that is already
-migrated (and on a brand-new one, where it has nothing to do).
+can drop removed columns and their data. Where a change moves data rather than
+discarding it, run the script under `scripts/` **before** `db:push` on any database
+that predates the change. These scripts are idempotent, including on a brand-new
+database.
 
 ```bash
 pnpm db:phu-trach     # phụ trách: stations.assigned_accountant_id → station_accountants
 pnpm db:fuel-stamp    # ca readings: stamp the nhiên liệu their trụ pumps
+pnpm exec tsx scripts/rename-zalo-columns.ts
+pnpm exec prisma db push --accept-data-loss
+pnpm db:generate
 ```
 
 ## Running for real (production)
@@ -131,8 +134,8 @@ pnpm db:fuel-stamp    # ca readings: stamp the nhiên liệu their trụ pumps
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and point
    `DATABASE_URL`/`DIRECT_URL` at its **Session pooler** connection string
    (the direct `db.<ref>.supabase.co` host is IPv6-only).
-2. Add `ANTHROPIC_API_KEY` and the Zalo OA keys; set
-   `DEMO_MODE`/`AI_MOCK`/`ZALO_MOCK` to `false`.
+2. Add `ANTHROPIC_API_KEY`; set `DEMO_MODE`/`AI_MOCK`/`STORAGE_MOCK`
+   to `false`.
 3. `pnpm exec prisma db push`, `pnpm exec prisma db seed`, and create the private
    `station-photos` Storage bucket. Full status in `PROJECT_STATUS.md`.
 

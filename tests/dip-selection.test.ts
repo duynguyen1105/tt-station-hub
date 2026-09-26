@@ -47,7 +47,7 @@ describe('dipSelection', () => {
   })
 
   it('orders newest first and breaks the tie on id, so paging can’t drop or repeat a đo hầm', () => {
-    // A burst of Zalo photos lands on one measuredAt; without the tie-break a row could
+    // The photos of one tải bù ngày land on one measuredAt; without the tie-break a row could
     // hide between two pages.
     expect(select({}).orderBy).toEqual([{ measuredAt: 'desc' }, { id: 'asc' }])
   })

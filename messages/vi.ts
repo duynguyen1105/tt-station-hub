@@ -11,6 +11,7 @@ export const vi = {
     overview: 'Trang tổng thể',
     stations: 'Trạm',
     review: 'Cần duyệt',
+    upload: 'Tải ảnh',
     misaReport: 'Báo cáo MISA',
     settings: 'Cài đặt',
     admin: 'Quản trị',
@@ -382,7 +383,7 @@ export const vi = {
     liters_rescaled: 'Số lít chỉ khớp ở thang thập phân khác trạm',
     price_implausible: 'Đơn giá bất thường',
     price_mismatch: 'Đơn giá lệch bảng giá',
-    pairing_ambiguous: 'Không ghép được ảnh xe với ảnh trụ — gửi lại 2 ảnh cùng một tin nhắn',
+    pairing_ambiguous: 'Không ghép được ảnh xe với ảnh trụ',
   },
 
   docStatus: { valid: 'Còn hạn', expiring_soon: 'Sắp hết hạn', expired: 'Hết hạn' },
@@ -582,6 +583,46 @@ export const vi = {
       label_only: 'Chỉ có nhãn',
       not_relevant: 'Không liên quan',
     },
+  },
+
+  upload: {
+    title: 'Tải ảnh',
+    subtitle: 'Ảnh chốt ca, công nợ, đo bồn — AI đọc số rồi chờ duyệt',
+    station: 'Trạm',
+    selectStation: 'Chọn trạm',
+    day: 'Ngày',
+    noStations: 'Bạn chưa phụ trách trạm nào nên chưa tải ảnh được.',
+    pickStation: 'Chọn trạm trước khi gửi.',
+    sections: {
+      shift: {
+        title: 'Chốt ca',
+        hint: 'Ảnh đồng hồ điện tử và đồng hồ cơ của từng trụ. Ảnh có nhãn trạm khác tự vào đúng trạm đó.',
+      },
+      debt: {
+        title: 'Công nợ',
+        hint: 'Mỗi lượt xe 2 ảnh: biển số xe + màn hình trụ. Ảnh 1–2 là lượt 1, ảnh 3–4 là lượt 2… Trong một cặp, thứ tự không quan trọng.',
+      },
+      dip: { title: 'Đo bồn', hint: 'Ảnh que đo / đồng hồ đo của từng hầm.' },
+    },
+    dropHint: 'Kéo thả ảnh vào đây hoặc bấm để chọn — chọn được nhiều ảnh',
+    noteLabel: 'Tin nhắn',
+    notePlaceholder: 'Ghi chú cho lần gửi này (vd: ca tối, anh Tuấn gửi)',
+    singles: 'Không có ảnh xe (khách mang can) — mỗi ảnh là 1 lượt',
+    visit: (n: number) => `Lượt ${n}`,
+    missingHalf: 'Thiếu 1 ảnh',
+    oddPair:
+      'Công nợ cần số ảnh chẵn — mỗi lượt 2 ảnh. Thêm hoặc bỏ 1 ảnh, hoặc đánh dấu "Không có ảnh xe".',
+    swapHint: 'Ghép nhầm? Bấm 1 ảnh rồi bấm ảnh khác để đổi chỗ.',
+    remove: 'Bỏ ảnh',
+    sendPhotos: (n: number) => `Gửi ${n} ảnh`,
+    sendVisits: (n: number) => `Gửi ${n} lượt xe`,
+    sending: (done: number, total: number) => `Đang gửi ${done}/${total}…`,
+    sent: (n: number) => `Đã gửi ${n} ảnh — kết quả AI đọc nằm trong Cần duyệt.`,
+    someFailed: (n: number) => `${n} ảnh chưa gửi được — đã giữ lại, bấm Gửi để thử lại.`,
+    tooMany: (max: number) => `Mỗi phần tối đa ${max} ảnh một lần.`,
+    unreadable: 'Không đọc được ảnh này — hãy chọn ảnh JPG hoặc PNG.',
+    badDay: 'Ngày không hợp lệ — không chọn ngày trong tương lai.',
+    shiftClosed: 'Ca của trạm vào ngày này đã chốt — không nhận thêm ảnh chốt ca.',
   },
 
   review: {

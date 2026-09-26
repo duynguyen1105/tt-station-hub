@@ -56,7 +56,7 @@ export type ReadingRowData = {
   mechanicalConfidence: number | null
   // ALL matched source photos per meter (staff cross-check by shooting the same
   // totalizer twice) — shown next to the readings so the reviewer can compare
-  // every original image without digging through Zalo. The chosen photo is first.
+  // every original image without digging through the uploads. The chosen photo is first.
   electronicPhotos?: ReadingPhoto[]
   mechanicalPhotos?: ReadingPhoto[]
   reviewStatus: string | null

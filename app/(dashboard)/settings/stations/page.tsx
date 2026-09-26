@@ -6,7 +6,7 @@ export default async function SettingsStationsPage() {
   return (
     <PlaceholderPage
       title="Cài đặt — Trạm"
-      note="Quản lý danh sách trạm (thêm/sửa, gán kế toán, nhóm Zalo). API đã sẵn sàng; màn hình quản lý đang được hoàn thiện."
+      note="Quản lý danh sách trạm (thêm/sửa, gán kế toán). API đã sẵn sàng; màn hình quản lý đang được hoàn thiện."
     />
   )
 }

@@ -145,10 +145,12 @@ export default async function ShiftDetailPage({
       // 'ambiguous' — a Trụ the label named twice, or a display no reader has a
       // slot for — is as placeless as 'unmatched': no reading holds the photo.
       where: { shiftId, matchStatus: { in: ['unmatched', 'ambiguous'] } },
-      orderBy: { zaloReceivedAt: 'asc' },
+      orderBy: { receivedAt: 'asc' },
       select: {
         id: true,
-        zaloReceivedAt: true,
+        receivedAt: true,
+        senderName: true,
+        senderNote: true,
         createdAt: true,
         extractedReading: true,
         aiRawResponse: true,
@@ -281,7 +283,9 @@ export default async function ShiftDetailPage({
     return {
       id: p.id,
       url: photoUrlById.get(p.id) ?? null,
-      receivedAt: formatDateTime(p.zaloReceivedAt ?? p.createdAt),
+      receivedAt: formatDateTime(p.receivedAt ?? p.createdAt),
+      sender: p.senderName,
+      senderNote: p.senderNote,
       routerType: trace.routerType,
       reason: trace.reason,
       notes: trace.notes,

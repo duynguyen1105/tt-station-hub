@@ -6,7 +6,6 @@ import { reachableStationIds } from '@/lib/auth/station-guard'
 import { approvedTodaySelection, buildApprovedTodayList } from '@/lib/debts/approved-today'
 import { boardPriceOf } from '@/lib/debts/board-price'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
-import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { vnTime } from '@/lib/format'
 import { loadStationFuels } from '@/lib/fuels/load-catalogue'
 import { shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
@@ -16,9 +15,6 @@ import { vi } from '@/messages/vi'
 
 export default async function ReviewDebtsPage() {
   const user = await requireUser()
-
-  // Lazy rescue of misclassified shift photos stuck as unpaired debt visits.
-  await sweepStrayDebtMeters().catch(() => 0)
 
   // The same boundary the Ca queue draws: a kế toán confirms the lượt xe of the
   // trạm they are phụ trách of, and is offered no other trạm to move one to.
@@ -169,7 +165,7 @@ export default async function ReviewDebtsPage() {
                 stationId: v.stationId,
                 reviewStatus: v.reviewStatus,
                 plate: v.plateConfirmed ?? v.plateRead,
-                zaloCaption: v.zaloCaption,
+                senderNote: v.senderNote,
                 liters: v.litersRead !== null ? v.litersRead.toString() : null,
                 unitPrice: v.unitPriceRead !== null ? v.unitPriceRead.toString() : null,
                 computedAmount: v.computedAmount !== null ? Number(v.computedAmount) : null,

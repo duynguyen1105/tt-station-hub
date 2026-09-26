@@ -45,7 +45,7 @@
 
 Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
-1. AI đọc số đồng hồ từ ảnh nhân viên gửi qua Zalo và điền sẵn (bản nháp).
+1. AI đọc số đồng hồ từ ảnh được tải lên ở mục **Tải ảnh** và điền sẵn (bản nháp).
 2. Mỗi dòng hiển thị: trụ, số điện tử, số cơ, ảnh, độ tin cậy (%).
 3. Việc của kế toán:
    - **Duyệt** nếu số đúng.
@@ -78,8 +78,27 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 ## 8. Tải ảnh (mục **Tải ảnh**)
 
-- Dùng khi ảnh không gửi qua Zalo được. Ô chọn trạm chỉ liệt kê **trạm bạn phụ
-  trách**, và ô chọn trụ chỉ liệt kê trụ của trạm đã chọn.
+1. Nhận ảnh từ nhân viên trạm, mở **Tải ảnh**, chọn **Trạm** bạn phụ trách và
+   **Ngày**. Ngày mặc định là hôm nay; chọn ngày trước đó để **tải bù** (không chọn
+   ngày tương lai).
+2. Chọn phần phù hợp: **Chốt ca** (ảnh đồng hồ từng trụ), **Công nợ** (ảnh từng
+   lượt xe), hoặc **Đo bồn** (ảnh que/đồng hồ đo). Kéo thả ảnh vào phần đó hoặc
+   bấm để chọn nhiều ảnh, tối đa 50 ảnh mỗi phần cho một lần gửi.
+3. Có thể nhập một **Tin nhắn** cho lần gửi (tối đa 500 ký tự). Tên người tải
+   ảnh và tin nhắn hiện cùng ảnh/lượt để người duyệt đối chiếu; với khách mang
+   can, ghi tên khách vào đây.
+4. Với **Công nợ**, xếp 2 ảnh cho mỗi lượt: ảnh 1–2 là lượt 1, ảnh 3–4 là
+   lượt 2… AI tự phân biệt ảnh xe (biển số) và ảnh màn hình trụ trong từng cặp,
+   nên thứ tự hai ảnh trong cặp không quan trọng. Bấm một ảnh rồi bấm ảnh khác
+   để **đổi chỗ**, hoặc bấm **✕** để **bỏ ảnh**. Nếu còn ảnh lẻ, cần thêm/bỏ
+   một ảnh trước khi gửi.
+5. Nếu khách **không có ảnh xe (khách mang can)**, đánh dấu ô đó: mỗi ảnh màn
+   hình trụ là một lượt riêng, không cần ghép cặp; ghi tên khách trong
+   **Tin nhắn**.
+6. Bấm **Gửi** ở phần cần tải. Ảnh **Chốt ca** có nhãn trạm khác sẽ vào đúng
+   trạm ghi trên trụ; kế toán không thể thêm ảnh chốt ca vào ca **đã chốt**
+   (quản trị viên vẫn có thể). Kết quả đọc ảnh chốt ca/công nợ nằm trong
+   **Cần duyệt** để kiểm tra, sửa số và duyệt; ảnh đo bồn nằm ở **Tồn kho**.
 
 ## 9. Xuất MISA (mục **Báo cáo MISA**)
 

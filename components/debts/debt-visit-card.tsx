@@ -63,7 +63,7 @@ export type DebtVisitCardData = {
   stationId: string
   reviewStatus: string
   plate: string | null
-  zaloCaption: string | null
+  senderNote: string | null
   liters: string | null
   unitPrice: string | null
   computedAmount: number | null
@@ -368,11 +368,11 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
           {!stationKnown && <StatusBadge label={vi.debtReview.stationUnknown} tone="danger" />}
         </div>
 
-        {/* Sender note (Zalo caption) — key context for walk-in/can sales. */}
-        {data.zaloCaption && (
+        {/* Sender note — key context for walk-in/can sales. */}
+        {data.senderNote && (
           <div className="border-brass/40 bg-brass/10 rounded-lg border px-3 py-2 text-sm">
             <span className="label-micro block">{vi.debtReview.senderNote}</span>
-            <span className="text-foreground">💬 {data.zaloCaption}</span>
+            <span className="text-foreground">💬 {data.senderNote}</span>
           </div>
         )}
 

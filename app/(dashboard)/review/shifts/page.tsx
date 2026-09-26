@@ -3,7 +3,6 @@ import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row
 import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { reachableShiftIds } from '@/lib/auth/station-guard'
-import { sweepStrayDebtMeters } from '@/lib/debts/stray-sweep'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
@@ -11,10 +10,6 @@ import { vi } from '@/messages/vi'
 
 export default async function ReviewShiftsPage() {
   const user = await requireUser()
-
-  // Lazy rescue of misclassified shift photos stuck as unpaired debt visits —
-  // exactly the moment a reviewer would notice one missing.
-  await sweepStrayDebtMeters().catch(() => 0)
 
   // A kế toán is offered the ca of the trạm they are phụ trách of and no other,
   // so the hundred rows below are a hundred rows of their own work.

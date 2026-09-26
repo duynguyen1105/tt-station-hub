@@ -52,5 +52,5 @@ next-env.d.ts
 /.playwright-mcp
 /.impeccable
 
-# Local Zalo webhook simulation temp images + env-specific domain verifier
-public/zalo-sim-*
+# Local photo storage (STORAGE_MOCK=true)
+public/dev-storage/

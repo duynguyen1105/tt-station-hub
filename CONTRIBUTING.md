@@ -20,8 +20,9 @@ pnpm exec prisma generate
 
 `.env` is **gitignored** (it holds secrets) — it is **not** in the repo. Two ways to fill it:
 
-- **Demo path (fastest, no secrets):** local Postgres + `DEMO_MODE=true` + mock AI/Zalo.
-  Follow [docs/local-development.md](docs/local-development.md). Best for exploring the UI.
+- **Demo path (fastest, no secrets):** local Postgres + `DEMO_MODE=true` + mock AI/storage.
+  Follow [docs/local-development.md](docs/local-development.md); upload photos on Tải ảnh
+  as admin or kế toán to explore the review flow.
 - **Shared project:** to connect to the team's **Supabase / Anthropic**, ask the project
   owner for the `.env` values (Supabase **Session pooler** connection string + the
   publishable/secret keys + `ANTHROPIC_API_KEY`). Use `.env.example` as the shape.
@@ -54,14 +55,14 @@ CI (GitHub Actions) runs the same on every push — keep it green. Add/extend a
 
 ## 7. Where things are
 
-| Doc                                                              | Purpose                                                           |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [README.md](README.md)                                           | Overview + quick start                                            |
-| [docs/architecture.md](docs/architecture.md)                     | How the system fits together + module map                         |
-| [docs/local-development.md](docs/local-development.md)           | Run it locally (demo + real)                                      |
-| [PROJECT_STATUS.md](PROJECT_STATUS.md)                           | What's built / external services / blockers / next                |
-| [CLAUDE.md](CLAUDE.md) + [.claude/standards/](.claude/standards) | Conventions & coding standards                                    |
-| `docs/huong-dan-*.md`                                            | Vietnamese end-user guides (accountant / station staff / Zalo OA) |
+| Doc                                                              | Purpose                                                 |
+| ---------------------------------------------------------------- | ------------------------------------------------------- |
+| [README.md](README.md)                                           | Overview + quick start                                  |
+| [docs/architecture.md](docs/architecture.md)                     | How the system fits together + module map               |
+| [docs/local-development.md](docs/local-development.md)           | Run it locally (demo + real)                            |
+| [PROJECT_STATUS.md](PROJECT_STATUS.md)                           | What's built / external services / blockers / next      |
+| [CLAUDE.md](CLAUDE.md) + [.claude/standards/](.claude/standards) | Conventions & coding standards                          |
+| `docs/huong-dan-*.md`                                            | Vietnamese end-user guides (accountant / station staff) |
 
 ## 8. Conventions in one line
 

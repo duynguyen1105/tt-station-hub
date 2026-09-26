@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 
 /**
  * Service-role Supabase client for server-side work without a user session
- * (Zalo webhook, storage uploads, cron). Bypasses RLS — never expose to the
+ * (storage uploads, user admin, cron). Bypasses RLS — never expose to the
  * browser.
  */
 export function createAdminClient() {

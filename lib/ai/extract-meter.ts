@@ -16,7 +16,7 @@ type ExtractMeterInput = {
   imageBuffer?: Buffer | Uint8Array
   // Identifies which sample fixture to return when AI_MOCK is enabled.
   mockKey?: string
-  // Pre-computed router result — lets the webhook classify once (for routing) and
+  // Pre-computed router result — lets a caller that already classified the photo
   // reuse it here instead of paying for a second router call.
   router?: RouterResult
 }

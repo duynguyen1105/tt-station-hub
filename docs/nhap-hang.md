@@ -20,7 +20,8 @@ nhập lưu cả hai + nhiệt độ đo được.
 
 ## 2. Hướng dẫn sử dụng
 
-> **Lưu ý:** Nhập hàng làm **trực tiếp trên web**, không qua Zalo.
+> **Lưu ý:** Nhập hàng làm trực tiếp trên web ở trang Tồn kho hoặc chi tiết ca;
+> **Tải ảnh** dành cho ảnh Chốt ca, Công nợ và Đo bồn.
 
 ### Tạo phiếu nhập — quy trình biên bản 3 bước (cập nhật 07/08/2026)
 

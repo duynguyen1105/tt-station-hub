@@ -23,6 +23,9 @@ export type UnmatchedPhotoData = {
   url: string | null
   /** Pre-formatted on the server, so the row renders the same time the rest of the page does. */
   receivedAt: string
+  /** Who uploaded it, and the message typed with the upload. */
+  sender: string | null
+  senderNote: string | null
   /** What the router called the frame, when it answered. */
   routerType: RouterResult['image_type'] | null
   reason: UnmatchedReason | null
@@ -130,7 +133,13 @@ function UnmatchedPhotoRow({
           }
         />
       </td>
-      <td className="p-2 whitespace-nowrap">{photo.receivedAt}</td>
+      <td className="p-2 whitespace-nowrap">
+        {photo.receivedAt}
+        {photo.sender && <div className="text-muted-foreground text-xs">{photo.sender}</div>}
+        {photo.senderNote && (
+          <div className="max-w-48 text-xs whitespace-normal">💬 {photo.senderNote}</div>
+        )}
+      </td>
       <td className="space-y-1 p-2">
         <div className="flex flex-wrap items-center gap-1">
           <StatusBadge label={label} tone="muted" />
