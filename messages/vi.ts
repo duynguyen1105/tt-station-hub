@@ -621,6 +621,7 @@ export const vi = {
     someFailed: (n: number) => `${n} ảnh chưa gửi được — đã giữ lại, bấm Gửi để thử lại.`,
     tooMany: (max: number) => `Mỗi phần tối đa ${max} ảnh một lần.`,
     unreadable: 'Không đọc được ảnh này — hãy chọn ảnh JPG hoặc PNG.',
+    tooLarge: 'Ảnh này vẫn quá nặng sau khi nén — hãy chụp lại hoặc chọn ảnh khác.',
     badDay: 'Ngày không hợp lệ — không chọn ngày trong tương lai.',
     shiftClosed: 'Ca của trạm vào ngày này đã chốt — không nhận thêm ảnh chốt ca.',
   },

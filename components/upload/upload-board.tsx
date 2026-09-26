@@ -105,6 +105,8 @@ async function toJpeg(url: string): Promise<Blob> {
   let blob = await encode(QUALITY)
   if (blob && blob.size > SIZE_CAP) blob = await encode(RETRY_QUALITY)
   if (!blob) throw new Error(vi.upload.unreadable)
+  // Two of these make a công nợ pair, so this cap is what keeps a request under 4.5 MB.
+  if (blob.size > SIZE_CAP) throw new Error(vi.upload.tooLarge)
   return blob
 }
 
@@ -210,7 +212,9 @@ function UploadSection({ kind, stationId, day }: { kind: Kind; stationId: string
     )
     setProgress(null)
     if (failed.size) {
-      toast.error(vi.upload.someFailed(failed.size))
+      toast.error(vi.upload.someFailed(failed.size), {
+        description: [...new Set(failed.values())].join(' '),
+      })
     } else {
       setNote('')
       toast.success(vi.upload.sent(sent.length))

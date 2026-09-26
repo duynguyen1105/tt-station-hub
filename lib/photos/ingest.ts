@@ -17,7 +17,7 @@ import { resolveStationPlateFuel } from '@/lib/fuels/load-catalogue'
 import { Prisma } from '@/lib/generated/prisma/client'
 import { parseVnNumber } from '@/lib/imports/bien-ban'
 import { countableDipWhere } from '@/lib/inventory/dip-review'
-import { compareDipToPrevious } from '@/lib/inventory/tank-dip-rule'
+import { planDipRewire } from '@/lib/inventory/tank-dip-rule'
 import { tankFuelFrom } from '@/lib/inventory/tank-fuel'
 import { logger } from '@/lib/logger'
 import { ANOMALY_REASONS, DEFAULT_ANOMALY_CONFIG } from '@/lib/matching/anomaly-detection'
@@ -637,8 +637,17 @@ export async function ingestTankDip(
   }
   const tankNumber = result.tankNumber ?? result.tankLabel?.match(/(\d+)/)?.[1] ?? null
   const tankCode = target && tankNumber ? tankCodeFor(Number.parseInt(tankNumber, 10)) : null
-  // A rejected dip cannot become the comparison point for "So với lần trước".
-  const [configuredTank, attached, previous] =
+  // The dip counts at its photo's instant — for a tải bù ngày that is before dips
+  // already on file — so its neighbours are found around that instant, not at the
+  // end of the chain. A rejected dip cannot be a neighbour for "So với lần trước".
+  // Existing rows at the same instant were created earlier, so they come before it:
+  // the createdAt tie-break correction uses (lib/inventory/apply-dip-correction.ts).
+  const sent = await prisma.shiftPhoto.findUniqueOrThrow({
+    where: { id: photoId },
+    select: { receivedAt: true, createdAt: true },
+  })
+  const measuredAt = sent.receivedAt ?? sent.createdAt
+  const [configuredTank, attached, previous, next] =
     target && tankCode
       ? await Promise.all([
           prisma.tank.findUnique({
@@ -654,12 +663,15 @@ export async function ingestTankDip(
             include: withTanks,
           }),
           prisma.tankDipRecord.findFirst({
-            where: { ...countableDipWhere(target.id), tankCode },
-            // Tie-break the same way as correction of this chain.
+            where: { ...countableDipWhere(target.id), tankCode, measuredAt: { lte: measuredAt } },
             orderBy: [{ measuredAt: 'desc' }, { createdAt: 'desc' }],
           }),
+          prisma.tankDipRecord.findFirst({
+            where: { ...countableDipWhere(target.id), tankCode, measuredAt: { gt: measuredAt } },
+            orderBy: [{ measuredAt: 'asc' }, { createdAt: 'asc' }],
+          }),
         ])
-      : [null, [], null]
+      : [null, [], null, null]
   // Cấu hình's hầm is authoritative even when the plate word is misread as a
   // different known fuel. Otherwise the plate, linked trụ, then older dip answer.
   const plateFuel = target ? await resolveStationPlateFuel(target.id, result.fuelType) : null
@@ -675,7 +687,7 @@ export async function ingestTankDip(
       'Tank dip fuel word unresolved — filled from the hầm'
     )
   }
-  const photo = await prisma.shiftPhoto.update({
+  await prisma.shiftPhoto.update({
     where: { id: photoId },
     data: {
       aiProcessedAt: new Date(),
@@ -692,26 +704,32 @@ export async function ingestTankDip(
   const dip = parseVnNumber(result.dipValue)
   if (!target || !tankCode || dip === null) return result
 
-  const comparison = compareDipToPrevious({
-    dipValue: dip,
-    previousDipValue: previous ? Number(previous.dipValue) : null,
-  })
+  // Inserting between two dips re-derives the later one's "So với lần trước" too.
+  const reduce = (row: typeof previous) =>
+    row ? { id: row.id, dipValue: Number(row.dipValue) } : null
+  const side = { previous: reduce(previous), next: reduce(next) }
+  const plan = planDipRewire({ self: { dipValue: dip }, from: side, to: side, movedTank: false })
 
-  await prisma.tankDipRecord.create({
-    data: {
-      stationId: target.id,
-      tankCode,
-      fuelType,
-      capacityK: result.capacityK,
-      dipValue: dip,
-      ...comparison,
-      // Every đo hầm waits for a người duyệt, whatever the AI's confidence —
-      // stated here rather than left to the column default so the write site reads
-      // the same as the rule.
-      reviewStatus: 'pending',
-      photoId,
-      measuredAt: photo.receivedAt ?? photo.createdAt,
-    },
-  })
+  await prisma.$transaction([
+    prisma.tankDipRecord.create({
+      data: {
+        stationId: target.id,
+        tankCode,
+        fuelType,
+        capacityK: result.capacityK,
+        dipValue: dip,
+        ...plan.self,
+        // Every đo hầm waits for a người duyệt, whatever the AI's confidence —
+        // stated here rather than left to the column default so the write site reads
+        // the same as the rule.
+        reviewStatus: 'pending',
+        photoId,
+        measuredAt,
+      },
+    }),
+    ...plan.neighbours.map(({ id, ...comparison }) =>
+      prisma.tankDipRecord.update({ where: { id }, data: comparison })
+    ),
+  ])
   return result
 }
