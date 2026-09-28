@@ -70,6 +70,9 @@ export type DebtVisitInput = {
   // check the pair without leaving the shift. Optional: the MISA route omits them.
   vehiclePhotoUrl?: string | null
   meterPhotoUrl?: string | null
+  // What the sổ công nợ charges for it (lib/debts/visit-amount.ts `chargeAmountOf`).
+  // Optional: the MISA route prices credit lines itself.
+  amount?: number | null
 }
 
 /** The customer fields the list needs, keyed by id in `customersById`. */
@@ -87,6 +90,7 @@ export type DebtListRow = {
   liters: number | null
   vehiclePhotoUrl: string | null
   meterPhotoUrl: string | null
+  amount: number | null
 }
 
 /**
@@ -117,6 +121,7 @@ export function buildDebtsList(
         liters: v.litersRead,
         vehiclePhotoUrl: v.vehiclePhotoUrl ?? null,
         meterPhotoUrl: v.meterPhotoUrl ?? null,
+        amount: v.amount ?? null,
       }
     })
 }

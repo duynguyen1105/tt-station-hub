@@ -15,8 +15,9 @@ import {
 } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
+import { chargeAmountOf } from '@/lib/debts/visit-amount'
 import { tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
-import { formatDate, formatDateTime, formatLiters } from '@/lib/format'
+import { formatDate, formatDateTime, formatLiters, formatVND } from '@/lib/format'
 import {
   fuelTypeLabeller,
   loadFuelCatalogue,
@@ -196,6 +197,11 @@ export default async function ShiftDetailPage({
       visitDate: v.visitDate,
       fuelType: v.fuelType,
       litersRead: v.litersRead === null ? null : v.litersRead.toNumber(),
+      amount: chargeAmountOf({
+        litersRead: v.litersRead === null ? null : v.litersRead.toNumber(),
+        unitPriceRead: v.unitPriceRead === null ? null : v.unitPriceRead.toNumber(),
+        amountOverride: v.amountOverride === null ? null : v.amountOverride.toNumber(),
+      }),
       plateRead: v.plateRead,
       plateConfirmed: v.plateConfirmed,
       vehiclePhotoUrl: v.vehiclePhotoId ? (photoUrlById.get(v.vehiclePhotoId) ?? null) : null,
@@ -372,6 +378,18 @@ export default async function ShiftDetailPage({
                 />
               ))}
             </tbody>
+            {/* The ca's Tổng tiền bán: the rows' Tổng tiền, those with no price or litres skipped. */}
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="p-2 text-right" colSpan={8}>
+                  {vi.shifts.sumTotal}
+                </td>
+                <td className="p-2 font-mono whitespace-nowrap">
+                  {formatVND(rows.reduce((sum, r) => sum + (r.totals?.amount ?? 0), 0))}
+                </td>
+                <td colSpan={2}></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -395,6 +413,7 @@ export default async function ShiftDetailPage({
                 <th className="p-2">{vi.shifts.debtCustomer}</th>
                 <th className="p-2">{vi.shifts.debtFuel}</th>
                 <th className="p-2 text-right">{vi.shifts.debtLiters}</th>
+                <th className="p-2 text-right">{vi.shifts.debtAmount}</th>
               </tr>
             </thead>
             <tbody>
@@ -416,9 +435,26 @@ export default async function ShiftDetailPage({
                   <td className="p-2">{row.customerName}</td>
                   <td className="p-2">{row.fuelLabel}</td>
                   <td className="p-2 text-right font-mono">{formatLiters(row.liters)}</td>
+                  <td className="p-2 text-right font-mono whitespace-nowrap">
+                    {row.amount === null ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      formatVND(row.amount)
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="p-2 text-right" colSpan={5}>
+                  {vi.shifts.sumTotal}
+                </td>
+                <td className="p-2 text-right font-mono whitespace-nowrap">
+                  {formatVND(debtRows.reduce((sum, r) => sum + (r.amount ?? 0), 0))}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         )}
       </section>

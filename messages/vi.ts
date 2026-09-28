@@ -553,6 +553,9 @@ export const vi = {
     debtCustomer: 'Khách hàng',
     debtFuel: 'Nhiên liệu',
     debtLiters: 'Số lít',
+    // Số tiền ghi nợ của lượt: thành tiền kế toán gõ nếu có, không thì lít × đơn giá.
+    debtAmount: 'Số tiền',
+    sumTotal: 'Tổng',
     debtPhotos: 'Ảnh',
     // Bảng thu chi kế toán tự nhập cho ca; vẫn sửa được sau khi chốt ca. Dòng Thu có chọn
     // khách hàng là khách trả nợ trong sổ công nợ.
