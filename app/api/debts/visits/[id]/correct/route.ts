@@ -15,12 +15,7 @@ import { canEditDebtVisit, debtVisitDecision } from '@/lib/debts/visit-review'
 import { formatDate } from '@/lib/format'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { Prisma } from '@/lib/generated/prisma/client'
-import {
-  findOrCreateShift,
-  photoDateMismatch,
-  shiftDateFor,
-  shiftTypeFor,
-} from '@/lib/photos/ingest'
+import { photoDateMismatch, shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
 import { uploadTimestamp } from '@/lib/photos/upload'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -221,6 +216,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         })
         if (posted.count !== 1) throw new Error('charge')
       }
+      // A lượt xe moved to another ngày or trạm takes its ảnh to that ca — opened if the
+      // ngày had none yet, as its first upload would — so it lands in a Bán nợ list and a
+      // MISA file. Upsert on the unique key, so a concurrent upload cannot open it twice.
+      if (moveTo !== undefined || data.stationId !== undefined) {
+        const key = {
+          stationId: (data.stationId as string | undefined) ?? visit.stationId,
+          shiftDate: shiftDateFor(visitDate.getTime()),
+          shiftType: shiftTypeFor(),
+        }
+        const target = await db.shift.upsert({
+          where: { stationId_shiftDate_shiftType: key },
+          create: { ...key, status: 'collecting_photos' },
+          update: {},
+          select: { id: true },
+        })
+        await db.shiftPhoto.updateMany({
+          where: {
+            id: { in: [visit.vehiclePhotoId, visit.meterPhotoId].filter((p) => p !== null) },
+          },
+          data: { shiftId: target.id },
+        })
+      }
       return db.debtVehicleVisit.findUniqueOrThrow({ where: { id } })
     })
   } catch (error) {
@@ -230,9 +247,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return badRequest(vi.debtReview.chargeMissing)
     throw error
   }
-  // The ngày it moved to may have had no ca yet: open it, as the ngày's first upload
-  // would, so the lượt xe lands in a Bán nợ list and a MISA file.
-  if (moveTo !== undefined) await findOrCreateShift(updated.stationId, moveTo)
   await writeAudit({
     userId: user.id,
     action: 'debt_visit.correct',
