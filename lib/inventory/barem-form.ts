@@ -102,6 +102,16 @@ export function baremIntakeOf(before: number | null, after: number | null): numb
   return after - before
 }
 
+/**
+ * Chênh lệch in mục (c), while the biên bản is being filled in: what the Hầm measured
+ * it received minus the litres booked — the same "Số lít thực tế − Số lượng nhập hàng"
+ * the Nhập hàng list shows once saved. Null until both are known.
+ */
+export function intakeGapOf(baremIntake: number | null, booked: number | null): number | null {
+  if (baremIntake === null || booked === null) return null
+  return Math.round((baremIntake - booked) * 1000) / 1000
+}
+
 export type DeliveryNoteProduct = { productLabel: string; quantityLiters: number | null }
 
 /**

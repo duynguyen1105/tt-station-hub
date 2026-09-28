@@ -9,6 +9,7 @@ import { type BaremLookup, type BaremRefusal } from '@/lib/inventory/barem'
 import {
   baremIntakeOf,
   deliveryNoteLiters,
+  intakeGapOf,
   resolveTankBarem,
   savedCell,
   shownCell,
@@ -233,5 +234,18 @@ describe('savedCell', () => {
     expect(savedCell('12.400', 12358)).toBe(12400)
     expect(savedCell('12358,5', 12358)).toBe(12358.5)
     expect(savedCell('0', 5205)).toBe(0)
+  })
+})
+
+describe('intakeGapOf', () => {
+  it('is what the Hầm measured it received minus what is booked', () => {
+    // DAKNONG1 25/09: barem 5,060 → 18,927 (13,867 L measured), 13,000 L booked.
+    expect(intakeGapOf(baremIntakeOf(5060, 18927), 13000)).toBe(867)
+    expect(intakeGapOf(12900, 13000)).toBe(-100)
+  })
+
+  it('waits for both figures', () => {
+    expect(intakeGapOf(null, 13000)).toBeNull()
+    expect(intakeGapOf(13867, null)).toBeNull()
   })
 })

@@ -58,6 +58,7 @@ import { type BaremLookup, type BaremLookupResult, type BaremRefusal } from '@/l
 import {
   baremIntakeOf,
   deliveryNoteLiters,
+  intakeGapOf,
   resolveTankBarem,
   savedCell,
   shownCell,
@@ -469,15 +470,18 @@ export function FuelImportForm({
         paperBaremBefore: row.before.paperBaremLiters,
         paperBaremAfter: row.after.paperBaremLiters,
       })
+      // The measured intake, from the SL barem cells as they stand — the same rule
+      // the saved phiếu nhập reads back, so both always show the same figure.
+      const baremIntake = baremIntakeOf(
+        savedCell(row.before.baremLiters, barem.baremBefore),
+        savedCell(row.after.baremLiters, barem.baremAfter)
+      )
       return {
         row,
         barem,
-        // The measured intake, from the SL barem cells as they stand — the same rule
-        // the saved phiếu nhập reads back, so both always show the same figure.
-        baremIntake: baremIntakeOf(
-          savedCell(row.before.baremLiters, barem.baremBefore),
-          savedCell(row.after.baremLiters, barem.baremAfter)
-        ),
+        baremIntake,
+        // Barem-measured minus booked, as the kế toán types the booked litres.
+        intakeGap: intakeGapOf(baremIntake, parseVnNumber(row.importedLiters)),
         deliveryLiters: deliveryNoteLiters(noteProducts, row.fuelType || null, resolveFuel),
         // A height typed but not yet answered — the cells are blank for a moment.
         asking:
@@ -1011,7 +1015,7 @@ export function FuelImportForm({
                       <th className="border-l p-1 text-center" colSpan={4}>
                         {vi.imports.after}
                       </th>
-                      <th className="border-l p-1" colSpan={2}></th>
+                      <th className="border-l p-1" colSpan={3}></th>
                     </tr>
                     <tr className="text-muted-foreground text-left">
                       <th className="w-24 p-1">{vi.inventory.tank}</th>
@@ -1024,12 +1028,15 @@ export function FuelImportForm({
                       <th className="p-1">{vi.imports.bookLiters}</th>
                       <th className="p-1">{vi.imports.baremLiters}</th>
                       <th className="border-l p-1">{vi.imports.importedLiters}</th>
+                      <th className="p-1 text-right" title={vi.imports.measuredDiffHint}>
+                        {vi.imports.measuredDiff}
+                      </th>
                       <th className="p-1">{vi.inventory.fuelType}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {resolvedRows.map(
-                      ({ row: t, barem, baremIntake, deliveryLiters, asking }, i) => {
+                      ({ row: t, barem, baremIntake, intakeGap, deliveryLiters, asking }, i) => {
                         // The Trụ that were running while this Hầm was measured.
                         const taint = t.tankCode ? taints.get(t.tankCode) : undefined
                         const updateSide =
@@ -1144,6 +1151,21 @@ export function FuelImportForm({
                                   </div>
                                 )}
                               </td>
+                              <td
+                                className={`p-1 text-right font-mono whitespace-nowrap ${
+                                  intakeGap === null
+                                    ? 'text-muted-foreground'
+                                    : intakeGap < 0
+                                      ? 'text-destructive font-semibold'
+                                      : intakeGap > 0
+                                        ? 'font-semibold'
+                                        : ''
+                                }`}
+                              >
+                                {intakeGap === null
+                                  ? '—'
+                                  : `${intakeGap > 0 ? '+' : ''}${baremLitersText(intakeGap)}`}
+                              </td>
                               <td className="p-1">
                                 <Select
                                   value={t.fuelType}
@@ -1177,7 +1199,7 @@ export function FuelImportForm({
                               <tr>
                                 <td></td>
                                 <td
-                                  colSpan={10}
+                                  colSpan={11}
                                   className="space-x-3 border-l px-1 pb-1 text-[11px]"
                                 >
                                   {/* No Hầm, so no barem and no phiếu nhập — the row

@@ -198,6 +198,10 @@ tra, hoặc mở lại form.)
   ô Nhập vào sổ để **đối chiếu**, cùng số lượng trên phiếu giao của mặt hàng tương
   ứng ("Phiếu giao …"). Số ghi sổ là số kế toán gõ vào **Nhập vào sổ (lít)** — hầm đo
   7.635 L mà ghi sổ số khác là chuyện có thật (báo cáo L2 của Trường Thịnh).
+- Cột **Chênh lệch** ngay cạnh ô Nhập vào sổ = **Barem − Nhập vào sổ**, tự tính lại khi
+  gõ số: dương (hầm đo được nhiều hơn số ghi sổ) in đậm, **âm tô đỏ**. Ví dụ DAKNONG1
+  25/09: barem 5.060 → 18.927 (13.867 L), ghi sổ 13.000 → **+867**. Đây là cùng con số
+  "Chênh lệch" mà danh sách Nhập hàng hiện sau khi lưu, nay thấy ngay lúc nhập.
 - **Mức hầm không tăng thì không có số Barem tham khảo.** Bằng 0 (hầm không nhận
   hàng) để trống, không báo lỗi. **Giảm** thì hiện số chênh **màu đỏ** — hầm tụt
   trong khi chênh lệch trụ bơm (mục d) bằng 0 là bất thường, phải dừng lại xem.
