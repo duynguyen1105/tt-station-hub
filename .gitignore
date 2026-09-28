@@ -46,11 +46,23 @@ next-env.d.ts
 
 # coding agent
 /.agents
+/.pi
 /.claude/skills
 /issues
+/docs/adr
+/docs/agents
+/.scratch
 /ralph
-/.playwright-mcp
+**/*playwright*/
 /.impeccable
+DESIGN.md
+CLAUDE.local.md
+CONTEXT.md
+CONTEXT-MAP.md
+certificates
+skills-lock.json
+/.claude/worktrees
+.worktreeinclude
 
 # Local photo storage (STORAGE_MOCK=true)
 public/dev-storage/
