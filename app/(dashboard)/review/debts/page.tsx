@@ -283,6 +283,9 @@ export default async function ReviewDebtsPage({
                         formatDate(shiftDateFor(v.visitDate.getTime()))
                       )
                     : null,
+                visitDay: shiftDateFor(v.visitDate.getTime()).toISOString().slice(0, 10),
+                photoDay: v.photoDate ? v.photoDate.toISOString().slice(0, 10) : null,
+                today: todayKey(),
                 aiConfidence: v.aiConfidence,
                 visitTime: vnTime(v.visitDate).format('HH:mm · DD/MM'),
                 vehiclePhotoUrl: v.vehiclePhotoId ? (urlById.get(v.vehiclePhotoId) ?? null) : null,

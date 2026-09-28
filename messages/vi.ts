@@ -1089,6 +1089,11 @@ export const vi = {
     visitDay: 'Ngày bán',
     photoDateMismatch: (photoDay: string, visitDay: string) =>
       `Ngày trên ảnh: ${photoDay} — ghi nhận ngày ${visitDay}`,
+    usePhotoDay: (day: string) => `Dùng ngày trên ảnh (${day})`,
+    visitDayHint:
+      'Đổi ngày bán thì lượt xe chuyển sang ca của ngày đó; nếu đã duyệt, khoản nợ trong sổ công nợ cũng dời theo.',
+    dayShiftClosed: (day: string) =>
+      `Ca ngày ${day} của trạm đã chốt — Mở lại ca đó trước rồi mới đổi ngày bán.`,
     filterDay: 'Xem ngày',
     changedSinceOpen: 'Lượt xe đã thay đổi. Tải lại trang và thử lại.',
     chargeMissing:

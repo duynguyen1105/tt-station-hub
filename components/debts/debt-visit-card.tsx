@@ -86,6 +86,10 @@ export type DebtVisitCardData = {
   autoMatched: boolean
   anomalyReasons: string[]
   photoDateWarning: string | null
+  /** YYYY-MM-DD (GMT+7): the ngày bán, the ngày printed on the ảnh, and today — Sửa số's ô ngày. */
+  visitDay: string
+  photoDay: string | null
+  today: string
   aiConfidence: number | null
   visitTime: string
   vehiclePhotoUrl: string | null
@@ -239,6 +243,7 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
     data.amountOverride !== null ? String(data.amountOverride) : ''
   )
   const [stationId, setStationId] = useState(data.stationId)
+  const [visitDay, setVisitDay] = useState(data.visitDay)
 
   const info = reviewStatusInfo(data.reviewStatus)
   const approved = data.reviewStatus === 'approved'
@@ -342,6 +347,7 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
       amountOverride: draft.amountOverride,
       customerId: customerId ?? null,
       fuelType: fuelType === UNASSIGNED ? null : fuelType,
+      ...(visitDay !== data.visitDay && { visitDay }),
     })
     setAction(null)
     if (res.ok) {
@@ -562,6 +568,30 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
                   <Field>
                     <FieldLabel htmlFor="plate">{vi.debts.plate}</FieldLabel>
                     <Input id="plate" value={plate} onChange={(e) => setPlate(e.target.value)} />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="visitDay">{vi.debtReview.visitDay}</FieldLabel>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        id="visitDay"
+                        type="date"
+                        className="w-auto"
+                        max={data.today}
+                        value={visitDay}
+                        onChange={(e) => setVisitDay(e.target.value)}
+                      />
+                      {data.photoDay && data.photoDay !== visitDay && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setVisitDay(data.photoDay!)}
+                        >
+                          {vi.debtReview.usePhotoDay(data.photoDay.split('-').reverse().join('/'))}
+                        </Button>
+                      )}
+                    </div>
+                    <FieldDescription>{vi.debtReview.visitDayHint}</FieldDescription>
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field>

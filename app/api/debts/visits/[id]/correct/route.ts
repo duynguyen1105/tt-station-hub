@@ -8,12 +8,20 @@ import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { priceMismatchOf } from '@/lib/debts/board-price'
+import { dayKeyOf } from '@/lib/debts/ledger'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { chargeAmountOf, nextAmountFields, refuseAmountOverride } from '@/lib/debts/visit-amount'
 import { canEditDebtVisit, debtVisitDecision } from '@/lib/debts/visit-review'
+import { formatDate } from '@/lib/format'
 import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { Prisma } from '@/lib/generated/prisma/client'
-import { shiftDateFor } from '@/lib/photos/ingest'
+import {
+  findOrCreateShift,
+  photoDateMismatch,
+  shiftDateFor,
+  shiftTypeFor,
+} from '@/lib/photos/ingest'
+import { uploadTimestamp } from '@/lib/photos/upload'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
 
@@ -31,6 +39,12 @@ const correctSchema = z.object({
   // Reviewer can re-assign the visit when the AI could not (or wrongly) determine
   // the station from the pump plate.
   stationId: z.string().uuid().optional(),
+  // The ngày bán (YYYY-MM-DD, GMT+7) when the lượt xe was uploaded on a later ngày than it
+  // sold — the ngày printed on its ảnh. Moves it to that ngày's ca, and its charge with it.
+  visitDay: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -68,6 +82,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const amountRefusal = refuseAmountOverride(amounts)
   if (amountRefusal) return badRequest(amountRefusal)
   const decision = debtVisitDecision(visit.reviewStatus, 'correct')!
+
+  // A new ngày bán is stamped the way Tải ảnh stamps a tải bù (uploadTimestamp): today at
+  // the moment, an earlier ngày at its last instant, a future ngày refused.
+  const moveTo =
+    parsed.data.visitDay !== undefined &&
+    parsed.data.visitDay !== dayKeyOf(shiftDateFor(visit.visitDate.getTime()))
+      ? uploadTimestamp(parsed.data.visitDay, Date.now())
+      : undefined
+  if (moveTo === null) return badRequest(vi.upload.badDay)
+  const visitDate = moveTo === undefined ? visit.visitDate : new Date(moveTo)
+  if (moveTo !== undefined) {
+    // Both ca's Tổng nợ and MISA file change, so neither may be chốt'd.
+    // ponytail: checked before the write, not under the ca lock — a Chốt ca landing in the
+    // same instant could slip past; lockShift both ca if that is ever seen.
+    const closed = await prisma.shift.findFirst({
+      where: {
+        status: 'completed',
+        shiftType: shiftTypeFor(),
+        OR: [
+          { stationId: visit.stationId, shiftDate: shiftDateFor(visit.visitDate.getTime()) },
+          { stationId: parsed.data.stationId ?? visit.stationId, shiftDate: shiftDateFor(moveTo) },
+        ],
+      },
+      select: { shiftDate: true },
+    })
+    if (closed) return badRequest(vi.debtReview.dayShiftClosed(formatDate(closed.shiftDate)))
+  }
   const customerId =
     parsed.data.customerId !== undefined ? parsed.data.customerId : visit.customerId
   const charge = decision.charge === 'update' ? chargeAmountOf(amounts) : null
@@ -89,16 +130,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const priceMismatch = priceMismatchOf(
     await loadStationPrices(parsed.data.stationId ?? visit.stationId),
     parsed.data.fuelType !== undefined ? parsed.data.fuelType : visit.fuelType,
-    visit.visitDate,
+    visitDate,
     amounts.unitPriceRead
   )
   const keptReasons = visit.anomalyReasons.filter(
     (r) =>
       r !== 'price_mismatch' &&
+      // A moved ngày bán is re-checked against the ngày on the ảnh below.
+      (r !== 'photo_date_mismatch' || moveTo === undefined) &&
       // "Lệch số tiền" asks a human to look; a reviewer who has typed the thành tiền, or
       // whose corrected figures now reconcile, has looked.
       (r !== 'amount_mismatch' || (amounts.amountOverride === null && matchesDisplay === false))
   )
+  if (
+    moveTo !== undefined &&
+    visit.photoDate &&
+    photoDateMismatch(dayKeyOf(visit.photoDate), visitDate)
+  ) {
+    keptReasons.push('photo_date_mismatch')
+  }
 
   const data: Prisma.DebtVehicleVisitUpdateInput = {
     reviewStatus: decision.reviewStatus,
@@ -111,6 +161,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     amountOverride: amounts.amountOverride,
     anomalyReasons: priceMismatch ? [...keptReasons, 'price_mismatch'] : keptReasons,
   }
+  if (moveTo !== undefined) data.visitDate = visitDate
   if (amounts.originalLitersRead !== undefined) {
     data.originalLitersRead = amounts.originalLitersRead
   }
@@ -165,7 +216,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           data: {
             amount: charge!,
             customerId: customerId!,
-            txDate: shiftDateFor(visit.visitDate.getTime()),
+            txDate: shiftDateFor(visitDate.getTime()),
           },
         })
         if (posted.count !== 1) throw new Error('charge')
@@ -179,6 +230,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return badRequest(vi.debtReview.chargeMissing)
     throw error
   }
+  // The ngày it moved to may have had no ca yet: open it, as the ngày's first upload
+  // would, so the lượt xe lands in a Bán nợ list and a MISA file.
+  if (moveTo !== undefined) await findOrCreateShift(updated.stationId, moveTo)
   await writeAudit({
     userId: user.id,
     action: 'debt_visit.correct',
@@ -193,6 +247,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         reviewedBy: visit.reviewedBy,
         reviewedAt: visit.reviewedAt?.toISOString() ?? null,
         customerId: visit.customerId,
+        visitDate: visit.visitDate.toISOString(),
         stationId: visit.stationId,
         plateConfirmed: visit.plateConfirmed,
         fuelType: visit.fuelType,
@@ -211,6 +266,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         reviewedBy: updated.reviewedBy,
         reviewedAt: updated.reviewedAt?.toISOString() ?? null,
         customerId: updated.customerId,
+        visitDate: updated.visitDate.toISOString(),
         stationId: updated.stationId,
         plateConfirmed: updated.plateConfirmed,
         fuelType: updated.fuelType,
