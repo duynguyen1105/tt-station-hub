@@ -1083,6 +1083,8 @@ export const vi = {
     empty: 'Không có lượt xe nào chờ duyệt. 🎉',
     pendingView: 'Chờ duyệt',
     decidedView: 'Đã xử lý',
+    stationFilter: 'Lọc theo trạm',
+    allStations: 'Tất cả trạm',
     decidedEmpty: 'Không có lượt xe nào đã xử lý trong ngày này.',
     visitDay: 'Ngày bán',
     photoDateMismatch: (photoDay: string, visitDay: string) =>

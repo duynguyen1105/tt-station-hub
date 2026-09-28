@@ -231,8 +231,8 @@ export default async function ShiftDetailPage({
   const debtEditHref = (row: (typeof debtRows)[number]) =>
     row.visitId && row.reviewStatus && canEditDebtVisit(user.role, row.reviewStatus)
       ? row.reviewStatus === 'approved'
-        ? `/review/debts?view=decided&day=${shift.shiftDate.toISOString().slice(0, 10)}#visit-${row.visitId}`
-        : `/review/debts#visit-${row.visitId}`
+        ? `/review/debts?view=decided&day=${shift.shiftDate.toISOString().slice(0, 10)}&station=${shift.stationId}#visit-${row.visitId}`
+        : `/review/debts?station=${shift.stationId}#visit-${row.visitId}`
       : null
 
   // The giá bán lẻ of this trạm's vùng, every kỳ of it, so each row can be priced by the
@@ -428,7 +428,7 @@ export default async function ShiftDetailPage({
         {pendingDebtVisits > 0 && (
           <p className="text-sm text-amber-700">
             {vi.shifts.pendingDebtsNote(pendingDebtVisits)}{' '}
-            <Link href="/review/debts" className="underline">
+            <Link href={`/review/debts?station=${shift.stationId}`} className="underline">
               {vi.shifts.pendingDebtsLink}
             </Link>
           </p>

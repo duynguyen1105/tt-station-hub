@@ -24,7 +24,7 @@ import { vi } from '@/messages/vi'
 export default async function ReviewDebtsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; day?: string }>
+  searchParams: Promise<{ view?: string; day?: string; station?: string }>
 }) {
   const user = await requireUser()
   const params = await searchParams
@@ -34,25 +34,31 @@ export default async function ReviewDebtsPage({
   // The same boundary the Ca queue draws: a kế toán confirms the lượt xe of the
   // trạm they are phụ trách of, and is offered no other trạm to move one to.
   const stationIds = await reachableStationIds(user)
+  // One trạm at a time, so lượt xe of different trạm are not duyệt'd side by side; a
+  // trạm outside the person's reach is ignored rather than trusted from the URL.
+  const station = params.station && stationIds.includes(params.station) ? params.station : null
+  const queueWhere = {
+    reviewStatus: { in: decided ? ['approved', 'rejected'] : PENDING_VISIT_STATUSES },
+    stationId: { in: stationIds },
+    ...(decided && {
+      visitDate: { gte: readInstantBound(day, 'start'), lte: readInstantBound(day, 'end') },
+    }),
+  }
 
-  const [visits, approved, customers, stations] = await Promise.all([
+  const [visits, approved, customers, stations, countRows] = await Promise.all([
     prisma.debtVehicleVisit.findMany({
-      where: {
-        reviewStatus: {
-          in: decided ? ['approved', 'rejected'] : PENDING_VISIT_STATUSES,
-        },
-        stationId: { in: stationIds },
-        ...(decided && {
-          visitDate: { gte: readInstantBound(day, 'start'), lte: readInstantBound(day, 'end') },
-        }),
-      },
+      where: { ...queueWhere, ...(station && { stationId: station }) },
       orderBy: { visitDate: 'desc' },
       ...(!decided && { take: 100 }),
     }),
     // What left the hàng đợi today, so a duyệt'd lượt xe stops vanishing without
     // trace. Selected by thời điểm duyệt, so yesterday's lượt xe duyệt'd this
     // morning is here — pointing at yesterday's ca.
-    decided ? [] : prisma.debtVehicleVisit.findMany(approvedTodaySelection(stationIds, new Date())),
+    decided
+      ? []
+      : prisma.debtVehicleVisit.findMany(
+          approvedTodaySelection(station ? [station] : stationIds, new Date())
+        ),
     prisma.debtCustomer.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
@@ -63,7 +69,18 @@ export default async function ReviewDebtsPage({
       orderBy: { code: 'asc' },
       select: { id: true, code: true },
     }),
+    // How many lượt xe each trạm has in this view — the counts on the trạm filter.
+    prisma.debtVehicleVisit.groupBy({ by: ['stationId'], where: queueWhere, _count: true }),
   ])
+  const countByStation = new Map(countRows.map((r) => [r.stationId, r._count]))
+  const total = countRows.reduce((sum, r) => sum + r._count, 0)
+  const queueHref = (stationId: string | null) => {
+    const q = new URLSearchParams()
+    if (decided) q.set('view', 'decided')
+    if (decided) q.set('day', day)
+    if (stationId) q.set('station', stationId)
+    return q.size ? `/review/debts?${q}` : '/review/debts'
+  }
 
   // What each trạm on this page sells, so a card's fuel ô chọn offers that trạm's
   // nhiên liệu and no other's. The queue spans several trạm, so this is per trạm rather
@@ -187,6 +204,7 @@ export default async function ReviewDebtsPage({
       {decided && (
         <form className="flex items-end gap-2">
           <input type="hidden" name="view" value="decided" />
+          {station && <input type="hidden" name="station" value={station} />}
           <label className="space-y-1 text-sm">
             <span className="block">{vi.debtReview.visitDay}</span>
             <Input type="date" name="day" defaultValue={day} />
@@ -195,6 +213,31 @@ export default async function ReviewDebtsPage({
             {vi.debtReview.filterDay}
           </Button>
         </form>
+      )}
+      {/* Duyệt one trạm at a time: each chip counts that trạm's lượt xe in this view.
+          A trạm with none is left off unless it is the one chosen. */}
+      {stations.length > 1 && (
+        <nav className="flex flex-wrap gap-2 text-sm" aria-label={vi.debtReview.stationFilter}>
+          {[
+            { id: null, label: vi.debtReview.allStations, count: total },
+            ...stations
+              .filter((s) => countByStation.has(s.id) || s.id === station)
+              .map((s) => ({ id: s.id, label: s.code, count: countByStation.get(s.id) ?? 0 })),
+          ].map((chip) => (
+            <Link
+              key={chip.id ?? 'all'}
+              href={queueHref(chip.id)}
+              aria-current={chip.id === station ? 'page' : undefined}
+              className={
+                chip.id === station
+                  ? 'bg-primary text-primary-foreground rounded-full px-3 py-1 font-medium'
+                  : 'hover:bg-muted rounded-full border px-3 py-1'
+              }
+            >
+              {chip.label} ({chip.count})
+            </Link>
+          ))}
+        </nav>
       )}
 
       {visits.length === 0 ? (
