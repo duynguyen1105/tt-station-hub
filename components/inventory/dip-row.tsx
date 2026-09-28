@@ -6,6 +6,17 @@ import { EditableReading } from '@/components/shared/editable-reading'
 import { type EditableOption, EditableSelect } from '@/components/shared/editable-select'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { useSaveAction } from '@/hooks/use-save-action'
 import { type AppRole } from '@/lib/auth/permissions'
@@ -55,10 +66,11 @@ export function DipRow({
 }) {
   // Which write is in flight, not merely whether one is — the row shows Duyệt and
   // Từ chối side by side, and only the one that was clicked should spin.
-  const [acting, setActing] = useState<'approve' | 'reject' | null>(null)
+  const [acting, setActing] = useState<'approve' | 'reject' | 'delete' | null>(null)
   // `busy` spans the POST *and* the RSC refresh that follows it, so the buttons
   // grey out on the click and stay grey until the decided row arrives.
   const { busy, save } = useSaveAction()
+  const [openDelete, setOpenDelete] = useState(false)
 
   const info = reviewStatusInfo(data.reviewStatus)
   const alreadyApproved = data.reviewStatus === 'approved'
@@ -175,6 +187,50 @@ export function DipRow({
               {vi.common.reject}
             </Button>
           </div>
+        )}
+        {mayCorrect && (
+          <AlertDialog open={openDelete} onOpenChange={setOpenDelete}>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={disabled}
+                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
+              >
+                {vi.inventory.deleteDip}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{vi.inventory.deleteDipTitle}</AlertDialogTitle>
+                <AlertDialogDescription>{vi.inventory.deleteDipBody}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  loading={acting === 'delete'}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setActing('delete')
+                    save(
+                      `/api/inventory/dips/${data.id}`,
+                      { method: 'DELETE', success: vi.inventory.dipDeleted },
+                      {
+                        onSuccess: () => {
+                          setActing(null)
+                          setOpenDelete(false)
+                        },
+                        onError: () => setActing(null),
+                      }
+                    )
+                  }}
+                >
+                  {vi.inventory.deleteDip}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </td>
     </tr>

@@ -20,9 +20,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSaveAction } from '@/hooks/use-save-action'
 import { type AppRole } from '@/lib/auth/permissions'
 import {
   type ShiftStatus,
@@ -120,11 +122,16 @@ function SlotPhotos({
   photos,
   label,
   slots,
+  canDetach,
+  rowBusy,
 }: {
   photos: ReadingPhoto[] | undefined
   label: string
   slots: number
+  canDetach: boolean
+  rowBusy: boolean
 }) {
+  const { busy, save } = useSaveAction()
   if (!photos || photos.length === 0) return null
   return (
     <span
@@ -133,14 +140,43 @@ function SlotPhotos({
       // gap-1 = 0.25rem) so readings align; single-photo columns reserve nothing.
       style={slots > 1 ? { minWidth: `${slots * 3 + (slots - 1) * 0.25}rem` } : undefined}
     >
-      {photos.map((photo, index) => (
+      {photos.map((photo) => (
         <PhotoView
-          key={index}
+          key={photo.id}
           url={photo.url}
           label={
             photo.reading !== null ? `${label} — ${vi.correction.aiRead}: ${photo.reading}` : label
           }
-        />
+        >
+          {canDetach && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" disabled={busy || rowBusy}>
+                  {vi.photoFix.detach}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{vi.photoFix.detachTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>{vi.photoFix.detachBody}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    loading={busy}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      save(`/api/photos/${photo.id}/detach`, { success: vi.photoFix.detached })
+                    }}
+                  >
+                    {vi.photoFix.detach}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </PhotoView>
       ))}
     </span>
   )
@@ -398,6 +434,8 @@ export function ReadingRow({
                 photos={data.electronicPhotos}
                 label={vi.correction.closingElectronicLabel}
                 slots={electronicSlots}
+                canDetach={mayEditClosing}
+                rowBusy={busy}
               />
               {closingBelowOpening(data.openingElectronicReading, data.electronicReading) && (
                 <ClosingBelowOpeningIcon />
@@ -440,6 +478,8 @@ export function ReadingRow({
                 photos={data.mechanicalPhotos}
                 label={vi.correction.closingMechanicalLabel}
                 slots={mechanicalSlots}
+                canDetach={mayEditClosing}
+                rowBusy={busy}
               />
               {closingBelowOpening(data.openingMechanicalReading, data.mechanicalReading) && (
                 <ClosingBelowOpeningIcon />

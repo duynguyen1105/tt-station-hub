@@ -220,9 +220,12 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
   const fuelLabel = useFuelTypeLabel()
   // Which write is in flight, not merely whether one is — Duyệt and Từ chối sit
   // side by side, so only the button that was clicked should spin.
-  const [action, setAction] = useState<'station' | 'approve' | 'reject' | 'correct' | null>(null)
+  const [action, setAction] = useState<
+    'station' | 'approve' | 'reject' | 'correct' | 'delete' | null
+  >(null)
   const busy = action !== null
   const [openReject, setOpenReject] = useState(false)
+  const [openDelete, setOpenDelete] = useState(false)
   const [customerId, setCustomerId] = useState<string | null>(data.customerId)
   // Local so a customer created inline (walk-in) appears + selects immediately.
   const [customers, setCustomers] = useState(data.customers)
@@ -300,6 +303,19 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
       setOpenReject(false)
       router.refresh()
     } else toast.error(vi.errors.generic)
+  }
+
+  async function deleteVisit() {
+    setAction('delete')
+    const res = await fetch(`/api/debts/visits/${data.visitId}`, { method: 'DELETE' }).catch(
+      () => null
+    )
+    setAction(null)
+    if (res?.ok) {
+      setOpenDelete(false)
+      toast.success(vi.debtReview.visitDeleted)
+      router.refresh()
+    } else toast.error((await res?.json().catch(() => null))?.error ?? vi.errors.generic)
   }
 
   // What the boxes currently say, so the dialog can show the tự tính figure and refuse
@@ -665,6 +681,40 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
                 </AlertDialogContent>
               </AlertDialog>
             )}
+            <AlertDialog open={openDelete} onOpenChange={setOpenDelete}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40"
+                >
+                  {vi.debtReview.deleteVisit}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{vi.debtReview.deleteVisitTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {approved
+                      ? vi.debtReview.deleteVisitApprovedBody
+                      : vi.debtReview.deleteVisitBody}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    loading={action === 'delete'}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      void deleteVisit()
+                    }}
+                  >
+                    {vi.debtReview.deleteVisit}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
       </CardContent>

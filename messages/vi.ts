@@ -642,6 +642,21 @@ export const vi = {
     },
   },
 
+  photoFix: {
+    detach: 'Gỡ ảnh khỏi trụ',
+    detachTitle: 'Gỡ ảnh khỏi trụ này?',
+    detachBody:
+      'Nếu ảnh này giữ ô số, ô số sẽ trống và các ảnh kiểm tra cùng đồng hồ chuyển về Ảnh chưa gán trụ. Bạn có thể Gán vào đúng trụ hoặc Xoá ảnh.',
+    detached: 'Đã gỡ ảnh khỏi trụ.',
+    notMatched: 'Ảnh này không còn được gán vào số liệu của trụ.',
+    delete: 'Xoá ảnh',
+    deleteTitle: 'Xoá vĩnh viễn ảnh này?',
+    deleteBody: 'Ảnh và file gốc sẽ bị xoá, không thể khôi phục.',
+    deleted: 'Đã xoá ảnh.',
+    notUnmatched:
+      'Chỉ được xoá ảnh chốt ca chưa gán trụ; ảnh đã dùng trong số liệu, công nợ hoặc đo bồn phải gỡ khỏi bản ghi trước.',
+  },
+
   upload: {
     title: 'Tải ảnh',
     subtitle: 'Ảnh chốt ca, công nợ, đo bồn — AI đọc số rồi chờ duyệt',
@@ -790,6 +805,11 @@ export const vi = {
     status: 'Trạng thái',
     dipApproved: 'Đã duyệt số đo bồn.',
     dipRejected: 'Đã từ chối số đo bồn.',
+    deleteDip: 'Xoá',
+    deleteDipTitle: 'Xoá lần đo bồn này?',
+    deleteDipBody: 'Xoá vĩnh viễn lần đo này và ảnh của nó. Lần đo sau sẽ so với lần đo trước đó.',
+    dipDeleted: 'Đã xoá lần đo bồn.',
+    dipChangedSinceOpen: 'Lần đo đã thay đổi. Tải lại trang và thử lại.',
     // Sub-tabs of the Hàng tồn page — the histories grow daily, so each gets
     // its own tab with pagination instead of one ever-longer page.
     tabOverview: 'Tổng quan',
@@ -1098,6 +1118,13 @@ export const vi = {
     needCustomer: 'Chọn khách hàng trước khi duyệt.',
     rejectConfirmTitle: 'Từ chối lượt xe này?',
     rejectConfirmBody: 'Lượt xe sẽ bị bỏ và không ghi nợ.',
+    deleteVisit: 'Xoá lượt',
+    deleteVisitTitle: 'Xoá lượt xe này?',
+    deleteVisitBody:
+      'Xoá vĩnh viễn lượt xe này và 2 ảnh của nó — dùng khi tải nhầm ảnh. Muốn giữ lại để đối chiếu thì bấm Từ chối.',
+    deleteVisitApprovedBody:
+      'Xoá vĩnh viễn lượt xe này và 2 ảnh của nó. Khoản nợ cũng sẽ bị xoá khỏi sổ công nợ.',
+    visitDeleted: 'Đã xoá lượt xe.',
     senderNote: 'Ghi chú của nhân viên',
     addCustomer: 'Thêm khách mới',
     customerName: 'Tên khách hàng',

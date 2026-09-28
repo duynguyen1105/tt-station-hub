@@ -114,6 +114,19 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
    trị viên phải **Mở lại ca** trước. Kết quả đọc ảnh chốt ca/công nợ nằm trong
    **Cần duyệt** để kiểm tra, sửa số và duyệt; ảnh đo bồn nằm ở **Tồn kho**.
 
+**Tải nhầm ảnh — sửa hoặc xoá:**
+
+| Trường hợp | Cách làm |
+|---|---|
+| AI đọc sai số | Bấm vào số để **Sửa số** (nhập tay — nhanh hơn đọc lại, vì cùng ảnh AI sẽ đọc ra cùng số). |
+| Ảnh chốt ca vào **nhầm trụ** / nhầm đồng hồ | Bấm vào ảnh ở dòng trụ → **Gỡ ảnh khỏi trụ**. Ô số của trụ đó trống lại, ảnh chuyển xuống **Ảnh chưa ghép trụ** → chọn đúng trụ, bấm **Gán vào trụ** (AI đọc lại số). |
+| Ảnh chốt ca **không dùng được** (mờ, ảnh khác) | Gỡ ảnh khỏi trụ (nếu đang nằm ở trụ) → ở **Ảnh chưa ghép trụ** bấm **Xoá ảnh**. Muốn có số thì tải ảnh đúng lên lại hoặc Sửa số. |
+| Lượt công nợ tải nhầm ảnh | Ở thẻ lượt xe bấm **Xoá lượt** (xoá lượt và 2 ảnh), rồi tải lại cặp ảnh đúng. Muốn giữ lại để đối chiếu thì bấm **Từ chối**. |
+| Lần đo bồn tải nhầm | Ở **Tồn kho → Đo bồn** bấm **Xoá** ở dòng đó; lần đo sau tự so với lần đo trước đó. |
+
+Kế toán chỉ gỡ/xoá được mục **chưa duyệt** của ca **chưa chốt**; mục đã duyệt thì
+nhờ quản trị viên (xoá lượt công nợ đã duyệt sẽ bỏ luôn khoản nợ trong sổ công nợ).
+
 ## 9. Xuất MISA (mục **Báo cáo MISA**)
 
 - Chọn ca → bấm **Xuất MISA** → tải file Excel để import vào MISA. Mỗi ca có 3 file:

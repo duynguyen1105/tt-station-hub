@@ -1,5 +1,7 @@
 'use client'
 
+import { type ReactNode } from 'react'
+
 import {
   Dialog,
   DialogContent,
@@ -15,7 +17,15 @@ import {
  * check the original meter photo against the AI-read number without leaving the
  * table. Renders nothing when there is no photo.
  */
-export function PhotoView({ url, label }: { url: string | null; label: string }) {
+export function PhotoView({
+  url,
+  label,
+  children,
+}: {
+  url: string | null
+  label: string
+  children?: ReactNode
+}) {
   if (!url) return null
   return (
     <Dialog>
@@ -33,6 +43,7 @@ export function PhotoView({ url, label }: { url: string | null; label: string })
           <DialogTitle>{label}</DialogTitle>
         </DialogHeader>
         <img src={url} alt={label} className="max-h-[75vh] w-full rounded-lg object-contain" />
+        {children}
       </DialogContent>
     </Dialog>
   )

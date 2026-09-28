@@ -4,6 +4,17 @@ import { useState } from 'react'
 
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -100,6 +111,7 @@ function UnmatchedPhotoRow({
 }) {
   const { busy, save } = useSaveAction()
   const [dispenserId, setDispenserId] = useState<string>('')
+  const [removing, setRemoving] = useState(false)
   // The router's own guess seeds the slot; the reviewer corrects it (report #7:
   // the mechanical window it called something else).
   const [slot, setSlot] = useState<MeterSlot>(
@@ -196,6 +208,36 @@ function UnmatchedPhotoRow({
             >
               {vi.unmatchedPhotos.assign}
             </Button>
+            <AlertDialog open={removing} onOpenChange={setRemoving}>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="destructive" disabled={busy}>
+                  {vi.photoFix.delete}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{vi.photoFix.deleteTitle}</AlertDialogTitle>
+                  <AlertDialogDescription>{vi.photoFix.deleteBody}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{vi.common.cancel}</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    loading={busy}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      save(
+                        `/api/photos/${photo.id}`,
+                        { method: 'DELETE', success: vi.photoFix.deleted },
+                        { onSuccess: () => setRemoving(false) }
+                      )
+                    }}
+                  >
+                    {vi.photoFix.delete}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
       </td>

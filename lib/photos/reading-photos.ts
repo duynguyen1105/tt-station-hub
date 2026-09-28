@@ -10,10 +10,22 @@ export type MatchedPhotoRow = {
 }
 
 export type ReadingPhoto = {
+  id: string
   url: string
   // What the AI read on THIS photo — shown with the image so the reviewer can
   // compare diverging duplicates at a glance.
   reading: string | null
+}
+
+/** Keep detach decisions and review thumbnails on the same slot classification. */
+export function meterSlotForPhoto(
+  reading: { electronicPhotoId: string | null; mechanicalPhotoId: string | null },
+  photo: Pick<MatchedPhotoRow, 'id' | 'meterType'>
+): 'electronic' | 'mechanical' {
+  return photo.id === reading.mechanicalPhotoId ||
+    (photo.id !== reading.electronicPhotoId && photo.meterType === 'mechanical')
+    ? 'mechanical'
+    : 'electronic'
 }
 
 export function readingPhotosForSlots(
@@ -28,10 +40,8 @@ export function readingPhotosForSlots(
     if (photo.matchedReadingId !== reading.id) continue
     const url = urlById.get(photo.id)
     if (!url) continue
-    const isMechanical =
-      photo.id === reading.mechanicalPhotoId ||
-      (photo.id !== reading.electronicPhotoId && photo.meterType === 'mechanical')
-    const entry = { url, reading: photo.extractedReading?.toString() ?? null }
+    const isMechanical = meterSlotForPhoto(reading, photo) === 'mechanical'
+    const entry = { id: photo.id, url, reading: photo.extractedReading?.toString() ?? null }
     // The chosen photo (the one backing the stored number) goes first.
     const chosen = photo.id === reading.electronicPhotoId || photo.id === reading.mechanicalPhotoId
     const target = isMechanical ? mechanical : electronic

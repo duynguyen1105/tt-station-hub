@@ -1,8 +1,11 @@
 import { writeAudit } from '@/lib/auth/audit'
 import { type Prisma, type TankDipRecord } from '@/lib/generated/prisma/client'
-import { countableDipWhere } from '@/lib/inventory/dip-review'
+import { REJECTED_DIP, countableDipWhere } from '@/lib/inventory/dip-review'
 import { type ChainSide, planDipRewire } from '@/lib/inventory/tank-dip-rule'
+import { logger } from '@/lib/logger'
+import { deletePhotoRecords } from '@/lib/photos/delete-records'
 import { prisma } from '@/lib/prisma'
+import { deletePhoto } from '@/lib/storage/photo-storage'
 
 /**
  * The dips either side of a moment within one hầm's chain.
@@ -16,10 +19,14 @@ import { prisma } from '@/lib/prisma'
  * after it. Strict comparisons on the tie-break also exclude the row itself,
  * which is what lets this be asked of the hầm the dip is leaving.
  */
-async function chainAround(dip: TankDipRecord, tankCode: string): Promise<ChainSide> {
+async function chainAround(
+  dip: TankDipRecord,
+  tankCode: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma
+): Promise<ChainSide> {
   const sameTank = { ...countableDipWhere(dip.stationId), tankCode }
   const [previous, next] = await Promise.all([
-    prisma.tankDipRecord.findFirst({
+    db.tankDipRecord.findFirst({
       where: {
         ...sameTank,
         OR: [
@@ -29,7 +36,7 @@ async function chainAround(dip: TankDipRecord, tankCode: string): Promise<ChainS
       },
       orderBy: [{ measuredAt: 'desc' }, { createdAt: 'desc' }],
     }),
-    prisma.tankDipRecord.findFirst({
+    db.tankDipRecord.findFirst({
       where: {
         ...sameTank,
         OR: [
@@ -131,4 +138,57 @@ export async function applyDipCorrection(params: {
     )
     return updated
   })
+}
+
+/** Delete one đo hầm, closing the countable hầm chain across the missing row. */
+export async function applyDipDelete({ dip, userId }: { dip: TankDipRecord; userId: string }) {
+  const paths = await prisma.$transaction(async (db) => {
+    const from = dip.reviewStatus === REJECTED_DIP ? null : await chainAround(dip, dip.tankCode, db)
+    const removed = await db.tankDipRecord.deleteMany({
+      where: {
+        id: dip.id,
+        reviewStatus: dip.reviewStatus,
+        reviewedAt: dip.reviewedAt,
+        dipValue: dip.dipValue,
+        tankCode: dip.tankCode,
+      },
+    })
+    if (removed.count !== 1) throw new Error('stale')
+    if (from) {
+      const { neighbours } = planDipRewire({
+        self: { dipValue: Number(dip.dipValue) },
+        from,
+        to: { previous: null, next: null },
+        movedTank: true,
+      })
+      for (const { id, ...comparison } of neighbours) {
+        await db.tankDipRecord.update({ where: { id }, data: comparison })
+      }
+    }
+    const photoPaths = await deletePhotoRecords(db, dip.photoId ? [dip.photoId] : [])
+    await writeAudit(
+      {
+        userId,
+        action: 'tank_dip.delete',
+        entity: 'tank_dip_record',
+        entityId: dip.id,
+        metadata: {
+          stationId: dip.stationId,
+          tankCode: dip.tankCode,
+          dipValue: dip.dipValue.toString(),
+          reviewStatus: dip.reviewStatus,
+          photoId: dip.photoId,
+        },
+      },
+      db
+    )
+    return photoPaths
+  })
+  for (const path of paths) {
+    try {
+      await deletePhoto(path)
+    } catch (error) {
+      logger.error({ error, path, dipId: dip.id }, 'Tank dip photo removal failed')
+    }
+  }
 }
