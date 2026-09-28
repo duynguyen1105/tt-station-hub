@@ -18,6 +18,7 @@ import {
 import { requireUser } from '@/lib/auth/session'
 import { requireStationAccess } from '@/lib/auth/station-guard'
 import { chargeAmountOf } from '@/lib/debts/visit-amount'
+import { canEditDebtVisit } from '@/lib/debts/visit-review'
 import { tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
 import { formatDate, formatDateTime, formatLiters, formatVND } from '@/lib/format'
 import {
@@ -218,11 +219,21 @@ export default async function ShiftDetailPage({
       plateConfirmed: v.plateConfirmed,
       vehiclePhotoUrl: v.vehiclePhotoId ? (photoUrlById.get(v.vehiclePhotoId) ?? null) : null,
       meterPhotoUrl: v.meterPhotoId ? (photoUrlById.get(v.meterPhotoId) ?? null) : null,
+      visitId: v.id,
+      reviewStatus: v.reviewStatus,
     })),
     customersById,
     // The tên nhiên liệu on each bán nợ row, read from the danh mục for this request.
     await loadFuelCatalogue()
   )
+  // Where a lượt xe of the list is sửa'd: its card on Duyệt công nợ — the đã duyệt ones
+  // under Đã quyết định for the ca's ngày (admin), an đã sửa one still in the hàng chờ.
+  const debtEditHref = (row: (typeof debtRows)[number]) =>
+    row.visitId && row.reviewStatus && canEditDebtVisit(user.role, row.reviewStatus)
+      ? row.reviewStatus === 'approved'
+        ? `/review/debts?view=decided&day=${shift.shiftDate.toISOString().slice(0, 10)}#visit-${row.visitId}`
+        : `/review/debts#visit-${row.visitId}`
+      : null
 
   // The giá bán lẻ of this trạm's vùng, every kỳ of it, so each row can be priced by the
   // one in force on the ca's ngày — a ca opened before a price change still bills at the
@@ -434,6 +445,7 @@ export default async function ShiftDetailPage({
                 <th className="p-2">{vi.shifts.debtFuel}</th>
                 <th className="p-2 text-right">{vi.shifts.debtLiters}</th>
                 <th className="p-2 text-right">{vi.shifts.debtAmount}</th>
+                <th className="p-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -462,6 +474,14 @@ export default async function ShiftDetailPage({
                       formatVND(row.amount)
                     )}
                   </td>
+                  <td className="p-2 text-right">
+                    {debtEditHref(row) && (
+                      // A full load, not <Link>: :target (the card's ring) only follows a real navigation.
+                      <a href={debtEditHref(row)!} className="text-primary underline">
+                        {vi.shifts.debtEdit}
+                      </a>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -473,6 +493,7 @@ export default async function ShiftDetailPage({
                 <td className="p-2 text-right font-mono whitespace-nowrap">
                   {formatVND(debtRows.reduce((sum, r) => sum + (r.amount ?? 0), 0))}
                 </td>
+                <td></td>
               </tr>
             </tfoot>
           </table>

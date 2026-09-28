@@ -584,6 +584,7 @@ export const vi = {
     debtLiters: 'Số lít',
     // Số tiền ghi nợ của lượt: thành tiền kế toán gõ nếu có, không thì lít × đơn giá.
     debtAmount: 'Số tiền',
+    debtEdit: 'Sửa',
     sumTotal: 'Tổng',
     debtPhotos: 'Ảnh',
     // Bảng thu chi kế toán tự nhập cho ca; vẫn sửa được sau khi chốt ca. Dòng Thu có chọn
