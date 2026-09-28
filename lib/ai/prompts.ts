@@ -84,6 +84,7 @@ AMOUNT — the display has limited digit cells: when the amount is large the met
 URE / AdBlue pumps (LungBor LCD keypad panel): the money AND unit-price rows are in THOUSANDS of VND — "480.00" means 480,000 VND and "15.00" means 15,000 đ/L; the liters row is plain liters ("32.00" = 32 L). Convert money and price to actual VND in your answer and say you did in notes.
 
 Also read the printed pump label that is usually near the display, e.g. "ĐAKNONG 1 / TRỤ 1 – DO". Return the station name as station_label ("ĐAKNONG 1"), the pump as dispenser_label ("TRỤ 1"), and the fuel word EXACTLY AS PRINTED as fuel_type ("DO", "DO01", "XA E0", "Xăng RON 95"...). Copy it verbatim — do NOT translate it, expand it, tidy it or convert it into any code you think it stands for; the system looks the printed word up per station. Set any of them to null if not visible or ambiguous.
+Read photo_date only if a date is actually printed in the frame (camera timestamp overlay, pump screen, or receipt). Copy it as DD/MM/YYYY; if no date is visible, return null. Never infer it from the upload time or other context.
 
 Return JSON only:
 {
@@ -94,15 +95,17 @@ Return JSON only:
   "station_label": "ĐAKNONG 1" | null,
   "dispenser_label": "TRỤ 1" | null,
   "fuel_type": "<fuel word exactly as printed on the pump label>" | null,
+  "photo_date": "26/09/2026" | null,
   "confidence": { "liters": 0-100, "unit_price": 0-100, "amount": 0-100 },
   "notes": "describe the liters format you see"
 }
 The system places the liters decimal and computes amount = liters × unit_price itself — your job is faithful digits per row, not arithmetic.`
 
 export const VEHICLE_PROMPT = `Read the license plate of the vehicle in this photo (a truck or car at a fuel station, possibly shot at night with headlight glare). The photo may instead show a fuel container (jerry can / drum) with no plate — in that case return "unclear" (do NOT invent a plate).
+Read photo_date only if a date is actually printed in the frame (camera timestamp overlay, pump screen, or receipt). Copy it as DD/MM/YYYY; if no date is visible, return null. Never guess.
 
 Return JSON only:
-{ "plate": "51B-12345" | "unclear", "confidence": 0-100, "notes": "..." }`
+{ "plate": "51B-12345" | "unclear", "photo_date": "26/09/2026" | null, "confidence": 0-100, "notes": "..." }`
 
 export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
 Read the printed label: the STATION name usually printed on the first line ("DAKNONG1", "PHUCTIEN"...), the tank ("HẦM" + number), the fuel word EXACTLY AS PRINTED ("DO", "DO01", "XA E0", "Xăng RON 95"...) — copy it verbatim, do NOT translate, expand, tidy or convert it into any code you think it stands for, because the system looks the printed word up per station — and the capacity like "25K" (= 25,000 liters → capacity_k = 25).

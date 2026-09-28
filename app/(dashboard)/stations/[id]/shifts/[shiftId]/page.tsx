@@ -1,8 +1,10 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { FuelImportForm } from '@/components/inventory/fuel-import-form'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { CashBalanceCard } from '@/components/shifts/cash-balance-card'
 import { CashEntriesTable } from '@/components/shifts/cash-entries-table'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton, ShiftReopenButton } from '@/components/shifts/shift-complete-button'
@@ -32,12 +34,14 @@ import {
   type DebtCustomerInput,
   buildDebtsList,
   debtVisitSelection,
+  pendingDebtVisitsWhere,
 } from '@/lib/misa-export/debts-list'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { unmatchedPhotoTrace } from '@/lib/photos/unmatched-photos'
 import { prisma } from '@/lib/prisma'
 import { refuseShiftCompletion } from '@/lib/shifts/completion'
 import { hasLateDebtApproval } from '@/lib/shifts/late-debt-approval'
+import { loadCashBalance } from '@/lib/shifts/load-cash-balance'
 import {
   electronicGap,
   mechanicalGap,
@@ -109,6 +113,14 @@ export default async function ShiftDetailPage({
       // Thu chi tiền mặt – Khách CK, the kế toán's note on the ca, in the order typed.
       prisma.shiftCashEntry.findMany({ where: { shiftId }, orderBy: { position: 'asc' } }),
     ])
+  // The ca's ngày's lượt bán nợ still in Duyệt công nợ: Chốt ca waits on them, and the
+  // Bán nợ list below does not hold them yet. Tồn tiền mặt chains from the đầu kỳ.
+  const [pendingDebtVisits, cashBalance] = await Promise.all([
+    prisma.debtVehicleVisit.count({
+      where: pendingDebtVisitsWhere(shift.stationId, shift.shiftDate),
+    }),
+    loadCashBalance({ ...shift, fuelArea: station?.fuelArea ?? null }),
+  ])
   const cashEntries = cashEntryRows.map((e) => ({
     content: e.content,
     customerId: e.customerId,
@@ -274,7 +286,7 @@ export default async function ShiftDetailPage({
   const status = shiftStatusInfo(shift.status)
   // Why Chốt ca is refused, read from the same rule the endpoint applies, so the
   // button never offers a chốt the request would turn away.
-  const completionRefusal = refuseShiftCompletion(readings)
+  const completionRefusal = refuseShiftCompletion(readings, pendingDebtVisits)
   const completed = shift.status === 'completed'
   // A bán nợ duyệt'd after this ca was chốt'd is in the Bán nợ trong ca list below but
   // not in the MISA file already downloaded, so the ca says so where the kế toán reads
@@ -402,6 +414,14 @@ export default async function ShiftDetailPage({
 
       <section className="space-y-2">
         <h3 className="text-base font-semibold">{vi.shifts.debtsSectionTitle}</h3>
+        {pendingDebtVisits > 0 && (
+          <p className="text-sm text-amber-700">
+            {vi.shifts.pendingDebtsNote(pendingDebtVisits)}{' '}
+            <Link href="/review/debts" className="underline">
+              {vi.shifts.pendingDebtsLink}
+            </Link>
+          </p>
+        )}
         {debtRows.length === 0 ? (
           <p className="text-muted-foreground text-sm">{vi.shifts.debtsEmpty}</p>
         ) : (
@@ -464,6 +484,29 @@ export default async function ShiftDetailPage({
         initialEntries={cashEntries}
         customers={cashCustomers}
         canEdit={canEditCashEntries(user.role)}
+      />
+
+      <CashBalanceCard
+        stationId={shift.stationId}
+        line={cashBalance.kind === 'line' ? cashBalance.line : null}
+        message={
+          cashBalance.kind === 'no-opening'
+            ? vi.shifts.cashBalance.noOpening
+            : cashBalance.kind === 'before-opening'
+              ? vi.shifts.cashBalance.beforeOpening(formatDate(cashBalance.effectiveDate))
+              : null
+        }
+        openingLabel={
+          cashBalance.kind === 'line'
+            ? vi.shifts.cashBalance.openingFrom(
+                formatVND(cashBalance.opening.amount),
+                formatDate(cashBalance.opening.effectiveDate)
+              )
+            : null
+        }
+        provisional={!completed}
+        isAdmin={user.role === 'admin'}
+        defaultDate={shift.shiftDate.toISOString().slice(0, 10)}
       />
     </div>
   )

@@ -13,9 +13,10 @@ import { loadStationPrices } from '@/lib/debts/load-board-prices'
 import { todayKey } from '@/lib/debts/load-ledger'
 import { canEditDebtVisit } from '@/lib/debts/visit-review'
 import { readDayKey, readInstantBound } from '@/lib/filters/params'
-import { vnTime } from '@/lib/format'
+import { formatDate, vnTime } from '@/lib/format'
 import { loadStationFuels } from '@/lib/fuels/load-catalogue'
-import { shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
+import { PENDING_VISIT_STATUSES } from '@/lib/misa-export/debts-list'
+import { photoDateMismatch, shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
@@ -38,7 +39,7 @@ export default async function ReviewDebtsPage({
     prisma.debtVehicleVisit.findMany({
       where: {
         reviewStatus: {
-          in: decided ? ['approved', 'rejected'] : ['pending', 'needs_review', 'corrected'],
+          in: decided ? ['approved', 'rejected'] : PENDING_VISIT_STATUSES,
         },
         stationId: { in: stationIds },
         ...(decided && {
@@ -231,6 +232,14 @@ export default async function ReviewDebtsPage({
                 customerId: v.customerId,
                 autoMatched: v.customerId !== null,
                 anomalyReasons: v.anomalyReasons,
+                photoDateWarning:
+                  v.photoDate &&
+                  photoDateMismatch(v.photoDate.toISOString().slice(0, 10), v.visitDate)
+                    ? vi.debtReview.photoDateMismatch(
+                        formatDate(v.photoDate),
+                        formatDate(shiftDateFor(v.visitDate.getTime()))
+                      )
+                    : null,
                 aiConfidence: v.aiConfidence,
                 visitTime: vnTime(v.visitDate).format('HH:mm · DD/MM'),
                 vehiclePhotoUrl: v.vehiclePhotoId ? (urlById.get(v.vehiclePhotoId) ?? null) : null,

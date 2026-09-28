@@ -56,17 +56,17 @@ enum FuelArea {
 }
 
 model Station {
-  id              String   @id @default(uuid()) @db.Uuid
-  code            String   @unique // "DAKNONG_1"
-  name            String // "Trạm Đăk Nông 1"
-  branch          String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
-  fuelArea        FuelArea @default(FUEL_AREA_1) @map("fuel_area") // retail price zone
-  address         String?
+  id            String   @id @default(uuid()) @db.Uuid
+  code          String   @unique // "DAKNONG_1"
+  name          String // "Trạm Đăk Nông 1"
+  branch        String? // "Đắk Nông" | "Lâm Đồng" | "Đồng Nai"
+  fuelArea      FuelArea @default(FUEL_AREA_1) @map("fuel_area") // retail price zone
+  address       String?
   // Admin-written requirement shown on the legal-documents tab
   // ("giấy tờ từ 1-10 ..."), so every reviewer sees what must be on file.
-  documentsNote   String?  @map("documents_note")
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at")
+  documentsNote String?  @map("documents_note")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   @@map("stations")
 }
@@ -301,6 +301,22 @@ model InventoryOpeningBalance {
   @@map("inventory_opening_balances")
 }
 
+/// A trạm's tiền mặt đầu kỳ: the cash its staff held at the start of `effectiveDate`.
+/// The Tồn tiền mặt of every ca from that ngày on is derived from it on read —
+/// đầu ngày + tiền bán + thu − chi − nợ, each ca's cuối ngày the next one's đầu ngày —
+/// so correcting any earlier ca reflows the later ones. Admin-only to change.
+model CashOpeningBalance {
+  id            String   @id @default(uuid()) @db.Uuid
+  stationId     String   @unique @map("station_id") @db.Uuid
+  amount        Decimal  @db.Decimal(15, 0)
+  effectiveDate DateTime @map("effective_date") @db.Date
+  setBy         String?  @map("set_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("cash_opening_balances")
+}
+
 // One tank-dip measurement, RAW as written on the dip photo (unit conversion
 // to liters waits for the dip-photo format, §12.6). History per (station, tank)
 // lets consecutive dips be compared ("So với lần trước").
@@ -357,22 +373,22 @@ model TankDipRecord {
 // biên bản. Receipts saved before it existed keep a seal per goods column
 // inside products, and are left exactly as they were recorded.
 model FuelImportReceipt {
-  id           String    @id @default(uuid()) @db.Uuid
-  stationId    String    @map("station_id") @db.Uuid
-  receiptDate  DateTime  @map("receipt_date")
-  staffName    String?   @map("staff_name")
-  driverName   String?   @map("driver_name")
-  truckPlate   String?   @map("truck_plate")
-  vehicleCheck String?   @map("vehicle_check") // (b) observed condition (nước, cặn)
-  note         String?   // (e) ghi chú
-  sealNo       String?   @map("seal_no") // the standard form's one merged "Số niêm chì" cell
-  products     Json?     // per-product columns: warehouse, liters, export slip (seals: pre-2026-08 receipts)
-  compartments Json?     // (a) tanker compartments 1-5
-  tankChecks   Json?     // (c) per-tank before/after: temp, height mm, book & barem liters
-  pumpChecks   Json?     // (d) per-pump before/after totals (electronic + mechanical)
-  rawExtract   Json?     @map("raw_extract")
-  createdBy    String?   @map("created_by") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id           String   @id @default(uuid()) @db.Uuid
+  stationId    String   @map("station_id") @db.Uuid
+  receiptDate  DateTime @map("receipt_date")
+  staffName    String?  @map("staff_name")
+  driverName   String?  @map("driver_name")
+  truckPlate   String?  @map("truck_plate")
+  vehicleCheck String?  @map("vehicle_check") // (b) observed condition (nước, cặn)
+  note         String? // (e) ghi chú
+  sealNo       String?  @map("seal_no") // the standard form's one merged "Số niêm chì" cell
+  products     Json? // per-product columns: warehouse, liters, export slip (seals: pre-2026-08 receipts)
+  compartments Json? // (a) tanker compartments 1-5
+  tankChecks   Json? // (c) per-tank before/after: temp, height mm, book & barem liters
+  pumpChecks   Json? // (d) per-pump before/after totals (electronic + mechanical)
+  rawExtract   Json?    @map("raw_extract")
+  createdBy    String?  @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([stationId, receiptDate(sort: Desc)], map: "idx_import_receipts_station")
   @@map("fuel_import_receipts")
@@ -452,43 +468,47 @@ model DebtCustomer {
 }
 
 model DebtVehicleVisit {
-  id                   String    @id @default(uuid()) @db.Uuid
-  customerId           String?   @map("customer_id") @db.Uuid // assigned after identifying customer
-  stationId            String    @map("station_id") @db.Uuid
-  visitDate            DateTime  @map("visit_date")
-  fuelType             String?   @map("fuel_type") // defaulted by price→product inference; editable in review
+  id                    String    @id @default(uuid()) @db.Uuid
+  customerId            String?   @map("customer_id") @db.Uuid // assigned after identifying customer
+  stationId             String    @map("station_id") @db.Uuid
+  visitDate             DateTime  @map("visit_date")
+  fuelType              String?   @map("fuel_type") // defaulted by price→product inference; editable in review
   // AI reads from the meter photo
-  litersRead           Decimal?  @map("liters_read") @db.Decimal(15, 4) // liters read by AI
-  unitPriceRead        Decimal?  @map("unit_price_read") @db.Decimal(15, 0) // unit price read by AI
-  displayedAmount      Decimal?  @map("displayed_amount") @db.Decimal(15, 0) // DISPLAYED total (may be truncated)
-  computedAmount       Decimal?  @map("computed_amount") @db.Decimal(15, 0) // = liters × unitPrice (CORRECT)
-  amountMatchesDisplay Boolean?  @map("amount_matches_display") // does computed match displayed after truncation rule?
+  litersRead            Decimal?  @map("liters_read") @db.Decimal(15, 4) // liters read by AI
+  unitPriceRead         Decimal?  @map("unit_price_read") @db.Decimal(15, 0) // unit price read by AI
+  displayedAmount       Decimal?  @map("displayed_amount") @db.Decimal(15, 0) // DISPLAYED total (may be truncated)
+  computedAmount        Decimal?  @map("computed_amount") @db.Decimal(15, 0) // = liters × unitPrice (CORRECT)
+  amountMatchesDisplay  Boolean?  @map("amount_matches_display") // does computed match displayed after truncation rule?
   // The thành tiền a người duyệt typed, when what the trạm actually charged is not
   // liters × unitPrice. This — not computedAmount — is what the ledger charges, so
   // computedAmount stays strictly derived and the Khớp/Lệch check keeps describing
   // the AI read rather than a human decision.
-  amountOverride       Decimal?  @map("amount_override") @db.Decimal(15, 0)
+  amountOverride        Decimal?  @map("amount_override") @db.Decimal(15, 0)
   // What the AI read, kept from the first correction that actually changed it —
   // same idea as ShiftReading.originalElectronicReading. Null means never changed.
-  originalLitersRead    Decimal? @map("original_liters_read") @db.Decimal(15, 4)
-  originalUnitPriceRead Decimal? @map("original_unit_price_read") @db.Decimal(15, 0)
+  originalLitersRead    Decimal?  @map("original_liters_read") @db.Decimal(15, 4)
+  originalUnitPriceRead Decimal?  @map("original_unit_price_read") @db.Decimal(15, 0)
   // Vehicle plate
-  plateRead            String?   @map("plate_read") // AI-read plate
-  plateConfirmed       String?   @map("plate_confirmed") // accountant-confirmed plate
+  plateRead             String?   @map("plate_read") // AI-read plate
+  plateConfirmed        String?   @map("plate_confirmed") // accountant-confirmed plate
   // The message typed with the upload (e.g. "anh Ba can 30L") — shown on the review
   // card so a walk-in/can sale can be assigned to the right khách.
-  senderNote           String?   @map("sender_note")
+  senderNote            String?   @map("sender_note")
+  // The ngày printed on the photos (camera timestamp or the trụ's display), as the AI
+  // read it; null when none shows. A ngày other than visitDate's is flagged on the card
+  // (photo_date_mismatch) — the lượt xe stays on the ngày it was uploaded.
+  photoDate             DateTime? @map("photo_date") @db.Date
   // Photos
-  vehiclePhotoId       String?   @map("vehicle_photo_id") @db.Uuid
-  meterPhotoId         String?   @map("meter_photo_id") @db.Uuid
+  vehiclePhotoId        String?   @map("vehicle_photo_id") @db.Uuid
+  meterPhotoId          String?   @map("meter_photo_id") @db.Uuid
   // AI & review
-  aiConfidence         Int?      @map("ai_confidence")
-  aiRawResponse        Json?     @map("ai_raw_response")
-  reviewStatus         String    @map("review_status") // 'pending'|'needs_review'|'approved'|'rejected'|'corrected'
-  anomalyReasons       String[]  @default([]) @map("anomaly_reasons")
-  reviewedBy           String?   @map("reviewed_by") @db.Uuid
-  reviewedAt           DateTime? @map("reviewed_at")
-  createdAt            DateTime  @default(now()) @map("created_at")
+  aiConfidence          Int?      @map("ai_confidence")
+  aiRawResponse         Json?     @map("ai_raw_response")
+  reviewStatus          String    @map("review_status") // 'pending'|'needs_review'|'approved'|'rejected'|'corrected'
+  anomalyReasons        String[]  @default([]) @map("anomaly_reasons")
+  reviewedBy            String?   @map("reviewed_by") @db.Uuid
+  reviewedAt            DateTime? @map("reviewed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
 
   @@index([customerId, visitDate(sort: Desc)], map: "idx_visits_customer")
   @@index([reviewStatus], map: "idx_visits_review")

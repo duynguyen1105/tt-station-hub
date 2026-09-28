@@ -67,6 +67,22 @@ describe('refuseShiftCompletion', () => {
       vi.shifts.cannotCompletePending
     )
   })
+
+  // Anh Nam: every lượt bán nợ of the ngày is duyệt before the ca closes, so Tổng nợ —
+  // and the Tồn tiền mặt it comes off — is final when chốt'd.
+  it('refuses a ca whose ngày still has bán nợ chưa duyệt, saying how many', () => {
+    expect(refuseShiftCompletion([{ reviewStatus: 'approved' }], 3)).toBe(
+      vi.shifts.cannotCompletePendingDebts(3)
+    )
+    expect(vi.shifts.cannotCompletePendingDebts(3)).toContain('Còn 3 lượt bán nợ chưa duyệt')
+    expect(refuseShiftCompletion([{ reviewStatus: 'approved' }], 0)).toBeNull()
+  })
+
+  it('speaks the số liệu chưa duyệt refusal before the bán nợ one', () => {
+    expect(refuseShiftCompletion([{ reviewStatus: 'pending' }], 2)).toBe(
+      vi.shifts.cannotCompletePending
+    )
+  })
 })
 
 describe('reversedShiftSales', () => {

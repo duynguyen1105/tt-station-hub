@@ -91,6 +91,7 @@ export const debtMeterSchema = z.object({
   station_label: z.string().nullable().optional(),
   dispenser_label: z.string().nullable().optional(),
   fuel_type: z.string().nullable().optional(),
+  photo_date: z.string().nullable().optional(),
   confidence: z.object({
     liters: z.number(),
     unit_price: z.number(),
@@ -102,6 +103,7 @@ export type DebtMeterResult = z.infer<typeof debtMeterSchema>
 
 export const vehiclePlateSchema = z.object({
   plate: z.string(),
+  photo_date: z.string().nullable().optional(),
   confidence: z.number(),
   notes: z.string().optional().default(''),
 })
@@ -126,6 +128,7 @@ export type ExtractVisitResult = {
   stationLabel: string | null
   dispenserLabel: string | null
   fuelType: string | null
+  photoDate: string | null
   computedAmount: number | null
   amountMatchesDisplay: boolean | null
   litersConfidence: number | null
@@ -137,6 +140,7 @@ export type ExtractVisitResult = {
 
 export type ExtractPlateResult = {
   plate: string | null
+  photoDate: string | null
   confidence: number
   notes: string
 }

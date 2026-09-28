@@ -19,6 +19,22 @@ export function parseNumericString(value: string | null): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** A date visibly printed in a photo, never the date the upload was received. */
+export function parsePhotoDate(value: string | null | undefined): string | null {
+  const printed = value?.trim() ?? ''
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(printed)
+  const dmy = /^(\d{2})([/-])(\d{2})\2(\d{4}|\d{2})$/.exec(printed)
+  if (!iso && !dmy) return null
+  const year = iso?.[1] ?? dmy?.[4] ?? ''
+  const normalized = iso
+    ? printed
+    : `${year.length === 2 ? `20${year}` : year}-${dmy?.[3]}-${dmy?.[1]}`
+  const date = new Date(`${normalized}T00:00:00Z`)
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === normalized
+    ? normalized
+    : null
+}
+
 /**
  * Whether the computed amount matches the displayed amount once the meter's
  * digit-dropping on large totals is accounted for (build plan §5.6): the
@@ -142,6 +158,7 @@ function mockVisit(): ExtractVisitResult {
     stationLabel: null,
     dispenserLabel: 'TRỤ 1',
     fuelType: 'DO',
+    photoDate: null,
     computedAmount: computed,
     amountMatchesDisplay: checkAmountMatch(computed, '1193680'),
     litersConfidence: 96,
@@ -203,6 +220,7 @@ export async function extractVisitMeter(input: {
     stationLabel: parsed.station_label ?? null,
     dispenserLabel: parsed.dispenser_label ?? null,
     fuelType: parsed.fuel_type ?? null,
+    photoDate: parsePhotoDate(parsed.photo_date),
     computedAmount: null,
     amountMatchesDisplay: null,
     litersConfidence: parsed.confidence.liters,
@@ -219,7 +237,7 @@ export async function extractPlate(input: {
 }): Promise<ExtractPlateResult> {
   if (isAiMockEnabled()) {
     await mockDelay()
-    return { plate: '51C-12345', confidence: 88, notes: 'mock plate' }
+    return { plate: '51C-12345', photoDate: null, confidence: 88, notes: 'mock plate' }
   }
   if (!input.imageBuffer) {
     throw new Error('extractPlate requires an imageBuffer when AI_MOCK is off')
@@ -231,6 +249,7 @@ export async function extractPlate(input: {
 
   return {
     plate: parsed.plate.toLowerCase() === 'unclear' ? null : parsed.plate,
+    photoDate: parsePhotoDate(parsed.photo_date),
     confidence: parsed.confidence,
     notes: parsed.notes,
   }

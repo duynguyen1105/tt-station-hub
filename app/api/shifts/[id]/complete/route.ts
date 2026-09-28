@@ -4,6 +4,7 @@ import { type ShiftStatus, canReviewShift } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { computeShiftSales } from '@/lib/inventory/shift-sales'
+import { pendingDebtVisitsWhere } from '@/lib/misa-export/debts-list'
 import { prisma } from '@/lib/prisma'
 import { isApprovedReading, refuseShiftCompletion } from '@/lib/shifts/completion'
 import { vi } from '@/messages/vi'
@@ -34,11 +35,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         })
         if (claimed.count !== 1) return { refusal: vi.shifts.alreadyCompleted, updated: null }
 
-        const [allReadings, dispensers] = await Promise.all([
+        const [allReadings, dispensers, pendingDebtVisits] = await Promise.all([
           db.shiftReading.findMany({ where: { shiftId: id } }),
           db.dispenser.findMany({ where: { stationId: shift.stationId } }),
+          db.debtVehicleVisit.count({
+            where: pendingDebtVisitsWhere(shift.stationId, shift.shiftDate),
+          }),
         ])
-        const refusal = refuseShiftCompletion(allReadings)
+        const refusal = refuseShiftCompletion(allReadings, pendingDebtVisits)
         if (refusal) {
           // Throw so the claimed status rolls back with the refused chốt.
           throw new ShiftCompletionRefused(refusal)

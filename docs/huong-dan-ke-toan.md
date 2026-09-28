@@ -57,8 +57,16 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
    - **Từ chối** nếu ảnh không dùng được.
 4. Dấu cảnh báo (số giảm, chênh lệch lớn, hai đồng hồ lệch, ảnh mờ, thiếu ảnh)
    sẽ được tô để ưu tiên kiểm tra.
-5. Khi tất cả dòng đã duyệt → bấm **Chốt ca**. Ca đã chốt bị **khoá với mọi
-   người**; muốn sửa thì nhờ quản trị viên **Mở lại ca** (xem mục 11).
+5. Khi tất cả dòng đã duyệt **và mọi lượt bán nợ của ngày đó đã duyệt** → bấm
+   **Chốt ca**. Còn lượt nợ chưa duyệt thì nút Chốt ca bị khoá, kèm dòng "Còn X lượt
+   bán nợ chưa duyệt" — vào **Cần duyệt → Công nợ** duyệt hết rồi quay lại chốt.
+   Ca đã chốt bị **khoá với mọi người**; muốn sửa thì nhờ quản trị viên **Mở lại
+   ca** (xem mục 11).
+6. Cuối trang ca có ô **Tồn tiền mặt**: Tiền đầu ngày + Tổng tiền bán + Tổng thu −
+   Tổng chi − Tổng nợ = **Tồn cuối ngày**. Tồn cuối ngày của ca này là tiền đầu ngày
+   của ca sau. Ca chưa chốt thì ghi "Tạm tính". Số tự tính lại khi sửa bất kỳ ca nào
+   trước đó. Quản trị viên nhập **tiền mặt đầu kỳ** của trạm (nút **Sửa tiền đầu
+   kỳ**) — số tiền mặt trạm giữ vào đầu ngày bắt đầu tính.
 
 ## 5. Giấy tờ pháp lý (tab **Giấy tờ**)
 

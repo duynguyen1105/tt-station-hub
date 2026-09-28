@@ -43,6 +43,30 @@ export function debtVisitSelection(
 }
 
 /**
+ * The review states of a lượt bán nợ still in the Duyệt công nợ queue. A `corrected` one
+ * was sửa'd but not duyệt'd — it has posted no charge (lib/debts/visit-review.ts) — so it
+ * waits too, though the MISA list above already carries it.
+ */
+export const PENDING_VISIT_STATUSES = ['pending', 'needs_review', 'corrected']
+
+/**
+ * The `where` of the ca's ngày's lượt bán nợ still waiting on duyệt — the ones Chốt ca
+ * refuses to close over (refuseShiftCompletion), counted in the same window
+ * `debtVisitSelection` lists the duyệt'd ones from.
+ */
+export function pendingDebtVisitsWhere(
+  stationId: string,
+  shiftDate: Date
+): Prisma.DebtVehicleVisitWhereInput {
+  const { start, end } = shiftDayWindow(shiftDate)
+  return {
+    stationId,
+    reviewStatus: { in: PENDING_VISIT_STATUSES },
+    visitDate: { gte: start, lt: end },
+  }
+}
+
+/**
  * Whether this lượt xe is one of the ca's — the in-memory twin of `debtVisitSelection`,
  * for the callers holding visits already read rather than a query still to run. Same
  * trạm, same đã duyệt / đã sửa, same half-open ngày window, so a lượt xe this accepts

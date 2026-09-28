@@ -29,15 +29,22 @@ export function isApprovedReading(reading: ReviewedReading): boolean {
  * **Số liệu chưa duyệt** is the older refusal and is spoken first: a number nobody has
  * looked at must not be turned into a trừ kho.
  *
+ * **Bán nợ chưa duyệt** comes next: the ca's Tổng nợ — and with it its Tồn tiền mặt —
+ * only stands once every lượt xe of its ngày is decided, so none slips through.
+ *
  * **No số liệu that counts** is refused because a chốt without sales posts
  * nothing to inventory and should not close the review workflow.
  */
-export function refuseShiftCompletion(readings: readonly ReviewedReading[]): string | null {
+export function refuseShiftCompletion(
+  readings: readonly ReviewedReading[],
+  pendingDebtVisits = 0
+): string | null {
   if (
     readings.some((r) => (PENDING_REVIEW_STATUSES as readonly string[]).includes(r.reviewStatus))
   ) {
     return vi.shifts.cannotCompletePending
   }
+  if (pendingDebtVisits > 0) return vi.shifts.cannotCompletePendingDebts(pendingDebtVisits)
   if (!readings.some(isApprovedReading)) {
     return vi.shifts.cannotCompleteNoReadings
   }

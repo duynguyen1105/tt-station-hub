@@ -75,6 +75,27 @@ export function shiftDateFor(timestamp: number): Date {
   return new Date(Date.UTC(p.year, p.month, p.day))
 }
 
+/** Compare a printed photo date with the visit's Vietnam calendar day, not its UTC day. */
+export function photoDateMismatch(photoDate: string | null, visitDate: Date): boolean {
+  return (
+    photoDate !== null && photoDate !== shiftDateFor(visitDate.getTime()).toISOString().slice(0, 10)
+  )
+}
+
+/**
+ * What a mismatched ngày trên ảnh lays over the meter read's verdict: needs_review — a
+ * clean read would sit as 'pending' — with photo_date_mismatch beside its own anomalies.
+ * Nothing when the ngày agrees, so the meter's verdict stands.
+ */
+export function photoDateFlag(
+  meterAnomalies: string[],
+  mismatch: boolean
+): { reviewStatus?: string; anomalyReasons?: string[] } {
+  return mismatch
+    ? { reviewStatus: 'needs_review', anomalyReasons: [...meterAnomalies, 'photo_date_mismatch'] }
+    : {}
+}
+
 // One shift per calendar day (GMT+7): stations close their shift around 15:00,
 // so every photo sent during a day — including late sends in the evening —
 // belongs to that day's single shift and is never split across time windows.
@@ -570,16 +591,19 @@ async function readDebtMeter(photoId: string, buffer: Buffer, stationId: string,
   }
   const { reviewStatus, anomalies } = debtReview(meter, guardAnomalies)
   return {
-    litersRead,
-    unitPriceRead,
-    fuelType: labelFuel ?? priceFuel,
-    displayedAmount: parseNumericString(meter.displayedAmount),
-    computedAmount: meter.computedAmount,
-    amountMatchesDisplay: meter.amountMatchesDisplay,
-    aiConfidence: debtConfidence(meter),
-    aiRawResponse: meter.raw as Prisma.InputJsonValue,
-    anomalyReasons: anomalies,
-    reviewStatus,
+    photoDate: meter.photoDate,
+    data: {
+      litersRead,
+      unitPriceRead,
+      fuelType: labelFuel ?? priceFuel,
+      displayedAmount: parseNumericString(meter.displayedAmount),
+      computedAmount: meter.computedAmount,
+      amountMatchesDisplay: meter.amountMatchesDisplay,
+      aiConfidence: debtConfidence(meter),
+      aiRawResponse: meter.raw as Prisma.InputJsonValue,
+      anomalyReasons: anomalies,
+      reviewStatus,
+    },
   }
 }
 
@@ -605,7 +629,10 @@ async function readDebtVehicle(photoId: string, buffer: Buffer, stationId: strin
     })
     customer = candidates.find((c) => plateListContains(c.knownPlates, plate.plate)) ?? null
   }
-  return { plateRead: plate.plate, customerId: customer?.id ?? null }
+  return {
+    photoDate: plate.photoDate,
+    data: { plateRead: plate.plate, customerId: customer?.id ?? null },
+  }
 }
 
 /**
@@ -633,16 +660,26 @@ export async function assembleDebtVisit(params: {
   if (vehicleRead.status === 'rejected') {
     logger.error({ error: vehicleRead.reason, photoId: vehicle?.photoId }, 'Debt plate read failed')
   }
+  const photoDate =
+    (meterRead.status === 'fulfilled' ? meterRead.value.photoDate : null) ??
+    (vehicleRead.status === 'fulfilled' ? vehicleRead.value?.photoDate : null) ??
+    null
+  const dateMismatch = photoDateMismatch(photoDate, visitDate)
   const visit = await prisma.debtVehicleVisit.create({
     data: {
       stationId: station.id,
       visitDate,
+      photoDate: photoDate ? new Date(`${photoDate}T00:00:00Z`) : null,
       senderNote: note,
       meterPhotoId: meter.photoId,
       vehiclePhotoId: vehicle?.photoId ?? null,
       reviewStatus: 'needs_review',
-      ...(vehicleRead.status === 'fulfilled' && vehicleRead.value ? vehicleRead.value : {}),
-      ...(meterRead.status === 'fulfilled' ? meterRead.value : {}),
+      ...(vehicleRead.status === 'fulfilled' && vehicleRead.value ? vehicleRead.value.data : {}),
+      ...(meterRead.status === 'fulfilled' ? meterRead.value.data : {}),
+      ...photoDateFlag(
+        meterRead.status === 'fulfilled' ? meterRead.value.data.anomalyReasons : [],
+        dateMismatch
+      ),
     },
   })
   // Both photos now sit in a lượt xe, so neither waits in the ca's unmatched list.

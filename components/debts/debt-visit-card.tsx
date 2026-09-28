@@ -85,6 +85,7 @@ export type DebtVisitCardData = {
   customerId: string | null
   autoMatched: boolean
   anomalyReasons: string[]
+  photoDateWarning: string | null
   aiConfidence: number | null
   visitTime: string
   vehiclePhotoUrl: string | null
@@ -467,6 +468,11 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
           {data.anomalyReasons.length > 0 && (
             <div className="text-xs text-amber-700 dark:text-amber-400">
               ⚠ {data.anomalyReasons.map(anomalyLabel).join(', ')}
+            </div>
+          )}
+          {data.photoDateWarning && (
+            <div className="text-xs text-amber-700 dark:text-amber-400">
+              ⚠ {data.photoDateWarning}
             </div>
           )}
         </div>

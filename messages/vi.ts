@@ -391,6 +391,7 @@ export const vi = {
     liters_rescaled: 'Số lít chỉ khớp ở thang thập phân khác trạm',
     price_implausible: 'Đơn giá bất thường',
     price_mismatch: 'Đơn giá lệch bảng giá',
+    photo_date_mismatch: 'Ngày trên ảnh khác ngày ghi nhận',
     pairing_ambiguous: 'Không ghép được ảnh xe với ảnh trụ',
   },
 
@@ -531,6 +532,34 @@ export const vi = {
       `Ca ngày ${day} đã chốt và đang lấy số này làm số đầu — Mở lại ca ngày ${day} trước, sửa xong thì chốt lại cả hai ca.`,
     cannotCompletePending: 'Vẫn còn số liệu chưa được duyệt trong ca này.',
     cannotCompleteNoReadings: 'Ca này chưa có số liệu trụ bơm.',
+    cannotCompletePendingDebts: (n: number) =>
+      `Còn ${n} lượt bán nợ chưa duyệt — duyệt hết ở Cần duyệt → Công nợ rồi mới chốt ca.`,
+    pendingDebtsNote: (n: number) =>
+      `Còn ${n} lượt bán nợ chưa duyệt, chưa tính trong danh sách này.`,
+    pendingDebtsLink: 'Duyệt công nợ →',
+    // Tồn tiền mặt cuối phiếu chốt ca: tiền mặt nhân viên trạm đang giữ sau ca.
+    cashBalance: {
+      title: 'Tồn tiền mặt',
+      provisional: 'Tạm tính — ca chưa chốt',
+      opening: 'Tiền đầu ngày',
+      sales: 'Tổng tiền bán',
+      receipts: 'Tổng thu',
+      payments: 'Tổng chi',
+      debts: 'Tổng nợ',
+      closing: 'Tồn cuối ngày',
+      noOpening: 'Chưa có tiền mặt đầu kỳ của trạm — quản trị viên nhập để bắt đầu tính.',
+      beforeOpening: (day: string) =>
+        `Ca này trước ngày bắt đầu tính tiền mặt (${day}) nên không có Tồn tiền mặt.`,
+      openingFrom: (amount: string, day: string) => `Đầu kỳ: ${amount}, từ ngày ${day}`,
+      editOpening: 'Sửa tiền đầu kỳ',
+      openingTitle: 'Tiền mặt đầu kỳ',
+      openingNote:
+        'Số tiền mặt trạm giữ vào đầu ngày này. Các ca từ ngày này trở đi tự tính: tồn cuối ngày ca trước là tiền đầu ngày ca sau.',
+      amount: 'Số tiền',
+      effectiveDate: 'Từ ngày',
+      saved: 'Đã lưu tiền mặt đầu kỳ',
+      invalidAmount: 'Số tiền phải là số nguyên không âm.',
+    },
     // A ca is chốt'd around 15:00 but its ngày runs to midnight, so an evening duyệt
     // joins it afterwards and the MISA file already downloaded no longer matches.
     lateDebtApproval: 'Có bán nợ duyệt sau khi chốt — cần xuất lại MISA.',
@@ -1035,6 +1064,8 @@ export const vi = {
     decidedView: 'Đã xử lý',
     decidedEmpty: 'Không có lượt xe nào đã xử lý trong ngày này.',
     visitDay: 'Ngày bán',
+    photoDateMismatch: (photoDay: string, visitDay: string) =>
+      `Ngày trên ảnh: ${photoDay} — ghi nhận ngày ${visitDay}`,
     filterDay: 'Xem ngày',
     changedSinceOpen: 'Lượt xe đã thay đổi. Tải lại trang và thử lại.',
     chargeMissing:
