@@ -37,11 +37,14 @@ export function CustomerForm({
   stationId,
   trigger,
   onSaved,
+  canDelete = false,
 }: {
   customer?: CustomerFormCustomer
   stationId?: string | null
   trigger: React.ReactNode
   onSaved?: (customer: { id: string; name: string }) => void
+  /** Admin: offer Xoá khách for a khách created by mistake. */
+  canDelete?: boolean
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -102,6 +105,25 @@ export function CustomerForm({
     router.refresh()
   }
 
+  async function remove() {
+    if (
+      !customer ||
+      !window.confirm(`${vi.debtReview.deleteCustomerTitle}\n\n${vi.debtReview.deleteCustomerBody}`)
+    )
+      return
+    setBusy(true)
+    const res = await fetch(`/api/debts/customers/${customer.id}`, { method: 'DELETE' })
+    setBusy(false)
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null
+      toast.error(data?.error ?? vi.errors.generic)
+      return
+    }
+    toast.success(vi.debtReview.customerDeleted)
+    setOpen(false)
+    router.refresh()
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -148,6 +170,11 @@ export function CustomerForm({
           </Field>
         </div>
         <DialogFooter>
+          {customer && canDelete && (
+            <Button variant="destructive" className="sm:mr-auto" onClick={remove} disabled={busy}>
+              {vi.debtReview.deleteCustomer}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setOpen(false)}>
             {vi.common.cancel}
           </Button>

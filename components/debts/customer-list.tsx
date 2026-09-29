@@ -271,6 +271,7 @@ export function CustomerList({
                         misaCode: customer.misaCode,
                         knownPlates: customer.knownPlates,
                       }}
+                      canDelete={canEditOpening}
                       trigger={
                         <Button size="sm" variant="ghost">
                           {vi.common.edit}

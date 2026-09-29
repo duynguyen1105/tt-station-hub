@@ -1151,6 +1151,13 @@ export const vi = {
     knownPlatesHint: 'VD: 50E-753.17, 51C-123.45 — dùng để tự nhận diện khách từ ảnh',
     customerCreated: 'Đã thêm khách hàng.',
     editCustomer: 'Sửa thông tin khách',
+    deleteCustomer: 'Xoá khách',
+    deleteCustomerTitle: 'Xoá khách hàng này?',
+    deleteCustomerBody:
+      'Chỉ xoá được khách chưa có giao dịch, lượt xe hay dòng thu chi nào — dùng khi tạo nhầm hoặc tạo trùng. Nợ đầu kỳ đã nhập cho khách này cũng bị xoá.',
+    customerDeleted: 'Đã xoá khách hàng.',
+    customerInUse: (tx: number, visits: number, cash: number) =>
+      `Không xoá được: khách đã có ${tx} giao dịch, ${visits} lượt xe, ${cash} dòng thu chi. Hãy sửa tên cho đúng thay vì xoá.`,
     customerCode: 'Mã khách hàng',
     customerCodeHint: 'Mã do Trường Thịnh quy định — bắt buộc để xuất MISA (bán lẻ dùng mã "bl").',
     customerCodeRequired: 'Nhập mã khách hàng (Trường Thịnh quy định).',
