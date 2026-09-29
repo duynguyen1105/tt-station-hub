@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type CashEntryInput,
   cashEntryTotals,
+  debtChargesOf,
   debtPaymentsOf,
   isBlankCashEntry,
   normalizeCashEntries,
@@ -11,7 +12,15 @@ import {
 import { vi } from '@/messages/vi'
 
 function row(overrides: Partial<CashEntryInput> = {}): CashEntryInput {
-  return { content: '', customerId: null, counterparty: '', receipt: '', payment: '', ...overrides }
+  return {
+    content: '',
+    customerId: null,
+    counterparty: '',
+    receipt: '',
+    payment: '',
+    chargesDebt: false,
+    ...overrides,
+  }
 }
 
 // The kế toán's Excel sheet this table replaces.
@@ -57,6 +66,7 @@ describe('normalizeCashEntries', () => {
         counterparty: '',
         receipt: null,
         payment: 33122,
+        chargesDebt: false,
       },
       {
         content: 'Nộp tiền',
@@ -64,13 +74,21 @@ describe('normalizeCashEntries', () => {
         counterparty: 'Vietcombank',
         receipt: null,
         payment: 20355520,
+        chargesDebt: false,
       },
     ])
   })
 
   it('trims text around the cells', () => {
     expect(normalizeCashEntries([row({ content: ' Thu hộ ', receipt: ' 500 ' })])).toEqual([
-      { content: 'Thu hộ', customerId: null, counterparty: '', receipt: 500, payment: null },
+      {
+        content: 'Thu hộ',
+        customerId: null,
+        counterparty: '',
+        receipt: 500,
+        payment: null,
+        chargesDebt: false,
+      },
     ])
   })
 
@@ -79,7 +97,16 @@ describe('normalizeCashEntries', () => {
       normalizeCashEntries([
         row({ customerId: 'c-1', counterparty: 'Tiến Oanh', receipt: '1.000' }),
       ])
-    ).toEqual([{ content: '', customerId: 'c-1', counterparty: '', receipt: 1000, payment: null }])
+    ).toEqual([
+      {
+        content: '',
+        customerId: 'c-1',
+        counterparty: '',
+        receipt: 1000,
+        payment: null,
+        chargesDebt: false,
+      },
+    ])
   })
 })
 
@@ -108,5 +135,27 @@ describe('debtPaymentsOf', () => {
       { customerId: 'c-1', amount: 300_000, note: 'Trả nợ' },
       { customerId: 'c-2', amount: 50_000, note: null },
     ])
+  })
+})
+
+describe('debtChargesOf', () => {
+  // DAKNONG3 28/09: two nhân viên tạm ứng beside a nộp tiền that is not anybody's debt.
+  it('reads only Chi rows naming a khách hàng and ticked Ghi nợ as khoản nợ', () => {
+    const entries = normalizeCashEntries([
+      row({
+        content: 'Nhân viên tạm ứng',
+        customerId: 'hlan',
+        payment: '7.500.000',
+        chargesDebt: true,
+      }),
+      row({ content: 'Nộp tiền VK', customerId: 'vk', payment: '29.912.200' }),
+      row({ content: 'Tạm ứng', counterparty: 'Anh Ba', payment: '100.000', chargesDebt: true }),
+      row({ customerId: 'kket', receipt: '50.000', chargesDebt: true }),
+    ])
+    expect(debtChargesOf(entries)).toEqual([
+      { customerId: 'hlan', amount: 7_500_000, note: 'Nhân viên tạm ứng' },
+    ])
+    // A typed đối tượng has no sổ: its tick is not stored.
+    expect(entries[2]?.chargesDebt).toBe(false)
   })
 })

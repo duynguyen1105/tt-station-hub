@@ -40,8 +40,11 @@ export default async function CustomerLedgerPage({
     }),
     fuelTypeLabeller(),
   ])
+  // A charge's sourceRef is its lượt xe — unless it came from a ca's Thu chi (a tạm ứng).
   const visitIds = txs.flatMap((tx) =>
-    tx.txType === 'charge' && tx.sourceRef ? [tx.sourceRef] : []
+    tx.txType === 'charge' && tx.sourceRef && !tx.sourceRef.startsWith(CASH_PAYMENT_REF_PREFIX)
+      ? [tx.sourceRef]
+      : []
   )
   const visits = new Map(
     (
@@ -175,7 +178,11 @@ export default async function CustomerLedgerPage({
               <td className="p-2 whitespace-nowrap">{formatDate(row.date)}</td>
               <td className="p-2">
                 <span className="font-medium">
-                  {row.charge ? vi.debts.ledgerSale : vi.debts.payment}
+                  {row.charge
+                    ? row.shiftHref
+                      ? vi.debts.ledgerAdvance
+                      : vi.debts.ledgerSale
+                    : vi.debts.payment}
                 </span>
                 {row.detail ? <span className="text-muted-foreground"> · {row.detail}</span> : null}
                 {row.shiftHref ? (

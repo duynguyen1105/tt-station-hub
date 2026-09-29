@@ -608,7 +608,11 @@ export const vi = {
       useTyped: (text: string) => `Ghi “${text}” (không phải khách hàng)`,
       clearCounterparty: 'Bỏ chọn',
       unknownCustomer: 'Khách hàng đã chọn không còn tồn tại, hãy chọn lại.',
-      debtHint: 'Dòng Thu có chọn khách hàng được ghi là khách trả nợ trong sổ công nợ.',
+      debtHint:
+        'Dòng Thu có chọn khách hàng được ghi là khách trả nợ. Dòng Chi có chọn đối tượng và tích Ghi nợ (vd tạm ứng) được ghi là đối tượng đó nợ thêm.',
+      chargesDebt: 'Ghi nợ',
+      chargesDebtTitle:
+        'Tích khi khoản Chi này là tiền đối tượng phải trả lại (vd nhân viên tạm ứng) — ghi vào sổ công nợ của họ.',
     },
   },
 
@@ -1047,6 +1051,7 @@ export const vi = {
     ledgerDate: 'Ngày',
     ledgerDetail: 'Nội dung',
     ledgerSale: 'Bán nợ',
+    ledgerAdvance: 'Tạm ứng/Chi',
     ledgerCharge: 'Nợ',
     ledgerPayment: 'Trả',
     openingBalance: 'Số dư đầu kỳ',
@@ -1066,6 +1071,7 @@ export const vi = {
     today: 'Hôm nay',
     openingOfDay: 'Nợ đầu ngày',
     chargedOfDay: '+ Bán nợ',
+    advancedOfDay: '+ Tạm ứng/Chi',
     paidOfDay: '− Thu',
     closingOfDay: '= Nợ cuối ngày',
     pendingOfDay: 'Chờ duyệt',

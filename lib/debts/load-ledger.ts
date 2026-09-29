@@ -2,6 +2,7 @@ import { type LedgerAnchor, type LedgerTx, dayKeyOf } from '@/lib/debts/ledger'
 import type { Prisma } from '@/lib/generated/prisma/client'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
+import { CASH_PAYMENT_REF_PREFIX } from '@/lib/shifts/cash-entries'
 
 /** Today's GMT+7 day as YYYY-MM-DD. A function so pages stay clear of the purity lint. */
 export function todayKey(): string {
@@ -26,7 +27,7 @@ export async function loadLedgers(
   // ponytail: loads every transaction of these khách; switch to a SQL SUM when one trạm's sổ reaches tens of thousands of rows
   const txs = await prisma.debtTransaction.findMany({
     where: { customerId: { in: customers.map((c) => c.id) } },
-    select: { customerId: true, txType: true, amount: true, txDate: true },
+    select: { customerId: true, txType: true, amount: true, txDate: true, sourceRef: true },
     orderBy: [{ txDate: 'asc' }, { createdAt: 'asc' }],
   })
   const byCustomer = new Map<string, LedgerTx[]>()
@@ -36,6 +37,7 @@ export async function loadLedgers(
       txType: tx.txType === 'charge' ? 'charge' : 'payment',
       amount: Number(tx.amount),
       txDate: dayKeyOf(tx.txDate),
+      advance: tx.txType === 'charge' && !!tx.sourceRef?.startsWith(CASH_PAYMENT_REF_PREFIX),
     })
     byCustomer.set(tx.customerId, list)
   }

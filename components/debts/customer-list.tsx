@@ -84,11 +84,12 @@ export function CustomerList({
   const [filter, setFilter] = useState(initialFilter)
   const shown = useMemo(() => filterDebtCustomers(customers, filter), [customers, filter])
   const total = useMemo(() => {
-    const sum = { opening: 0, charged: 0, paid: 0, closing: 0 }
+    const sum = { opening: 0, charged: 0, advanced: 0, paid: 0, closing: 0 }
     for (const c of shown) {
       if (!c.day) continue
       sum.opening += c.day.opening
       sum.charged += c.day.charged
+      sum.advanced += c.day.advanced
       sum.paid += c.day.paid
       sum.closing += c.day.closing
     }
@@ -199,6 +200,7 @@ export function CustomerList({
               <th className="p-2">{vi.debts.misaCode}</th>
               <th className={num}>{vi.debts.openingOfDay}</th>
               <th className={num}>{vi.debts.chargedOfDay}</th>
+              <th className={num}>{vi.debts.advancedOfDay}</th>
               <th className={num}>{vi.debts.paidOfDay}</th>
               <th className={num}>{vi.debts.closingOfDay}</th>
               <th className={num}>{vi.debts.pendingOfDay}</th>
@@ -239,6 +241,7 @@ export function CustomerList({
                         </div>
                       ) : null}
                     </td>
+                    <td className={num}>{formatVND(customer.day.advanced)}</td>
                     <td className={num}>{formatVND(customer.day.paid)}</td>
                     <td className={`${num} font-semibold`}>{formatVND(customer.day.closing)}</td>
                   </>
@@ -247,6 +250,7 @@ export function CustomerList({
                     <td className={num} title={vi.debts.beforeOpening}>
                       —
                     </td>
+                    <td className={num}>—</td>
                     <td className={num}>—</td>
                     <td className={num}>—</td>
                     <td className={num}>—</td>
@@ -294,6 +298,7 @@ export function CustomerList({
               </td>
               <td className={num}>{formatVND(total.opening)}</td>
               <td className={num}>{formatVND(total.charged)}</td>
+              <td className={num}>{formatVND(total.advanced)}</td>
               <td className={num}>{formatVND(total.paid)}</td>
               <td className={num}>{formatVND(total.closing)}</td>
               <td colSpan={2}></td>

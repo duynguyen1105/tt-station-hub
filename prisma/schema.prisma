@@ -216,6 +216,9 @@ model ShiftCashEntry {
   counterparty String   @default("")
   receipt      Decimal? @db.Decimal(15, 0) // Thu
   payment      Decimal? @db.Decimal(15, 0) // Chi
+  // Ghi nợ: a Chi naming a khách hàng that the khách now owes (a nhân viên tạm ứng) —
+  // posted to their sổ công nợ as a khoản nợ. Unticked, the Chi is only a note.
+  chargesDebt  Boolean  @default(false) @map("charges_debt")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([shiftId], map: "idx_cash_entries_shift")

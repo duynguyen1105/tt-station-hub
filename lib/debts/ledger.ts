@@ -4,12 +4,16 @@ import { type DebtTx, computeBalance } from '@/lib/debts/aging'
 
 /** Nợ đầu kỳ at the START of openingDate (YYYY-MM-DD); no date = 0 from the first transaction. */
 export type LedgerAnchor = { openingBalance: number; openingDate: string | null }
-/** A DebtTransaction reduced to what the sổ reads; txDate is YYYY-MM-DD. */
-export type LedgerTx = DebtTx & { txDate: string }
+/**
+ * A DebtTransaction reduced to what the sổ reads; txDate is YYYY-MM-DD. `advance`: a
+ * charge from a ca's Thu chi table (a Chi ticked Ghi nợ — a tạm ứng), not a bán nợ.
+ */
+export type LedgerTx = DebtTx & { txDate: string; advance?: boolean }
 export type DebtDay = {
   opening: number
   charged: number
   chargeCount: number
+  advanced: number
   paid: number
   closing: number
 }
@@ -40,13 +44,22 @@ export function debtDay(anchor: LedgerAnchor, txs: LedgerTx[], day: string): Deb
   )
   let charged = 0
   let chargeCount = 0
+  let advanced = 0
   let paid = 0
   for (const tx of counted) {
     if (tx.txDate !== day) continue
-    if (tx.txType === 'charge') {
+    if (tx.txType === 'charge' && tx.advance) advanced += tx.amount
+    else if (tx.txType === 'charge') {
       charged += tx.amount
       chargeCount++
     } else paid += tx.amount
   }
-  return { opening, charged, chargeCount, paid, closing: opening + charged - paid }
+  return {
+    opening,
+    charged,
+    chargeCount,
+    advanced,
+    paid,
+    closing: opening + charged + advanced - paid,
+  }
 }

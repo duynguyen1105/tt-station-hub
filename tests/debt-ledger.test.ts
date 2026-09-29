@@ -7,6 +7,8 @@ const txs: LedgerTx[] = [
   { txType: 'charge', amount: 500_000, txDate: '2026-09-13' },
   { txType: 'charge', amount: 300_000, txDate: '2026-09-18' },
   { txType: 'payment', amount: 200_000, txDate: '2026-09-18' },
+  // A nhân viên tạm ứng from the ca's Thu chi: owed like a bán nợ, but its own column.
+  { txType: 'charge', amount: 50_000, txDate: '2026-09-18', advance: true },
 ]
 
 describe('debtDay', () => {
@@ -19,18 +21,20 @@ describe('debtDay', () => {
       opening: 1_000_000,
       charged: 0,
       chargeCount: 0,
+      advanced: 0,
       paid: 0,
       closing: 1_000_000,
     })
   })
 
-  it('adds the day charges and subtracts the day payments', () => {
+  it('adds the day charges and tạm ứng, and subtracts the day payments', () => {
     expect(debtDay(anchor, txs, '2026-09-18')).toEqual({
       opening: 1_000_000,
       charged: 300_000,
       chargeCount: 1,
+      advanced: 50_000,
       paid: 200_000,
-      closing: 1_100_000,
+      closing: 1_150_000,
     })
   })
 
@@ -43,12 +47,12 @@ describe('debtDay', () => {
 
 describe('balanceOf', () => {
   it('ignores transactions already inside nợ đầu kỳ', () => {
-    expect(balanceOf(anchor, txs)).toBe(1_100_000)
+    expect(balanceOf(anchor, txs)).toBe(1_150_000)
   })
 
   it('counts every transaction without an anchor', () => {
     const none = { openingBalance: 0, openingDate: null }
-    expect(balanceOf(none, txs)).toBe(600_000)
+    expect(balanceOf(none, txs)).toBe(650_000)
     expect(debtDay(none, txs, '2026-09-13')?.charged).toBe(500_000)
   })
 })

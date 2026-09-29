@@ -2,9 +2,10 @@
 // the rows as typed in, a refusal / the rows to store / the Tổng out — so the table on
 // screen and the route it posts to accept exactly the same entries.
 //
-// A Thu row naming a khách hàng is that khách's thu nợ: saving the table rewrites the
-// ca's payments in the sổ công nợ (sourceRef `cash:<shiftId>`). Every other row — Chi,
-// or Thu with no khách — is a note; chốt ca, stock and the MISA export ignore them.
+// A Thu row naming a khách hàng is that khách's thu nợ, and a Chi row naming one and
+// ticked Ghi nợ (a tạm ứng) is a khoản nợ of theirs: saving the table rewrites both in
+// the sổ công nợ (sourceRef `cash:<shiftId>`). Every other row is a note; chốt ca, stock
+// and the MISA export ignore them.
 import { vi } from '@/messages/vi'
 
 /** sourceRef prefix of a DebtTransaction payment written from a ca's Thu chi table. */
@@ -25,6 +26,8 @@ export type CashEntryInput = {
   counterparty: string
   receipt: string
   payment: string
+  /** Ghi nợ: the Chi is money the đối tượng now owes (a tạm ứng), not money paid away. */
+  chargesDebt: boolean
 }
 
 /** One row as stored: text trimmed, amounts whole đồng or null for an empty cell. */
@@ -34,6 +37,7 @@ export type CashEntry = {
   counterparty: string
   receipt: number | null
   payment: number | null
+  chargesDebt: boolean
 }
 
 // Whole đồng, either plain ("20355520") or grouped by thousands the way the Excel sheet
@@ -76,6 +80,8 @@ export function normalizeCashEntries(rows: CashEntryInput[]): CashEntry[] {
       counterparty: row.customerId === null ? row.counterparty.trim() : '',
       receipt: parseAmount(row.receipt),
       payment: parseAmount(row.payment),
+      // Only a khách hàng can owe: a typed đối tượng has no sổ to charge.
+      chargesDebt: row.customerId !== null && row.chargesDebt,
     }))
 }
 
@@ -97,6 +103,17 @@ export function debtPaymentsOf(
   return entries.flatMap((e) =>
     e.customerId !== null && e.receipt !== null && e.receipt > 0
       ? [{ customerId: e.customerId, amount: e.receipt, note: e.content || null }]
+      : []
+  )
+}
+
+/** The khoản nợ these rows record: every Chi on a row naming a khách hàng, ticked Ghi nợ. */
+export function debtChargesOf(
+  entries: CashEntry[]
+): { customerId: string; amount: number; note: string | null }[] {
+  return entries.flatMap((e) =>
+    e.customerId !== null && e.chargesDebt && e.payment !== null && e.payment > 0
+      ? [{ customerId: e.customerId, amount: e.payment, note: e.content || null }]
       : []
   )
 }

@@ -89,6 +89,12 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
   lít × đơn giá** (KHÔNG dùng số tiền hiển thị vì có thể bị cụt số).
 - Kế toán **xác nhận biển số** và số liệu, gán đúng khách.
 - Ghi **thanh toán** → hệ thống trừ vào công nợ (ưu tiên nợ cũ nhất).
+- Bảng **Thu chi tiền mặt** trên trang ca cũng ghi vào sổ công nợ:
+  - Dòng **Thu** có chọn đối tượng → đối tượng **trả nợ** (cột "− Thu").
+  - Dòng **Chi** có chọn đối tượng và **tích "Ghi nợ"** (vd nhân viên tạm ứng) →
+    đối tượng **nợ thêm** (cột "+ Tạm ứng/Chi"). Dòng Chi không tích (vd nộp tiền về
+    công ty) chỉ là ghi chú, không vào sổ.
+  - Nhớ bấm **Lưu** bảng thu chi; bỏ tích rồi Lưu thì khoản nợ đó bị gỡ khỏi sổ.
 
 ## 8. Tải ảnh (mục **Tải ảnh**)
 
@@ -116,13 +122,13 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 **Tải nhầm ảnh — sửa hoặc xoá:**
 
-| Trường hợp | Cách làm |
-|---|---|
-| AI đọc sai số | Bấm vào số để **Sửa số** (nhập tay — nhanh hơn đọc lại, vì cùng ảnh AI sẽ đọc ra cùng số). |
-| Ảnh chốt ca vào **nhầm trụ** / nhầm đồng hồ | Bấm vào ảnh ở dòng trụ → **Gỡ ảnh khỏi trụ**. Ô số của trụ đó trống lại, ảnh chuyển xuống **Ảnh chưa ghép trụ** → chọn đúng trụ, bấm **Gán vào trụ** (AI đọc lại số). |
-| Ảnh chốt ca **không dùng được** (mờ, ảnh khác) | Gỡ ảnh khỏi trụ (nếu đang nằm ở trụ) → ở **Ảnh chưa ghép trụ** bấm **Xoá ảnh**. Muốn có số thì tải ảnh đúng lên lại hoặc Sửa số. |
-| Lượt công nợ tải nhầm ảnh | Ở thẻ lượt xe bấm **Xoá lượt** (xoá lượt và 2 ảnh), rồi tải lại cặp ảnh đúng. Muốn giữ lại để đối chiếu thì bấm **Từ chối**. |
-| Lần đo bồn tải nhầm | Ở **Tồn kho → Đo bồn** bấm **Xoá** ở dòng đó; lần đo sau tự so với lần đo trước đó. |
+| Trường hợp                                     | Cách làm                                                                                                                                                              |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI đọc sai số                                  | Bấm vào số để **Sửa số** (nhập tay — nhanh hơn đọc lại, vì cùng ảnh AI sẽ đọc ra cùng số).                                                                            |
+| Ảnh chốt ca vào **nhầm trụ** / nhầm đồng hồ    | Bấm vào ảnh ở dòng trụ → **Gỡ ảnh khỏi trụ**. Ô số của trụ đó trống lại, ảnh chuyển xuống **Ảnh chưa ghép trụ** → chọn đúng trụ, bấm **Gán vào trụ** (AI đọc lại số). |
+| Ảnh chốt ca **không dùng được** (mờ, ảnh khác) | Gỡ ảnh khỏi trụ (nếu đang nằm ở trụ) → ở **Ảnh chưa ghép trụ** bấm **Xoá ảnh**. Muốn có số thì tải ảnh đúng lên lại hoặc Sửa số.                                      |
+| Lượt công nợ tải nhầm ảnh                      | Ở thẻ lượt xe bấm **Xoá lượt** (xoá lượt và 2 ảnh), rồi tải lại cặp ảnh đúng. Muốn giữ lại để đối chiếu thì bấm **Từ chối**.                                          |
+| Lần đo bồn tải nhầm                            | Ở **Tồn kho → Đo bồn** bấm **Xoá** ở dòng đó; lần đo sau tự so với lần đo trước đó.                                                                                   |
 
 Kế toán chỉ gỡ/xoá được mục **chưa duyệt** của ca **chưa chốt**; mục đã duyệt thì
 nhờ quản trị viên (xoá lượt công nợ đã duyệt sẽ bỏ luôn khoản nợ trong sổ công nợ).

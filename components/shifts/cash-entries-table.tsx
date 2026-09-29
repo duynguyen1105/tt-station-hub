@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Command,
   CommandEmpty,
@@ -32,7 +33,14 @@ const t = vi.shifts.cashEntries
 type Customer = { id: string; name: string }
 
 function emptyEntry(): CashEntryInput {
-  return { content: '', customerId: null, counterparty: '', receipt: '', payment: '' }
+  return {
+    content: '',
+    customerId: null,
+    counterparty: '',
+    receipt: '',
+    payment: '',
+    chargesDebt: false,
+  }
 }
 
 /** What Đối tượng reads as: the picked khách hàng's tên, else the typed text. */
@@ -255,6 +263,21 @@ export function CashEntriesTable({
                         value={row.payment}
                         onChange={(e) => update(index, { payment: e.target.value })}
                       />
+                      {/* Only a khách hàng has a sổ to charge a tạm ứng to. */}
+                      {row.customerId && (
+                        <label
+                          className="mt-1 flex items-center justify-end gap-1.5 text-xs"
+                          title={t.chargesDebtTitle}
+                        >
+                          <Checkbox
+                            checked={row.chargesDebt}
+                            onCheckedChange={(state) =>
+                              update(index, { chargesDebt: state === true })
+                            }
+                          />
+                          {t.chargesDebt}
+                        </label>
+                      )}
                     </td>
                     <td className="p-1">
                       <Button
@@ -273,7 +296,14 @@ export function CashEntriesTable({
                     <td className="p-2">{row.content}</td>
                     <td className="p-2">{counterpartyLabel(row, customers)}</td>
                     <td className="p-2 text-right font-mono">{amountText(row.receipt)}</td>
-                    <td className="p-2 text-right font-mono">{amountText(row.payment)}</td>
+                    <td className="p-2 text-right font-mono">
+                      {amountText(row.payment)}
+                      {row.chargesDebt && (
+                        <div className="text-muted-foreground font-sans text-xs">
+                          {t.chargesDebt}
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 )
               )}

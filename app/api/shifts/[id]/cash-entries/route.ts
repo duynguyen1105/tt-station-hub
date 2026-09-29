@@ -10,6 +10,7 @@ import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
 import {
   cashPaymentRef,
+  debtChargesOf,
   debtPaymentsOf,
   normalizeCashEntries,
   refuseCashEntries,
@@ -22,6 +23,7 @@ const entrySchema = z.object({
   counterparty: z.string().max(500),
   receipt: z.string().max(30),
   payment: z.string().max(30),
+  chargesDebt: z.boolean().default(false),
 })
 
 const cashEntriesSchema = z.object({
@@ -33,8 +35,9 @@ const cashEntriesSchema = z.object({
  * replaces what was stored, in order, blank rows dropped. What an amount may be is
  * refuseCashEntries's to decide, the same rule the table applies before posting.
  *
- * The ca's thu nợ is rewritten with it: a Thu row naming a khách hàng is a payment in
- * that khách's sổ công nợ, dated the ca's day, so emptying the table removes them.
+ * The ca's rows in the sổ công nợ are rewritten with it, dated the ca's day: a Thu row
+ * naming a khách hàng is a payment by that khách, a Chi row naming one and ticked Ghi nợ
+ * (a tạm ứng) is a khoản nợ of theirs. Emptying the table removes them.
  *
  * Admin and accountant at any status — `canEditCashEntries`. Chốt ca does not lock them.
  */
@@ -68,12 +71,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: entries.map((entry, position) => ({ ...entry, shiftId: id, position })),
     })
     const payments = debtPaymentsOf(entries)
+    const charges = debtChargesOf(entries)
     await tx.debtTransaction.deleteMany({ where: { sourceRef: cashPaymentRef(id) } })
-    if (payments.length > 0) {
+    const posted = [
+      ...payments.map((p) => ({ ...p, txType: 'payment' })),
+      ...charges.map((c) => ({ ...c, txType: 'charge' })),
+    ]
+    if (posted.length > 0) {
       await tx.debtTransaction.createMany({
-        data: payments.map((p) => ({
+        data: posted.map((p) => ({
           customerId: p.customerId,
-          txType: 'payment',
+          txType: p.txType,
           amount: p.amount,
           sourceRef: cashPaymentRef(id),
           txDate: shift.shiftDate,
@@ -88,7 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         action: 'shift.cash_entries.set',
         entity: 'shift',
         entityId: id,
-        metadata: { entries, payments },
+        metadata: { entries, payments, charges },
       },
       tx
     )

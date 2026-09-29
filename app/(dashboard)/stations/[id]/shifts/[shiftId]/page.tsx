@@ -128,6 +128,7 @@ export default async function ShiftDetailPage({
     counterparty: e.counterparty,
     receipt: e.receipt?.toString() ?? '',
     payment: e.payment?.toString() ?? '',
+    chargesDebt: e.chargesDebt,
   }))
   // Đối tượng's list: every khách hàng in use — the same list the lượt xe picker offers —
   // plus any a saved row already names, so a retired khách still reads by tên.
