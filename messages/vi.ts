@@ -258,7 +258,10 @@ export const vi = {
     reactivated: 'Đã dùng lại trụ',
     saved: 'Đã lưu trụ bơm',
     numberRequired: 'Vui lòng nhập số trụ.',
-    numberTaken: (name: string) => `Trạm đã có ${name}.`,
+    // A trạm has one of each số trụ (the plate the AI matches); a trụ drawing from one
+    // more hầm is Sửa'd, not added again.
+    numberTaken: (name: string) =>
+      `Trạm đã có ${name} — mỗi số trụ chỉ có một. Muốn ${name} lấy thêm từ hầm này thì bấm ⋯ ở dòng ${name} → Sửa, tích thêm hầm rồi Lưu.`,
     fuelRequired: 'Vui lòng chọn nhiên liệu.',
     meterRequired: 'Trụ phải có ít nhất một đồng hồ, nếu không ca sẽ không chờ ảnh nào của trụ.',
   },
