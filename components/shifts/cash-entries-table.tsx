@@ -228,6 +228,9 @@ export function CashEntriesTable({
                 <th className="p-2">{t.counterparty}</th>
                 <th className="w-44 p-2 text-right">{t.receipt}</th>
                 <th className="w-44 p-2 text-right">{t.payment}</th>
+                <th className="w-20 p-2 text-center" title={t.chargesDebtTitle}>
+                  {t.chargesDebt}
+                </th>
                 {canEdit && <th className="w-12 p-2"></th>}
               </tr>
             </thead>
@@ -263,20 +266,18 @@ export function CashEntriesTable({
                         value={row.payment}
                         onChange={(e) => update(index, { payment: e.target.value })}
                       />
-                      {/* Only a khách hàng has a sổ to charge a tạm ứng to. */}
+                    </td>
+                    {/* Only a khách hàng has a sổ to charge a tạm ứng to. */}
+                    <td className="p-1 text-center align-middle">
                       {row.customerId && (
-                        <label
-                          className="mt-1 flex items-center justify-end gap-1.5 text-xs"
+                        <Checkbox
+                          aria-label={t.chargesDebt}
                           title={t.chargesDebtTitle}
-                        >
-                          <Checkbox
-                            checked={row.chargesDebt}
-                            onCheckedChange={(state) =>
-                              update(index, { chargesDebt: state === true })
-                            }
-                          />
-                          {t.chargesDebt}
-                        </label>
+                          checked={row.chargesDebt}
+                          onCheckedChange={(state) =>
+                            update(index, { chargesDebt: state === true })
+                          }
+                        />
                       )}
                     </td>
                     <td className="p-1">
@@ -296,14 +297,8 @@ export function CashEntriesTable({
                     <td className="p-2">{row.content}</td>
                     <td className="p-2">{counterpartyLabel(row, customers)}</td>
                     <td className="p-2 text-right font-mono">{amountText(row.receipt)}</td>
-                    <td className="p-2 text-right font-mono">
-                      {amountText(row.payment)}
-                      {row.chargesDebt && (
-                        <div className="text-muted-foreground font-sans text-xs">
-                          {t.chargesDebt}
-                        </div>
-                      )}
-                    </td>
+                    <td className="p-2 text-right font-mono">{amountText(row.payment)}</td>
+                    <td className="p-2 text-center">{row.chargesDebt ? '✓' : ''}</td>
                   </tr>
                 )
               )}
@@ -315,6 +310,7 @@ export function CashEntriesTable({
                 </td>
                 <td className="p-2 text-right font-mono">{formatVND(totals.receipt)}</td>
                 <td className="p-2 text-right font-mono">{formatVND(totals.payment)}</td>
+                <td></td>
                 {canEdit && <td></td>}
               </tr>
             </tfoot>

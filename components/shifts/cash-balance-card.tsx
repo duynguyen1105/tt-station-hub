@@ -54,8 +54,17 @@ export function CashBalanceCard({
         { label: t.opening, value: line.opening },
         { label: t.sales, value: line.sales },
         { label: t.receipts, value: line.receipts },
-        { label: t.payments, value: line.payments, tone: 'text-destructive' },
-        { label: t.debts, value: line.debts, tone: 'text-destructive' },
+        // What leaves the ngăn kéo is marked red — only when something did.
+        {
+          label: t.payments,
+          value: line.payments,
+          tone: line.payments > 0 ? 'text-destructive' : undefined,
+        },
+        {
+          label: t.debts,
+          value: line.debts,
+          tone: line.debts > 0 ? 'text-destructive' : undefined,
+        },
       ]
     : []
   return (
