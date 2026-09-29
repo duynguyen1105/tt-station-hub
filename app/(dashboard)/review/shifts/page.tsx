@@ -1,24 +1,64 @@
+import Link from 'next/link'
+
 import { ReviewTabs } from '@/components/review/review-tabs'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
-import { reachableShiftIds } from '@/lib/auth/station-guard'
+import { reachableShiftIds, reachableStationIds } from '@/lib/auth/station-guard'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
-export default async function ReviewShiftsPage() {
+export default async function ReviewShiftsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ station?: string }>
+}) {
   const user = await requireUser()
+  const params = await searchParams
 
   // A kế toán is offered the ca of the trạm they are phụ trách of and no other,
   // so the hundred rows below are a hundred rows of their own work.
   const reviewableShiftIds = await reachableShiftIds(user)
+  const reachableIds = await reachableStationIds(user)
+  const stationFilter =
+    params.station && reachableIds.includes(params.station) ? params.station : null
+
+  const queueWhere = {
+    reviewStatus: { in: ['pending', 'needs_review'] as ('pending' | 'needs_review')[] },
+    ...(reviewableShiftIds !== null && { shiftId: { in: reviewableShiftIds } }),
+  }
+
+  // A reading has no trạm of its own: count per ca, then map each ca to its trạm.
+  const [countRows, chipStations] = await Promise.all([
+    prisma.shiftReading.groupBy({ by: ['shiftId'], where: queueWhere, _count: true }),
+    prisma.station.findMany({
+      where: { isActive: true, id: { in: reachableIds } },
+      orderBy: { code: 'asc' },
+      select: { id: true, code: true },
+    }),
+  ])
+  const countedShifts = await prisma.shift.findMany({
+    where: { id: { in: countRows.map((r) => r.shiftId) } },
+    select: { id: true, stationId: true },
+  })
+  const stationOfShift = new Map(countedShifts.map((s) => [s.id, s.stationId]))
+  const countByStation = new Map<string, number>()
+  for (const row of countRows) {
+    const stationId = stationOfShift.get(row.shiftId)
+    if (stationId) countByStation.set(stationId, (countByStation.get(stationId) ?? 0) + row._count)
+  }
+  const total = countRows.reduce((sum, r) => sum + r._count, 0)
 
   const readings = await prisma.shiftReading.findMany({
     where: {
-      reviewStatus: { in: ['pending', 'needs_review'] },
-      ...(reviewableShiftIds !== null && { shiftId: { in: reviewableShiftIds } }),
+      ...queueWhere,
+      ...(stationFilter && {
+        shiftId: {
+          in: countedShifts.filter((s) => s.stationId === stationFilter).map((s) => s.id),
+        },
+      }),
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -68,6 +108,29 @@ export default async function ReviewShiftsPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">{vi.review.shiftsTitle}</h1>
       <ReviewTabs />
+      {chipStations.length > 1 && (
+        <nav className="flex flex-wrap gap-2 text-sm" aria-label={vi.debtReview.stationFilter}>
+          {[
+            { id: null, label: vi.debtReview.allStations, count: total },
+            ...chipStations
+              .filter((s) => countByStation.has(s.id) || s.id === stationFilter)
+              .map((s) => ({ id: s.id, label: s.code, count: countByStation.get(s.id) ?? 0 })),
+          ].map((chip) => (
+            <Link
+              key={chip.id ?? 'all'}
+              href={chip.id ? `/review/shifts?station=${chip.id}` : '/review/shifts'}
+              aria-current={chip.id === stationFilter ? 'page' : undefined}
+              className={
+                chip.id === stationFilter
+                  ? 'bg-primary text-primary-foreground rounded-full px-3 py-1 font-medium'
+                  : 'hover:bg-muted rounded-full border px-3 py-1'
+              }
+            >
+              {chip.label} ({chip.count})
+            </Link>
+          ))}
+        </nav>
+      )}
       {readings.length === 0 ? (
         <p className="text-muted-foreground text-sm">{vi.review.empty}</p>
       ) : (
