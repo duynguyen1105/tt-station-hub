@@ -42,9 +42,13 @@ export function canCorrectTankDip(role: AppRole, reviewStatus: string): boolean 
  * about the hầm, and excluding it would leave Tổng quan stale for as long as it
  * takes someone to click Duyệt.
  *
+ * A dip whose số đo the AI could not read (null) counts for nothing until a người
+ * duyệt types it — there is no height to look up, nor to compare the next dip with.
+ *
  * Only for the figures a dip feeds. The Lịch sử đo bồn table itself lists every
- * row, từ chối ones included and badged, because the history is the audit trail.
+ * row, từ chối and unread ones included and badged, because the history is the
+ * audit trail.
  */
 export function countableDipWhere(stationId: string) {
-  return { stationId, reviewStatus: { not: REJECTED_DIP } }
+  return { stationId, reviewStatus: { not: REJECTED_DIP }, dipValue: { not: null } }
 }

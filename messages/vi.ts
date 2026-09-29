@@ -744,6 +744,10 @@ export const vi = {
     tank: 'Hầm',
     dipValue: 'Số đo',
     dipCorrected: 'Đã cập nhật số đo bồn.',
+    dipUnread: 'Chưa đọc được số đo',
+    enterDipValue: 'Nhập số đo',
+    baremRecomputing: 'Đang tính lại lít barem',
+    dipNeedsValue: 'Nhập số đo trước khi duyệt.',
     tankCorrected: 'Đã cập nhật hầm.',
     invalidDipValue: 'Số đo không hợp lệ.',
     // Refused because this trạm has no such hầm — the twin of notStationFuel for

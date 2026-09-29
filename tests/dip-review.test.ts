@@ -26,10 +26,11 @@ describe('canReviewTankDip', () => {
 })
 
 describe('countableDipWhere', () => {
-  it('scopes to the trạm and drops only the từ chối reads', () => {
+  it('scopes to the trạm and drops the từ chối reads and the unread (blank) ones', () => {
     expect(countableDipWhere('tram-1')).toEqual({
       stationId: 'tram-1',
       reviewStatus: { not: REJECTED_DIP },
+      dipValue: { not: null },
     })
   })
 

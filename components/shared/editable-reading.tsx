@@ -25,6 +25,7 @@ export function EditableReading({
   busy,
   leading,
   confidence,
+  emptyLabel,
 }: {
   value: string | null
   canEdit: boolean
@@ -33,6 +34,8 @@ export function EditableReading({
   busy: boolean
   leading?: ReactNode
   confidence?: number | null
+  /** Shown as an outlined "type it here" button when there is no value yet. */
+  emptyLabel?: string
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -73,6 +76,7 @@ export function EditableReading({
         className="h-7 w-24"
         value={draft}
         inputMode="decimal"
+        placeholder={emptyLabel}
         autoFocus
         disabled={busy}
         onChange={(e) => setDraft(e.target.value)}
@@ -87,6 +91,19 @@ export function EditableReading({
           }
         }}
       />
+    )
+  } else if (canEdit && shown === null && emptyLabel) {
+    // A blank number with nothing to click on reads as "nothing to do here" — an
+    // outlined prompt says the value is waiting to be typed.
+    body = (
+      <button
+        type="button"
+        onClick={begin}
+        disabled={busy}
+        className="border-input text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer rounded-md border border-dashed px-2 py-0.5 font-sans text-xs transition-colors"
+      >
+        {emptyLabel}
+      </button>
     )
   } else if (canEdit) {
     body = (

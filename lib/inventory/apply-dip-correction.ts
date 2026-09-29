@@ -78,7 +78,8 @@ export async function applyDipCorrection(params: {
 }): Promise<TankDipRecord> {
   const { dip, userId } = params
 
-  const dipValue = params.dipValue ?? Number(dip.dipValue)
+  // A blank dip (the AI read no số đo) that is only moved to another hầm stays blank.
+  const dipValue = params.dipValue ?? (dip.dipValue === null ? null : Number(dip.dipValue))
   const tankCode = params.tankCode ?? dip.tankCode
   const movedTank = tankCode !== dip.tankCode
   // Ask both chains and the new hầm's Cấu hình row at once.
@@ -93,7 +94,17 @@ export async function applyDipCorrection(params: {
       : null,
   ])
   const to = movedTo ?? from
-  const plan = planDipRewire({ self: { dipValue }, from, to, movedTank })
+  // A blank dip is in no chain: while it stays blank it moves nothing, and a first
+  // số đo typed into it joins `to` the way a freshly ingested dip would.
+  const plan =
+    dipValue === null
+      ? { self: {}, neighbours: [] }
+      : planDipRewire({
+          self: { dipValue },
+          from: dip.dipValue === null ? { previous: null, next: null } : from,
+          to,
+          movedTank,
+        })
   const data: Prisma.TankDipRecordUpdateInput = { dipValue, ...plan.self }
   if (movedTank) data.tankCode = tankCode
   // capacityK is left alone: it is what the plate said, not what the hầm is. The
@@ -106,7 +117,8 @@ export async function applyDipCorrection(params: {
   // on every save would record the AI's own value as its "original" and say
   // nothing. It is also what tells the row to stop showing the AI's confidence
   // beside a number a person typed.
-  if (dip.originalDipValue === null && Number(dip.dipValue) !== dipValue) {
+  // A blank dip had no AI read to keep, so the first số đo typed into it stamps none.
+  if (dip.originalDipValue === null && dip.dipValue !== null && Number(dip.dipValue) !== dipValue) {
     data.originalDipValue = dip.dipValue
   }
 
@@ -123,12 +135,16 @@ export async function applyDipCorrection(params: {
         entityId: dip.id,
         metadata: {
           from: {
-            ...(params.dipValue !== undefined ? { dipValue: dip.dipValue.toString() } : {}),
+            ...(params.dipValue !== undefined
+              ? { dipValue: dip.dipValue?.toString() ?? null }
+              : {}),
             ...(movedTank ? { tankCode: dip.tankCode } : {}),
             ...(changedFuel ? { fuelType: dip.fuelType } : {}),
           },
           to: {
-            ...(params.dipValue !== undefined ? { dipValue: updated.dipValue.toString() } : {}),
+            ...(params.dipValue !== undefined
+              ? { dipValue: updated.dipValue?.toString() ?? null }
+              : {}),
             ...(movedTank ? { tankCode: updated.tankCode } : {}),
             ...(changedFuel ? { fuelType: updated.fuelType } : {}),
           },
@@ -143,7 +159,11 @@ export async function applyDipCorrection(params: {
 /** Delete one đo hầm, closing the countable hầm chain across the missing row. */
 export async function applyDipDelete({ dip, userId }: { dip: TankDipRecord; userId: string }) {
   const paths = await prisma.$transaction(async (db) => {
-    const from = dip.reviewStatus === REJECTED_DIP ? null : await chainAround(dip, dip.tankCode, db)
+    // A từ chối or blank dip is in no chain, so there is no gap to close.
+    const from =
+      dip.reviewStatus === REJECTED_DIP || dip.dipValue === null
+        ? null
+        : await chainAround(dip, dip.tankCode, db)
     const removed = await db.tankDipRecord.deleteMany({
       where: {
         id: dip.id,
@@ -175,7 +195,7 @@ export async function applyDipDelete({ dip, userId }: { dip: TankDipRecord; user
         metadata: {
           stationId: dip.stationId,
           tankCode: dip.tankCode,
-          dipValue: dip.dipValue.toString(),
+          dipValue: dip.dipValue?.toString() ?? null,
           reviewStatus: dip.reviewStatus,
           photoId: dip.photoId,
         },

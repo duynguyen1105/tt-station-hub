@@ -20,6 +20,7 @@ import {
   loadStationFuelMappings,
   loadStationFuels,
 } from '@/lib/fuels/load-catalogue'
+import { parseVnNumber } from '@/lib/imports/bien-ban'
 import { measuredIntakeByTank } from '@/lib/imports/measured-intake'
 import { stationPumpsFromDispensers } from '@/lib/imports/pump-rows'
 import { rosterForStation } from '@/lib/imports/station-rosters'
@@ -497,6 +498,7 @@ export default async function StationInventoryPage({
           id: true,
           storagePath: true,
           aiConfidence: true,
+          aiRawResponse: true,
           senderName: true,
           senderNote: true,
         },
@@ -512,6 +514,16 @@ export default async function StationInventoryPage({
   // How sure the AI was of this số đo. Read off the photo rather than copied onto
   // the đo hầm row, so there is only ever one number to trust.
   const dipConfidence = new Map(dipPhotos.map((p) => [p.id, p.aiConfidence] as const))
+  // Photos the AI found no số đo on — the same parse ingest applies. A số đo typed
+  // into such a dip later is a person's, never "what the AI read".
+  const dipAiUnread = new Set(
+    dipPhotos
+      .filter((p) => {
+        const raw = p.aiRawResponse as { dip_value?: unknown } | null
+        return parseVnNumber(raw?.dip_value) === null
+      })
+      .map((p) => p.id)
+  )
   // Who uploaded each dip photo, and the message typed with it.
   const dipPhotoMeta = new Map(
     dipPhotos.map((p) => [p.id, { sender: p.senderName, note: p.senderNote }] as const)
@@ -882,7 +894,7 @@ export default async function StationInventoryPage({
                       <td className="p-2 font-medium">{tankCode.replace('HAM_', 'Hầm ')}</td>
                       <td className="p-2">{fuel ? fuelLabel(fuel) : '—'}</td>
                       <td className="p-2 text-right font-mono">
-                        {dip?.dipValue.toString() ?? '—'}
+                        {dip?.dipValue?.toString() ?? '—'}
                       </td>
                       <td className="p-2 text-right font-mono">
                         {lookup?.ok ? (
@@ -1014,12 +1026,13 @@ export default async function StationInventoryPage({
                 </thead>
                 <tbody>
                   {dipsPage.map((dip) => {
-                    const lookup = baremByTank
-                      ? lookupBaremLiters(
-                          baremByTank.get(dip.tankCode),
-                          Math.round(Number(dip.dipValue))
-                        )
-                      : null
+                    const lookup =
+                      baremByTank && dip.dipValue !== null
+                        ? lookupBaremLiters(
+                            baremByTank.get(dip.tankCode),
+                            Math.round(Number(dip.dipValue))
+                          )
+                        : null
                     const fuel = dipFuel(configuredFuel, dip.tankCode, dip.fuelType)
                     return (
                       <DipRow
@@ -1031,13 +1044,16 @@ export default async function StationInventoryPage({
                           tankCode: dip.tankCode,
                           tankLabel: dip.tankCode.replace('HAM_', 'Hầm '),
                           fuelLabel: fuel ? fuelLabel(fuel) : '—',
-                          dipValue: dip.dipValue.toString(),
+                          dipValue: dip.dipValue?.toString() ?? null,
                           liters: lookup?.ok ? formatLiters(lookup.liters) : null,
                           litersRefusal:
                             (lookup && !lookup.ok ? refusalLabel[lookup.reason] : null) ?? null,
                           delta: dip.deltaFromPrevious?.toString() ?? null,
                           photoUrl: (dip.photoId ? dipPhotoUrl.get(dip.photoId) : null) ?? null,
                           confidence: (dip.photoId ? dipConfidence.get(dip.photoId) : null) ?? null,
+                          aiUnread:
+                            dip.dipValue === null ||
+                            (dip.photoId !== null && dipAiUnread.has(dip.photoId)),
                           sender:
                             (dip.photoId ? dipPhotoMeta.get(dip.photoId)?.sender : null) ?? null,
                           senderNote:

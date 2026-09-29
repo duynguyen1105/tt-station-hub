@@ -326,7 +326,10 @@ model TankDipRecord {
   tankCode          String    @map("tank_code") // normalized, e.g. "HAM_3"
   fuelType          String?   @map("fuel_type")
   capacityK         Int?      @map("capacity_k")
-  dipValue          Decimal   @map("dip_value") @db.Decimal(15, 3)
+  // Null when the AI found no số đo on the photo (no badge, no handwriting): the
+  // row still lands on Lịch sử đo bồn so a người duyệt can type it, and until then
+  // it feeds no figure (countableDipWhere).
+  dipValue          Decimal?  @map("dip_value") @db.Decimal(15, 3)
   deltaFromPrevious Decimal?  @map("delta_from_previous") @db.Decimal(15, 3)
   photoId           String?   @map("photo_id") @db.Uuid
   measuredAt        DateTime  @map("measured_at")

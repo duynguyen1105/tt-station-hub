@@ -1,5 +1,7 @@
 'use client'
 
+import { LoaderCircle } from 'lucide-react'
+
 import { useState } from 'react'
 
 import { EditableReading } from '@/components/shared/editable-reading'
@@ -32,7 +34,8 @@ export type DipRowData = {
   tankLabel: string
   /** What Cấu hình says the hầm holds, else what the dip carries — see `dipFuel`. */
   fuelLabel: string
-  dipValue: string
+  /** Null while the AI found no số đo on the photo and nobody has typed one yet. */
+  dipValue: string | null
   /** Barem litres, already formatted; null when the sheet could not answer. */
   liters: string | null
   /** Why the barem refused, when it did — shown in place of the litres. */
@@ -41,6 +44,8 @@ export type DipRowData = {
   photoUrl: string | null
   /** The AI's confidence in this dip read, off the ShiftPhoto it came from. */
   confidence: number | null
+  /** The AI read no số đo off the photo, so any number here is a person's. */
+  aiUnread: boolean
   /** Who uploaded the photo, and the message typed with the upload. */
   sender: string | null
   senderNote: string | null
@@ -79,7 +84,12 @@ export function DipRow({
   // opposite action live, as the escape hatch for a mistaken duyệt / từ chối.
   const canReverse = data.role === 'admin'
   const disabled = busy || acting !== null
-  const approveDisabled = disabled || alreadyApproved || (alreadyRejected && !canReverse)
+  // A số đo or hầm correction sets no `acting`, and both change the litres: the
+  // barem is re-read live on the refresh (~1.5 s), so the cell says it is coming.
+  const recomputing = busy && acting === null
+  // A blank số đo has nothing to duyệt yet — type it first (the route refuses too).
+  const blank = data.dipValue === null
+  const approveDisabled = disabled || blank || alreadyApproved || (alreadyRejected && !canReverse)
   const rejectDisabled = disabled || alreadyRejected || (alreadyApproved && !canReverse)
   const mayReview = canReviewTankDip(data.role)
   // The shared policy keeps decided rows editable for admin, but not kế toán.
@@ -142,21 +152,33 @@ export function DipRow({
           canEdit={mayCorrect}
           lockHint={lockHint}
           // An AI confidence beside a hand-typed number is a lie, so it drops
-          // away the moment someone retypes the read.
-          confidence={data.originalDipValue === null ? data.confidence : null}
+          // away the moment someone retypes the read — or when the AI read none.
+          confidence={data.originalDipValue === null && !data.aiUnread ? data.confidence : null}
           busy={disabled}
+          emptyLabel={vi.inventory.enterDipValue}
           leading={
             <PhotoView
               url={data.photoUrl}
-              label={`${vi.inventory.dipValue} — ${vi.correction.aiRead}: ${data.originalDipValue ?? data.dipValue}`}
+              label={`${vi.inventory.dipValue} — ${vi.correction.aiRead}: ${data.aiUnread ? '—' : (data.originalDipValue ?? data.dipValue)}`}
             />
           }
           onSave={(next) => correct({ dipValue: next }, vi.inventory.dipCorrected)}
         />
+        {/* Someone who can type it sees the Nhập số đo button instead. */}
+        {blank && !mayCorrect && (
+          <div className="text-xs text-amber-700 dark:text-amber-400">{vi.inventory.dipUnread}</div>
+        )}
       </td>
       <td className="p-2 text-right font-mono">
-        {data.liters ?? (
-          <span className="text-muted-foreground text-xs">{data.litersRefusal ?? '—'}</span>
+        {recomputing ? (
+          <LoaderCircle
+            aria-label={vi.inventory.baremRecomputing}
+            className="text-muted-foreground inline size-3.5 animate-spin"
+          />
+        ) : (
+          (data.liters ?? (
+            <span className="text-muted-foreground text-xs">{data.litersRefusal ?? '—'}</span>
+          ))
         )}
       </td>
       <td className="p-2 text-right font-mono">{data.delta ?? '—'}</td>

@@ -46,6 +46,17 @@ describe('pickStationByLabel', () => {
     expect(pickStationByLabel('', STATIONS)).toBeNull()
   })
 
+  it('returns null for a prefix shared by several stations instead of guessing the first', () => {
+    const siblings = [
+      { id: '1', code: 'DAKNONG1', name: 'Trạm Đăk Nông 1' },
+      { id: '2', code: 'DAKNONG2', name: 'Đắk Nông 2' },
+      { id: '5', code: 'DAKNONG5', name: 'Đắk Nông 5' },
+      { id: '9', code: 'DAKNONGVK', name: 'Đăk Nông VK' },
+    ]
+    expect(pickStationByLabel('DAKNONG', siblings)).toBeNull()
+    expect(pickStationByLabel('DAKNONG5', siblings)?.code).toBe('DAKNONG5')
+  })
+
   it('never confuses numbered siblings', () => {
     expect(pickStationByLabel('ĐAKNONG 1', STATIONS)?.code).not.toBe('DAKNONG2')
   })

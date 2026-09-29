@@ -1,9 +1,10 @@
-import { forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
+import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { canReviewTankDip } from '@/lib/inventory/dip-review'
 import { prisma } from '@/lib/prisma'
+import { vi } from '@/messages/vi'
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -15,6 +16,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   // The đo hầm's own trạm decides, not the screen the row was reached from.
   if (!(await canReachStation(user, dip.stationId))) return forbidden()
   if (!canReviewTankDip(user.role)) return forbidden()
+  // A dip the AI read no số đo off has nothing to duyệt until someone types it.
+  if (dip.dipValue === null) return badRequest(vi.inventory.dipNeedsValue)
 
   const updated = await prisma.tankDipRecord.update({
     where: { id },

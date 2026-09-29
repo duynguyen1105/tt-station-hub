@@ -43,12 +43,15 @@ export function pickStationByLabel<T extends { id: string; code: string; name: s
     ]
     if (variants.some((v) => v && wanted.has(v))) return st
   }
-  for (const st of stations) {
+  // A label that is only a prefix ("DAKNONG" on a plate that lost its number) fits
+  // every numbered sibling — guessing the first would file the photo under the wrong
+  // trạm, so an ambiguous contains match is no match.
+  const n = stripZeroPadding(norm)
+  const partial = stations.filter((st) => {
     const code = stripZeroPadding(normalizeStationLabel(st.code))
-    const n = stripZeroPadding(norm)
-    if (code && (n.includes(code) || code.includes(n))) return st
-  }
-  return null
+    return code && (n.includes(code) || code.includes(n))
+  })
+  return partial.length === 1 ? (partial[0] ?? null) : null
 }
 
 /** DB-backed wrapper: matches a label against the active stations. */

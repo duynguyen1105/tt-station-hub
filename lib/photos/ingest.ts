@@ -699,27 +699,13 @@ export async function ingestTankDip(
   station?: { id: string } | null
 ): Promise<ExtractTankDipResult> {
   const result = precomputed ?? (await extractTankDip({ imageBuffer: buffer }))
-  // The printed tank label names its station ("TANHOA / HẦM 3 / E0 - 6K") — the
-  // most trustworthy source there is, exactly like the pump plate for shift and
-  // debt photos. It overrides the sender/context station, so forwarded dips
-  // never poison another trạm's delta chain.
+  // The trạm the sender chose always wins. The printed tank label ("TANHOA / HẦM 3 /
+  // E0 - 6K") only names the trạm when nobody chose one, and a plate that lost its
+  // number ("DAKNONG") must not move the dip to a sibling trạm.
   let target = station ?? null
-  if (result.stationLabel) {
+  if (!target && result.stationLabel) {
     const byLabel = await matchStationByLabel(result.stationLabel)
-    if (byLabel) {
-      if (target && byLabel.id !== target.id) {
-        logger.info(
-          { from: target.id, to: byLabel.code, label: result.stationLabel },
-          'Tank dip station label overrides sender station'
-        )
-      }
-      target = { id: byLabel.id }
-    } else if (target) {
-      logger.warn(
-        { stationId: target.id, label: result.stationLabel },
-        'Tank dip label matches no station — keeping sender station'
-      )
-    }
+    if (byLabel) target = { id: byLabel.id }
   }
   const tankNumber = result.tankNumber ?? result.tankLabel?.match(/(\d+)/)?.[1] ?? null
   const tankCode = target && tankNumber ? tankCodeFor(Number.parseInt(tankNumber, 10)) : null
@@ -788,13 +774,19 @@ export async function ingestTankDip(
   // thousand millimetres, not 1.0 — parseNumericString (built for debt
   // displays like "46.81") would read it a thousand times too small.
   const dip = parseVnNumber(result.dipValue)
-  if (!target || !tankCode || dip === null) return result
+  if (!target || !tankCode) return result
 
-  // Inserting between two dips re-derives the later one's "So với lần trước" too.
+  // A photo with no badge and no handwriting still lands on Lịch sử đo bồn, with a
+  // blank số đo for the người duyệt to type — otherwise it vanishes without a trace.
+  // A blank dip is in no chain, so it has no delta and moves no neighbour.
   const reduce = (row: typeof previous) =>
     row ? { id: row.id, dipValue: Number(row.dipValue) } : null
   const side = { previous: reduce(previous), next: reduce(next) }
-  const plan = planDipRewire({ self: { dipValue: dip }, from: side, to: side, movedTank: false })
+  // Inserting between two dips re-derives the later one's "So với lần trước" too.
+  const plan =
+    dip === null
+      ? { self: { deltaFromPrevious: null }, neighbours: [] }
+      : planDipRewire({ self: { dipValue: dip }, from: side, to: side, movedTank: false })
 
   await prisma.$transaction([
     prisma.tankDipRecord.create({

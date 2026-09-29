@@ -5,7 +5,6 @@ import type { RouterResult } from '@/lib/ai/types'
 import { dayKeyOf } from '@/lib/debts/ledger'
 import { readInstantBound } from '@/lib/filters/params'
 import { logger } from '@/lib/logger'
-import { matchStationByLabel } from '@/lib/matching/station-label'
 import {
   type DebtPhotoType,
   assembleDebtVisit,
@@ -120,28 +119,14 @@ export async function ingestUpload(item: UploadItem): Promise<string[]> {
 
   if (item.kind === 'shift') {
     const extracted = await extractMeter({ imageBuffer: buffer }).catch(() => undefined)
-    // The pump's printed trạm label beats the chosen trạm: another trạm's trụ never
-    // becomes this trạm's reading.
-    let target = station
-    if (extracted?.stationLabel) {
-      const byLabel = await matchStationByLabel(extracted.stationLabel)
-      if (byLabel) {
-        if (byLabel.id !== station.id) {
-          logger.info(
-            { from: station.code, to: byLabel.code, label: extracted.stationLabel },
-            'Photo station label overrides the chosen station'
-          )
-        }
-        target = byLabel
-      }
-    }
-    const shift = await findOrCreateShift(target.id, timestamp)
+    // The chosen trạm always wins; the pump's printed label never moves the photo.
+    const shift = await findOrCreateShift(station.id, timestamp)
     if (shift.status === 'completed') throw new ShiftClosedError()
-    const photo = await savePhoto(item, target.code, 'shift', buffer, shift.id)
+    const photo = await savePhoto(item, station.code, 'shift', buffer, shift.id)
     await runShiftExtraction(
       photo.id,
       buffer,
-      { id: shift.id, stationId: target.id },
+      { id: shift.id, stationId: station.id },
       undefined,
       undefined,
       extracted
