@@ -946,7 +946,7 @@ export default async function StationInventoryPage({
                 // Every tank of the fuel must be measured AND resolved by the
                 // Barem before the comparison means anything.
                 const comparable = actual !== undefined && !incompleteFuels.has(fuel)
-                const diff = comparable ? theoretical - actual : null
+                const diff = comparable ? actual - theoretical : null
                 return (
                   <tr key={fuel} className="border-b">
                     <td className="p-2 font-medium">{fuelLabel(fuel)}</td>
