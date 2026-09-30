@@ -267,9 +267,10 @@ export function CashEntriesTable({
                         onChange={(e) => update(index, { payment: e.target.value })}
                       />
                     </td>
-                    {/* Only a khách hàng has a sổ to charge a tạm ứng to. */}
+                    {/* Only a Chi naming a khách hàng can be a tạm ứng; a Thu naming one is
+                        always their thu nợ, so the tick is not offered there. */}
                     <td className="p-1 text-center align-middle">
-                      {row.customerId && (
+                      {row.customerId && row.payment.trim() !== '' && (
                         <Checkbox
                           aria-label={t.chargesDebt}
                           title={t.chargesDebtTitle}

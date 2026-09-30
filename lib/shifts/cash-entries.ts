@@ -80,8 +80,8 @@ export function normalizeCashEntries(rows: CashEntryInput[]): CashEntry[] {
       counterparty: row.customerId === null ? row.counterparty.trim() : '',
       receipt: parseAmount(row.receipt),
       payment: parseAmount(row.payment),
-      // Only a khách hàng can owe: a typed đối tượng has no sổ to charge.
-      chargesDebt: row.customerId !== null && row.chargesDebt,
+      // Only a Chi naming a khách hàng can owe: a typed đối tượng has no sổ, a Thu is thu nợ.
+      chargesDebt: row.customerId !== null && row.chargesDebt && row.payment.trim() !== '',
     }))
 }
 
