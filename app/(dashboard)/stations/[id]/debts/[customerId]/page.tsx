@@ -129,7 +129,7 @@ export default async function CustomerLedgerPage({
             href={`/stations/${stationId}/debts`}
             className="text-muted-foreground text-xs underline-offset-2 hover:underline"
           >
-            ← {vi.debts.title}
+            ← {vi.stationTabs.debts}
           </Link>
           <h2 className="text-lg font-semibold">{customer.name}</h2>
           <p className="text-muted-foreground font-mono text-xs">

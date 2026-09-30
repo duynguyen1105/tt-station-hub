@@ -7,6 +7,7 @@ import {
   canEditCashEntries,
   canEditClosing,
   canEditOpening,
+  canEditReadingNote,
   canReviewShift,
   isReadingDecided,
   isReadingFrozen,
@@ -172,6 +173,15 @@ describe('canEditCashEntries', () => {
     expect(canEditCashEntries('admin')).toBe(true)
     expect(canEditCashEntries('accountant')).toBe(true)
     expect(canEditCashEntries('viewer')).toBe(false)
+  })
+})
+
+describe('canEditReadingNote', () => {
+  // A Ghi chú moves no figure, so chốt does not lock it.
+  it('lets the admin and the accountant edit it at any status, the viewer never', () => {
+    expect(canEditReadingNote('admin')).toBe(true)
+    expect(canEditReadingNote('accountant')).toBe(true)
+    expect(canEditReadingNote('viewer')).toBe(false)
   })
 })
 

@@ -71,6 +71,14 @@ export function canEditCashEntries(role: AppRole): boolean {
 }
 
 /**
+ * A trụ's Ghi chú on a ca — admin and accountant at any status, viewer never. A note
+ * moves no figure, so chốt ca does not lock it: the phiếu is often annotated after.
+ */
+export function canEditReadingNote(role: AppRole): boolean {
+  return role === 'admin' || role === 'accountant'
+}
+
+/**
  * Whether a human has decided on a row (as opposed to AI auto-approval).
  */
 export function isReadingDecided(

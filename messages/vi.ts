@@ -21,8 +21,8 @@ export const vi = {
     overview: 'Tổng quan',
     shifts: 'Chốt ca',
     documents: 'Giấy tờ pháp lý',
-    inventory: 'Hàng tồn',
-    debts: 'Công nợ',
+    inventory: 'Quản lý kho',
+    debts: 'Quản lý công nợ',
     config: 'Cấu hình',
   },
 
@@ -591,6 +591,69 @@ export const vi = {
     debtEdit: 'Sửa',
     sumTotal: 'Tổng',
     debtPhotos: 'Ảnh',
+    // Cột Ghi chú của bảng trụ, như cột Ghi chú trên phiếu chốt ca Excel: kế toán gõ tự do,
+    // không đổi số liệu nào nên vẫn sửa được sau khi chốt ca.
+    note: 'Ghi chú',
+    noteSaved: 'Đã lưu ghi chú',
+    // Giá bán lẻ vùng của trạm áp dụng cho ngày của ca, ở đầu phiếu như bản Excel.
+    retailPrices: (area: string) => `Giá bán lẻ ${area}`,
+    // Các khối của phiếu chốt ca, dùng làm tiêu đề và thanh chuyển nhanh giữa các khối.
+    sections: {
+      pumps: 'Trụ bơm',
+      stock: 'Tồn kho',
+      debtSales: 'Bán nợ',
+      cashEntries: 'Thu chi',
+      debtLedger: 'Công nợ',
+      cashBalance: 'Tồn tiền mặt',
+    },
+    // Dải số tổng ở đầu phiếu, đọc được ngay không cần cuộn.
+    summary: {
+      sales: 'Tổng tiền bán',
+      debtSales: 'Bán nợ',
+      receipts: 'Tổng thu',
+      payments: 'Tổng chi',
+      closingCash: 'Tồn cuối ngày',
+    },
+    // Khối Tồn kho: số đo hầm trước và trong ngày của ca quy ra lít theo barem, và sổ
+    // sách từng nhiên liệu của ngày đó đặt cạnh số lít thực trong hầm.
+    stock: {
+      title: 'Tồn kho',
+      openTab: 'Mở Quản lý kho →',
+      tanksTitle: 'Tồn kho theo barem',
+      tank: 'Hầm',
+      fuel: 'Hàng',
+      beforeMm: 'Trước (mm)',
+      afterMm: 'Sau (mm)',
+      liters: 'Quy đổi (lít)',
+      noTanks: 'Trạm chưa có hầm nào.',
+      booksTitle: 'Tồn kho theo nhiên liệu',
+      opening: 'Tồn đầu SS',
+      imported: 'Nhập SS',
+      sold: 'Xuất SS',
+      adjusted: '± Điều chỉnh',
+      closing: 'Tồn cuối SS',
+      barem: 'Barem',
+      variance: 'Chênh lệch',
+      // Lượng bán chỉ vào sổ sách khi chốt ca, nên ca đang mở cộng tạm lượng bán của
+      // chính ca này để Tồn cuối SS đọc như sau khi chốt.
+      provisional: 'Tạm tính — gồm lượng bán của ca chưa chốt',
+      beforeOpening: 'Trước ngày đầu kỳ',
+      noFuels: 'Trạm chưa có nhiên liệu nào.',
+      loading: 'Đang tải tồn kho…',
+    },
+    // Khối Công nợ: sổ công nợ từng khách trong ngày của ca, chỉ khách có số khác 0.
+    debtLedger: {
+      title: 'Công nợ khách hàng',
+      openTab: 'Mở Quản lý công nợ →',
+      customer: 'Tên KH',
+      opening: 'Nợ đầu ngày',
+      // Bán nợ cộng tạm ứng/chi ghi nợ trong ngày.
+      charged: 'Phát sinh',
+      paid: 'Thanh toán',
+      closing: 'Nợ còn lại',
+      empty: 'Không có khách nào có công nợ trong ngày này.',
+      loading: 'Đang tải công nợ…',
+    },
     // Bảng thu chi kế toán tự nhập cho ca; vẫn sửa được sau khi chốt ca. Dòng Thu có chọn
     // khách hàng là khách trả nợ trong sổ công nợ.
     cashEntries: {
@@ -745,7 +808,9 @@ export const vi = {
   },
 
   inventory: {
-    title: 'Hàng tồn',
+    title: 'Quản lý kho',
+    // Thêm phát sinh dialog's title — kept apart from the tab name above.
+    movementTitle: 'Hàng tồn',
     fuelType: 'Nhiên liệu',
     // Label of the Nhập / Bán / Kiểm kê / Điều chỉnh picker in the Thêm dialog.
     movementKind: 'Loại phát sinh',

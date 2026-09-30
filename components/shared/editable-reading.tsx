@@ -26,6 +26,8 @@ export function EditableReading({
   leading,
   confidence,
   emptyLabel,
+  inputMode = 'decimal',
+  inputClassName = 'w-24',
 }: {
   value: string | null
   canEdit: boolean
@@ -36,6 +38,9 @@ export function EditableReading({
   confidence?: number | null
   /** Shown as an outlined "type it here" button when there is no value yet. */
   emptyLabel?: string
+  /** 'text' for a free-text cell such as a trụ's Ghi chú; numbers otherwise. */
+  inputMode?: 'decimal' | 'text'
+  inputClassName?: string
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -73,9 +78,9 @@ export function EditableReading({
   if (editing) {
     body = (
       <Input
-        className="h-7 w-24"
+        className={`h-7 ${inputClassName}`}
         value={draft}
-        inputMode="decimal"
+        inputMode={inputMode}
         placeholder={emptyLabel}
         autoFocus
         disabled={busy}

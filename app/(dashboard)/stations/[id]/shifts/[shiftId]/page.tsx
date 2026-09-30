@@ -1,14 +1,20 @@
+import { type ReactNode, Suspense } from 'react'
+
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { FuelImportForm } from '@/components/inventory/fuel-import-form'
-import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { CashBalanceCard } from '@/components/shifts/cash-balance-card'
 import { CashEntriesTable } from '@/components/shifts/cash-entries-table'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton, ShiftReopenButton } from '@/components/shifts/shift-complete-button'
+import { ShiftDebtLedger } from '@/components/shifts/shift-debt-ledger'
+import { ShiftDebtSales } from '@/components/shifts/shift-debt-sales'
+import { ShiftStockSection } from '@/components/shifts/shift-stock-section'
+import { ShiftSummary } from '@/components/shifts/shift-summary'
 import { UnmatchedPhotos } from '@/components/shifts/unmatched-photos'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   type ShiftStatus,
   canEditCashEntries,
@@ -20,7 +26,7 @@ import { requireStationAccess } from '@/lib/auth/station-guard'
 import { chargeAmountOf } from '@/lib/debts/visit-amount'
 import { canEditDebtVisit } from '@/lib/debts/visit-review'
 import { tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
-import { formatDate, formatDateTime, formatLiters, formatVND } from '@/lib/format'
+import { formatDate, formatDateTime, formatVND } from '@/lib/format'
 import {
   fuelTypeLabeller,
   loadFuelCatalogue,
@@ -40,6 +46,7 @@ import {
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { unmatchedPhotoTrace } from '@/lib/photos/unmatched-photos'
 import { prisma } from '@/lib/prisma'
+import { cashEntryTotals } from '@/lib/shifts/cash-entries'
 import { refuseShiftCompletion } from '@/lib/shifts/completion'
 import { hasLateDebtApproval } from '@/lib/shifts/late-debt-approval'
 import { loadCashBalance } from '@/lib/shifts/load-cash-balance'
@@ -52,6 +59,46 @@ import {
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
+
+/** The jump links under the header, in page order: each names a section's `id`. */
+const SECTION_LINKS = [
+  { id: 'tru-bom', label: vi.shifts.sections.pumps },
+  { id: 'ton-kho', label: vi.shifts.sections.stock },
+  { id: 'ban-no', label: vi.shifts.sections.debtSales },
+  { id: 'thu-chi', label: vi.shifts.sections.cashEntries },
+  { id: 'cong-no', label: vi.shifts.sections.debtLedger },
+  { id: 'ton-tien-mat', label: vi.shifts.sections.cashBalance },
+]
+
+/** A section's title row, with the link to the tab that manages it beside the title. */
+function SectionHeading({
+  title,
+  href,
+  linkLabel,
+}: {
+  title: string
+  href: string
+  linkLabel: string
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-base font-semibold">{title}</h3>
+      <Link href={href} className="text-primary text-sm underline">
+        {linkLabel}
+      </Link>
+    </div>
+  )
+}
+
+/** What a streamed section shows while its rows load. */
+function SectionLoading({ label }: { label: string }): ReactNode {
+  return (
+    <div className="space-y-2" aria-label={label}>
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </div>
+  )
+}
 
 /** A Prisma Decimal meter value as a plain number, or null where no value was read. */
 function numberOrNull(value: { toNumber: () => number } | null | undefined): number | null {
@@ -237,6 +284,7 @@ export default async function ShiftDetailPage({
         ? `/review/debts?view=decided&day=${shift.shiftDate.toISOString().slice(0, 10)}&station=${shift.stationId}#visit-${row.visitId}`
         : `/review/debts?station=${shift.stationId}#visit-${row.visitId}`
       : null
+  const debtSaleRows = debtRows.map((row) => ({ ...row, editHref: debtEditHref(row) }))
 
   // The giá bán lẻ of this trạm's vùng, every kỳ of it, so each row can be priced by the
   // one in force on the ca's ngày — a ca opened before a price change still bills at the
@@ -280,6 +328,7 @@ export default async function ShiftDetailPage({
       reviewStatus: r?.reviewStatus ?? null,
       anomalyReasons: r?.anomalyReasons ?? [],
       airPurge: { liters: r?.airPurgeLiters?.toString() ?? null },
+      note: { text: r?.note ?? null },
       totals: {
         electronicLiters: electronicGap(meters),
         mechanicalLiters: mechanicalGap(meters),
@@ -296,6 +345,16 @@ export default async function ShiftDetailPage({
   // align; an all-single-photo column reserves nothing (no placeholder gap).
   const electronicSlots = Math.max(1, ...rows.map((r) => r.electronicPhotos?.length ?? 0))
   const mechanicalSlots = Math.max(1, ...rows.map((r) => r.mechanicalPhotos?.length ?? 0))
+
+  // The giá bán lẻ in force on the ca's ngày for each nhiên liệu the trạm sells, printed
+  // at the top of the phiếu as the Excel did.
+  const retailPrices = stationFuels.flatMap((fuel) => {
+    const price = priceRowOnDate(prices, fuel.fuelType, shift.shiftDate)
+    return price ? [{ fuelType: fuel.fuelType, name: fuel.name, unitPrice: price.unitPrice }] : []
+  })
+  const salesTotal = rows.reduce((sum, r) => sum + (r.totals?.amount ?? 0), 0)
+  const cashTotals = cashEntryTotals(cashEntries)
+  const shiftDay = shift.shiftDate.toISOString().slice(0, 10)
 
   const status = shiftStatusInfo(shift.status)
   // Why Chốt ca is refused, read from the same rule the endpoint applies, so the
@@ -342,6 +401,18 @@ export default async function ShiftDetailPage({
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge label={status.label} tone={status.tone} />
             {lateDebtApproval && <StatusBadge label={vi.shifts.lateDebtApproval} tone="warning" />}
+            {station?.fuelArea && retailPrices.length > 0 && (
+              <span className="text-muted-foreground text-sm">
+                {vi.shifts.retailPrices(vi.fuelArea[station.fuelArea])}:{' '}
+                {retailPrices.map((p, i) => (
+                  <span key={p.fuelType}>
+                    {i > 0 && ' · '}
+                    {p.name}{' '}
+                    <span className="text-foreground font-mono">{formatVND(p.unitPrice)}</span>
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -374,164 +445,164 @@ export default async function ShiftDetailPage({
       </div>
       {completed && <p className="text-muted-foreground text-sm">{vi.shifts.completedLocked}</p>}
 
-      {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{vi.shifts.noReadings}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-b text-left">
-                <th className="p-2">{vi.shifts.dispenser}</th>
-                <th className="p-2">{vi.shifts.openingElectronic}</th>
-                <th className="p-2">{vi.shifts.closingElectronic}</th>
-                <th className="p-2">{vi.shifts.electronicLiters}</th>
-                <th className="p-2">{vi.shifts.openingMechanical}</th>
-                <th className="p-2">{vi.shifts.closingMechanical}</th>
-                <th className="p-2">{vi.shifts.mechanicalLiters}</th>
-                <th className="p-2">{vi.shifts.airPurge}</th>
-                <th className="p-2">{vi.shifts.totalAmount}</th>
-                <th className="p-2">{vi.shifts.status}</th>
-                <th className="p-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <ReadingRow
-                  key={row.readingId ?? index}
-                  data={row}
-                  electronicSlots={electronicSlots}
-                  mechanicalSlots={mechanicalSlots}
-                />
-              ))}
-            </tbody>
-            {/* The ca's Tổng tiền bán: the rows' Tổng tiền, those with no price or litres skipped. */}
-            <tfoot>
-              <tr className="font-semibold">
-                <td className="p-2 text-right" colSpan={8}>
-                  {vi.shifts.sumTotal}
-                </td>
-                <td className="p-2 font-mono whitespace-nowrap">
-                  {formatVND(rows.reduce((sum, r) => sum + (r.totals?.amount ?? 0), 0))}
-                </td>
-                <td colSpan={2}></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-
-      <UnmatchedPhotos
-        photos={unmatchedRows}
-        dispensers={assignableDispensers}
-        canAssign={canEditClosing(user.role, shift.status as ShiftStatus)}
+      <ShiftSummary
+        sales={salesTotal}
+        debtSales={debtRows.reduce((sum, r) => sum + (r.amount ?? 0), 0)}
+        receipts={cashTotals.receipt}
+        payments={cashTotals.payment}
+        closingCash={cashBalance.kind === 'line' ? cashBalance.line.closing : null}
       />
 
-      <section className="space-y-2">
-        <h3 className="text-base font-semibold">{vi.shifts.debtsSectionTitle}</h3>
-        {pendingDebtVisits > 0 && (
-          <p className="text-sm text-amber-700">
-            {vi.shifts.pendingDebtsNote(pendingDebtVisits)}{' '}
-            <Link href={`/review/debts?station=${shift.stationId}`} className="underline">
-              {vi.shifts.pendingDebtsLink}
-            </Link>
-          </p>
-        )}
-        {debtRows.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{vi.shifts.debtsEmpty}</p>
+      {/* The phiếu is long; these jump to each block and stay under the top bar. */}
+      <nav className="bg-background/80 sticky top-14 z-10 -mx-1 flex flex-wrap gap-1 border-b px-1 py-2 backdrop-blur-sm">
+        {SECTION_LINKS.map((link) => (
+          <a
+            key={link.id}
+            href={`#${link.id}`}
+            className="hover:bg-accent rounded-md px-2 py-1 text-sm font-medium"
+          >
+            {link.label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="tru-bom" className="scroll-mt-28 space-y-2">
+        <h3 className="text-base font-semibold">{vi.shifts.sections.pumps}</h3>
+        {rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{vi.shifts.noReadings}</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-muted-foreground border-b text-left">
-                <th className="p-2">{vi.shifts.debtId}</th>
-                <th className="p-2">{vi.shifts.debtPhotos}</th>
-                <th className="p-2">{vi.shifts.debtCustomer}</th>
-                <th className="p-2">{vi.shifts.debtFuel}</th>
-                <th className="p-2 text-right">{vi.shifts.debtLiters}</th>
-                <th className="p-2 text-right">{vi.shifts.debtAmount}</th>
-                <th className="p-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {debtRows.map((row, index) => (
-                <tr key={index} className="border-b">
-                  <td className="p-2 font-mono">
-                    {row.idIsMissing ? (
-                      <StatusBadge label={vi.debtReview.missingCode} tone="danger" />
-                    ) : (
-                      row.id
-                    )}
-                  </td>
-                  <td className="p-2">
-                    <span className="inline-flex gap-1">
-                      <PhotoView url={row.vehiclePhotoUrl} label={vi.debtReview.vehiclePhoto} />
-                      <PhotoView url={row.meterPhotoUrl} label={vi.debtReview.meterPhoto} />
-                    </span>
-                  </td>
-                  <td className="p-2">{row.customerName}</td>
-                  <td className="p-2">{row.fuelLabel}</td>
-                  <td className="p-2 text-right font-mono">{formatLiters(row.liters)}</td>
-                  <td className="p-2 text-right font-mono whitespace-nowrap">
-                    {row.amount === null ? (
-                      <span className="text-muted-foreground">—</span>
-                    ) : (
-                      formatVND(row.amount)
-                    )}
-                  </td>
-                  <td className="p-2 text-right">
-                    {debtEditHref(row) && (
-                      // A full load, not <Link>: :target (the card's ring) only follows a real navigation.
-                      <a href={debtEditHref(row)!} className="text-primary underline">
-                        {vi.shifts.debtEdit}
-                      </a>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted-foreground border-b text-left">
+                  <th className="p-2">{vi.shifts.dispenser}</th>
+                  <th className="p-2">{vi.shifts.openingElectronic}</th>
+                  <th className="p-2">{vi.shifts.closingElectronic}</th>
+                  <th className="p-2">{vi.shifts.electronicLiters}</th>
+                  <th className="p-2">{vi.shifts.openingMechanical}</th>
+                  <th className="p-2">{vi.shifts.closingMechanical}</th>
+                  <th className="p-2">{vi.shifts.mechanicalLiters}</th>
+                  <th className="p-2">{vi.shifts.airPurge}</th>
+                  <th className="p-2">{vi.shifts.totalAmount}</th>
+                  <th className="p-2">{vi.shifts.status}</th>
+                  <th className="p-2">{vi.shifts.note}</th>
+                  <th className="p-2"></th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="font-semibold">
-                <td className="p-2 text-right" colSpan={5}>
-                  {vi.shifts.sumTotal}
-                </td>
-                <td className="p-2 text-right font-mono whitespace-nowrap">
-                  {formatVND(debtRows.reduce((sum, r) => sum + (r.amount ?? 0), 0))}
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <ReadingRow
+                    key={row.readingId ?? index}
+                    data={row}
+                    electronicSlots={electronicSlots}
+                    mechanicalSlots={mechanicalSlots}
+                  />
+                ))}
+              </tbody>
+              {/* The ca's Tổng tiền bán: the rows' Tổng tiền, those with no price or litres skipped. */}
+              <tfoot>
+                <tr className="font-semibold">
+                  <td className="p-2 text-right" colSpan={8}>
+                    {vi.shifts.sumTotal}
+                  </td>
+                  <td className="p-2 font-mono whitespace-nowrap">{formatVND(salesTotal)}</td>
+                  <td colSpan={3}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
+
+        <UnmatchedPhotos
+          photos={unmatchedRows}
+          dispensers={assignableDispensers}
+          canAssign={canEditClosing(user.role, shift.status as ShiftStatus)}
+        />
       </section>
 
-      <CashEntriesTable
-        shiftId={shift.id}
-        initialEntries={cashEntries}
-        customers={cashCustomers}
-        canEdit={canEditCashEntries(user.role)}
-      />
+      <section id="ton-kho" className="scroll-mt-28 space-y-2">
+        <SectionHeading
+          title={vi.shifts.stock.title}
+          href={`/stations/${shift.stationId}/inventory`}
+          linkLabel={vi.shifts.stock.openTab}
+        />
+        <Suspense fallback={<SectionLoading label={vi.shifts.stock.loading} />}>
+          <ShiftStockSection
+            stationId={shift.stationId}
+            stationCode={station?.code}
+            shiftDate={shift.shiftDate}
+            // Until chốt the ca's sales are not in the sổ, so the block adds them itself.
+            unbookedReadings={
+              completed
+                ? null
+                : readings.map((r) => ({
+                    dispenserId: r.dispenserId,
+                    fuelType: r.fuelType,
+                    openingElectronicReading: numberOrNull(r.openingElectronicReading),
+                    electronicReading: numberOrNull(r.electronicReading),
+                    airPurgeLiters: numberOrNull(r.airPurgeLiters),
+                  }))
+            }
+            dispensers={dispensers.map((d) => ({ id: d.id, fuelType: d.fuelType }))}
+          />
+        </Suspense>
+      </section>
 
-      <CashBalanceCard
-        stationId={shift.stationId}
-        line={cashBalance.kind === 'line' ? cashBalance.line : null}
-        message={
-          cashBalance.kind === 'no-opening'
-            ? vi.shifts.cashBalance.noOpening
-            : cashBalance.kind === 'before-opening'
-              ? vi.shifts.cashBalance.beforeOpening(formatDate(cashBalance.effectiveDate))
-              : null
-        }
-        openingLabel={
-          cashBalance.kind === 'line'
-            ? vi.shifts.cashBalance.openingFrom(
-                formatVND(cashBalance.opening.amount),
-                formatDate(cashBalance.opening.effectiveDate)
-              )
-            : null
-        }
-        provisional={!completed}
-        isAdmin={user.role === 'admin'}
-        defaultDate={shift.shiftDate.toISOString().slice(0, 10)}
-      />
+      {/* Money beside debt, as the Excel phiếu lays it out: what the ca sold on credit and
+          took in or paid out on the left, who owes and the cash left on the right. */}
+      <div className="grid gap-6 2xl:grid-cols-[3fr_2fr]">
+        <div className="min-w-0 space-y-6">
+          <ShiftDebtSales
+            stationId={shift.stationId}
+            rows={debtSaleRows}
+            pendingCount={pendingDebtVisits}
+          />
+          <div id="thu-chi" className="scroll-mt-28">
+            <CashEntriesTable
+              shiftId={shift.id}
+              initialEntries={cashEntries}
+              customers={cashCustomers}
+              canEdit={canEditCashEntries(user.role)}
+            />
+          </div>
+        </div>
+        <div className="min-w-0 space-y-6">
+          <section id="cong-no" className="scroll-mt-28 space-y-2">
+            <SectionHeading
+              title={vi.shifts.debtLedger.title}
+              href={`/stations/${shift.stationId}/debts?date=${shiftDay}`}
+              linkLabel={vi.shifts.debtLedger.openTab}
+            />
+            <Suspense fallback={<SectionLoading label={vi.shifts.debtLedger.loading} />}>
+              <ShiftDebtLedger stationId={shift.stationId} day={shiftDay} />
+            </Suspense>
+          </section>
+          <div id="ton-tien-mat" className="scroll-mt-28">
+            <CashBalanceCard
+              stationId={shift.stationId}
+              line={cashBalance.kind === 'line' ? cashBalance.line : null}
+              message={
+                cashBalance.kind === 'no-opening'
+                  ? vi.shifts.cashBalance.noOpening
+                  : cashBalance.kind === 'before-opening'
+                    ? vi.shifts.cashBalance.beforeOpening(formatDate(cashBalance.effectiveDate))
+                    : null
+              }
+              openingLabel={
+                cashBalance.kind === 'line'
+                  ? vi.shifts.cashBalance.openingFrom(
+                      formatVND(cashBalance.opening.amount),
+                      formatDate(cashBalance.opening.effectiveDate)
+                    )
+                  : null
+              }
+              provisional={!completed}
+              isAdmin={user.role === 'admin'}
+              defaultDate={shiftDay}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

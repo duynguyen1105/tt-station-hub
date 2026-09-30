@@ -31,6 +31,7 @@ import {
   canEditAirPurge,
   canEditClosing,
   canEditOpening,
+  canEditReadingNote,
   canReviewShift,
   isReadingFrozen,
 } from '@/lib/auth/reading-policy'
@@ -71,6 +72,9 @@ export type ReadingRowData = {
   // shown in the same table that carries them. Null litres is no purge at all,
   // which is not the same answer as a keyed-in 0.
   airPurge?: AirPurge
+  // The trụ's Ghi chú on this ca, present only where the table carries the column
+  // (Chốt ca of one trạm). Null text is no note.
+  note?: { text: string | null }
   // The current user's role and the ca's status drive which edit actions the row
   // offers, per the shared reading policy (docs/adr/0001).
   role: AppRole
@@ -297,6 +301,8 @@ export function ReadingRow({
   // record against yet either.
   const mayEditAirPurge = canEditAirPurge(data.role, data.shiftStatus) && canAct
   const mayReview = canReviewShift(data.role, data.shiftStatus)
+  // A note needs a reading row to hang on, like Xả gió; chốt does not lock it.
+  const mayEditNote = canEditReadingNote(data.role) && canAct
   const openingLockHint = completed
     ? vi.correction.closingLocked
     : frozen
@@ -383,6 +389,11 @@ export function ReadingRow({
       value,
       vi.shifts.airPurgeSaved
     )
+  }
+
+  async function saveNote(value: string) {
+    if (!data.readingId) return false
+    return saveCell(`/api/readings/${data.readingId}/note`, 'note', value, vi.shifts.noteSaved)
   }
 
   async function saveField(
@@ -536,6 +547,18 @@ export function ReadingRow({
           </div>
         )}
       </td>
+      {data.note && (
+        <td className="max-w-64 min-w-32 p-2 break-words whitespace-pre-wrap">
+          <EditableReading
+            value={data.note.text}
+            canEdit={mayEditNote}
+            busy={busy}
+            inputMode="text"
+            inputClassName="w-56"
+            onSave={saveNote}
+          />
+        </td>
+      )}
       <td className="p-2 text-right whitespace-nowrap">
         <div className="inline-flex gap-1">
           {/* A completed ca has no review controls; admin must reopen it first.
