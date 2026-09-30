@@ -609,27 +609,24 @@ export default async function StationInventoryPage({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-muted-foreground text-sm font-medium">{vi.inventory.title}</h2>
-        <div className="flex gap-2">
-          {canEdit && (
-            <FuelImportForm
-              stationId={id}
-              stationCode={code}
-              fuels={stationFuels}
-              fuelMappings={fuelMappings}
-              tanks={tanks}
-              paperTanks={paperRoster?.tanks ?? []}
-              stationPumps={stationPumps}
-              paperPumps={paperRoster?.pumps ?? []}
-              openingDates={Object.fromEntries(
-                openings.map((o) => [o.fuelType, o.effectiveDate.toISOString().slice(0, 10)])
-              )}
-            />
-          )}
-          {canEdit && <MovementForm stationId={id} stationCode={code} fuels={stationFuels} />}
+      {canEdit && (
+        <div className="flex justify-end gap-2">
+          <FuelImportForm
+            stationId={id}
+            stationCode={code}
+            fuels={stationFuels}
+            fuelMappings={fuelMappings}
+            tanks={tanks}
+            paperTanks={paperRoster?.tanks ?? []}
+            stationPumps={stationPumps}
+            paperPumps={paperRoster?.pumps ?? []}
+            openingDates={Object.fromEntries(
+              openings.map((o) => [o.fuelType, o.effectiveDate.toISOString().slice(0, 10)])
+            )}
+          />
+          <MovementForm stationId={id} stationCode={code} fuels={stationFuels} />
         </div>
-      </div>
+      )}
 
       {/* Sub-tabs: the overview stays fixed-size, each history paginates. */}
       <nav className="flex gap-4 border-b text-sm">

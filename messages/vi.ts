@@ -811,8 +811,7 @@ export const vi = {
   },
 
   inventory: {
-    title: 'Quản lý kho',
-    // Thêm phát sinh dialog's title — kept apart from the tab name above.
+    // Thêm phát sinh dialog's title — kept apart from the Quản lý kho tab name.
     movementTitle: 'Hàng tồn',
     fuelType: 'Nhiên liệu',
     // Label of the Nhập / Bán / Kiểm kê / Điều chỉnh picker in the Thêm dialog.

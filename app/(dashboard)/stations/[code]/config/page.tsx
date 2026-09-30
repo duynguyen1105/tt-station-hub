@@ -95,7 +95,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
     <div className="space-y-8">
       <section className="space-y-2">
         <div>
-          <h2 className="text-sm font-medium">{vi.misaSettings.fuelAreaLabel}</h2>
+          <h2 className="text-sm font-bold">{vi.misaSettings.fuelAreaLabel}</h2>
           <p className="text-muted-foreground text-sm">{vi.misaSettings.fuelAreaNote}</p>
         </div>
         {canEdit ? (
@@ -108,7 +108,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
       <section className="space-y-2">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-sm font-medium">{vi.misaSettings.fuelMap}</h2>
+            <h2 className="text-sm font-bold">{vi.misaSettings.fuelMap}</h2>
             <p className="text-muted-foreground text-sm">{vi.misaSettings.fuelMapNote}</p>
           </div>
           {canEdit && <MisaFuelMapForm stationId={id} addable={addable} />}
@@ -171,7 +171,7 @@ export default async function StationConfigPage({ params }: { params: Promise<{ 
       <section className="space-y-2">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-sm font-medium">{vi.dispensers.title}</h2>
+            <h2 className="text-sm font-bold">{vi.dispensers.title}</h2>
             <p className="text-muted-foreground text-sm">{vi.dispensers.note}</p>
           </div>
           {/* A trụ is added from the menu of the hầm it draws from. */}
