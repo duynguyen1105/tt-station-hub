@@ -680,6 +680,7 @@ export const vi = {
       useTyped: (text: string) => `Ghi “${text}” (không phải khách hàng)`,
       clearCounterparty: 'Bỏ chọn',
       unknownCustomer: 'Khách hàng đã chọn không còn tồn tại, hãy chọn lại.',
+      otherStationCustomer: 'Khách hàng đã chọn thuộc trạm khác — chỉ chọn khách của trạm này.',
       debtHint:
         'Dòng Thu có chọn khách hàng được ghi là khách trả nợ. Dòng Chi có chọn đối tượng và tích Ghi nợ (vd tạm ứng) được ghi là đối tượng đó nợ thêm. Chuyển khoản trong ca được trừ vào tồn tiền mặt; tích Trả nợ cũ thì chỉ trừ công nợ của khách, không trừ tồn tiền mặt.',
       chargesDebt: 'Ghi nợ',

@@ -190,11 +190,13 @@ export default async function ShiftDetailPage({
     transfer: e.transfer?.toString() ?? '',
     repaysDebt: e.repaysDebt,
   }))
-  // Đối tượng's list: every khách hàng in use — the same list the lượt xe picker offers —
-  // plus any a saved row already names, so a retired khách still reads by tên.
+  // Đối tượng's list: this trạm's khách hàng in use — a khách's sổ công nợ belongs to one
+  // trạm — plus any a saved row already names, so a retired khách still reads by tên.
   const cashCustomerIds = cashEntryRows.flatMap((e) => (e.customerId ? [e.customerId] : []))
   const cashCustomers = await prisma.debtCustomer.findMany({
-    where: { OR: [{ isActive: true }, { id: { in: cashCustomerIds } }] },
+    where: {
+      OR: [{ stationId: shift.stationId, isActive: true }, { id: { in: cashCustomerIds } }],
+    },
     // Listed by mã MISA, what the phiếu chốt names a khách by; khách without one last.
     orderBy: [{ misaCode: 'asc' }, { name: 'asc' }],
     select: { id: true, name: true, misaCode: true },

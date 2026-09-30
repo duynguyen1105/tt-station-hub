@@ -62,12 +62,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (refusal) return badRequest(refusal)
 
   const entries = normalizeCashEntries(parsed.data.entries)
-  // Đối tượng names a khách hàng by id: every one must exist, or the row would point at
-  // nobody. Existence only — a row saved before its khách was retired still re-saves.
+  // Đối tượng names a khách hàng by id: every one must exist, and be this ca's trạm's —
+  // a Thu, Ghi nợ or Trả nợ cũ writes to that khách's sổ, which lives at one trạm.
+  // Active or not: a row saved before its khách was retired still re-saves.
   const customerIds = [...new Set(entries.flatMap((e) => (e.customerId ? [e.customerId] : [])))]
   if (customerIds.length > 0) {
-    const found = await prisma.debtCustomer.count({ where: { id: { in: customerIds } } })
-    if (found !== customerIds.length) return badRequest(vi.shifts.cashEntries.unknownCustomer)
+    const found = await prisma.debtCustomer.findMany({
+      where: { id: { in: customerIds } },
+      select: { stationId: true },
+    })
+    if (found.length !== customerIds.length) {
+      return badRequest(vi.shifts.cashEntries.unknownCustomer)
+    }
+    if (found.some((c) => c.stationId !== shift.stationId)) {
+      return badRequest(vi.shifts.cashEntries.otherStationCustomer)
+    }
   }
   await prisma.$transaction(async (tx) => {
     await tx.shiftCashEntry.deleteMany({ where: { shiftId: id } })
