@@ -19,7 +19,7 @@ export type BaremSheetBinding = {
   gid: string
 }
 
-/** All 12 sheets, in the order the spreadsheet lists them. */
+/** All 13 sheets. */
 export const BAREM_SHEETS: BaremSheetBinding[] = [
   { stationCode: 'DAKNONG1', tab: 'daknong1', gid: '1364858867' },
   { stationCode: 'DAKNONG2', tab: 'daknong2', gid: '1252113746' },
@@ -33,6 +33,7 @@ export const BAREM_SHEETS: BaremSheetBinding[] = [
   { stationCode: 'NGUYENVUONG', tab: 'nguyenvuong', gid: '570374761' },
   { stationCode: 'PHUCTIEN', tab: 'phuctien', gid: '24554498' },
   { stationCode: 'TANHOA', tab: 'tanhoa', gid: '2061306672' },
+  { stationCode: 'CXGNH', tab: 'cxgnh', gid: '546021545' },
 ]
 
 /** Which tab holds a Trạm's Barem, if any. A Trạm the map does not name — or a

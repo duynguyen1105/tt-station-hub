@@ -11,7 +11,7 @@ import {
 } from '../lib/inventory/barem-report'
 import { BAREM_SHEETS, type BaremSheetBinding } from '../lib/inventory/barem-sheets'
 
-// Reads all 12 sheets of Trường Thịnh's Barem spreadsheet and prints the defect
+// Reads all 13 sheets of Trường Thịnh's Barem spreadsheet and prints the defect
 // report that goes back to them (ADR 0003). It writes no Barem anywhere: the
 // spreadsheet is the only Barem there is, read live on every lookup (ADR 0005).
 //
