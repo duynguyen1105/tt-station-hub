@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseNumericString } from '@/lib/ai/extract-visit'
-import { formatDate, formatDateTime, formatLiters, formatVND } from '@/lib/format'
+import { formatDate, formatDateTime, formatLiters, formatVND, groupThousands } from '@/lib/format'
 
 // Company rule (Trường Thịnh): the DECIMAL separator is always "." — "," is only
 // ever a thousands separator. Numbers must stay calculation-friendly (Excel/MISA).
@@ -30,6 +30,25 @@ describe('formatVND', () => {
   it('returns "0 đ" for empty/invalid', () => {
     expect(formatVND(null)).toBe('0 đ')
     expect(formatVND('abc')).toBe('0 đ')
+  })
+})
+
+describe('groupThousands', () => {
+  it('groups a typed amount with commas', () => {
+    expect(groupThousands('30000')).toBe('30,000')
+    expect(groupThousands('36992230')).toBe('36,992,230')
+    expect(groupThousands('500')).toBe('500')
+  })
+  it('regroups an already grouped amount, either separator', () => {
+    expect(groupThousands('36,992,230')).toBe('36,992,230')
+    expect(groupThousands('20.355.520')).toBe('20,355,520')
+    expect(groupThousands('1,00000')).toBe('100,000')
+  })
+  it('drops non-digits and leading zeros, keeps empty empty', () => {
+    expect(groupThousands('')).toBe('')
+    expect(groupThousands('abc')).toBe('')
+    expect(groupThousands('0')).toBe('0')
+    expect(groupThousands('007000')).toBe('7,000')
   })
 })
 

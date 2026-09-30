@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useSaveAction } from '@/hooks/use-save-action'
-import { formatVND } from '@/lib/format'
+import { formatVND, groupThousands } from '@/lib/format'
 import {
   type CashEntryInput,
   cashEntryTotals,
@@ -178,7 +178,14 @@ export function CashEntriesTable({
   canEdit: boolean
 }) {
   const [entries, setEntries] = useState<CashEntryInput[]>(() =>
-    initialEntries.length > 0 ? initialEntries : [emptyEntry(), emptyEntry(), emptyEntry()]
+    initialEntries.length > 0
+      ? initialEntries.map((row) => ({
+          ...row,
+          receipt: groupThousands(row.receipt),
+          payment: groupThousands(row.payment),
+          transfer: groupThousands(row.transfer),
+        }))
+      : [emptyEntry(), emptyEntry(), emptyEntry()]
   )
   const { busy, save } = useSaveAction()
   const totals = cashEntryTotals(entries)
@@ -268,7 +275,7 @@ export function CashEntriesTable({
                         className="text-right font-mono"
                         inputMode="numeric"
                         value={row.receipt}
-                        onChange={(e) => update(index, { receipt: e.target.value })}
+                        onChange={(e) => update(index, { receipt: groupThousands(e.target.value) })}
                       />
                     </td>
                     <td className="p-1">
@@ -276,7 +283,7 @@ export function CashEntriesTable({
                         className="text-right font-mono"
                         inputMode="numeric"
                         value={row.payment}
-                        onChange={(e) => update(index, { payment: e.target.value })}
+                        onChange={(e) => update(index, { payment: groupThousands(e.target.value) })}
                       />
                     </td>
                     {/* Only a Chi naming a khách hàng can be a tạm ứng; a Thu naming one is
@@ -298,7 +305,9 @@ export function CashEntriesTable({
                         className="text-right font-mono"
                         inputMode="numeric"
                         value={row.transfer}
-                        onChange={(e) => update(index, { transfer: e.target.value })}
+                        onChange={(e) =>
+                          update(index, { transfer: groupThousands(e.target.value) })
+                        }
                       />
                     </td>
                     {/* Offered on any Chuyển khoản, khách picked or not: ticked without one,

@@ -38,6 +38,17 @@ export function formatVND(value: Numeric): string {
 }
 
 /**
+ * A typed VND amount regrouped as the user types: "36992230" -> "36,992,230".
+ * Non-digits are dropped; an input with no digits stays empty.
+ */
+export function groupThousands(value: string): string {
+  return value
+    .replace(/\D/g, '')
+    .replace(/^0+(?=\d)/, '')
+    .replace(/\B(?=(\d{3})+$)/g, ',')
+}
+
+/**
  * Liters with comma thousands and a fixed number of decimals (default 2):
  * 1234.5 -> "1,234.50". Debt cards pass 3 to mirror the pump's LÍT row.
  */
