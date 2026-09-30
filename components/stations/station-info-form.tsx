@@ -1,5 +1,7 @@
 'use client'
 
+import { Pencil } from 'lucide-react'
+
 import { useState } from 'react'
 
 import { usePathname, useRouter } from 'next/navigation'
@@ -15,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSaveAction } from '@/hooks/use-save-action'
 import { stationHref } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
@@ -35,11 +38,21 @@ export function StationInfoForm({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          {vi.stations.editInfo}
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label={vi.stations.editInfo}
+              className="text-muted-foreground"
+            >
+              <Pencil />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{vi.stations.editInfo}</TooltipContent>
+      </Tooltip>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{vi.stations.editInfo}</DialogTitle>
