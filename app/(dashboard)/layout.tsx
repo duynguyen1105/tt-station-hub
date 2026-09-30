@@ -42,7 +42,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
               Trực tuyến
             </span>
           </header>
-          <main className="flex-1 p-4 lg:p-6">{children}</main>
+          <main className="flex-1 p-4 lg:p-6">
+            {/* 1600px: measured on the LAMDONG01 closing sheet at 2560px — wider only spreads
+                columns apart; narrower starts wrapping headers and fuel names. */}
+            <div className="mx-auto w-full max-w-[100rem]">{children}</div>
+          </main>
         </SidebarInset>
       </SidebarProvider>
     </FuelCatalogueProvider>
