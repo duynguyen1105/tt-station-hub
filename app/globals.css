@@ -222,6 +222,12 @@
   tr {
     break-inside: avoid;
   }
+  /* A block's title never ends a page with its table on the next. */
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+  }
   /* Rows sit tighter on paper than on screen; a long ngày simply runs onto page 2. */
   td,
   th {

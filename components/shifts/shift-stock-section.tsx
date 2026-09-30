@@ -148,7 +148,7 @@ export async function ShiftStockSection({
   const stockRows = fuelStockRows({ fuels, bookByFuel, provisionalSold, tankRows })
 
   return (
-    <div className="grid gap-4 2xl:grid-cols-2 print:grid-cols-2">
+    <div className="grid gap-4 2xl:grid-cols-2">
       <div className="space-y-2">
         <h4 className="text-sm font-semibold">{vi.shifts.stock.tanksTitle}</h4>
         {baremRead && !baremRead.ok && (

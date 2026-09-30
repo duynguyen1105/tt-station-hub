@@ -85,7 +85,7 @@ function SectionHeading({
   linkLabel: string
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2 print:break-after-avoid">
       <h3 className="text-base font-semibold">{title}</h3>
       <Link href={href} className="text-primary text-sm underline print:hidden">
         {linkLabel}
@@ -569,8 +569,9 @@ export default async function ShiftDetailPage({
       </section>
 
       {/* Money beside debt, as the Excel phiếu lays it out: what the ca sold on credit and
-          took in or paid out on the left, who owes and the cash left on the right. */}
-      <div className="grid gap-6 2xl:grid-cols-[3fr_2fr] print:grid-cols-[3fr_2fr]">
+          took in or paid out on the left, who owes and the cash left on the right. On paper
+          every block is full width, as A4 is too narrow for two at the screen's text size. */}
+      <div className="grid gap-6 2xl:grid-cols-[3fr_2fr]">
         <div className="min-w-0 space-y-6">
           <ShiftDebtSales stationCode={code} rows={debtSaleRows} pendingCount={pendingDebtVisits} />
           <div id="thu-chi" className="scroll-mt-28">
