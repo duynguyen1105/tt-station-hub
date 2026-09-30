@@ -177,3 +177,59 @@
 [data-scrolling] {
   scrollbar-color: color-mix(in oklch, var(--foreground) 30%, transparent) transparent;
 }
+
+/* In / Lưu PDF of the phiếu chốt ca (components/shifts/print-button.tsx): one A4 ngang
+   sheet for the Zalo nhóm — white paper, numbers only. What a block drops (ảnh, links,
+   hints) is marked print:hidden where it lives; the rules here are the page-wide ones. */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+  /* Every size here is rem, so this one line shrinks text, padding and gaps together. */
+  html {
+    font-size: 10px;
+  }
+  *,
+  *::before,
+  *::after {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  [data-slot='sidebar'],
+  img,
+  button:not([role='checkbox']):not([role='combobox']),
+  svg {
+    display: none !important;
+  }
+  /* …but a ticked Ghi nợ / Trả nợ cũ keeps its tick. */
+  [role='checkbox'] svg {
+    display: block !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  main > div {
+    max-width: none !important;
+  }
+  /* Filled-in cells print as their value, not as an empty box around it. */
+  input,
+  [role='combobox'] {
+    border-color: transparent !important;
+    padding-inline: 0 !important;
+    height: auto !important;
+  }
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  /* Rows sit tighter on paper than on screen; a long ngày simply runs onto page 2. */
+  td,
+  th {
+    padding-top: 0.2rem !important;
+    padding-bottom: 0.2rem !important;
+  }
+}

@@ -7,6 +7,7 @@ import { FuelImportForm } from '@/components/inventory/fuel-import-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { CashBalanceCard } from '@/components/shifts/cash-balance-card'
 import { CashEntriesTable } from '@/components/shifts/cash-entries-table'
+import { PrintButton } from '@/components/shifts/print-button'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { ShiftCompleteButton, ShiftReopenButton } from '@/components/shifts/shift-complete-button'
 import { ShiftDebtLedger } from '@/components/shifts/shift-debt-ledger'
@@ -86,7 +87,7 @@ function SectionHeading({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-base font-semibold">{title}</h3>
-      <Link href={href} className="text-primary text-sm underline">
+      <Link href={href} className="text-primary text-sm underline print:hidden">
         {linkLabel}
       </Link>
     </div>
@@ -425,7 +426,11 @@ export default async function ShiftDetailPage({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 print:hidden">
+          {/* The phiếu on one A4 sheet for the Zalo nhóm — the browser's own print to PDF. */}
+          <PrintButton
+            title={`${vi.shifts.title} ${station?.code ?? code} ${shiftDay.split('-').reverse().join('-')}`}
+          />
           {/* Nhập hàng lives beside the shift controls: deliveries happen the
               same day the shift is closed, so this is where staff already are. */}
           {user.role !== 'viewer' && (
@@ -454,7 +459,9 @@ export default async function ShiftDetailPage({
           )}
         </div>
       </div>
-      {completed && <p className="text-muted-foreground text-sm">{vi.shifts.completedLocked}</p>}
+      {completed && (
+        <p className="text-muted-foreground text-sm print:hidden">{vi.shifts.completedLocked}</p>
+      )}
 
       <ShiftSummary
         sales={salesTotal}
@@ -465,7 +472,7 @@ export default async function ShiftDetailPage({
       />
 
       {/* The phiếu is long; these jump to each block and stay under the top bar. */}
-      <nav className="bg-background/80 sticky top-14 z-10 -mx-1 flex flex-wrap gap-1 border-b px-1 py-2 backdrop-blur-sm">
+      <nav className="bg-background/80 sticky top-14 z-10 -mx-1 flex flex-wrap gap-1 border-b px-1 py-2 backdrop-blur-sm print:hidden">
         {SECTION_LINKS.map((link) => (
           <a
             key={link.id}
@@ -524,11 +531,13 @@ export default async function ShiftDetailPage({
           </div>
         )}
 
-        <UnmatchedPhotos
-          photos={unmatchedRows}
-          dispensers={assignableDispensers}
-          canAssign={canEditClosing(user.role, shift.status as ShiftStatus)}
-        />
+        <div className="print:hidden">
+          <UnmatchedPhotos
+            photos={unmatchedRows}
+            dispensers={assignableDispensers}
+            canAssign={canEditClosing(user.role, shift.status as ShiftStatus)}
+          />
+        </div>
       </section>
 
       <section id="ton-kho" className="scroll-mt-28 space-y-2">
@@ -561,7 +570,7 @@ export default async function ShiftDetailPage({
 
       {/* Money beside debt, as the Excel phiếu lays it out: what the ca sold on credit and
           took in or paid out on the left, who owes and the cash left on the right. */}
-      <div className="grid gap-6 2xl:grid-cols-[3fr_2fr]">
+      <div className="grid gap-6 2xl:grid-cols-[3fr_2fr] print:grid-cols-[3fr_2fr]">
         <div className="min-w-0 space-y-6">
           <ShiftDebtSales stationCode={code} rows={debtSaleRows} pendingCount={pendingDebtVisits} />
           <div id="thu-chi" className="scroll-mt-28">

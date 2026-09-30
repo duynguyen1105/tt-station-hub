@@ -21,7 +21,7 @@ export function StationTabs({ stationCode }: { stationCode: string }) {
   ]
 
   return (
-    <nav className="flex gap-1 border-b">
+    <nav className="flex gap-1 border-b print:hidden">
       {tabs.map((tab) => {
         const isActive = tab.href === base ? pathname === base : pathname.startsWith(tab.href)
         return (

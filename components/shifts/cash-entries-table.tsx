@@ -96,7 +96,9 @@ function CounterpartyPicker({
           {label ? (
             <span className="truncate">{label}</span>
           ) : (
-            <span className="text-muted-foreground truncate">{t.pickCounterparty}</span>
+            <span className="text-muted-foreground truncate print:hidden">
+              {t.pickCounterparty}
+            </span>
           )}
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
@@ -201,7 +203,7 @@ export function CashEntriesTable({
       <div className="flex items-center justify-between gap-2">
         <div>
           <h3 className="text-base font-semibold">{t.title}</h3>
-          <p className="text-muted-foreground text-xs">{t.debtHint}</p>
+          <p className="text-muted-foreground text-xs print:hidden">{t.debtHint}</p>
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
@@ -237,13 +239,17 @@ export function CashEntriesTable({
                 <th className="w-24 p-2 text-center" title={t.repaysDebtTitle}>
                   {t.repaysDebt}
                 </th>
-                {canEdit && <th className="w-12 p-2"></th>}
+                {canEdit && <th className="w-12 p-2 print:hidden"></th>}
               </tr>
             </thead>
             <tbody>
               {visible.map((row, index) =>
                 canEdit ? (
-                  <tr key={index} className="border-b">
+                  // A row still empty on screen has nothing to say on paper.
+                  <tr
+                    key={index}
+                    className={cn('border-b', isBlankCashEntry(row) && 'print:hidden')}
+                  >
                     <td className="p-1">
                       <Input
                         value={row.content}
@@ -307,7 +313,7 @@ export function CashEntriesTable({
                         />
                       )}
                     </td>
-                    <td className="p-1">
+                    <td className="p-1 print:hidden">
                       <Button
                         size="icon"
                         variant="ghost"
@@ -342,7 +348,7 @@ export function CashEntriesTable({
                 <td></td>
                 <td className="p-2 text-right font-mono">{formatVND(totals.transfer)}</td>
                 <td></td>
-                {canEdit && <td></td>}
+                {canEdit && <td className="print:hidden"></td>}
               </tr>
             </tfoot>
           </table>

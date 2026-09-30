@@ -589,6 +589,7 @@ export const vi = {
     // Số tiền ghi nợ của lượt: thành tiền kế toán gõ nếu có, không thì lít × đơn giá.
     debtAmount: 'Số tiền',
     debtEdit: 'Sửa',
+    print: 'In / Lưu PDF',
     sumTotal: 'Tổng',
     debtPhotos: 'Ảnh',
     // Cột Ghi chú của bảng trụ, như cột Ghi chú trên phiếu chốt ca Excel: kế toán gõ tự do,

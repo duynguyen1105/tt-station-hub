@@ -74,7 +74,7 @@ export function CashBalanceCard({
       ]
     : []
   return (
-    <section className="space-y-2 rounded-lg border p-3">
+    <section className="space-y-2 rounded-lg border p-3 print:break-inside-avoid">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-base font-semibold">{t.title}</h3>
         {isAdmin && <CashOpeningDialog stationId={stationId} defaultDate={defaultDate} />}

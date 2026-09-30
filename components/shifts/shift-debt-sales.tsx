@@ -27,7 +27,10 @@ export function ShiftDebtSales({
       {pendingCount > 0 && (
         <p className="text-sm text-amber-700">
           {vi.shifts.pendingDebtsNote(pendingCount)}{' '}
-          <Link href={`/review/debts?station=${stationSlug(stationCode)}`} className="underline">
+          <Link
+            href={`/review/debts?station=${stationSlug(stationCode)}`}
+            className="underline print:hidden"
+          >
             {vi.shifts.pendingDebtsLink}
           </Link>
         </p>
@@ -40,12 +43,12 @@ export function ShiftDebtSales({
             <thead>
               <tr className="text-muted-foreground border-b text-left">
                 <th className="p-2">{vi.shifts.debtId}</th>
-                <th className="p-2">{vi.shifts.debtPhotos}</th>
+                <th className="p-2 print:hidden">{vi.shifts.debtPhotos}</th>
                 <th className="p-2">{vi.shifts.debtCustomer}</th>
                 <th className="p-2">{vi.shifts.debtFuel}</th>
                 <th className="p-2 text-right">{vi.shifts.debtLiters}</th>
                 <th className="p-2 text-right">{vi.shifts.debtAmount}</th>
-                <th className="p-2"></th>
+                <th className="p-2 print:hidden"></th>
               </tr>
             </thead>
             <tbody>
@@ -58,7 +61,7 @@ export function ShiftDebtSales({
                       row.id
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="p-2 print:hidden">
                     <span className="inline-flex gap-1">
                       <PhotoView url={row.vehiclePhotoUrl} label={vi.debtReview.vehiclePhoto} />
                       <PhotoView url={row.meterPhotoUrl} label={vi.debtReview.meterPhoto} />
@@ -74,7 +77,7 @@ export function ShiftDebtSales({
                       formatVND(row.amount)
                     )}
                   </td>
-                  <td className="p-2 text-right">
+                  <td className="p-2 text-right print:hidden">
                     {row.editHref && (
                       // A full load, not <Link>: :target (the card's ring) only follows a real navigation.
                       <a href={row.editHref} className="text-primary underline">
@@ -87,13 +90,16 @@ export function ShiftDebtSales({
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <td className="p-2 text-right" colSpan={5}>
+                {/* Split so the printed sheet, which drops the Ảnh column, keeps Tổng under Số tiền. */}
+                <td></td>
+                <td className="print:hidden"></td>
+                <td className="p-2 text-right" colSpan={3}>
                   {vi.shifts.sumTotal}
                 </td>
                 <td className="p-2 text-right font-mono whitespace-nowrap">
                   {formatVND(rows.reduce((sum, r) => sum + (r.amount ?? 0), 0))}
                 </td>
-                <td></td>
+                <td className="print:hidden"></td>
               </tr>
             </tfoot>
           </table>

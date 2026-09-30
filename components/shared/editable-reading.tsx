@@ -71,7 +71,7 @@ export function EditableReading({
 
   const confidenceSuffix =
     confidence !== null && confidence !== undefined ? (
-      <span className="text-muted-foreground ml-1 text-xs">({confidence}%)</span>
+      <span className="text-muted-foreground ml-1 text-xs print:hidden">({confidence}%)</span>
     ) : null
 
   let body: ReactNode

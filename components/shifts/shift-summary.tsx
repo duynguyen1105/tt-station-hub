@@ -28,7 +28,7 @@ export function ShiftSummary({
     { label: t.closingCash, value: closingCash },
   ]
   return (
-    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 print:grid-cols-5">
       {items.map((item) => (
         <div key={item.label} className="rounded-lg border p-3">
           <dt className="text-muted-foreground text-xs">{item.label}</dt>
