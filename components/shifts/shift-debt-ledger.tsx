@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { CustomerMisaCode } from '@/components/shared/customer-misa-code'
 import { debtDay } from '@/lib/debts/ledger'
 import { loadLedgers } from '@/lib/debts/load-ledger'
 import { formatVND } from '@/lib/format'
@@ -30,7 +31,16 @@ export async function ShiftDebtLedger({
     if (!ofDay) return []
     const charged = ofDay.charged + ofDay.advanced
     if (ofDay.opening === 0 && charged === 0 && ofDay.paid === 0 && ofDay.closing === 0) return []
-    return [{ id: customer.id, no: customer.no, name: customer.name, ...ofDay, charged }]
+    return [
+      {
+        id: customer.id,
+        no: customer.no,
+        name: customer.name,
+        misaCode: customer.misaCode,
+        ...ofDay,
+        charged,
+      },
+    ]
   })
   const total = { opening: 0, charged: 0, paid: 0, closing: 0 }
   for (const row of rows) {
@@ -61,13 +71,13 @@ export async function ShiftDebtLedger({
                 <tr key={row.id} className="border-b">
                   <td className="p-2">
                     {row.no === null ? (
-                      row.name
+                      <CustomerMisaCode misaCode={row.misaCode} name={row.name} />
                     ) : (
                       <Link
                         href={customerHref(stationCode, row.no)}
                         className="underline-offset-2 hover:underline"
                       >
-                        {row.name}
+                        <CustomerMisaCode misaCode={row.misaCode} name={row.name} />
                       </Link>
                     )}
                   </td>

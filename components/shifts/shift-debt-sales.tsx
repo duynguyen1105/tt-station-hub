@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { CustomerMisaCode } from '@/components/shared/customer-misa-code'
 import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { formatLiters, formatVND } from '@/lib/format'
@@ -67,7 +68,11 @@ export function ShiftDebtSales({
                       <PhotoView url={row.meterPhotoUrl} label={vi.debtReview.meterPhoto} />
                     </span>
                   </td>
-                  <td className="p-2">{row.customerName}</td>
+                  <td className="p-2">
+                    {row.customerName && (
+                      <CustomerMisaCode misaCode={row.customerMisaCode} name={row.customerName} />
+                    )}
+                  </td>
                   <td className="p-2">{row.fuelLabel}</td>
                   <td className="p-2 text-right font-mono">{formatLiters(row.liters)}</td>
                   <td className="p-2 text-right font-mono whitespace-nowrap">

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { useState } from 'react'
 
+import { CustomerMisaCode } from '@/components/shared/customer-misa-code'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -30,7 +31,7 @@ import { vi } from '@/messages/vi'
 
 const t = vi.shifts.cashEntries
 
-type Customer = { id: string; name: string }
+type Customer = { id: string; name: string; misaCode: string | null }
 
 function emptyEntry(): CashEntryInput {
   return {
@@ -45,11 +46,21 @@ function emptyEntry(): CashEntryInput {
   }
 }
 
-/** What Đối tượng reads as: the picked khách hàng's tên, else the typed text. */
+/** What Đối tượng reads as: the picked khách hàng's mã MISA (tên when it has none), else the typed text. */
 function counterpartyLabel(row: CashEntryInput, customers: Customer[]): string {
-  return row.customerId
-    ? (customers.find((c) => c.id === row.customerId)?.name ?? '')
-    : row.counterparty
+  if (!row.customerId) return row.counterparty
+  const customer = customers.find((c) => c.id === row.customerId)
+  return customer ? (customer.misaCode ?? customer.name) : ''
+}
+
+/** Đối tượng as shown: the picked khách by mã MISA, else the typed text as written. */
+function CounterpartyText({ row, customers }: { row: CashEntryInput; customers: Customer[] }) {
+  const customer = row.customerId ? customers.find((c) => c.id === row.customerId) : undefined
+  return customer ? (
+    <CustomerMisaCode misaCode={customer.misaCode} name={customer.name} />
+  ) : (
+    <span className="truncate">{row.counterparty}</span>
+  )
 }
 
 /**
@@ -69,7 +80,9 @@ function CounterpartyPicker({
   const [search, setSearch] = useState('')
   const label = counterpartyLabel(row, customers)
   const typed = search.trim()
-  const typedIsCustomer = customers.some((c) => c.name.toLowerCase() === typed.toLowerCase())
+  const typedIsCustomer = customers.some((c) =>
+    [c.misaCode, c.name].some((key) => key?.toLowerCase() === typed.toLowerCase())
+  )
 
   function pick(value: Pick<CashEntryInput, 'customerId' | 'counterparty'>) {
     onChange(value)
@@ -94,7 +107,7 @@ function CounterpartyPicker({
           className="w-full min-w-0 justify-between font-normal"
         >
           {label ? (
-            <span className="truncate">{label}</span>
+            <CounterpartyText row={row} customers={customers} />
           ) : (
             <span className="text-muted-foreground truncate print:hidden">
               {t.pickCounterparty}
@@ -126,7 +139,8 @@ function CounterpartyPicker({
               {customers.map((c) => (
                 <CommandItem
                   key={c.id}
-                  value={c.name}
+                  // Shown by mã MISA, but found by tên too.
+                  value={`${c.misaCode ?? ''} ${c.name}`}
                   onSelect={() => pick({ customerId: c.id, counterparty: '' })}
                 >
                   <Check
@@ -135,7 +149,7 @@ function CounterpartyPicker({
                       row.customerId === c.id ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  {c.name}
+                  <CustomerMisaCode misaCode={c.misaCode} name={c.name} />
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -337,7 +351,9 @@ export function CashEntriesTable({
                 ) : (
                   <tr key={index} className="border-b">
                     <td className="p-2">{row.content}</td>
-                    <td className="p-2">{counterpartyLabel(row, customers)}</td>
+                    <td className="p-2">
+                      <CounterpartyText row={row} customers={customers} />
+                    </td>
                     <td className="p-2 text-right font-mono">{amountText(row.receipt)}</td>
                     <td className="p-2 text-right font-mono">{amountText(row.payment)}</td>
                     <td className="p-2 text-center">{row.chargesDebt ? '✓' : ''}</td>

@@ -583,7 +583,9 @@ export const vi = {
     debtsSectionTitle: 'Bán nợ trong ca',
     debtsEmpty: 'Không có công nợ trong ca này',
     debtId: 'Mã KH / Biển số',
-    debtCustomer: 'Khách hàng',
+    debtCustomer: 'Mã MISA',
+    // Khách chưa có mã MISA: bảng chốt ca đọc khách theo mã, nên hiện tên kèm cờ này.
+    noMisaCode: 'Chưa có mã MISA',
     debtFuel: 'Nhiên liệu',
     debtLiters: 'Số lít',
     // Số tiền ghi nợ của lượt: thành tiền kế toán gõ nếu có, không thì lít × đơn giá.
@@ -646,7 +648,7 @@ export const vi = {
     debtLedger: {
       title: 'Công nợ khách hàng',
       openTab: 'Mở Quản lý công nợ →',
-      customer: 'Tên KH',
+      customer: 'Mã MISA',
       opening: 'Nợ đầu ngày',
       // Bán nợ cộng tạm ứng/chi ghi nợ trong ngày.
       charged: 'Phát sinh',
@@ -674,7 +676,7 @@ export const vi = {
       invalidAmount:
         'Thu / Chi / Chuyển khoản phải là số tiền nguyên, ví dụ 20355520 hoặc 20.355.520',
       // Đối tượng: chọn khách hàng, hoặc gõ tên khi bên kia không phải khách (ngân hàng…).
-      pickCounterparty: 'Chọn khách hàng hoặc gõ tên',
+      pickCounterparty: 'Chọn mã MISA hoặc gõ tên',
       useTyped: (text: string) => `Ghi “${text}” (không phải khách hàng)`,
       clearCounterparty: 'Bỏ chọn',
       unknownCustomer: 'Khách hàng đã chọn không còn tồn tại, hãy chọn lại.',

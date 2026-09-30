@@ -113,6 +113,7 @@ export type DebtListRow = {
   id: string
   idIsMissing: boolean
   customerName: string
+  customerMisaCode: string | null
   fuelLabel: string
   liters: number | null
   vehiclePhotoUrl: string | null
@@ -146,6 +147,7 @@ export function buildDebtsList(
         id,
         idIsMissing: id === '',
         customerName: customer?.name ?? '',
+        customerMisaCode: customer?.misaCode ?? null,
         fuelLabel: v.fuelType ? fuelTypeLabelFrom(catalogue, v.fuelType) : '',
         liters: v.litersRead,
         vehiclePhotoUrl: v.vehiclePhotoUrl ?? null,

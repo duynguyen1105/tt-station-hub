@@ -131,6 +131,7 @@ describe('buildDebtsList', () => {
     )
     expect(row?.idIsMissing).toBe(true)
     expect(row?.customerName).toBe('')
+    expect(row?.customerMisaCode).toBeNull()
   })
 
   it('resolves the customer name and Vietnamese fuel label', () => {
@@ -140,6 +141,7 @@ describe('buildDebtsList', () => {
       CATALOGUE
     )
     expect(row?.customerName).toBe('Ngọc Hồng')
+    expect(row?.customerMisaCode).toBe('NGỌC HỒNG')
     expect(row?.fuelLabel).toBe('Xăng E0')
   })
 

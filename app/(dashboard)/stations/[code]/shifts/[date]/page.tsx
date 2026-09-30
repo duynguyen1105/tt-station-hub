@@ -195,8 +195,9 @@ export default async function ShiftDetailPage({
   const cashCustomerIds = cashEntryRows.flatMap((e) => (e.customerId ? [e.customerId] : []))
   const cashCustomers = await prisma.debtCustomer.findMany({
     where: { OR: [{ isActive: true }, { id: { in: cashCustomerIds } }] },
-    orderBy: { name: 'asc' },
-    select: { id: true, name: true },
+    // Listed by mã MISA, what the phiếu chốt names a khách by; khách without one last.
+    orderBy: [{ misaCode: 'asc' }, { name: 'asc' }],
+    select: { id: true, name: true, misaCode: true },
   })
 
   const customerIds = [
