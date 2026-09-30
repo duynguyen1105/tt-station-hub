@@ -7,9 +7,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  /* Arial (Trường Thịnh, 30/09: dễ đọc hơn) — on every Windows/macOS/phone, full
+     Vietnamese, nothing to download. Its digits are tabular, so numbers stay aligned. */
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: Arial, Helvetica, sans-serif;
+  --font-heading: Arial, Helvetica, sans-serif;
   --color-brass: var(--brass);
   --color-brass-foreground: var(--brass-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
