@@ -263,7 +263,8 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
   // Visits whose station could not be identified are parked on the (inactive)
   // UNKNOWN station — it is not in the active list, so the picker shows a
   // placeholder and approval is blocked until a real station is chosen.
-  const stationKnown = data.stations.some((s) => s.id === stationId)
+  const station = data.stations.find((s) => s.id === stationId)
+  const stationKnown = station !== undefined
 
   // Moving the visit to another station persists immediately — it changes which
   // station's ledger/shift the charge belongs to, so it must not wait for Duyệt. The
@@ -644,12 +645,12 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="fuelType">{vi.debts.fuelType}</FieldLabel>
-                    {!stationKnown ? (
+                    {!station ? (
                       <p className="text-muted-foreground text-sm">
                         {vi.debtReview.fuelNeedsStation}
                       </p>
                     ) : data.fuels.length === 0 ? (
-                      <NoStationFuels stationId={stationId} />
+                      <NoStationFuels stationCode={station.code} />
                     ) : (
                       <Select value={fuelType} onValueChange={setFuelType}>
                         <SelectTrigger id="fuelType">

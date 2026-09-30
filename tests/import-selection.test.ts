@@ -11,8 +11,11 @@ import {
 const STATION_A = 'aaaaaaaa-0000-0000-0000-000000000001'
 const STATION_B = 'bbbbbbbb-0000-0000-0000-000000000002'
 
-const ADMIN = 'cccccccc-0000-0000-0000-000000000001'
-const ACCOUNTANT = 'cccccccc-0000-0000-0000-000000000002'
+const ADMIN = { id: 'cccccccc-0000-0000-0000-000000000001', username: 'admin@truongthinh.vn' }
+const ACCOUNTANT = {
+  id: 'cccccccc-0000-0000-0000-000000000002',
+  username: 'ketoan@truongthinh.vn',
+}
 
 /**
  * The hầm, nhiên liệu and người nhập this trạm's phiếu nhập actually name — what any URL
@@ -132,7 +135,6 @@ describe('importSelection — lọc theo khoảng ngày', () => {
 describe.each([
   ['hầm', 'tank' as const, 'tankCode' as const, 'tanks' as const, OFFERED.tanks],
   ['nhiên liệu', 'fuel' as const, 'fuelType' as const, 'fuels' as const, OFFERED.fuels],
-  ['người nhập', 'creator' as const, 'createdBy' as const, 'creators' as const, OFFERED.creators],
 ])('importSelection — lọc theo %s', (_name, param, column, applied, offered) => {
   const [first, second] = offered
 
@@ -170,6 +172,20 @@ describe.each([
   })
 })
 
+describe('importSelection — lọc theo người nhập', () => {
+  it('reads người nhập from the URL by tên đăng nhập and narrows by their id', () => {
+    const selection = select({ creator: `${ACCOUNTANT.username},${ADMIN.username}` })
+    expect(selection.creators).toEqual([ADMIN.username, ACCOUNTANT.username])
+    expect(selection.where.createdBy).toEqual({ in: [ADMIN.id, ACCOUNTANT.id] })
+  })
+
+  it('drops a tên đăng nhập nobody offers, and a bare id is no longer one', () => {
+    const selection = select({ creator: `${ADMIN.id},khong-co@truongthinh.vn` })
+    expect(selection.creators).toEqual([])
+    expect(selection.where.createdBy).toBeUndefined()
+  })
+})
+
 describe('importSelection — nhiều tiêu chí', () => {
   it('combines every criterion into one where', () => {
     const selection = select({
@@ -177,7 +193,7 @@ describe('importSelection — nhiều tiêu chí', () => {
       to: '2026-08-31',
       tank: 'HAM_2',
       fuel: 'XANG_E0',
-      creator: ADMIN,
+      creator: ADMIN.username,
     })
     expect(selection.where).toEqual({
       stationId: STATION_A,
@@ -187,7 +203,7 @@ describe('importSelection — nhiều tiêu chí', () => {
       },
       tankCode: { in: ['HAM_2'] },
       fuelType: { in: ['XANG_E0'] },
-      createdBy: { in: [ADMIN] },
+      createdBy: { in: [ADMIN.id] },
     })
   })
 })
@@ -245,7 +261,7 @@ describe('hasImportFilter', () => {
   })
 
   it('is true for a người nhập', () => {
-    expect(hasImportFilter(select({ creator: ADMIN }))).toBe(true)
+    expect(hasImportFilter(select({ creator: ADMIN.username }))).toBe(true)
   })
 
   it('is false for input that was ignored, so nobody is told a filter applied', () => {

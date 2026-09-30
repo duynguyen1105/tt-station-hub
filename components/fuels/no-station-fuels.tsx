@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { stationHref } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 /**
@@ -8,12 +9,12 @@ import { vi } from '@/messages/vi'
  * has nothing to offer — and an empty dropdown says nothing about why. This says it,
  * and points at the Cấu hình tab where the first nhiên liệu is declared.
  */
-export function NoStationFuels({ stationId }: { stationId: string }) {
+export function NoStationFuels({ stationCode }: { stationCode: string }) {
   return (
     <p className="text-muted-foreground text-sm">
       {vi.misaSettings.noStationFuels}{' '}
       <Link
-        href={`/stations/${stationId}/config`}
+        href={`${stationHref(stationCode)}/config`}
         className="text-primary underline underline-offset-2"
       >
         {vi.misaSettings.noStationFuelsLink}

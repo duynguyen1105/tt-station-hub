@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       creator: searchParams.get('creator') ?? undefined,
     },
     scope,
-    { ...offered, creators: offered.creators.map((creator) => creator.id) }
+    offered
   )
   // Oldest first, and every matching row rather than a page: an archive is read from
   // the top and is not paged.

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireUser } from '@/lib/auth/session'
 import { reachableStationIds } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
+import { stationHref } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 export default async function StationsPage() {
@@ -26,7 +27,7 @@ export default async function StationsPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {stations.map((station) => (
-            <Link key={station.id} href={`/stations/${station.id}`}>
+            <Link key={station.id} href={stationHref(station.code)}>
               <Card className="hover:border-primary/50 transition-colors">
                 <CardHeader>
                   <CardTitle className="text-base">{station.code}</CardTitle>

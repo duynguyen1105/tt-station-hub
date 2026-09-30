@@ -105,7 +105,7 @@ export default async function AccountantsPage() {
                       done to them: the list says who there is, and points. */}
                   <td className="p-2">
                     <Link
-                      href={`/admin/accountants/${accountant.id}`}
+                      href={`/admin/accountants/${encodeURIComponent(accountant.email)}`}
                       className="font-medium hover:underline"
                     >
                       {accountant.fullName}

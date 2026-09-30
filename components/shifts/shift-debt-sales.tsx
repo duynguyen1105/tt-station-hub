@@ -4,6 +4,7 @@ import { PhotoView } from '@/components/shared/photo-view'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { formatLiters, formatVND } from '@/lib/format'
 import { type DebtListRow } from '@/lib/misa-export/debts-list'
+import { stationSlug } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 /**
@@ -11,11 +12,11 @@ import { vi } from '@/messages/vi'
  * its Duyệt công nợ card, which `editHref` points at where this user may.
  */
 export function ShiftDebtSales({
-  stationId,
+  stationCode,
   rows,
   pendingCount,
 }: {
-  stationId: string
+  stationCode: string
   rows: (DebtListRow & { editHref: string | null })[]
   /** The ngày's lượt bán nợ still in Duyệt công nợ, not in this list yet. */
   pendingCount: number
@@ -26,7 +27,7 @@ export function ShiftDebtSales({
       {pendingCount > 0 && (
         <p className="text-sm text-amber-700">
           {vi.shifts.pendingDebtsNote(pendingCount)}{' '}
-          <Link href={`/review/debts?station=${stationId}`} className="underline">
+          <Link href={`/review/debts?station=${stationSlug(stationCode)}`} className="underline">
             {vi.shifts.pendingDebtsLink}
           </Link>
         </p>

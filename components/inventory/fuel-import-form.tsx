@@ -314,6 +314,7 @@ function baremLitersText(liters: number): string {
  */
 export function FuelImportForm({
   stationId,
+  stationCode,
   fuels,
   fuelMappings,
   tanks,
@@ -323,6 +324,7 @@ export function FuelImportForm({
   openingDates,
 }: {
   stationId: string
+  stationCode: string
   /** What section (c) may name as the nhiên liệu of a Hầm: what this Trạm sells,
    *  which is its Map nhiên liệu rows minus what Trường Thịnh stopped selling. */
   fuels: readonly CatalogueFuel[]
@@ -1003,7 +1005,7 @@ export function FuelImportForm({
               <h4 className="text-sm font-semibold">{vi.imports.tanksTitle}</h4>
               {/* A Trạm that has declared no nhiên liệu leaves every (c) row's ô chọn
                   empty; said once above the table rather than once per row. */}
-              {fuels.length === 0 && <NoStationFuels stationId={stationId} />}
+              {fuels.length === 0 && <NoStationFuels stationCode={stationCode} />}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[56rem] text-xs">
                   <thead>

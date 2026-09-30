@@ -16,6 +16,7 @@ import {
 } from '@/lib/misa-export/report-selection'
 import { prisma } from '@/lib/prisma'
 import { shiftIdsWithLateDebtApproval, visitDateSpan } from '@/lib/shifts/late-debt-approval'
+import { stationSlug } from '@/lib/stations/href'
 import { shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
 
@@ -30,22 +31,36 @@ export default async function MisaExportPage({
   // rather than whatever survives someone else's more recent ca. Phụ trách of
   // none is the empty table, not an error.
   const stationIds = await reachableStationIds(user)
-  const selection = misaReportSelection(await searchParams, stationIds)
+  // Every trạm the viewer can reach, closed ones included — the mã the table
+  // prints and, in the same read, the options the trạm dropdown offers.
+  const stations = await prisma.station.findMany({
+    where: { id: { in: stationIds } },
+    select: { id: true, code: true },
+    orderBy: { code: 'asc' },
+  })
+  const stationCodeById = new Map(stations.map((s) => [s.id, s.code]))
+  // The URL names each trạm by its mã; the selection reads ids. A mã naming no trạm
+  // passes through as-is, and the selection drops it like any stranger.
+  const idBySlug = new Map(stations.map((s) => [stationSlug(s.code), s.id]))
+  const query = await searchParams
+  const selection = misaReportSelection(
+    {
+      ...query,
+      station: query.station
+        ?.split(',')
+        .map((slug) => idBySlug.get(slug) ?? slug)
+        .join(','),
+    },
+    stationIds
+  )
   const { where, orderBy, skip, take, page } = selection
+  const pickedSlugs = selection.stations.map((id) => stationSlug(stationCodeById.get(id) ?? id))
   // The count rides along with the page it describes: a list that hides rows is
   // the bug this screen had, so what is on screen says how much there is.
-  const [shifts, total, stations] = await Promise.all([
+  const [shifts, total] = await Promise.all([
     prisma.shift.findMany({ where, orderBy, skip, take }),
     prisma.shift.count({ where }),
-    // Every trạm the viewer can reach, closed ones included — the mã the table
-    // prints and, in the same read, the options the trạm dropdown offers.
-    prisma.station.findMany({
-      where: { id: { in: stationIds } },
-      select: { id: true, code: true },
-      orderBy: { code: 'asc' },
-    }),
   ])
-  const stationCodeById = new Map(stations.map((s) => [s.id, s.code]))
   // Which preset, if any, these two ngày are — read here rather than in the browser,
   // so the tick beside Tháng này can't disagree with itself across midnight.
   const activePreset = matchingDatePreset(selection.from, selection.to, new Date())
@@ -73,7 +88,7 @@ export default async function MisaExportPage({
   // Paging keeps the filter: stepping to page 2 must not silently widen what
   // kế toán is looking at. Only the bounds that actually applied are carried.
   const pageHref = (p: number) =>
-    filterHref(base, { from: selection.from, to: selection.to, station: selection.stations }, p)
+    filterHref(base, { from: selection.from, to: selection.to, station: pickedSlugs }, p)
 
   return (
     <div className="space-y-4">
@@ -87,7 +102,7 @@ export default async function MisaExportPage({
       <ReportFilterForm
         from={selection.from}
         to={selection.to}
-        stations={selection.stations}
+        stations={pickedSlugs}
         stationOptions={stations}
         activePreset={activePreset}
       />
@@ -130,7 +145,7 @@ export default async function MisaExportPage({
                 <td className="p-2 text-right">
                   <ExportPreflightDialog
                     shiftId={shift.id}
-                    stationId={shift.stationId}
+                    stationCode={stationCodeById.get(shift.stationId) ?? ''}
                     shiftDate={shift.shiftDate.toISOString().slice(0, 10)}
                   />
                 </td>

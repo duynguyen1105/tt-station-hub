@@ -42,7 +42,6 @@ export type ApprovedVisitInput = {
 
 /** A ca a lượt xe can be read into: one full-day ca per (trạm, ngày). */
 export type ShiftDayInput = {
-  id: string
   stationId: string
   /** UTC midnight labelled with the Vietnam calendar day, as `shifts.shift_date` stores it. */
   shiftDate: Date
@@ -58,8 +57,8 @@ export type ApprovedTodayRow = {
   liters: number | null
   /** The khách hàng's name, empty when the lượt xe has none. */
   customerName: string
-  /** The ca the lượt xe now belongs to; null when its ngày has none, and the row shows unlinked. */
-  shiftId: string | null
+  /** The ngày (YYYY-MM-DD) of the ca the lượt xe now belongs to; null when it has none. */
+  shiftDay: string | null
 }
 
 function dayKey(stationId: string, shiftDate: Date): string {
@@ -80,7 +79,9 @@ export function buildApprovedTodayList(
   shifts: readonly ShiftDayInput[],
   customerNamesById: Map<string, string>
 ): ApprovedTodayRow[] {
-  const shiftByDay = new Map(shifts.map((s) => [dayKey(s.stationId, s.shiftDate), s.id]))
+  const shiftByDay = new Map(
+    shifts.map((s) => [dayKey(s.stationId, s.shiftDate), s.shiftDate.toISOString().slice(0, 10)])
+  )
   return [...visits]
     .sort((a, b) => b.reviewedAt.getTime() - a.reviewedAt.getTime())
     .map((v) => ({
@@ -90,6 +91,6 @@ export function buildApprovedTodayList(
       plate: v.plateConfirmed ?? v.plateRead ?? '',
       liters: v.litersRead,
       customerName: (v.customerId !== null ? customerNamesById.get(v.customerId) : undefined) ?? '',
-      shiftId: shiftByDay.get(dayKey(v.stationId, shiftDateFor(v.visitDate.getTime()))) ?? null,
+      shiftDay: shiftByDay.get(dayKey(v.stationId, shiftDateFor(v.visitDate.getTime()))) ?? null,
     }))
 }

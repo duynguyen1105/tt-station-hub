@@ -20,16 +20,21 @@ import { vi } from '@/messages/vi'
  * the trạm now: a kế toán reaching here could otherwise grant themselves another
  * trạm or set their own password.
  */
-export default async function AccountantPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AccountantPage({
+  params,
+}: {
+  params: Promise<{ username: string }>
+}) {
   await requireRole('admin')
-  const { id } = await params
+  const { username } = await params
 
+  // Named by tên đăng nhập, which is unique and never changes once the kế toán is made.
   const [accountant, stations] = await Promise.all([
-    prisma.profile.findUnique({ where: { id } }),
+    prisma.profile.findUnique({ where: { email: decodeURIComponent(username) } }),
     activeStationsWithHolders(),
   ])
 
-  // This screen is the kế toán screen. A quản trị viên, or an id matching nobody,
+  // This screen is the kế toán screen. A quản trị viên, or a name matching nobody,
   // is not found here — the same answer the update endpoint already gives.
   if (!accountant || accountant.role !== 'accountant') notFound()
 

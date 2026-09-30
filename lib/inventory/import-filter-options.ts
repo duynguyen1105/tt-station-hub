@@ -19,7 +19,7 @@ export type ImportFilterOptions = {
   /** Khóa nhiên liệu seen on this trạm's phiếu nhập, sorted. */
   fuels: string[]
   /** Whoever recorded one, by tên — a phiếu nhập with no người nhập contributes none. */
-  creators: { id: string; name: string }[]
+  creators: { id: string; username: string; name: string }[]
 }
 
 /**
@@ -59,13 +59,17 @@ export async function loadImportFilterOptions(
     creatorIds.length > 0
       ? await prisma.profile.findMany({
           where: { id: { in: creatorIds } },
-          select: { id: true, fullName: true },
+          select: { id: true, email: true, fullName: true },
           orderBy: { fullName: 'asc' },
         })
       : []
   return {
     tanks: tankRows.map((row) => row.tankCode).sort(),
     fuels: fuelRows.map((row) => row.fuelType).sort(),
-    creators: profiles.map((profile) => ({ id: profile.id, name: profile.fullName })),
+    creators: profiles.map((profile) => ({
+      id: profile.id,
+      username: profile.email,
+      name: profile.fullName,
+    })),
   }
 }

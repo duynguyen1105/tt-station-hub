@@ -9,6 +9,7 @@ import { usePathname, useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { shiftHref } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 /**
@@ -17,15 +18,17 @@ import { vi } from '@/messages/vi'
  */
 export function DebtDayHeader({
   stationId,
+  stationCode,
   day,
   today,
-  shiftId,
+  hasShift,
   canOpenShift,
 }: {
   stationId: string
+  stationCode: string
   day: string
   today: string
-  shiftId: string | null
+  hasShift: boolean
   canOpenShift: boolean
 }) {
   const router = useRouter()
@@ -57,7 +60,7 @@ export function DebtDayHeader({
       toast.error(json?.error ?? vi.errors.generic)
       return
     }
-    router.push(`/stations/${stationId}/shifts/${json.data.id}`)
+    router.push(shiftHref(stationCode, day))
   }
 
   return (
@@ -79,11 +82,8 @@ export function DebtDayHeader({
           {vi.debts.today}
         </Button>
       ) : null}
-      {shiftId ? (
-        <Link
-          href={`/stations/${stationId}/shifts/${shiftId}`}
-          className="underline-offset-2 hover:underline"
-        >
+      {hasShift ? (
+        <Link href={shiftHref(stationCode, day)} className="underline-offset-2 hover:underline">
           {vi.debts.dayCashLink}
         </Link>
       ) : (

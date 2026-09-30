@@ -134,8 +134,8 @@ describe('filterQuery', () => {
   })
 
   it('keeps the parameters in the order the caller wrote them', () => {
-    expect(filterQuery({ tab: 'do-bon', from: '2026-08-01' }, 3)).toBe(
-      'tab=do-bon&from=2026-08-01&page=3'
+    expect(filterQuery({ tab: 'dips', from: '2026-08-01' }, 3)).toBe(
+      'tab=dips&from=2026-08-01&page=3'
     )
   })
 })

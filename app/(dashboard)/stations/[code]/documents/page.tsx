@@ -1,7 +1,7 @@
 import { DocumentDelete, DocumentForm } from '@/components/documents/document-form'
 import { DocumentsNote } from '@/components/documents/documents-note'
 import { ExpiryBadge } from '@/components/documents/expiry-badge'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { formatDate } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
 import { REVIEW_URL_TTL_SECONDS, signedUrlsForPaths } from '@/lib/storage/photo-storage'
@@ -12,9 +12,10 @@ const docTypeLabel = (type: string) => (vi.docType as Record<string, string>)[ty
 export default async function StationDocumentsPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ code: string }>
 }) {
-  const { id } = await params
+  const { code } = await params
+  const { id } = await loadStationBySlug(code)
   const user = await requireStationAccess(id)
   const [station, documents] = await Promise.all([
     prisma.station.findUnique({ where: { id }, select: { documentsNote: true } }),

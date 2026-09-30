@@ -3,7 +3,7 @@ import { CustomerList } from '@/components/debts/customer-list'
 import { DebtDayHeader } from '@/components/debts/debt-day-header'
 import { Button } from '@/components/ui/button'
 import { canEditCashEntries } from '@/lib/auth/reading-policy'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { debtCustomerFilter } from '@/lib/debts/customer-search'
 import { debtDay } from '@/lib/debts/ledger'
 import { loadLedgers, todayKey } from '@/lib/debts/load-ledger'
@@ -20,10 +20,11 @@ export default async function StationDebtsPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ code: string }>
   searchParams: Promise<{ q?: string; owing?: string; date?: string }>
 }) {
-  const { id } = await params
+  const { code } = await params
+  const { id } = await loadStationBySlug(code)
   const user = await requireStationAccess(id)
   const query = await searchParams
   const today = todayKey()
@@ -93,9 +94,10 @@ export default async function StationDebtsPage({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <DebtDayHeader
           stationId={id}
+          stationCode={code}
           day={day}
           today={today}
-          shiftId={shift?.id ?? null}
+          hasShift={shift !== null}
           canOpenShift={canEditCashEntries(user.role)}
         />
         {addButton}
@@ -105,6 +107,7 @@ export default async function StationDebtsPage({
           const ofDay = debtDay(customer.anchor, txs, day)
           return {
             id: customer.id,
+            no: customer.no,
             name: customer.name,
             phone: customer.phone,
             misaCode: customer.misaCode,

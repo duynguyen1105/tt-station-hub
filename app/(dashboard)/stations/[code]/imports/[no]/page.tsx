@@ -6,7 +6,7 @@ import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { ReceiptDocUpload } from '@/components/inventory/receipt-doc-upload'
 import { ReceiptEditForm } from '@/components/inventory/receipt-edit-form'
 import { StatusBadge } from '@/components/shared/status-badge'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { VN_OFFSET_MS } from '@/lib/filters/params'
 import { formatDateTime, formatLiters } from '@/lib/format'
 import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
@@ -105,14 +105,20 @@ function diff(a: number | null | undefined, b: number | null | undefined): numbe
 export default async function ImportReceiptPage({
   params,
 }: {
-  params: Promise<{ id: string; receiptId: string }>
+  params: Promise<{ code: string; no: string }>
 }) {
-  const { id: stationId, receiptId } = await params
+  const { code, no } = await params
+  const { id: stationId } = await loadStationBySlug(code)
   const user = await requireStationAccess(stationId)
   const fuelLabel = await fuelTypeLabeller()
 
-  const receipt = await prisma.fuelImportReceipt.findUnique({ where: { id: receiptId } })
-  if (!receipt || receipt.stationId !== stationId) notFound()
+  // Named by its số within this trạm, so another trạm's biên bản can't be reached here.
+  if (!/^\d+$/.test(no)) notFound()
+  const receipt = await prisma.fuelImportReceipt.findUnique({
+    where: { stationId_no: { stationId, no: Number(no) } },
+  })
+  if (!receipt) notFound()
+  const receiptId = receipt.id
 
   const [docs, childImports, creator, station, configuredTanks, openings] = await Promise.all([
     prisma.fuelImportDocument.findMany({

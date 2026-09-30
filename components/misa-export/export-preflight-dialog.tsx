@@ -22,6 +22,7 @@ import type {
   PreflightError,
   PreflightWarning,
 } from '@/lib/misa-export/build-sales-voucher'
+import { stationHref, stationSlug } from '@/lib/stations/href'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
@@ -33,17 +34,17 @@ type PreflightResult = {
 }
 
 /** The Settings screen that fixes each blocking error, given the station. */
-function fixLink(error: PreflightError, stationId: string): string {
+function fixLink(error: PreflightError, stationCode: string): string {
   switch (error.code) {
     case 'missing_global_config':
       return '/settings/misa/config'
     case 'missing_fuel_map':
       // The map lives on the trạm's own Cấu hình tab.
-      return `/stations/${stationId}/config`
+      return `${stationHref(stationCode)}/config`
     case 'missing_price':
-      return `/settings/misa/prices?station=${stationId}`
+      return `/settings/misa/prices?station=${stationSlug(stationCode)}`
     case 'customer_without_misa_code':
-      return `/stations/${stationId}/debts`
+      return `${stationHref(stationCode)}/debts`
     case 'visit_without_fuel_type':
       return `/review/debts`
   }
@@ -51,11 +52,11 @@ function fixLink(error: PreflightError, stationId: string): string {
 
 export function ExportPreflightDialog({
   shiftId,
-  stationId,
+  stationCode,
   shiftDate,
 }: {
   shiftId: string
-  stationId: string
+  stationCode: string
   shiftDate: string // yyyy-MM-dd — default for the voucher dates
 }) {
   const fuelLabel = useFuelTypeLabel()
@@ -172,7 +173,7 @@ export function ExportPreflightDialog({
                         <p className="text-muted-foreground">{error.message}</p>
                       </div>
                       <Button asChild size="sm" variant="outline">
-                        <Link href={fixLink(error, stationId)}>{vi.misaExport.fix}</Link>
+                        <Link href={fixLink(error, stationCode)}>{vi.misaExport.fix}</Link>
                       </Button>
                     </li>
                   ))}

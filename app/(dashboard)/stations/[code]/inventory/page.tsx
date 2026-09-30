@@ -10,7 +10,7 @@ import { ManualMovementDelete, MovementForm } from '@/components/inventory/movem
 import { OpeningBalanceForm, type OpeningEntry } from '@/components/inventory/opening-balance-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { byTankCode, tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
 import { matchingDatePreset } from '@/lib/filters/date-presets'
 import { filterHref } from '@/lib/filters/params'
@@ -45,6 +45,7 @@ import { computeTankFlows } from '@/lib/inventory/tank-ledger'
 import { stationTankOptions } from '@/lib/inventory/tank-options'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
+import { importReceiptHref, stationHref } from '@/lib/stations/href'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { reviewStatusInfo } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -70,7 +71,7 @@ function buildDipTankOptions(tanks: TankOption[], pageDips: { tankCode: string }
     .sort((a, b) => a.value.localeCompare(b.value))
 }
 
-const TABS = ['tong-quan', 'so-sach', 'do-bon', 'nhap-hang'] as const
+const TABS = ['overview', 'ledger', 'dips', 'imports'] as const
 type InventoryTab = (typeof TABS)[number]
 // One page size for all four tabs. Tied to the imports one so the pager, which sizes
 // itself from here, can't disagree with the page the selection actually took.
@@ -80,7 +81,7 @@ export default async function StationInventoryPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ code: string }>
   searchParams: Promise<{
     from?: string
     to?: string
@@ -92,7 +93,8 @@ export default async function StationInventoryPage({
     creator?: string
   }>
 }) {
-  const { id } = await params
+  const { code } = await params
+  const { id } = await loadStationBySlug(code)
   const user = await requireStationAccess(id)
   const today = todayShiftDate()
   // Every tên nhiên liệu on this page — tồn kho, sổ sách, đo hầm, phiếu nhập — is the
@@ -128,20 +130,20 @@ export default async function StationInventoryPage({
   } = await searchParams
   const tab: InventoryTab = (TABS as readonly string[]).includes(rawTab ?? '')
     ? (rawTab as InventoryTab)
-    : 'tong-quan'
+    : 'overview'
   // Every hầm this trạm has — what the Đo bồn bộ lọc offers and what it narrows the URL
   // against. Started here and awaited after the batch below, so it runs alongside it rather
   // than in front of it, and only the tab that asks pays for it at all.
-  const tankCodesPromise = tab === 'do-bon' ? loadStationTankCodes(id) : null
+  const tankCodesPromise = tab === 'dips' ? loadStationTankCodes(id) : null
   // What the Nhập hàng bộ lọc offers, read off the phiếu nhập themselves. Started here and
   // awaited below so it runs alongside the trạm lookup rather than in front of it, and only
   // the tab that asks pays for it.
-  const importOptionsPromise = tab === 'nhap-hang' ? loadImportFilterOptions(id) : null
+  const importOptionsPromise = tab === 'imports' ? loadImportFilterOptions(id) : null
   // Which of the heavy sources this tab actually renders. The Barem is a LIVE
   // Google Sheet fetch (~1s, uncached by ADR 0005) — only the tabs that show
   // litres pay for it, and it runs concurrently with the DB batch below.
-  const needsBarem = tab === 'tong-quan' || tab === 'do-bon'
-  const needsBook = tab === 'tong-quan' || tab === 'so-sach'
+  const needsBarem = tab === 'overview' || tab === 'dips'
+  const needsBook = tab === 'overview' || tab === 'ledger'
   const station = await prisma.station.findUnique({ where: { id }, select: { code: true } })
   const binding = baremSheetFor(station?.code)
   const baremPromise = needsBarem && binding ? fetchBaremSheet(binding) : null
@@ -153,7 +155,7 @@ export default async function StationInventoryPage({
   const selection = importSelection(
     { from, to, tank: rawTank, fuel: rawFuel, creator: rawCreator, page: rawPage },
     id,
-    { ...importOptions, creators: importOptions.creators.map((creator) => creator.id) }
+    importOptions
   )
   const [balances, dips, dispensers, imports, openings, movements, importsTotal] =
     await Promise.all([
@@ -161,7 +163,7 @@ export default async function StationInventoryPage({
         where: { stationId: id },
         orderBy: { fuelType: 'asc' },
       }),
-      // Latest-per-tank for the overview; the do-bon tab paginates separately.
+      // Latest-per-tank for the overview; the dips tab paginates separately.
       // A từ chối read is skipped, so the previous good dip becomes the hầm's
       // Thực tế instead of a misread dip-stick skewing the đối chiếu.
       prisma.tankDipRecord.findMany({
@@ -173,7 +175,7 @@ export default async function StationInventoryPage({
       prisma.fuelImport.findMany({
         where: selection.where,
         orderBy: selection.orderBy,
-        skip: tab === 'nhap-hang' ? selection.skip : 0,
+        skip: tab === 'imports' ? selection.skip : 0,
         take: selection.take,
       }),
       prisma.inventoryOpeningBalance.findMany({ where: { stationId: id } }),
@@ -185,7 +187,7 @@ export default async function StationInventoryPage({
             orderBy: { movementDate: 'asc' },
           })
         : ([] as never[]),
-      tab === 'nhap-hang' ? prisma.fuelImport.count({ where: selection.where }) : 0,
+      tab === 'imports' ? prisma.fuelImport.count({ where: selection.where }) : 0,
     ])
 
   // What the Đo bồn bộ lọc is asking for. Narrowed only by what this trạm actually has, so
@@ -202,13 +204,13 @@ export default async function StationInventoryPage({
       tankFuels: Object.fromEntries(configuredFuel),
     }
   )
-  const pageNum = tab === 'do-bon' ? dipSel.page : selection.page
+  const pageNum = tab === 'dips' ? dipSel.page : selection.page
 
   // Dip history page — only fetched on its own tab. Nothing is filtered out by default: a
   // từ chối read stays listed, badged, because this history is the audit trail of what was
   // decided and not just of what counts. Only the bộ lọc narrows it.
   const [dipsPage, dipsTotal] =
-    tab === 'do-bon'
+    tab === 'dips'
       ? await Promise.all([
           prisma.tankDipRecord.findMany({
             where: dipSel.where,
@@ -303,7 +305,7 @@ export default async function StationInventoryPage({
     label: fuelLabel(fuelType),
   }))
   const importCreatorOptions = importOptions.creators.map((creator) => ({
-    value: creator.id,
+    value: creator.username,
     label: creator.name,
   }))
 
@@ -313,7 +315,7 @@ export default async function StationInventoryPage({
   // and the "tài liệu nhập hàng" (TL) uploaded in the wizard's last step.
   const receiptIds = [...new Set(imports.map((i) => i.receiptId).filter((r): r is string => !!r))]
   const docs =
-    tab === 'nhap-hang'
+    tab === 'imports'
       ? await prisma.fuelImportDocument.findMany({
           where: {
             OR: [{ importId: { in: imports.map((i) => i.id) } }, { receiptId: { in: receiptIds } }],
@@ -324,17 +326,17 @@ export default async function StationInventoryPage({
   // One bulk signing call for the whole table (was one round-trip per doc).
   const docUrlByPath = await signedUrlsForPaths(docs.map((d) => d.storagePath))
   // What each wizard phiếu's hầm measured receiving (Barem), shown beside the booked
-  // litres as a reference and the Chênh lệch between them.
-  const measuredByReceipt = new Map(
-    tab === 'nhap-hang'
-      ? (
-          await prisma.fuelImportReceipt.findMany({
-            where: { id: { in: receiptIds } },
-            select: { id: true, tankChecks: true },
-          })
-        ).map((r) => [r.id, measuredIntakeByTank(r.tankChecks)])
+  // litres as a reference and the Chênh lệch between them — and its số, the address
+  // its saved biên bản opens at.
+  const receipts =
+    tab === 'imports'
+      ? await prisma.fuelImportReceipt.findMany({
+          where: { id: { in: receiptIds } },
+          select: { id: true, no: true, tankChecks: true },
+        })
       : []
-  )
+  const measuredByReceipt = new Map(receipts.map((r) => [r.id, measuredIntakeByTank(r.tankChecks)]))
+  const receiptNo = new Map(receipts.map((r) => [r.id, r.no]))
   const measuredOf = (row: { receiptId: string | null; tankCode: string }) =>
     row.receiptId ? (measuredByReceipt.get(row.receiptId)?.get(row.tankCode) ?? null) : null
   const docLinks = new Map<string, { url: string; name: string }[]>()
@@ -470,7 +472,7 @@ export default async function StationInventoryPage({
   // tick have to read the one that applies here. Which preset, if any, those two ngày are is
   // worked out on the server rather than in the browser, so the tick beside Tháng này can't
   // disagree with itself across midnight.
-  const applied = tab === 'do-bon' ? dipSel : tab === 'so-sach' ? ledger : selection
+  const applied = tab === 'dips' ? dipSel : tab === 'ledger' ? ledger : selection
   const activePreset = matchingDatePreset(applied.from, applied.to, new Date())
   // The nhiên liệu the Sổ sách bộ lọc offers, named as kế toán reads them. Only the two
   // strings the menu renders cross to the browser, never the danh mục rows.
@@ -540,22 +542,22 @@ export default async function StationInventoryPage({
 
   const canEdit = user.role !== 'viewer'
 
-  const base = `/stations/${id}/inventory`
-  const tabHref = (t: InventoryTab) => (t === 'tong-quan' ? base : `${base}?tab=${t}`)
+  const base = `${stationHref(code)}/inventory`
+  const tabHref = (t: InventoryTab) => (t === 'overview' ? base : `${base}?tab=${t}`)
   const pageHref = (p: number) =>
     filterHref(
       base,
       {
-        ...(tab !== 'tong-quan' ? { tab } : {}),
+        ...(tab !== 'overview' ? { tab } : {}),
         from: applied.from,
         to: applied.to,
         // Only the criteria of the tab being paged through: each tab carries its own, and
         // a criterion left over from another would narrow a list it was never applied to.
-        ...(tab === 'so-sach' ? { fuel: ledger.fuels } : {}),
-        ...(tab === 'do-bon'
+        ...(tab === 'ledger' ? { fuel: ledger.fuels } : {}),
+        ...(tab === 'dips'
           ? { tank: dipSel.tanks, fuel: dipSel.fuels, status: dipSel.statuses }
           : {}),
-        ...(tab === 'nhap-hang'
+        ...(tab === 'imports'
           ? { tank: selection.tanks, fuel: selection.fuels, creator: selection.creators }
           : {}),
       },
@@ -599,10 +601,10 @@ export default async function StationInventoryPage({
     )
   }
   const TAB_LABELS: Record<InventoryTab, string> = {
-    'tong-quan': vi.inventory.tabOverview,
-    'so-sach': vi.inventory.tabLedger,
-    'do-bon': vi.inventory.tabDips,
-    'nhap-hang': vi.inventory.tabImports,
+    overview: vi.inventory.tabOverview,
+    ledger: vi.inventory.tabLedger,
+    dips: vi.inventory.tabDips,
+    imports: vi.inventory.tabImports,
   }
 
   return (
@@ -613,6 +615,7 @@ export default async function StationInventoryPage({
           {canEdit && (
             <FuelImportForm
               stationId={id}
+              stationCode={code}
               fuels={stationFuels}
               fuelMappings={fuelMappings}
               tanks={tanks}
@@ -624,7 +627,7 @@ export default async function StationInventoryPage({
               )}
             />
           )}
-          {canEdit && <MovementForm stationId={id} fuels={stationFuels} />}
+          {canEdit && <MovementForm stationId={id} stationCode={code} fuels={stationFuels} />}
         </div>
       </div>
 
@@ -645,7 +648,7 @@ export default async function StationInventoryPage({
         ))}
       </nav>
 
-      {tab === 'tong-quan' && (
+      {tab === 'overview' && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -699,7 +702,7 @@ export default async function StationInventoryPage({
                         <td className="p-2 text-right">
                           {/* Every component links to its own evidence trail. */}
                           <Link
-                            href={tabHref('nhap-hang')}
+                            href={tabHref('imports')}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.importedLiters)}
@@ -707,7 +710,7 @@ export default async function StationInventoryPage({
                         </td>
                         <td className="p-2 text-right">
                           <Link
-                            href={`/stations/${id}/shifts`}
+                            href={`${stationHref(code)}/shifts`}
                             className="text-primary font-mono underline underline-offset-2"
                           >
                             {formatLiters(book.summary.soldLiters)}
@@ -734,7 +737,7 @@ export default async function StationInventoryPage({
         </section>
       )}
 
-      {tab === 'so-sach' && (
+      {tab === 'ledger' && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <LedgerFilterForm
@@ -833,6 +836,7 @@ export default async function StationInventoryPage({
                           <td className="flex p-2">
                             <MovementForm
                               stationId={id}
+                              stationCode={code}
                               fuels={stationFuels}
                               movement={{
                                 id: m.id,
@@ -855,7 +859,7 @@ export default async function StationInventoryPage({
         </section>
       )}
 
-      {tab === 'tong-quan' && (
+      {tab === 'overview' && (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{vi.inventory.actualTitle}</h3>
           {baremRead && !baremRead.ok && (
@@ -938,7 +942,7 @@ export default async function StationInventoryPage({
         </section>
       )}
 
-      {tab === 'tong-quan' && compareFuels.length > 0 && (
+      {tab === 'overview' && compareFuels.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">{vi.inventory.compareTitle}</h3>
           <table className="w-full max-w-xl text-sm">
@@ -987,7 +991,7 @@ export default async function StationInventoryPage({
         </section>
       )}
 
-      {tab === 'do-bon' && (
+      {tab === 'dips' && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <DipFilterForm
@@ -1073,7 +1077,7 @@ export default async function StationInventoryPage({
         </section>
       )}
 
-      {tab === 'nhap-hang' && (
+      {tab === 'imports' && (
         <section id="lich-su-nhap-hang" className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <ImportFilterForm
@@ -1129,13 +1133,14 @@ export default async function StationInventoryPage({
                   const measured = measuredOf(row)
                   const gap =
                     measured === null ? null : Math.round((measured - booked) * 1000) / 1000
+                  const no = row.receiptId ? receiptNo.get(row.receiptId) : undefined
                   return (
                     <tr key={row.id} className={`border-b ${row.canceledAt ? 'opacity-50' : ''}`}>
                       <td className="p-2">
-                        {row.receiptId ? (
+                        {no !== undefined ? (
                           // A wizard slip opens its saved biên bản for cross-checking.
                           <Link
-                            href={`/stations/${id}/imports/${row.receiptId}`}
+                            href={importReceiptHref(code, no)}
                             className="text-primary underline underline-offset-2"
                           >
                             {formatDate(row.importedAt)}

@@ -2,6 +2,7 @@
 
 import { FilterMenu } from '@/components/shared/filter-menu'
 import type { DatePreset } from '@/lib/filters/date-presets'
+import { stationSlug } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 /**
@@ -41,7 +42,7 @@ export function ReportFilterForm({
           param: 'station',
           name: vi.misaExport.reportStation,
           options: stationOptions.map((station) => ({
-            value: station.id,
+            value: stationSlug(station.code),
             label: station.code,
           })),
           picks: stations,

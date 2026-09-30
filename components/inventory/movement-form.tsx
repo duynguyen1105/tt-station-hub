@@ -45,10 +45,12 @@ const movementOptions = Object.entries(vi.movementType).filter(
  */
 export function MovementForm({
   stationId,
+  stationCode,
   fuels,
   movement,
 }: {
   stationId: string
+  stationCode: string
   fuels: readonly CatalogueFuel[]
   movement?: {
     id: string
@@ -135,7 +137,7 @@ export function MovementForm({
             <Field>
               <FieldLabel>{vi.inventory.fuelType}</FieldLabel>
               {fuels.length === 0 && !movement ? (
-                <NoStationFuels stationId={stationId} />
+                <NoStationFuels stationCode={stationCode} />
               ) : (
                 <Select value={fuelType} onValueChange={setFuelType}>
                   <SelectTrigger>

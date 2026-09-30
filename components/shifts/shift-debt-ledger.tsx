@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { debtDay } from '@/lib/debts/ledger'
 import { loadLedgers } from '@/lib/debts/load-ledger'
 import { formatVND } from '@/lib/format'
+import { customerHref } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 const num = 'p-2 text-right font-mono whitespace-nowrap'
@@ -14,14 +15,22 @@ const num = 'p-2 text-right font-mono whitespace-nowrap'
  *
  * Loads its own rows so the page can stream it: the sổ is read in full per khách.
  */
-export async function ShiftDebtLedger({ stationId, day }: { stationId: string; day: string }) {
+export async function ShiftDebtLedger({
+  stationId,
+  stationCode,
+  day,
+}: {
+  stationId: string
+  stationCode: string
+  day: string
+}) {
   const ledgers = await loadLedgers({ stationId, isActive: true })
   const rows = ledgers.flatMap(({ customer, txs }) => {
     const ofDay = debtDay(customer.anchor, txs, day)
     if (!ofDay) return []
     const charged = ofDay.charged + ofDay.advanced
     if (ofDay.opening === 0 && charged === 0 && ofDay.paid === 0 && ofDay.closing === 0) return []
-    return [{ id: customer.id, name: customer.name, ...ofDay, charged }]
+    return [{ id: customer.id, no: customer.no, name: customer.name, ...ofDay, charged }]
   })
   const total = { opening: 0, charged: 0, paid: 0, closing: 0 }
   for (const row of rows) {
@@ -51,12 +60,16 @@ export async function ShiftDebtLedger({ stationId, day }: { stationId: string; d
               {rows.map((row) => (
                 <tr key={row.id} className="border-b">
                   <td className="p-2">
-                    <Link
-                      href={`/stations/${stationId}/debts/${row.id}`}
-                      className="underline-offset-2 hover:underline"
-                    >
-                      {row.name}
-                    </Link>
+                    {row.no === null ? (
+                      row.name
+                    ) : (
+                      <Link
+                        href={customerHref(stationCode, row.no)}
+                        className="underline-offset-2 hover:underline"
+                      >
+                        {row.name}
+                      </Link>
+                    )}
                   </td>
                   <td className={num}>{formatVND(row.opening)}</td>
                   <td className={num}>{row.charged ? formatVND(row.charged) : '—'}</td>

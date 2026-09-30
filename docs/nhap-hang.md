@@ -364,8 +364,8 @@ trong ngày nhưng chưa từng đo que vẫn hiện dòng riêng.
 - `lib/inventory/tank-ledger.ts` — `computeTankFlows`: gom nhập/bán theo hầm
   (bán = delta điện tử của các trụ map vào hầm qua `dispenser.tank_code`;
   delta âm bị bỏ qua — đó là lỗi dữ liệu đã có cờ review riêng).
-- Trang: `app/(dashboard)/stations/[id]/inventory/page.tsx` (form + bảng phiếu +
-  cột cân đối), `.../shifts/[shiftId]/page.tsx` (nút Nhập hàng).
+- Trang: `app/(dashboard)/stations/[code]/inventory/page.tsx` (form + bảng phiếu +
+  cột cân đối), `.../shifts/[date]/page.tsx` (nút Nhập hàng).
 - Tests: `tests/tank-ledger.test.ts`, `tests/bien-ban.test.ts` (parse số VN + map nhãn hầm,
   toàn bộ số liệu lấy từ 2 biên bản thật), `tests/barem.test.ts` (parse trang tính
   thật + tra cứu), `tests/barem-form.test.ts` (quy tắc điền mục c),

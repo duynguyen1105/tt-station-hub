@@ -14,7 +14,7 @@ export type ImportSelectionParams = {
   tank?: string
   /** Nhiên liệu khóa, comma-joined; empty or absent means every nhiên liệu. */
   fuel?: string
-  /** Người nhập, by hồ sơ id, comma-joined; empty or absent means everyone. */
+  /** Người nhập, by tên đăng nhập, comma-joined; empty or absent means everyone. */
   creator?: string
   page?: string
 }
@@ -40,7 +40,7 @@ export type ImportSelection = {
   tanks: string[]
   /** Nhiên liệu as applied, in the ô chọn's order; empty means tất cả. */
   fuels: string[]
-  /** Người nhập as applied, by id, in the ô chọn's order; empty means tất cả. */
+  /** Người nhập as applied, by tên đăng nhập, in the ô chọn's order; empty means tất cả. */
   creators: string[]
 }
 
@@ -49,7 +49,12 @@ export type ImportSelection = {
  * is narrowed against. Built by `loadImportFilterOptions`, which reads them off the slips
  * so every option on the menu matches at least one row.
  */
-export type ImportSelectionOptions = { tanks: string[]; fuels: string[]; creators: string[] }
+export type ImportSelectionOptions = {
+  tanks: string[]
+  fuels: string[]
+  /** The URL names a người nhập by tên đăng nhập; the phiếu nhập carry the hồ sơ id. */
+  creators: { id: string; username: string }[]
+}
 
 /**
  * What the Lịch sử nhập hàng list shows: the phiếu nhập of the trạm asked for, newest
@@ -83,7 +88,13 @@ export function importSelection(
   const to = readInstantBound(params.to, 'end')
   const tanks = readPicks(params.tank, offered.tanks)
   const fuels = readPicks(params.fuel, offered.fuels)
-  const creators = readPicks(params.creator, offered.creators)
+  const creators = readPicks(
+    params.creator,
+    offered.creators.map((creator) => creator.username)
+  )
+  const creatorIds = offered.creators
+    .filter((creator) => creators.includes(creator.username))
+    .map((creator) => creator.id)
   const importedAt = {
     ...(from ? { gte: from } : {}),
     ...(to ? { lte: to } : {}),
@@ -97,7 +108,7 @@ export function importSelection(
       // A phiếu nhập written before người nhập was recorded carries none at all. `in`
       // leaves those rows out, which is what asking for one person's slips means; they
       // are still there with this criterion off.
-      ...(creators.length ? { createdBy: { in: creators } } : {}),
+      ...(creatorIds.length ? { createdBy: { in: creatorIds } } : {}),
     },
     orderBy: [{ importedAt: 'desc' }, { id: 'asc' }],
     skip: (page - 1) * IMPORT_PAGE_SIZE,

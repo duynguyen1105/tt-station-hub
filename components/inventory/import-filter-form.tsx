@@ -5,7 +5,7 @@ import type { DatePreset } from '@/lib/filters/date-presets'
 import { vi } from '@/messages/vi'
 
 /** The tab this bộ lọc belongs to; every URL it pushes has to land back on it. */
-const TAB = 'nhap-hang'
+const TAB = 'imports'
 
 /**
  * Which phiếu nhập kế toán is looking at: the hầm the xe bồn discharged into, the nhiên

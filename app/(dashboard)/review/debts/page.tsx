@@ -6,7 +6,7 @@ import { ReviewTabs } from '@/components/review/review-tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { requireUser } from '@/lib/auth/session'
-import { reachableStationIds } from '@/lib/auth/station-guard'
+import { reachableStationIds, stationIdFromSlug } from '@/lib/auth/station-guard'
 import { approvedTodaySelection, buildApprovedTodayList } from '@/lib/debts/approved-today'
 import { boardPriceOf } from '@/lib/debts/board-price'
 import { loadStationPrices } from '@/lib/debts/load-board-prices'
@@ -18,6 +18,7 @@ import { loadStationFuels } from '@/lib/fuels/load-catalogue'
 import { PENDING_VISIT_STATUSES } from '@/lib/misa-export/debts-list'
 import { photoDateMismatch, shiftDateFor, shiftTypeFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
+import { stationSlug } from '@/lib/stations/href'
 import { signedUrlsForPaths } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
@@ -36,7 +37,8 @@ export default async function ReviewDebtsPage({
   const stationIds = await reachableStationIds(user)
   // One trạm at a time, so lượt xe of different trạm are not duyệt'd side by side; a
   // trạm outside the person's reach is ignored rather than trusted from the URL.
-  const station = params.station && stationIds.includes(params.station) ? params.station : null
+  const pickedId = await stationIdFromSlug(params.station)
+  const station = pickedId && stationIds.includes(pickedId) ? pickedId : null
   const queueWhere = {
     reviewStatus: { in: decided ? ['approved', 'rejected'] : PENDING_VISIT_STATUSES },
     stationId: { in: stationIds },
@@ -74,11 +76,11 @@ export default async function ReviewDebtsPage({
   ])
   const countByStation = new Map(countRows.map((r) => [r.stationId, r._count]))
   const total = countRows.reduce((sum, r) => sum + r._count, 0)
-  const queueHref = (stationId: string | null) => {
+  const queueHref = (stationCode: string | null) => {
     const q = new URLSearchParams()
     if (decided) q.set('view', 'decided')
     if (decided) q.set('day', day)
-    if (stationId) q.set('station', stationId)
+    if (stationCode) q.set('station', stationSlug(stationCode))
     return q.size ? `/review/debts?${q}` : '/review/debts'
   }
 
@@ -128,7 +130,7 @@ export default async function ReviewDebtsPage({
             shiftType: shiftTypeFor(),
             shiftDate: { in: approvedDays },
           },
-          select: { id: true, stationId: true, shiftDate: true },
+          select: { stationId: true, shiftDate: true },
         })
       : [],
     approvedCustomerIds.length > 0
@@ -204,7 +206,7 @@ export default async function ReviewDebtsPage({
       {decided && (
         <form className="flex items-end gap-2">
           <input type="hidden" name="view" value="decided" />
-          {station && <input type="hidden" name="station" value={station} />}
+          {station && <input type="hidden" name="station" value={params.station} />}
           <label className="space-y-1 text-sm">
             <span className="block">{vi.debtReview.visitDay}</span>
             <Input type="date" name="day" defaultValue={day} />
@@ -219,14 +221,19 @@ export default async function ReviewDebtsPage({
       {stations.length > 1 && (
         <nav className="flex flex-wrap gap-2 text-sm" aria-label={vi.debtReview.stationFilter}>
           {[
-            { id: null, label: vi.debtReview.allStations, count: total },
+            { id: null, code: null, label: vi.debtReview.allStations, count: total },
             ...stations
               .filter((s) => countByStation.has(s.id) || s.id === station)
-              .map((s) => ({ id: s.id, label: s.code, count: countByStation.get(s.id) ?? 0 })),
+              .map((s) => ({
+                id: s.id,
+                code: s.code,
+                label: s.code,
+                count: countByStation.get(s.id) ?? 0,
+              })),
           ].map((chip) => (
             <Link
               key={chip.id ?? 'all'}
-              href={queueHref(chip.id)}
+              href={queueHref(chip.code)}
               aria-current={chip.id === station ? 'page' : undefined}
               className={
                 chip.id === station
@@ -298,7 +305,12 @@ export default async function ReviewDebtsPage({
         </div>
       )}
 
-      {!decided && <ApprovedTodayList rows={approvedRows} />}
+      {!decided && (
+        <ApprovedTodayList
+          rows={approvedRows}
+          stationCodes={new Map(stations.map((s) => [s.id, s.code]))}
+        />
+      )}
     </div>
   )
 }

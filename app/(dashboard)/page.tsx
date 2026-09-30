@@ -7,6 +7,7 @@ import { balanceOf } from '@/lib/debts/ledger'
 import { loadLedgers } from '@/lib/debts/load-ledger'
 import { formatVND } from '@/lib/format'
 import { prisma } from '@/lib/prisma'
+import { stationHref } from '@/lib/stations/href'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
@@ -139,7 +140,7 @@ export default async function OverviewPage() {
                   >
                     <td className="px-3 py-2.5">
                       <Link
-                        href={`/stations/${station.id}`}
+                        href={stationHref(station.code)}
                         className="text-primary font-medium hover:underline"
                       >
                         {station.code}

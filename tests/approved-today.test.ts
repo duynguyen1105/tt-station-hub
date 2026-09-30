@@ -69,12 +69,10 @@ function visit(overrides: Partial<ApprovedVisitInput> = {}): ApprovedVisitInput 
 }
 
 const SHIFT_TODAY: ShiftDayInput = {
-  id: 'shift-today',
   stationId: STATION_A,
   shiftDate: day('2026-08-20'),
 }
 const SHIFT_YESTERDAY: ShiftDayInput = {
-  id: 'shift-yesterday',
   stationId: STATION_A,
   shiftDate: day('2026-08-19'),
 }
@@ -84,7 +82,7 @@ const names = new Map([['c1', 'Quang Dũng']])
 describe('buildApprovedTodayList', () => {
   it('links a lượt xe to the ca of its own ngày', () => {
     const [row] = buildApprovedTodayList([visit()], [SHIFT_TODAY, SHIFT_YESTERDAY], names)
-    expect(row?.shiftId).toBe('shift-today')
+    expect(row?.shiftDay).toBe('2026-08-20')
   })
 
   it('points a yesterday lượt xe duyệt’d this morning at yesterday’s ca', () => {
@@ -93,7 +91,7 @@ describe('buildApprovedTodayList', () => {
       [SHIFT_TODAY, SHIFT_YESTERDAY],
       names
     )
-    expect(row?.shiftId).toBe('shift-yesterday')
+    expect(row?.shiftDay).toBe('2026-08-19')
   })
 
   it('reads the ngày of a late-evening lượt xe the way the trạm does', () => {
@@ -103,17 +101,17 @@ describe('buildApprovedTodayList', () => {
       [SHIFT_TODAY, SHIFT_YESTERDAY],
       names
     )
-    expect(row?.shiftId).toBe('shift-yesterday')
+    expect(row?.shiftDay).toBe('2026-08-19')
   })
 
   it('never links to another trạm’s ca on the same ngày', () => {
     const [row] = buildApprovedTodayList([visit({ stationId: STATION_B })], [SHIFT_TODAY], names)
-    expect(row?.shiftId).toBeNull()
+    expect(row?.shiftDay).toBeNull()
   })
 
   it('still renders a row whose ngày has no ca, without a link', () => {
     const [row] = buildApprovedTodayList([visit()], [], names)
-    expect(row?.shiftId).toBeNull()
+    expect(row?.shiftDay).toBeNull()
     expect(row?.plate).toBe('50E-75317')
   })
 

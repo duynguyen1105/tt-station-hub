@@ -3,13 +3,14 @@ import { notFound } from 'next/navigation'
 
 import { DebtOpeningForm } from '@/components/debts/debt-opening-form'
 import { canEditOpening } from '@/lib/auth/reading-policy'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { dayKeyOf } from '@/lib/debts/ledger'
 import { todayKey } from '@/lib/debts/load-ledger'
 import { formatDate, formatLiters, formatVND } from '@/lib/format'
 import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
 import { CASH_PAYMENT_REF_PREFIX } from '@/lib/shifts/cash-entries'
+import { shiftHref, stationHref } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 /**
@@ -21,13 +22,19 @@ import { vi } from '@/messages/vi'
 export default async function CustomerLedgerPage({
   params,
 }: {
-  params: Promise<{ id: string; customerId: string }>
+  params: Promise<{ code: string; no: string }>
 }) {
-  const { id: stationId, customerId } = await params
+  const { code, no } = await params
+  const { id: stationId } = await loadStationBySlug(code)
   const user = await requireStationAccess(stationId)
 
-  const customer = await prisma.debtCustomer.findUnique({ where: { id: customerId } })
-  if (!customer || customer.stationId !== stationId) notFound()
+  // Named by its số within this trạm, so another trạm's khách can't be reached here.
+  if (!/^\d+$/.test(no)) notFound()
+  const customer = await prisma.debtCustomer.findUnique({
+    where: { stationId_no: { stationId, no: Number(no) } },
+  })
+  if (!customer) notFound()
+  const customerId = customer.id
 
   const [txs, fuelLabel] = await Promise.all([
     prisma.debtTransaction.findMany({
@@ -70,7 +77,7 @@ export default async function CustomerLedgerPage({
     (
       await prisma.shift.findMany({
         where: { id: { in: shiftIds } },
-        select: { id: true, stationId: true, shiftDate: true },
+        select: { id: true, shiftDate: true },
       })
     ).map((s) => [s.id, s])
   )
@@ -112,7 +119,7 @@ export default async function CustomerLedgerPage({
       charge,
       amount,
       detail,
-      shiftHref: shift ? `/stations/${shift.stationId}/shifts/${shift.id}` : null,
+      shiftHref: shift ? shiftHref(code, shift.shiftDate) : null,
       shiftLabel: shift ? vi.debts.fromCashEntries(formatDate(shift.shiftDate)) : null,
       balance: previous + (charge ? amount : -amount),
     })
@@ -126,7 +133,7 @@ export default async function CustomerLedgerPage({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Link
-            href={`/stations/${stationId}/debts`}
+            href={`${stationHref(code)}/debts`}
             className="text-muted-foreground text-xs underline-offset-2 hover:underline"
           >
             ← {vi.stationTabs.debts}

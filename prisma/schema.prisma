@@ -390,6 +390,7 @@ model TankDipRecord {
 model FuelImportReceipt {
   id           String   @id @default(uuid()) @db.Uuid
   stationId    String   @map("station_id") @db.Uuid
+  no           Int // per-trạm số, the page address (/imports/12)
   receiptDate  DateTime @map("receipt_date")
   staffName    String?  @map("staff_name")
   driverName   String?  @map("driver_name")
@@ -405,6 +406,7 @@ model FuelImportReceipt {
   createdBy    String?  @map("created_by") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
 
+  @@unique([stationId, no], map: "uq_import_receipts_station_no")
   @@index([stationId, receiptDate(sort: Desc)], map: "idx_import_receipts_station")
   @@map("fuel_import_receipts")
 }
@@ -468,6 +470,7 @@ model InventoryMovement {
 model DebtCustomer {
   id             String    @id @default(uuid()) @db.Uuid
   stationId      String?   @map("station_id") @db.Uuid // may owe at multiple stations
+  no             Int? // per-trạm số, the page address (/debts/7); null when company-wide
   name           String // "Tiến Oanh"
   misaCode       String?   @map("misa_code") // MISA "Mã khách hàng"
   phone          String?
@@ -479,6 +482,7 @@ model DebtCustomer {
   isActive       Boolean   @default(true) @map("is_active")
   createdAt      DateTime  @default(now()) @map("created_at")
 
+  @@unique([stationId, no], map: "uq_debt_customers_station_no")
   @@map("debt_customers")
 }
 

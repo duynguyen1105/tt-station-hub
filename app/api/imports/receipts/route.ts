@@ -10,6 +10,7 @@ import { stationFuelRefusal } from '@/lib/fuels/load-catalogue'
 import { checkStationOnPaper } from '@/lib/imports/station-check'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
+import { nextReceiptNo } from '@/lib/stations/next-no'
 import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
@@ -171,6 +172,7 @@ export async function POST(req: NextRequest) {
     const receiptRow = await tx.fuelImportReceipt.create({
       data: {
         stationId: data.stationId,
+        no: await nextReceiptNo(tx, data.stationId),
         receiptDate: data.importedAt,
         staffName: data.staffName,
         driverName: data.driverName,

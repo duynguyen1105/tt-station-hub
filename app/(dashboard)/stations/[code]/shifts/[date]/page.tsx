@@ -22,10 +22,11 @@ import {
   canReviewShift,
 } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { chargeAmountOf } from '@/lib/debts/visit-amount'
 import { canEditDebtVisit } from '@/lib/debts/visit-review'
 import { tankCodesOf, withTanks } from '@/lib/dispensers/tank-links'
+import { readDayBound } from '@/lib/filters/params'
 import { formatDate, formatDateTime, formatVND } from '@/lib/format'
 import {
   fuelTypeLabeller,
@@ -43,6 +44,7 @@ import {
   debtVisitSelection,
   pendingDebtVisitsWhere,
 } from '@/lib/misa-export/debts-list'
+import { shiftTypeFor } from '@/lib/photos/ingest'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { unmatchedPhotoTrace } from '@/lib/photos/unmatched-photos'
 import { prisma } from '@/lib/prisma'
@@ -56,6 +58,7 @@ import {
   meterGapDifference,
   readingAmount,
 } from '@/lib/shifts/reading-totals'
+import { stationHref, stationSlug } from '@/lib/stations/href'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { shiftStatusInfo, shiftTypeLabel } from '@/lib/ui/status'
 import { vi } from '@/messages/vi'
@@ -108,16 +111,23 @@ function numberOrNull(value: { toNumber: () => number } | null | undefined): num
 export default async function ShiftDetailPage({
   params,
 }: {
-  params: Promise<{ id: string; shiftId: string }>
+  params: Promise<{ code: string; date: string }>
 }) {
   const user = await requireUser()
-  const { shiftId } = await params
+  const { code, date } = await params
+  const { id: stationId } = await loadStationBySlug(code)
+  // A ca is named by its ngày: every ca is full_day, so a trạm has one per ngày.
+  const shiftDate = readDayBound(date)
+  if (!shiftDate) notFound()
 
-  const shift = await prisma.shift.findUnique({ where: { id: shiftId } })
+  const shift = await prisma.shift.findUnique({
+    where: {
+      stationId_shiftDate_shiftType: { stationId, shiftDate, shiftType: shiftTypeFor() },
+    },
+  })
   if (!shift) notFound()
-  // Gated on the ca's own trạm rather than the address it was reached at, so a
-  // ca cannot be read through the address of a trạm the kế toán does hold.
-  await requireStationAccess(shift.stationId)
+  const shiftId = shift.id
+  await requireStationAccess(stationId)
   // The tên nhiên liệu this page shows — on each hầm of the nhập hàng dialog and on
   // each bán nợ row — read from the danh mục once for the request.
   const fuelLabel = await fuelTypeLabeller()
@@ -281,8 +291,8 @@ export default async function ShiftDetailPage({
   const debtEditHref = (row: (typeof debtRows)[number]) =>
     row.visitId && row.reviewStatus && canEditDebtVisit(user.role, row.reviewStatus)
       ? row.reviewStatus === 'approved'
-        ? `/review/debts?view=decided&day=${shift.shiftDate.toISOString().slice(0, 10)}&station=${shift.stationId}#visit-${row.visitId}`
-        : `/review/debts?station=${shift.stationId}#visit-${row.visitId}`
+        ? `/review/debts?view=decided&day=${shift.shiftDate.toISOString().slice(0, 10)}&station=${stationSlug(code)}#visit-${row.visitId}`
+        : `/review/debts?station=${stationSlug(code)}#visit-${row.visitId}`
       : null
   const debtSaleRows = debtRows.map((row) => ({ ...row, editHref: debtEditHref(row) }))
 
@@ -421,6 +431,7 @@ export default async function ShiftDetailPage({
           {user.role !== 'viewer' && (
             <FuelImportForm
               stationId={shift.stationId}
+              stationCode={code}
               fuels={stationFuels}
               fuelMappings={fuelMappings}
               tanks={stationTankOptions({ tanks, dipTanks: [] }, fuelLabel)}
@@ -523,7 +534,7 @@ export default async function ShiftDetailPage({
       <section id="ton-kho" className="scroll-mt-28 space-y-2">
         <SectionHeading
           title={vi.shifts.stock.title}
-          href={`/stations/${shift.stationId}/inventory`}
+          href={`${stationHref(code)}/inventory`}
           linkLabel={vi.shifts.stock.openTab}
         />
         <Suspense fallback={<SectionLoading label={vi.shifts.stock.loading} />}>
@@ -552,11 +563,7 @@ export default async function ShiftDetailPage({
           took in or paid out on the left, who owes and the cash left on the right. */}
       <div className="grid gap-6 2xl:grid-cols-[3fr_2fr]">
         <div className="min-w-0 space-y-6">
-          <ShiftDebtSales
-            stationId={shift.stationId}
-            rows={debtSaleRows}
-            pendingCount={pendingDebtVisits}
-          />
+          <ShiftDebtSales stationCode={code} rows={debtSaleRows} pendingCount={pendingDebtVisits} />
           <div id="thu-chi" className="scroll-mt-28">
             <CashEntriesTable
               shiftId={shift.id}
@@ -570,11 +577,11 @@ export default async function ShiftDetailPage({
           <section id="cong-no" className="scroll-mt-28 space-y-2">
             <SectionHeading
               title={vi.shifts.debtLedger.title}
-              href={`/stations/${shift.stationId}/debts?date=${shiftDay}`}
+              href={`${stationHref(code)}/debts?date=${shiftDay}`}
               linkLabel={vi.shifts.debtLedger.openTab}
             />
             <Suspense fallback={<SectionLoading label={vi.shifts.debtLedger.loading} />}>
-              <ShiftDebtLedger stationId={shift.stationId} day={shiftDay} />
+              <ShiftDebtLedger stationId={shift.stationId} stationCode={code} day={shiftDay} />
             </Suspense>
           </section>
           <div id="ton-tien-mat" className="scroll-mt-28">

@@ -31,6 +31,8 @@ import { vi } from '@/messages/vi'
 /** A khách hàng as the Công nợ table prints them: their sổ on the chosen day. */
 export type DebtCustomerRow = {
   id: string
+  /** Per-trạm số, the page address (`customerHref`). */
+  no: number | null
   name: string
   phone: string | null
   misaCode: string | null
@@ -211,12 +213,16 @@ export function CustomerList({
             {shown.map((customer) => (
               <tr key={customer.id} className="border-b">
                 <td className="p-2">
-                  <Link
-                    href={`${pathname}/${customer.id}`}
-                    className="font-medium underline-offset-2 hover:underline"
-                  >
-                    {customer.name}
-                  </Link>
+                  {customer.no === null ? (
+                    <span className="font-medium">{customer.name}</span>
+                  ) : (
+                    <Link
+                      href={`${pathname}/${customer.no}`}
+                      className="font-medium underline-offset-2 hover:underline"
+                    >
+                      {customer.name}
+                    </Link>
+                  )}
                   {customer.phone || customer.knownPlates.length ? (
                     <div className="text-muted-foreground text-xs">
                       {[customer.phone, customer.knownPlates.join(', ')]

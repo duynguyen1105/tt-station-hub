@@ -11,6 +11,8 @@ export function todayKey(): string {
 
 export type LedgerCustomer = {
   id: string
+  /** Per-trạm số, the page address (`customerHref`); null for a company-wide khách. */
+  no: number | null
   name: string
   phone: string | null
   misaCode: string | null
@@ -44,6 +46,7 @@ export async function loadLedgers(
   return customers.map((c) => ({
     customer: {
       id: c.id,
+      no: c.no,
       name: c.name,
       phone: c.phone,
       misaCode: c.misaCode,

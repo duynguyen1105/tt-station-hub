@@ -296,7 +296,7 @@ async function main() {
   await prisma.debtCustomer.upsert({
     where: { id: CUSTOMER_ID },
     update: { name: 'Tiến Oanh', stationId: station.id },
-    create: { id: CUSTOMER_ID, name: 'Tiến Oanh', stationId: station.id },
+    create: { id: CUSTOMER_ID, name: 'Tiến Oanh', stationId: station.id, no: 1 },
   })
 
   // MISA company-global config (account codes) — single "default" row for all stations.

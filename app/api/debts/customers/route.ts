@@ -8,6 +8,7 @@ import { hasRole } from '@/lib/auth/permissions'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { prisma } from '@/lib/prisma'
+import { nextCustomerNo } from '@/lib/stations/next-no'
 
 const createSchema = z.object({
   name: z.string().trim().min(1),
@@ -37,15 +38,20 @@ export async function POST(req: NextRequest) {
   // company-wide and stays open to every kế toán.
   if (stationId && !(await canReachStation(user, stationId))) return forbidden()
 
-  const customer = await prisma.debtCustomer.create({
-    data: {
-      name,
-      stationId: stationId ?? null,
-      phone: phone || null,
-      misaCode,
-      knownPlates: (knownPlates ?? []).map((p) => p.toUpperCase()),
-    },
-  })
+  const customer = await prisma.$transaction(async (tx) =>
+    tx.debtCustomer.create({
+      data: {
+        name,
+        stationId: stationId ?? null,
+        // A trạm's khách hàng gets its số, the page address; a company-wide one opens
+        // under no trạm and needs none.
+        no: stationId ? await nextCustomerNo(tx, stationId) : null,
+        phone: phone || null,
+        misaCode,
+        knownPlates: (knownPlates ?? []).map((p) => p.toUpperCase()),
+      },
+    })
+  )
 
   await writeAudit({
     userId: user.id,

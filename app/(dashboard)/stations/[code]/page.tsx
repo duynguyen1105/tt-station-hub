@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { balanceOf } from '@/lib/debts/ledger'
 import { loadLedgers } from '@/lib/debts/load-ledger'
 import { formatVND } from '@/lib/format'
@@ -17,8 +17,13 @@ function SummaryCard({ title, value }: { title: string; value: string | number }
   )
 }
 
-export default async function StationOverviewPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+export default async function StationOverviewPage({
+  params,
+}: {
+  params: Promise<{ code: string }>
+}) {
+  const { code } = await params
+  const { id } = await loadStationBySlug(code)
   await requireStationAccess(id)
 
   const shiftIds = (

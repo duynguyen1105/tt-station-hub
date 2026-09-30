@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+import { usePathname, useRouter } from 'next/navigation'
+
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,6 +16,7 @@ import {
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { useSaveAction } from '@/hooks/use-save-action'
+import { stationHref } from '@/lib/stations/href'
 import { vi } from '@/messages/vi'
 
 export function StationInfoForm({
@@ -22,6 +25,8 @@ export function StationInfoForm({
   station: { id: string; code: string; name: string; branch: string | null; address: string | null }
 }) {
   const { busy, save } = useSaveAction()
+  const router = useRouter()
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [code, setCode] = useState(station.code)
   const [name, setName] = useState(station.name)
@@ -87,7 +92,17 @@ export function StationInfoForm({
                   body: { code, name, branch: branch || null, address: address || null },
                   success: vi.stations.saved,
                 },
-                { onSuccess: () => setOpen(false) }
+                {
+                  onSuccess: () => {
+                    setOpen(false)
+                    // The page address names the trạm by its mã, so a new mã moves it.
+                    const moved = pathname.replace(
+                      stationHref(station.code),
+                      stationHref(code.trim())
+                    )
+                    if (moved !== pathname) router.replace(moved)
+                  },
+                }
               )
             }
           >

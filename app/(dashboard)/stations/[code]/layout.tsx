@@ -1,10 +1,7 @@
-import { notFound } from 'next/navigation'
-
 import { StationInfoForm } from '@/components/stations/station-info-form'
 import { StationTabs } from '@/components/stations/station-tabs'
 import { Badge } from '@/components/ui/badge'
-import { requireStationAccess } from '@/lib/auth/station-guard'
-import { prisma } from '@/lib/prisma'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { vi } from '@/messages/vi'
 
 export default async function StationLayout({
@@ -12,12 +9,11 @@ export default async function StationLayout({
   params,
 }: {
   children: React.ReactNode
-  params: Promise<{ id: string }>
+  params: Promise<{ code: string }>
 }) {
-  const { id } = await params
-  const user = await requireStationAccess(id)
-  const station = await prisma.station.findUnique({ where: { id } })
-  if (!station) notFound()
+  const { code } = await params
+  const station = await loadStationBySlug(code)
+  const user = await requireStationAccess(station.id)
 
   return (
     <div className="space-y-4">
@@ -31,7 +27,7 @@ export default async function StationLayout({
           {[station.name, station.branch, station.address].filter(Boolean).join(' · ')}
         </p>
       </header>
-      <StationTabs stationId={id} />
+      <StationTabs stationCode={station.code} />
       <div>{children}</div>
     </div>
   )

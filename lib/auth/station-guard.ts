@@ -83,6 +83,29 @@ export async function requireStationAccess(stationId: string): Promise<CurrentUs
 }
 
 /**
+ * The trạm a page address names by its mã (see `lib/stations/href.ts`), or a
+ * 404. Cached so a trạm's layout and the tab inside it read it once.
+ */
+export const loadStationBySlug = cache(async (slug: string) => {
+  const station = await prisma.station.findUnique({ where: { code: slug.toUpperCase() } })
+  if (!station) notFound()
+  return station
+})
+
+/**
+ * The id of the trạm a `?station=` filter names by its mã, or null when it names
+ * none — a stale filter then falls back to tất cả rather than failing the page.
+ */
+export async function stationIdFromSlug(slug: string | undefined): Promise<string | null> {
+  if (!slug) return null
+  const station = await prisma.station.findUnique({
+    where: { code: slug.toUpperCase() },
+    select: { id: true },
+  })
+  return station?.id ?? null
+}
+
+/**
  * The same question asked by a route handler, which answers with a status
  * rather than a redirect. An identifier naming no trạm answers false as well —
  * a handler that owes its caller a 404 or a "Trạm không hợp lệ." says so from

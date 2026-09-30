@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
+import { stationHref } from '@/lib/stations/href'
 import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
-export function StationTabs({ stationId }: { stationId: string }) {
+export function StationTabs({ stationCode }: { stationCode: string }) {
   const pathname = usePathname()
-  const base = `/stations/${stationId}`
+  const base = stationHref(stationCode)
 
   const tabs = [
     { href: base, label: vi.stationTabs.overview },

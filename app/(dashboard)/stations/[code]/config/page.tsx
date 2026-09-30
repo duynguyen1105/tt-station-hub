@@ -7,7 +7,7 @@ import { DispenserForm, type DispenserRow } from '@/components/stations/dispense
 import { StationFuelAreaForm } from '@/components/stations/station-fuel-area-form'
 import { TankForm } from '@/components/stations/tank-form'
 import { Badge } from '@/components/ui/badge'
-import { requireStationAccess } from '@/lib/auth/station-guard'
+import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { tankNameFor } from '@/lib/dispensers/naming'
 import { byTankCode, tanksOf, withTanks } from '@/lib/dispensers/tank-links'
 import { addableFuels, fuelTypeLabelFrom, stationFuels } from '@/lib/fuels/catalogue'
@@ -24,8 +24,9 @@ function meterSummary(dispenser: DispenserRow) {
   ].join(', ')
 }
 
-export default async function StationConfigPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+export default async function StationConfigPage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = await params
+  const { id } = await loadStationBySlug(code)
   const user = await requireStationAccess(id)
   // Người xem reads the cấu hình; every control that writes is left out for them.
   const canEdit = user.role !== 'viewer'

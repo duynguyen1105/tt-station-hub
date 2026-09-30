@@ -4,9 +4,10 @@ import { ReviewTabs } from '@/components/review/review-tabs'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
 import { type ShiftStatus } from '@/lib/auth/reading-policy'
 import { requireUser } from '@/lib/auth/session'
-import { reachableShiftIds, reachableStationIds } from '@/lib/auth/station-guard'
+import { reachableShiftIds, reachableStationIds, stationIdFromSlug } from '@/lib/auth/station-guard'
 import { readingPhotosForSlots } from '@/lib/photos/reading-photos'
 import { prisma } from '@/lib/prisma'
+import { stationSlug } from '@/lib/stations/href'
 import { signedUrlsForPhotoIds } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
 
@@ -22,8 +23,8 @@ export default async function ReviewShiftsPage({
   // so the hundred rows below are a hundred rows of their own work.
   const reviewableShiftIds = await reachableShiftIds(user)
   const reachableIds = await reachableStationIds(user)
-  const stationFilter =
-    params.station && reachableIds.includes(params.station) ? params.station : null
+  const pickedId = await stationIdFromSlug(params.station)
+  const stationFilter = pickedId && reachableIds.includes(pickedId) ? pickedId : null
 
   const queueWhere = {
     reviewStatus: { in: ['pending', 'needs_review'] as ('pending' | 'needs_review')[] },
@@ -111,14 +112,21 @@ export default async function ReviewShiftsPage({
       {chipStations.length > 1 && (
         <nav className="flex flex-wrap gap-2 text-sm" aria-label={vi.debtReview.stationFilter}>
           {[
-            { id: null, label: vi.debtReview.allStations, count: total },
+            { id: null, code: null, label: vi.debtReview.allStations, count: total },
             ...chipStations
               .filter((s) => countByStation.has(s.id) || s.id === stationFilter)
-              .map((s) => ({ id: s.id, label: s.code, count: countByStation.get(s.id) ?? 0 })),
+              .map((s) => ({
+                id: s.id,
+                code: s.code,
+                label: s.code,
+                count: countByStation.get(s.id) ?? 0,
+              })),
           ].map((chip) => (
             <Link
               key={chip.id ?? 'all'}
-              href={chip.id ? `/review/shifts?station=${chip.id}` : '/review/shifts'}
+              href={
+                chip.code ? `/review/shifts?station=${stationSlug(chip.code)}` : '/review/shifts'
+              }
               aria-current={chip.id === stationFilter ? 'page' : undefined}
               className={
                 chip.id === stationFilter
