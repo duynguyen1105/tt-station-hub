@@ -186,10 +186,6 @@
     size: A4 landscape;
     margin: 8mm;
   }
-  /* Every size here is rem, so this one line shrinks text, padding and gaps together. */
-  html {
-    font-size: 10px;
-  }
   *,
   *::before,
   *::after {
