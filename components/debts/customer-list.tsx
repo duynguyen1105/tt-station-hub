@@ -198,8 +198,8 @@ export function CustomerList({
         <table className="w-full text-sm">
           <thead>
             <tr className="text-muted-foreground border-b text-left">
-              <th className="p-2">{vi.debts.customer}</th>
               <th className="p-2">{vi.debts.misaCode}</th>
+              <th className="p-2">{vi.debts.customer}</th>
               <th className={num}>{vi.debts.openingOfDay}</th>
               <th className={num}>{vi.debts.chargedOfDay}</th>
               <th className={num}>{vi.debts.advancedOfDay}</th>
@@ -212,6 +212,11 @@ export function CustomerList({
           <tbody>
             {shown.map((customer) => (
               <tr key={customer.id} className="border-b">
+                <td className="p-2 font-mono">
+                  {customer.misaCode ?? (
+                    <StatusBadge label={vi.debtReview.missingCode} tone="danger" />
+                  )}
+                </td>
                 <td className="p-2">
                   {customer.no === null ? (
                     <span className="font-medium">{customer.name}</span>
@@ -230,11 +235,6 @@ export function CustomerList({
                         .join(' · ')}
                     </div>
                   ) : null}
-                </td>
-                <td className="p-2 font-mono">
-                  {customer.misaCode ?? (
-                    <StatusBadge label={vi.debtReview.missingCode} tone="danger" />
-                  )}
                 </td>
                 {customer.day ? (
                   <>
