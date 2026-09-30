@@ -562,6 +562,7 @@ export const vi = {
       effectiveDate: 'Từ ngày',
       saved: 'Đã lưu tiền mặt đầu kỳ',
       invalidAmount: 'Số tiền phải là số nguyên không âm.',
+      transfers: 'Chuyển khoản trong ca',
     },
     // A ca is chốt'd around 15:00 but its ngày runs to midnight, so an evening duyệt
     // joins it afterwards and the MISA file already downloaded no longer matches.
@@ -598,6 +599,7 @@ export const vi = {
       counterparty: 'Đối tượng',
       receipt: 'Thu',
       payment: 'Chi',
+      transfer: 'Chuyển khoản',
       total: 'Tổng',
       addRow: 'Thêm dòng',
       removeRow: 'Xóa dòng',
@@ -605,17 +607,23 @@ export const vi = {
       saved: 'Đã lưu thu chi',
       empty: 'Chưa có thu chi cho ca này.',
       // Chỉ nhận số đồng nguyên, có thể ngăn cách hàng nghìn bằng dấu chấm hoặc phẩy.
-      invalidAmount: 'Thu / Chi phải là số tiền nguyên, ví dụ 20355520 hoặc 20.355.520',
+      invalidAmount:
+        'Thu / Chi / Chuyển khoản phải là số tiền nguyên, ví dụ 20355520 hoặc 20.355.520',
       // Đối tượng: chọn khách hàng, hoặc gõ tên khi bên kia không phải khách (ngân hàng…).
       pickCounterparty: 'Chọn khách hàng hoặc gõ tên',
       useTyped: (text: string) => `Ghi “${text}” (không phải khách hàng)`,
       clearCounterparty: 'Bỏ chọn',
       unknownCustomer: 'Khách hàng đã chọn không còn tồn tại, hãy chọn lại.',
       debtHint:
-        'Dòng Thu có chọn khách hàng được ghi là khách trả nợ. Dòng Chi có chọn đối tượng và tích Ghi nợ (vd tạm ứng) được ghi là đối tượng đó nợ thêm.',
+        'Dòng Thu có chọn khách hàng được ghi là khách trả nợ. Dòng Chi có chọn đối tượng và tích Ghi nợ (vd tạm ứng) được ghi là đối tượng đó nợ thêm. Chuyển khoản trong ca được trừ vào tồn tiền mặt; tích Trả nợ cũ thì chỉ trừ công nợ của khách, không trừ tồn tiền mặt.',
       chargesDebt: 'Ghi nợ',
       chargesDebtTitle:
         'Tích khi khoản Chi này là tiền đối tượng phải trả lại (vd nhân viên tạm ứng) — ghi vào sổ công nợ của họ.',
+      repaysDebt: 'Trả nợ cũ',
+      repaysDebtTitle:
+        'Tích khi khoản chuyển khoản này là khách trả nợ cũ: trừ vào công nợ của khách đã chọn, không trừ tồn tiền mặt. Không tích = chuyển khoản trả tiền đổ xăng trong ca, trừ vào tồn tiền mặt.',
+      repaysDebtNeedsCustomer:
+        'Dòng chuyển khoản tích Trả nợ cũ phải chọn khách hàng trong danh sách Đối tượng.',
     },
   },
 

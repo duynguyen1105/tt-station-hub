@@ -102,8 +102,17 @@ const COL: Record<
   },
 }
 
-/** One row of the ca's Thu chi table, as stored: Nội dung and whole-đồng Thu / Chi. */
-export type CashVoucherEntry = { content: string; receipt: number | null; payment: number | null }
+/**
+ * One row of the ca's Thu chi table, as stored: Nội dung and whole-đồng Thu / Chi /
+ * Chuyển khoản. Trường Thịnh books a Chuyển khoản on the Phiếu chi like a Chi (anh Nam,
+ * 30/09), whether it paid for the ca's fuel or an older nợ.
+ */
+export type CashVoucherEntry = {
+  content: string
+  receipt: number | null
+  payment: number | null
+  transfer: number | null
+}
 
 export type CashVoucherInput = {
   entries: CashVoucherEntry[]
@@ -113,23 +122,26 @@ export type CashVoucherInput = {
   cashAccount: string
 }
 
-/** The amount a row puts on this voucher: its Thu for a phiếu thu, its Chi for a phiếu chi. */
-function amountOf(entry: CashVoucherEntry, kind: CashVoucherKind): number | null {
-  const amount = kind === 'receipt' ? entry.receipt : entry.payment
-  return amount !== null && amount > 0 ? amount : null
+/**
+ * The amounts a row puts on this voucher, in column order: its Thu on a phiếu thu; its
+ * Chi and then its Chuyển khoản on a phiếu chi, one line each.
+ */
+function amountsOf(entry: CashVoucherEntry, kind: CashVoucherKind): number[] {
+  const cells = kind === 'receipt' ? [entry.receipt] : [entry.payment, entry.transfer]
+  return cells.filter((amount): amount is number => amount !== null && amount > 0)
 }
 
 /** How many lines each voucher would hold — what the export dialog shows beside its buttons. */
 export function cashVoucherCounts(entries: CashVoucherEntry[]): Record<CashVoucherKind, number> {
   return {
-    receipt: entries.filter((e) => amountOf(e, 'receipt') !== null).length,
-    payment: entries.filter((e) => amountOf(e, 'payment') !== null).length,
+    receipt: entries.reduce((n, e) => n + amountsOf(e, 'receipt').length, 0),
+    payment: entries.reduce((n, e) => n + amountsOf(e, 'payment').length, 0),
   }
 }
 
 /**
- * The voucher as a matrix, header first: one line per row of the table with a Thu (phiếu
- * thu) or a Chi (phiếu chi), in the table's own order. A row holding both lands on both.
+ * The voucher as a matrix, header first: one line per Thu (phiếu thu) or per Chi and
+ * Chuyển khoản (phiếu chi), in the table's own order. A row holding several lands on each.
  */
 export function buildCashVoucherMatrix(
   kind: CashVoucherKind,
@@ -139,18 +151,18 @@ export function buildCashVoucherMatrix(
   const col = COL[kind]
   const posting = formatDate(input.postingDate)
   const voucher = formatDate(input.voucherDate)
-  const body = input.entries.flatMap((entry) => {
-    const amount = amountOf(entry, kind)
-    if (amount === null) return []
-    const row: (string | number | null)[] = header.map(() => null)
-    const content = entry.content.trim() || null
-    row[col.postingDate] = posting
-    row[col.voucherDate] = voucher
-    row[col.reason] = content
-    row[col.description] = content
-    row[col.cashAccount] = input.cashAccount
-    row[col.amount] = amount
-    return [row]
-  })
+  const body = input.entries.flatMap((entry) =>
+    amountsOf(entry, kind).map((amount) => {
+      const row: (string | number | null)[] = header.map(() => null)
+      const content = entry.content.trim() || null
+      row[col.postingDate] = posting
+      row[col.voucherDate] = voucher
+      row[col.reason] = content
+      row[col.description] = content
+      row[col.cashAccount] = input.cashAccount
+      row[col.amount] = amount
+      return row
+    })
+  )
   return [[...header], ...body]
 }

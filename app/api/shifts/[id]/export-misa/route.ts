@@ -153,7 +153,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (preflight) {
     const cashEntries = await prisma.shiftCashEntry.findMany({
       where: { shiftId: id },
-      select: { content: true, receipt: true, payment: true },
+      select: { content: true, receipt: true, payment: true, transfer: true },
     })
     return NextResponse.json({
       stationId,
@@ -165,6 +165,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           content: e.content,
           receipt: num(e.receipt),
           payment: num(e.payment),
+          transfer: num(e.transfer),
         }))
       ),
     })

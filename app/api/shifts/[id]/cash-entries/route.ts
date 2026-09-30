@@ -24,6 +24,9 @@ const entrySchema = z.object({
   receipt: z.string().max(30),
   payment: z.string().max(30),
   chargesDebt: z.boolean().default(false),
+  // Defaulted so a tab opened before the Chuyển khoản column shipped still saves.
+  transfer: z.string().max(30).default(''),
+  repaysDebt: z.boolean().default(false),
 })
 
 const cashEntriesSchema = z.object({
@@ -36,8 +39,9 @@ const cashEntriesSchema = z.object({
  * refuseCashEntries's to decide, the same rule the table applies before posting.
  *
  * The ca's rows in the sổ công nợ are rewritten with it, dated the ca's day: a Thu row
- * naming a khách hàng is a payment by that khách, a Chi row naming one and ticked Ghi nợ
- * (a tạm ứng) is a khoản nợ of theirs. Emptying the table removes them.
+ * naming a khách hàng is a payment by that khách, as is a Chuyển khoản naming one ticked
+ * Trả nợ cũ; a Chi row naming one and ticked Ghi nợ (a tạm ứng) is a khoản nợ of theirs.
+ * Emptying the table removes them.
  *
  * Admin and accountant at any status — `canEditCashEntries`. Chốt ca does not lock them.
  */

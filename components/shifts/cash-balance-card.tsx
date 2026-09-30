@@ -26,7 +26,7 @@ const t = vi.shifts.cashBalance
 
 /**
  * Tồn tiền mặt at the foot of the ca, laid out like the phiếu chốt ca: tiền đầu ngày +
- * tiền bán + thu − chi − nợ = tồn cuối ngày. The numbers are computed on the server
+ * tiền bán − chuyển khoản trong ca + thu − chi − nợ = tồn cuối ngày. The numbers are computed on the server
  * (lib/shifts/load-cash-balance.ts); an admin sets the trạm's đầu kỳ here.
  */
 export function CashBalanceCard({
@@ -53,6 +53,12 @@ export function CashBalanceCard({
     ? [
         { label: t.opening, value: line.opening },
         { label: t.sales, value: line.sales },
+        // Paid for fuel of this ca, but into the bank — not in the két.
+        {
+          label: t.transfers,
+          value: line.transfers,
+          tone: line.transfers > 0 ? 'text-destructive' : undefined,
+        },
         { label: t.receipts, value: line.receipts },
         // What leaves the ngăn kéo is marked red — only when something did.
         {

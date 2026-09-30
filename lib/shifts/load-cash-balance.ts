@@ -5,6 +5,7 @@ import { APPROVED_VISIT_STATUSES, shiftDayWindow } from '@/lib/misa-export/debts
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { type CashBalanceLine, type CashDay, chainCashBalances } from '@/lib/shifts/cash-balance'
+import { inShiftTransferOf } from '@/lib/shifts/cash-entries'
 import { readingAmount, readingMeters } from '@/lib/shifts/reading-totals'
 
 export type CashBalanceView =
@@ -19,7 +20,7 @@ const dayKey = (d: Date) => d.toISOString().slice(0, 10)
  * The Tồn tiền mặt of one ca: every ca of the trạm from its tiền mặt đầu kỳ up to this one
  * is summed on read — nothing stored — so an admin's edit to any earlier ca reflows it.
  * Per ca: Tổng tiền bán is the Tổng row of its trụ table (every số liệu, as the table
- * sums it), Tổng thu / chi its Thu chi table, Tổng nợ what its ngày's duyệt'd bán nợ
+ * sums it), Chuyển khoản trong ca and Tổng thu / chi its Thu chi table, Tổng nợ what its ngày's duyệt'd bán nợ
  * charge. Ca are chained oldest first; a ngày holding two ca counts its bán nợ once, on
  * the first of them.
  */
@@ -63,7 +64,7 @@ export async function loadCashBalance(shift: {
     }),
     prisma.shiftCashEntry.findMany({
       where: { shiftId: { in: ids } },
-      select: { shiftId: true, receipt: true, payment: true },
+      select: { shiftId: true, receipt: true, payment: true, transfer: true, repaysDebt: true },
     }),
     prisma.debtVehicleVisit.findMany({
       where: {
@@ -90,7 +91,10 @@ export async function loadCashBalance(shift: {
   }))
 
   const days = new Map<string, CashDay>(
-    shifts.map((s) => [s.id, { shiftId: s.id, sales: 0, receipts: 0, payments: 0, debts: 0 }])
+    shifts.map((s) => [
+      s.id,
+      { shiftId: s.id, sales: 0, transfers: 0, receipts: 0, payments: 0, debts: 0 },
+    ])
   )
   const dateOf = new Map(shifts.map((s) => [s.id, s.shiftDate]))
   for (const r of readings) {
@@ -102,6 +106,7 @@ export async function loadCashBalance(shift: {
     const day = days.get(e.shiftId)!
     day.receipts += dec(e.receipt) ?? 0
     day.payments += dec(e.payment) ?? 0
+    day.transfers += inShiftTransferOf({ transfer: dec(e.transfer), repaysDebt: e.repaysDebt })
   }
   const firstShiftOfDay = new Map<string, string>()
   for (const s of shifts) {

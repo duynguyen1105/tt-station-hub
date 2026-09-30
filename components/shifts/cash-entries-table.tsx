@@ -40,6 +40,8 @@ function emptyEntry(): CashEntryInput {
     receipt: '',
     payment: '',
     chargesDebt: false,
+    transfer: '',
+    repaysDebt: false,
   }
 }
 
@@ -159,8 +161,8 @@ function amountText(value: string): string {
 
 /**
  * Thu chi tiền mặt – Khách CK: the kế toán's hand-typed cash in/out table on a ca, typed
- * row by row and saved as a whole with Lưu. A Thu row naming a khách hàng is that khách's
- * thu nợ in the sổ công nợ; every other row is a note.
+ * row by row and saved as a whole with Lưu. Which rows reach the sổ công nợ, and how a
+ * Chuyển khoản counts toward Tồn tiền mặt, is lib/shifts/cash-entries.ts's to say.
  */
 export function CashEntriesTable({
   shiftId,
@@ -226,10 +228,14 @@ export function CashEntriesTable({
               <tr className="text-muted-foreground border-b text-left">
                 <th className="p-2">{t.content}</th>
                 <th className="p-2">{t.counterparty}</th>
-                <th className="w-44 p-2 text-right">{t.receipt}</th>
-                <th className="w-44 p-2 text-right">{t.payment}</th>
+                <th className="w-36 p-2 text-right">{t.receipt}</th>
+                <th className="w-36 p-2 text-right">{t.payment}</th>
                 <th className="w-20 p-2 text-center" title={t.chargesDebtTitle}>
                   {t.chargesDebt}
+                </th>
+                <th className="w-36 p-2 text-right">{t.transfer}</th>
+                <th className="w-24 p-2 text-center" title={t.repaysDebtTitle}>
+                  {t.repaysDebt}
                 </th>
                 {canEdit && <th className="w-12 p-2"></th>}
               </tr>
@@ -282,6 +288,26 @@ export function CashEntriesTable({
                       )}
                     </td>
                     <td className="p-1">
+                      <Input
+                        className="text-right font-mono"
+                        inputMode="numeric"
+                        value={row.transfer}
+                        onChange={(e) => update(index, { transfer: e.target.value })}
+                      />
+                    </td>
+                    {/* Offered on any Chuyển khoản, khách picked or not: ticked without one,
+                        Lưu says to pick the khách rather than dropping the thu nợ. */}
+                    <td className="p-1 text-center align-middle">
+                      {row.transfer.trim() !== '' && (
+                        <Checkbox
+                          aria-label={t.repaysDebt}
+                          title={t.repaysDebtTitle}
+                          checked={row.repaysDebt}
+                          onCheckedChange={(state) => update(index, { repaysDebt: state === true })}
+                        />
+                      )}
+                    </td>
+                    <td className="p-1">
                       <Button
                         size="icon"
                         variant="ghost"
@@ -300,6 +326,8 @@ export function CashEntriesTable({
                     <td className="p-2 text-right font-mono">{amountText(row.receipt)}</td>
                     <td className="p-2 text-right font-mono">{amountText(row.payment)}</td>
                     <td className="p-2 text-center">{row.chargesDebt ? '✓' : ''}</td>
+                    <td className="p-2 text-right font-mono">{amountText(row.transfer)}</td>
+                    <td className="p-2 text-center">{row.repaysDebt ? '✓' : ''}</td>
                   </tr>
                 )
               )}
@@ -311,6 +339,8 @@ export function CashEntriesTable({
                 </td>
                 <td className="p-2 text-right font-mono">{formatVND(totals.receipt)}</td>
                 <td className="p-2 text-right font-mono">{formatVND(totals.payment)}</td>
+                <td></td>
+                <td className="p-2 text-right font-mono">{formatVND(totals.transfer)}</td>
                 <td></td>
                 {canEdit && <td></td>}
               </tr>

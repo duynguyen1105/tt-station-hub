@@ -32,8 +32,10 @@ function templateRows(kind: CashVoucherKind): (string | number | null)[][] {
 }
 
 const day = new Date('2026-09-25')
-const input = (entries: CashVoucherEntry[]) => ({
-  entries,
+// Most lines here carry no Chuyển khoản; those that do say so.
+type Entry = Omit<CashVoucherEntry, 'transfer'> & { transfer?: number | null }
+const input = (entries: Entry[]) => ({
+  entries: entries.map((e) => ({ transfer: null, ...e })),
   postingDate: day,
   voucherDate: day,
   cashAccount: '11111',
@@ -73,7 +75,7 @@ describe('buildCashVoucherMatrix', () => {
   })
 
   it('splits the table by side, keeps its order, and skips rows with nothing on that side', () => {
-    const entries: CashVoucherEntry[] = [
+    const entries: Entry[] = [
       { content: 'Thu 1', receipt: 100, payment: null },
       { content: 'Chi 1', receipt: null, payment: 200 },
       { content: 'Cả hai', receipt: 300, payment: 400 },
@@ -89,7 +91,24 @@ describe('buildCashVoucherMatrix', () => {
       ['Chi 1', 200],
       ['Cả hai', 400],
     ])
-    expect(cashVoucherCounts(entries)).toEqual({ receipt: 2, payment: 2 })
+    expect(cashVoucherCounts(input(entries).entries)).toEqual({ receipt: 2, payment: 2 })
+  })
+
+  // Anh Nam, 30/09: a chuyển khoản is booked on the Phiếu chi like a Chi — trong ca or trả
+  // nợ cũ alike — one line per amount, after the row's own Chi.
+  it('puts each Chuyển khoản on the Phiếu chi, never the Phiếu thu', () => {
+    const entries: Entry[] = [
+      { content: 'Khách đổ xăng dầu ck cty', receipt: null, payment: null, transfer: 3_000_000 },
+      { content: 'Chi và CK', receipt: null, payment: 200, transfer: 500 },
+    ]
+    const payments = buildCashVoucherMatrix('payment', input(entries)).slice(1)
+    expect(payments.map((r) => [r[10], r[15]])).toEqual([
+      ['Khách đổ xăng dầu ck cty', 3_000_000],
+      ['Chi và CK', 200],
+      ['Chi và CK', 500],
+    ])
+    expect(buildCashVoucherMatrix('receipt', input(entries))).toHaveLength(1)
+    expect(cashVoucherCounts(input(entries).entries)).toEqual({ receipt: 0, payment: 3 })
   })
 
   it('stamps the dates the kế toán chose rather than the ca ngày', () => {

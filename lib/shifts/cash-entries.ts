@@ -2,10 +2,11 @@
 // the rows as typed in, a refusal / the rows to store / the Tổng out — so the table on
 // screen and the route it posts to accept exactly the same entries.
 //
-// A Thu row naming a khách hàng is that khách's thu nợ, and a Chi row naming one and
-// ticked Ghi nợ (a tạm ứng) is a khoản nợ of theirs: saving the table rewrites both in
-// the sổ công nợ (sourceRef `cash:<shiftId>`). Every other row is a note; chốt ca, stock
-// and the MISA export ignore them.
+// What reaches the sổ công nợ (sourceRef `cash:<shiftId>`, rewritten on every save):
+// - a Thu naming a khách hàng — their thu nợ;
+// - a Chi naming one, ticked Ghi nợ (a tạm ứng) — a khoản nợ of theirs;
+// - a Chuyển khoản naming one, ticked Trả nợ cũ — their thu nợ, paid to the bank.
+// Every other row is a note for the sổ; Tồn tiền mặt and the MISA export read them all.
 import { vi } from '@/messages/vi'
 
 /** sourceRef prefix of a DebtTransaction payment written from a ca's Thu chi table. */
@@ -16,8 +17,8 @@ export function cashPaymentRef(shiftId: string): string {
 }
 
 /**
- * One row as typed: Nội dung, Đối tượng, Thu, Chi. Đối tượng is a khách hàng picked from
- * the list (`customerId`) or, when the other side is no customer, free text
+ * One row as typed: Nội dung, Đối tượng, Thu, Chi, Chuyển khoản. Đối tượng is a khách hàng
+ * picked from the list (`customerId`) or, when the other side is no customer, free text
  * (`counterparty`). Amounts stay strings until stored.
  */
 export type CashEntryInput = {
@@ -28,6 +29,10 @@ export type CashEntryInput = {
   payment: string
   /** Ghi nợ: the Chi is money the đối tượng now owes (a tạm ứng), not money paid away. */
   chargesDebt: boolean
+  /** Money a khách sent to the bank — fuel sold in the ca, or with repaysDebt an older nợ. */
+  transfer: string
+  /** Trả nợ cũ: the Chuyển khoản settles the picked khách's older nợ, not today's fuel. */
+  repaysDebt: boolean
 }
 
 /** One row as stored: text trimmed, amounts whole đồng or null for an empty cell. */
@@ -38,6 +43,8 @@ export type CashEntry = {
   receipt: number | null
   payment: number | null
   chargesDebt: boolean
+  transfer: number | null
+  repaysDebt: boolean
 }
 
 // Whole đồng, either plain ("20355520") or grouped by thousands the way the Excel sheet
@@ -54,16 +61,25 @@ function parseAmount(value: string): number | null {
 export function isBlankCashEntry(row: CashEntryInput): boolean {
   return (
     row.customerId === null &&
-    [row.content, row.counterparty, row.receipt, row.payment].every((v) => v.trim() === '')
+    [row.content, row.counterparty, row.receipt, row.payment, row.transfer].every(
+      (v) => v.trim() === ''
+    )
   )
 }
 
-/** Why these rows cannot be saved, or null when they can. Only the amounts are checked. */
+/**
+ * Why these rows cannot be saved, or null when they can: an amount that is not whole
+ * đồng, or a Trả nợ cũ with no khách hàng picked — there would be no sổ to pay into, and
+ * the transfer would silently drop off both the sổ and Tồn tiền mặt.
+ */
 export function refuseCashEntries(rows: CashEntryInput[]): string | null {
   for (const row of rows) {
-    for (const amount of [row.receipt, row.payment]) {
+    for (const amount of [row.receipt, row.payment, row.transfer]) {
       const trimmed = amount.trim()
       if (trimmed !== '' && !wholeDong.test(trimmed)) return vi.shifts.cashEntries.invalidAmount
+    }
+    if (row.repaysDebt && row.transfer.trim() !== '' && row.customerId === null) {
+      return vi.shifts.cashEntries.repaysDebtNeedsCustomer
     }
   }
   return null
@@ -82,29 +98,57 @@ export function normalizeCashEntries(rows: CashEntryInput[]): CashEntry[] {
       payment: parseAmount(row.payment),
       // Only a Chi naming a khách hàng can owe: a typed đối tượng has no sổ, a Thu is thu nợ.
       chargesDebt: row.customerId !== null && row.chargesDebt && row.payment.trim() !== '',
+      transfer: parseAmount(row.transfer),
+      // A tick with no Chuyển khoản beside it means nothing, so it is not kept.
+      repaysDebt: row.customerId !== null && row.repaysDebt && row.transfer.trim() !== '',
     }))
 }
 
-/** The Tổng row: Thu and Chi summed, skipping any amount that is not yet a valid number. */
-export function cashEntryTotals(rows: CashEntryInput[]): { receipt: number; payment: number } {
-  let receipt = 0
-  let payment = 0
-  for (const row of rows) {
-    if (wholeDong.test(row.receipt.trim())) receipt += parseAmount(row.receipt) ?? 0
-    if (wholeDong.test(row.payment.trim())) payment += parseAmount(row.payment) ?? 0
+/** The Tổng row: each amount column summed, skipping any cell not yet a valid number. */
+export function cashEntryTotals(rows: CashEntryInput[]): {
+  receipt: number
+  payment: number
+  transfer: number
+} {
+  const sum = (pick: (row: CashEntryInput) => string) =>
+    rows.reduce((total, row) => {
+      const cell = pick(row).trim()
+      return wholeDong.test(cell) ? total + (parseAmount(cell) ?? 0) : total
+    }, 0)
+  return {
+    receipt: sum((r) => r.receipt),
+    payment: sum((r) => r.payment),
+    transfer: sum((r) => r.transfer),
   }
-  return { receipt, payment }
 }
 
-/** The thu nợ these rows record: every Thu amount on a row naming a khách hàng. */
+/**
+ * The Chuyển khoản that paid for fuel sold in this ca — what comes off Tồn tiền mặt. A
+ * Trả nợ cũ is left out: that money was never part of the ca's tiền bán nor in the két.
+ */
+export function inShiftTransferOf(entry: { transfer: number | null; repaysDebt: boolean }): number {
+  return entry.repaysDebt ? 0 : (entry.transfer ?? 0)
+}
+
+/**
+ * The thu nợ these rows record: every Thu on a row naming a khách hàng, and every
+ * Chuyển khoản naming one and ticked Trả nợ cũ.
+ */
 export function debtPaymentsOf(
   entries: CashEntry[]
 ): { customerId: string; amount: number; note: string | null }[] {
-  return entries.flatMap((e) =>
-    e.customerId !== null && e.receipt !== null && e.receipt > 0
-      ? [{ customerId: e.customerId, amount: e.receipt, note: e.content || null }]
-      : []
-  )
+  return entries.flatMap((e) => {
+    if (e.customerId === null) return []
+    const note = e.content || null
+    return [
+      ...(e.receipt !== null && e.receipt > 0
+        ? [{ customerId: e.customerId, amount: e.receipt, note }]
+        : []),
+      ...(e.repaysDebt && e.transfer !== null && e.transfer > 0
+        ? [{ customerId: e.customerId, amount: e.transfer, note }]
+        : []),
+    ]
+  })
 }
 
 /** The khoản nợ these rows record: every Chi on a row naming a khách hàng, ticked Ghi nợ. */

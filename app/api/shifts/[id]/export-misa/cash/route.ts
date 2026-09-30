@@ -48,6 +48,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       content: e.content,
       receipt: e.receipt === null ? null : e.receipt.toNumber(),
       payment: e.payment === null ? null : e.payment.toNumber(),
+      transfer: e.transfer === null ? null : e.transfer.toNumber(),
     })),
     postingDate: parseDate(searchParams.get('postingDate')) ?? shift.shiftDate,
     voucherDate: parseDate(searchParams.get('voucherDate')) ?? shift.shiftDate,

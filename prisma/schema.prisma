@@ -219,6 +219,12 @@ model ShiftCashEntry {
   // Ghi nợ: a Chi naming a khách hàng that the khách now owes (a nhân viên tạm ứng) —
   // posted to their sổ công nợ as a khoản nợ. Unticked, the Chi is only a note.
   chargesDebt  Boolean  @default(false) @map("charges_debt")
+  // Chuyển khoản: money a khách sent to Trường Thịnh's bank for this trạm. Unticked it
+  // paid for fuel sold in the ca (so it never reached the két and comes off Tồn tiền
+  // mặt); ticked Trả nợ cũ it settles the picked khách's older nợ — a payment in their
+  // sổ công nợ, no bearing on the két. Either way MISA books it on the Phiếu chi.
+  transfer     Decimal? @db.Decimal(15, 0)
+  repaysDebt   Boolean  @default(false) @map("repays_debt")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([shiftId], map: "idx_cash_entries_shift")

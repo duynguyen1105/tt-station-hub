@@ -62,8 +62,8 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
    bán nợ chưa duyệt" — vào **Cần duyệt → Công nợ** duyệt hết rồi quay lại chốt.
    Ca đã chốt bị **khoá với mọi người**; muốn sửa thì nhờ quản trị viên **Mở lại
    ca** (xem mục 11).
-6. Cuối trang ca có ô **Tồn tiền mặt**: Tiền đầu ngày + Tổng tiền bán + Tổng thu −
-   Tổng chi − Tổng nợ = **Tồn cuối ngày**. Tồn cuối ngày của ca này là tiền đầu ngày
+6. Cuối trang ca có ô **Tồn tiền mặt**: Tiền đầu ngày + Tổng tiền bán − Chuyển khoản
+   trong ca + Tổng thu − Tổng chi − Tổng nợ = **Tồn cuối ngày**. Tồn cuối ngày của ca này là tiền đầu ngày
    của ca sau. Ca chưa chốt thì ghi "Tạm tính". Số tự tính lại khi sửa bất kỳ ca nào
    trước đó. Quản trị viên nhập **tiền mặt đầu kỳ** của trạm (nút **Sửa tiền đầu
    kỳ**) — số tiền mặt trạm giữ vào đầu ngày bắt đầu tính.
@@ -94,6 +94,15 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
   - Dòng **Chi** có chọn đối tượng và **tích "Ghi nợ"** (vd nhân viên tạm ứng) →
     đối tượng **nợ thêm** (cột "+ Tạm ứng/Chi"). Dòng Chi không tích (vd nộp tiền về
     công ty) chỉ là ghi chú, không vào sổ.
+  - Cột **Chuyển khoản**: tiền khách chuyển vào tài khoản công ty (không vào két).
+    - **Không tích** "Trả nợ cũ" (mặc định) = khách chuyển khoản trả tiền đổ xăng
+      **trong ca** → trừ vào **Tồn tiền mặt** (dòng "Chuyển khoản trong ca"), không
+      vào sổ công nợ.
+    - **Tích "Trả nợ cũ"** = khách trả **nợ cũ** bằng chuyển khoản → trừ vào công nợ
+      của khách (cột "− Thu"), **không** trừ Tồn tiền mặt. Bắt buộc chọn khách trong
+      ô Đối tượng, nếu không bấm Lưu sẽ báo lỗi.
+    - Phí chuyển khoản, tiền nộp về công ty vẫn nhập ở cột **Chi** như cũ.
+    - Mọi dòng Chuyển khoản đều được xuất vào **Phiếu chi** MISA như dòng Chi.
   - Nhớ bấm **Lưu** bảng thu chi; bỏ tích rồi Lưu thì khoản nợ đó bị gỡ khỏi sổ.
 
 ## 8. Tải ảnh (mục **Tải ảnh**)
