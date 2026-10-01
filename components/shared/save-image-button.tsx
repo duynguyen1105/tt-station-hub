@@ -13,10 +13,10 @@ import { vi } from '@/messages/vi'
 const MAX_PIXELS = 16_000_000
 
 /**
- * Lưu ảnh: the phiếu chốt ca as one PNG — for whoever finds a picture easier than a PDF.
- * It wears the print look (globals.css, .sheet-export), is drawn at twice the screen's
- * resolution so it stays sharp when zoomed, and goes to the phone's share sheet (Zalo,
- * Lưu ảnh) where there is one, else downloads.
+ * Lưu ảnh: the phiếu (chốt ca, biên bản giao nhận) as one PNG — for whoever finds a
+ * picture easier than a PDF. It wears the print look (globals.css, .sheet-export), is
+ * drawn at twice the screen's resolution so it stays sharp when zoomed, and goes to the
+ * phone's share sheet (Zalo, Lưu ảnh) where there is one, else downloads.
  */
 export function SaveImageButton({ title }: { title: string }) {
   const [busy, setBusy] = useState(false)
@@ -55,7 +55,7 @@ export function SaveImageButton({ title }: { title: string }) {
     } catch (error) {
       // Closing the share sheet is not a failure.
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        toast.error(vi.shifts.saveImageFailed)
+        toast.error(vi.common.saveImageFailed)
       }
     } finally {
       document.documentElement.classList.remove('sheet-export')
@@ -66,7 +66,7 @@ export function SaveImageButton({ title }: { title: string }) {
   return (
     <Button variant="outline" onClick={save} loading={busy}>
       <ImageIcon className="size-4" />
-      {vi.shifts.saveImage}
+      {vi.common.saveImage}
     </Button>
   )
 }

@@ -5,6 +5,8 @@ import { notFound } from 'next/navigation'
 import { ImportCancelButton } from '@/components/inventory/import-cancel-button'
 import { ReceiptDocUpload } from '@/components/inventory/receipt-doc-upload'
 import { ReceiptEditForm } from '@/components/inventory/receipt-edit-form'
+import { PrintButton } from '@/components/shared/print-button'
+import { SaveImageButton } from '@/components/shared/save-image-button'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
 import { VN_OFFSET_MS } from '@/lib/filters/params'
@@ -182,6 +184,13 @@ export default async function ImportReceiptPage({
 
   const canEdit = user.role !== 'viewer'
   const perColumnSeals = products.map((p) => p.sealNo).filter(Boolean)
+  // The PDF's and the image's file name: "Biên bản giao nhận xăng dầu LAMDONG01 29-09-2026 01h10" —
+  // the time, since one trạm can take two deliveries a day.
+  const sheetTitle = `${vi.imports.bienBanTitle} ${station?.code ?? code} ${formatDateTime(
+    receipt.receiptDate
+  )
+    .replaceAll('/', '-')
+    .replace(':', 'h')}`
 
   const gallery = (items: typeof signedDocs) => (
     <div className="flex flex-wrap gap-3">
@@ -212,51 +221,59 @@ export default async function ImportReceiptPage({
 
   return (
     <div className="space-y-5">
-      <div className="space-y-1">
-        <h2 className="text-lg font-semibold">
-          {vi.imports.bienBanTitle} — {formatDateTime(receipt.receiptDate)}
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          {vi.imports.creator}: {creator?.fullName ?? '—'} · {vi.imports.savedAt}{' '}
-          {formatDateTime(receipt.createdAt)}
-        </p>
-        {user.role === 'admin' &&
-          childImports.every((row) => !row.canceledAt) &&
-          editLines.every((line) => line.tankIndex >= 0 && offeredTanks.has(line.tankCode)) && (
-            <ReceiptEditForm
-              receiptId={receiptId}
-              header={{
-                importedAt: new Date(receipt.receiptDate.getTime() + VN_OFFSET_MS)
-                  .toISOString()
-                  .slice(0, 16),
-                staffName: receipt.staffName ?? '',
-                driverName: receipt.driverName ?? '',
-                truckPlate: receipt.truckPlate ?? '',
-                vehicleCheck: receipt.vehicleCheck ?? '',
-                sealNo: receipt.sealNo ?? '',
-                note: receipt.note ?? '',
-                invoiceNo: childImports[0]?.invoiceNo ?? '',
-              }}
-              lines={editLines}
-              products={products.map((product, index) => ({
-                index,
-                productLabel: product.productLabel ?? '',
-                warehouse: product.warehouse ?? '',
-                exportSlipNo: product.exportSlipNo ?? '',
-              }))}
-              tanks={[...offeredTanks].map(([code, fuelType]) => ({
-                code,
-                fuelType,
-                label: `${code.replace('HAM_', 'Hầm ')} — ${fuelLabel(fuelType)}`,
-              }))}
-              openingDates={Object.fromEntries(
-                openings.map((opening) => [
-                  opening.fuelType,
-                  opening.effectiveDate.toISOString().slice(0, 10),
-                ])
-              )}
-            />
-          )}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="space-y-1 print:flex-1">
+          <h2 className="text-lg font-semibold">
+            {vi.imports.bienBanTitle} — {formatDateTime(receipt.receiptDate)}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            {vi.imports.creator}: {creator?.fullName ?? '—'} · {vi.imports.savedAt}{' '}
+            {formatDateTime(receipt.createdAt)}
+          </p>
+          {user.role === 'admin' &&
+            childImports.every((row) => !row.canceledAt) &&
+            editLines.every((line) => line.tankIndex >= 0 && offeredTanks.has(line.tankCode)) && (
+              <ReceiptEditForm
+                receiptId={receiptId}
+                header={{
+                  importedAt: new Date(receipt.receiptDate.getTime() + VN_OFFSET_MS)
+                    .toISOString()
+                    .slice(0, 16),
+                  staffName: receipt.staffName ?? '',
+                  driverName: receipt.driverName ?? '',
+                  truckPlate: receipt.truckPlate ?? '',
+                  vehicleCheck: receipt.vehicleCheck ?? '',
+                  sealNo: receipt.sealNo ?? '',
+                  note: receipt.note ?? '',
+                  invoiceNo: childImports[0]?.invoiceNo ?? '',
+                }}
+                lines={editLines}
+                products={products.map((product, index) => ({
+                  index,
+                  productLabel: product.productLabel ?? '',
+                  warehouse: product.warehouse ?? '',
+                  exportSlipNo: product.exportSlipNo ?? '',
+                }))}
+                tanks={[...offeredTanks].map(([code, fuelType]) => ({
+                  code,
+                  fuelType,
+                  label: `${code.replace('HAM_', 'Hầm ')} — ${fuelLabel(fuelType)}`,
+                }))}
+                openingDates={Object.fromEntries(
+                  openings.map((opening) => [
+                    opening.fuelType,
+                    opening.effectiveDate.toISOString().slice(0, 10),
+                  ])
+                )}
+              />
+            )}
+        </div>
+        <div className="ml-auto flex items-center gap-2 print:hidden">
+          {/* The biên bản for the Zalo nhóm, as on the ca page: a PDF from the browser's own
+              print, or one image. */}
+          <SaveImageButton title={sheetTitle} />
+          <PrintButton title={sheetTitle} />
+        </div>
       </div>
 
       {/* Header fields as on the paper */}
@@ -520,7 +537,9 @@ export default async function ImportReceiptPage({
         </section>
       )}
 
-      <section className="space-y-2">
+      {/* The photos are hidden on paper and in the image anyway; their headings, links and
+          hints go with them so the sheet ends at the booked figures. */}
+      <section className="space-y-2 print:hidden">
         <h3 className="text-sm font-semibold">{vi.imports.bienBanPhotos}</h3>
         {bienBanDocs.length === 0 ? (
           <p className="text-muted-foreground text-sm">{vi.imports.noDocs}</p>
@@ -529,7 +548,7 @@ export default async function ImportReceiptPage({
         )}
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-2 print:hidden">
         <h3 className="text-sm font-semibold">{vi.imports.pxkDocs}</h3>
         {pxkDocs.length === 0 ? (
           <p className="text-muted-foreground text-sm">{vi.imports.noDocs}</p>
@@ -538,7 +557,7 @@ export default async function ImportReceiptPage({
         )}
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-2 print:hidden">
         <h3 className="text-sm font-semibold">{vi.imports.relatedDocs}</h3>
         <p className="text-muted-foreground text-sm">{vi.imports.docsCompareHint}</p>
         {relatedDocs.length === 0 ? (

@@ -58,6 +58,10 @@ export const vi = {
     pagePrev: '← Trước',
     pageNext: 'Sau →',
     pageOf: 'Trang',
+    // The phiếu (chốt ca, biên bản giao nhận) handed to the Zalo nhóm as a PDF or one image.
+    print: 'In / Lưu PDF',
+    saveImage: 'Lưu ảnh',
+    saveImageFailed: 'Không tạo được ảnh — thử lại, hoặc dùng In / Lưu PDF.',
   },
 
   auth: {
@@ -591,9 +595,6 @@ export const vi = {
     // Số tiền ghi nợ của lượt: thành tiền kế toán gõ nếu có, không thì lít × đơn giá.
     debtAmount: 'Số tiền',
     debtEdit: 'Sửa',
-    print: 'In / Lưu PDF',
-    saveImage: 'Lưu ảnh',
-    saveImageFailed: 'Không tạo được ảnh — thử lại, hoặc dùng In / Lưu PDF.',
     sumTotal: 'Tổng',
     debtPhotos: 'Ảnh',
     // Cột Ghi chú của bảng trụ, như cột Ghi chú trên phiếu chốt ca Excel: kế toán gõ tự do,

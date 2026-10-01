@@ -178,11 +178,12 @@
   scrollbar-color: color-mix(in oklch, var(--foreground) 30%, transparent) transparent;
 }
 
-/* The printed phiếu chốt ca — In / Lưu PDF (components/shifts/print-button.tsx) and Lưu
-   ảnh (components/shifts/save-image-button.tsx), one look for both: white paper, numbers
-   only. While an image is captured <html> carries .sheet-export, so the print: variant
-   and the page-wide rules below hold then too. What a block drops (ảnh, links, hints) is
-   marked print:hidden where it lives; the rules here are the page-wide ones. */
+/* The printed phiếu (chốt ca, biên bản giao nhận) — In / Lưu PDF
+   (components/shared/print-button.tsx) and Lưu ảnh (components/shared/save-image-button.tsx),
+   one look for both: white paper, numbers only. While an image is captured <html> carries
+   .sheet-export, so the print: variant and the page-wide rules below hold then too. What a
+   block drops (ảnh, links, hints) is marked print:hidden where it lives; the rules here are
+   the page-wide ones. */
 @custom-variant print {
   @media print {
     @slot;

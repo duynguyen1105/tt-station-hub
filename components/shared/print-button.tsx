@@ -8,7 +8,7 @@ import { vi } from '@/messages/vi'
 /**
  * In / Lưu PDF: the browser's own print dialog, laid out by the print rules in
  * globals.css. The tab's title is the PDF's file name, so it names the trạm and ngày
- * for as long as the dialog is open.
+ * for as long as the dialog is open. Shared by every phiếu that goes to the Zalo nhóm.
  */
 export function PrintButton({ title }: { title: string }) {
   return (
@@ -22,7 +22,7 @@ export function PrintButton({ title }: { title: string }) {
       }}
     >
       <PrinterIcon className="size-4" />
-      {vi.shifts.print}
+      {vi.common.print}
     </Button>
   )
 }
