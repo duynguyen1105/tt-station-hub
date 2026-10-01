@@ -206,6 +206,8 @@ html {
     & *::after {
       background: transparent !important;
       box-shadow: none !important;
+      /* The image is taken the instant the look switches; a fading border would be caught half-way. */
+      transition: none !important;
     }
     & [data-slot='sidebar'],
     & img,

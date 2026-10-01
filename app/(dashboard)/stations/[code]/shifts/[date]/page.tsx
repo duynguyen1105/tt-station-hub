@@ -411,7 +411,9 @@ export default async function ShiftDetailPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="space-y-1">
+        {/* Full width on paper and in the image, so the giá bán lẻ line never wraps under the
+            status badge when the image's text measures a hair wider than the screen's. */}
+        <div className="space-y-1 print:flex-1">
           <h2 className="text-lg font-semibold">
             {vi.shifts.title} — {formatDate(shift.shiftDate)} · {shiftTypeLabel(shift.shiftType)}
           </h2>
