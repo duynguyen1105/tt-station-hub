@@ -228,6 +228,11 @@ console" theme (bone paper · petroleum-teal · brass), inked sidebar with a gau
 
 - **All-stations overview** (`/`) — alert cards + per-station table.
 - **Stations list** + **station profile** tabs (overview / shifts / documents / inventory / debts).
+  The station **Tổng quan** (`lib/stations/load-overview.ts`) lists what is left to do (chờ
+  duyệt, ca chưa chốt, ngày chưa có ca, giấy tờ hết hạn, tồn thấp / sắp hết), the latest ca,
+  7-day and month-to-date doanh thu with the previous period, tồn tiền mặt, a 30-day doanh
+  thu chart by nhiên liệu, tồn sổ sách vs sức chứa with "đủ bán ~N ngày", dư nợ with this
+  month's bán nợ / thu and the top khách, and the latest ca and biên bản nhập hàng.
 - **Shift detail** — readings with **Approve / Correct / Reject** (correction preserves the
   original AI value) + **Complete shift** (deducts inventory; guarded while reviews pending).
 - **Review queues** (`/review/shifts`, `/review/debts`, with assign-customer + approve/correct).

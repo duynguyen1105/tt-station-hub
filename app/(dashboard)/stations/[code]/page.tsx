@@ -1,59 +1,50 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  AttentionPanel,
+  DebtPanel,
+  FuelMix,
+  RecentReceipts,
+  RecentShifts,
+  SalesChart,
+  SalesKpis,
+  StockPanel,
+  fuelOrder,
+} from '@/components/stations/station-overview'
 import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
-import { balanceOf } from '@/lib/debts/ledger'
-import { loadLedgers } from '@/lib/debts/load-ledger'
-import { formatVND } from '@/lib/format'
-import { prisma } from '@/lib/prisma'
-import { vi } from '@/messages/vi'
+import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
+import { loadStationOverview } from '@/lib/stations/load-overview'
 
-function SummaryCard({ title, value }: { title: string; value: string | number }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-muted-foreground text-sm font-medium">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="text-2xl font-semibold">{value}</CardContent>
-    </Card>
-  )
-}
-
+/**
+ * The Tổng quan tab: what is left to do at this trạm, how it is selling, what is in the
+ * hầm, who owes, and what moved lately — each section linking to the tab that holds it.
+ */
 export default async function StationOverviewPage({
   params,
 }: {
   params: Promise<{ code: string }>
 }) {
   const { code } = await params
-  const { id } = await loadStationBySlug(code)
-  await requireStationAccess(id)
+  const station = await loadStationBySlug(code)
+  await requireStationAccess(station.id)
 
-  const shiftIds = (
-    await prisma.shift.findMany({ where: { stationId: id }, select: { id: true } })
-  ).map((s) => s.id)
-
-  const [pendingReviews, expiringDocs, balances, customers] = await Promise.all([
-    shiftIds.length
-      ? prisma.shiftReading.count({
-          where: { shiftId: { in: shiftIds }, reviewStatus: { in: ['pending', 'needs_review'] } },
-        })
-      : Promise.resolve(0),
-    prisma.stationDocument.count({
-      where: { stationId: id, status: { in: ['expiring_soon', 'expired'] } },
-    }),
-    prisma.inventoryBalance.findMany({ where: { stationId: id } }),
-    loadLedgers({ stationId: id, isActive: true }),
-  ])
-
-  const lowStock = balances.filter(
-    (b) => b.lowThreshold !== null && Number(b.estimatedStock) <= Number(b.lowThreshold)
-  ).length
-  const debtTotal = customers.reduce((sum, c) => sum + balanceOf(c.customer.anchor, c.txs), 0)
+  const [data, fuelLabel] = await Promise.all([loadStationOverview(station), fuelTypeLabeller()])
+  const fuels = fuelOrder(data)
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <SummaryCard title={vi.overview.pendingReviews} value={pendingReviews} />
-      <SummaryCard title={vi.overview.expiringDocs} value={expiringDocs} />
-      <SummaryCard title={vi.overview.lowStock} value={lowStock} />
-      <SummaryCard title={vi.debts.balance} value={formatVND(debtTotal)} />
+    <div className="space-y-3">
+      <AttentionPanel code={station.code} data={data} fuelLabel={fuelLabel} />
+      <SalesKpis code={station.code} data={data} />
+      <div className="grid gap-3 lg:grid-cols-3">
+        <SalesChart data={data} fuels={fuels} fuelLabel={fuelLabel} />
+        <FuelMix data={data} fuels={fuels} fuelLabel={fuelLabel} />
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <StockPanel code={station.code} data={data} fuels={fuels} fuelLabel={fuelLabel} />
+        <DebtPanel code={station.code} data={data} />
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <RecentShifts code={station.code} shifts={data.recentShifts} />
+        <RecentReceipts code={station.code} data={data} fuelLabel={fuelLabel} />
+      </div>
     </div>
   )
 }

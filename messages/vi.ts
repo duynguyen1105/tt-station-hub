@@ -1270,6 +1270,80 @@ export const vi = {
     // Every khách's dư nợ summed — there is no payment term, so nothing is "quá hạn".
     totalDebt: 'Tổng dư nợ',
   },
+
+  // The Tổng quan tab of one trạm: what needs doing, how it is selling, what is left in
+  // the hầm, who owes, and what moved lately — each linking to the tab that holds it.
+  stationOverview: {
+    attention: 'Cần xử lý',
+    allClear: 'Không còn việc tồn đọng: số liệu, công nợ, đo hầm, ca và giấy tờ đều đã xong.',
+    pendingReadings: (n: number) => `${n} số liệu trụ bơm chờ duyệt`,
+    pendingVisits: (n: number) => `${n} lượt bán nợ chờ duyệt`,
+    pendingDips: (n: number) => `${n} lần đo hầm chờ duyệt`,
+    unclosedShifts: (n: number) => `${n} ca của ngày trước chưa chốt`,
+    missingDays: (n: number) => `${n} ngày trong 30 ngày qua chưa có ca`,
+    // A ca is opened by its first ảnh, so a ngày with none has no số liệu to chốt or export.
+    missingDaysHint: 'Chưa ai tải ảnh đồng hồ cho các ngày này.',
+    expiredDoc: (name: string, date: string) => `${name} đã hết hạn ngày ${date}`,
+    expiringDoc: (name: string, days: number) =>
+      days === 0 ? `${name} hết hạn hôm nay` : `${name} còn ${days} ngày là hết hạn`,
+    noDocuments: 'Chưa lưu giấy tờ pháp lý nào',
+    lowStock: (fuel: string) => `${fuel} đã xuống dưới mức tồn tối thiểu`,
+    lowCover: (fuel: string, days: string) => `${fuel} chỉ còn đủ bán khoảng ${days} ngày`,
+    negativeStock: (fuel: string) => `Tồn sổ sách ${fuel} đang âm — kiểm tra nhập hàng, đầu kỳ`,
+    noOpening: (fuel: string) => `${fuel} chưa có số đầu kỳ — tồn sổ sách đang tính từ 0`,
+    more: (n: number) => `+${n} ngày khác`,
+    go: 'Xem →',
+
+    latestShift: 'Ca gần nhất',
+    noShift: 'Trạm chưa có ca nào.',
+    week: '7 ngày qua',
+    month: 'Tháng này',
+    vsWeek: 'so với 7 ngày trước',
+    vsMonth: 'so với cùng kỳ tháng trước',
+    noComparison: 'Chưa có số liệu kỳ trước để so',
+    liters: (liters: string) => `${liters} lít`,
+    unpriced: (liters: string) => `${liters} lít chưa có giá bán lẻ, chưa tính tiền`,
+    cash: 'Tồn tiền mặt',
+    cashAsOf: (date: string) => `Cuối ca ${date}`,
+    cashNoOpening: 'Chưa nhập tiền mặt đầu kỳ',
+    cashBeforeOpening: (date: string) => `Ca trước ngày đầu kỳ ${date}`,
+
+    chartTitle: 'Doanh thu 30 ngày',
+    chartNoShift: 'không có ca',
+    chartEmpty: 'Chưa có ca nào trong 30 ngày qua.',
+    chartPeak: (amount: string) => `Cao nhất ${amount}`,
+
+    fuelMixTitle: 'Bán theo nhiên liệu — tháng này',
+    fuel: 'Nhiên liệu',
+    soldLiters: 'Số lít',
+    revenue: 'Doanh thu',
+    total: 'Tổng',
+    priceToday: 'Giá hôm nay',
+    fuelMixEmpty: 'Tháng này chưa bán lít nào.',
+
+    stockTitle: 'Tồn kho sổ sách',
+    capacity: (percent: string, capacity: string) => `${percent}% của ${capacity} L sức chứa`,
+    dailyRate: (liters: string) => `Bán TB ${liters} L/ngày`,
+    cover: (days: string) => `đủ ~${days} ngày`,
+    noRate: 'Chưa đủ số liệu bán để ước tính',
+    lastImport: (date: string, liters: string) => `Nhập gần nhất ${date} · ${liters} L`,
+    noImport: 'Chưa có phiếu nhập',
+    stockEmpty: 'Trạm chưa khai báo hầm nào.',
+
+    debtTitle: 'Công nợ',
+    owingCount: (n: number) => `${n} khách đang nợ`,
+    monthCharged: 'Bán nợ tháng này',
+    monthAdvanced: 'Tạm ứng tháng này',
+    monthPaid: 'Đã thu tháng này',
+    topDebtors: 'Nợ nhiều nhất',
+    noDebt: 'Không khách nào đang nợ.',
+
+    recentShifts: 'Ca gần đây',
+    recentReceipts: 'Nhập hàng gần đây',
+    receiptNo: (no: number) => `Biên bản số ${no}`,
+    noReceipts: 'Chưa có biên bản nhập hàng nào.',
+    viewAll: 'Xem tất cả →',
+  },
 } as const
 
 export type Messages = typeof vi
