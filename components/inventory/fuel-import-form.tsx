@@ -322,6 +322,7 @@ export function FuelImportForm({
   stationPumps,
   paperPumps,
   openingDates,
+  size = 'sm',
 }: {
   stationId: string
   stationCode: string
@@ -344,6 +345,8 @@ export function FuelImportForm({
   /** Nhiên liệu → YYYY-MM-DD its số đầu kỳ counts from. A phiếu dated before it is
    *  already inside đầu kỳ and adds nothing to tồn sổ sách, so saving one asks first. */
   openingDates: Readonly<Record<string, string>>
+  /** The trigger's size, to match the buttons it sits beside. */
+  size?: 'sm' | 'default'
 }) {
   const router = useRouter()
   // The danh mục whole, not this Trạm's slice: a goods column is resolved by the
@@ -782,7 +785,7 @@ export function FuelImportForm({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm">{vi.imports.addButton}</Button>
+        <Button size={size}>{vi.imports.addButton}</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>

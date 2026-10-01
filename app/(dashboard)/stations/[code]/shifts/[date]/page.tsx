@@ -429,7 +429,7 @@ export default async function ShiftDetailPage({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="ml-auto flex items-center gap-2 print:hidden">
           {/* The phiếu on one A4 sheet for the Zalo nhóm — the browser's own print to PDF. */}
           <PrintButton
             title={`${vi.shifts.title} ${station?.code ?? code} ${shiftDay.split('-').reverse().join('-')}`}
@@ -449,21 +449,22 @@ export default async function ShiftDetailPage({
               openingDates={Object.fromEntries(
                 openings.map((o) => [o.fuelType, o.effectiveDate.toISOString().slice(0, 10)])
               )}
+              size="default"
             />
           )}
           {completed && user.role === 'admin' && <ShiftReopenButton shiftId={shift.id} />}
           {canReviewShift(user.role, shift.status as ShiftStatus) && (
-            <div className="flex items-center gap-2">
-              {completionRefusal && (
-                <p className="text-muted-foreground text-sm">{completionRefusal}</p>
-              )}
-              <ShiftCompleteButton shiftId={shift.id} disabled={completionRefusal !== null} />
-            </div>
+            <ShiftCompleteButton shiftId={shift.id} disabled={completionRefusal !== null} />
           )}
         </div>
       </div>
       {completed && (
         <p className="text-muted-foreground text-sm print:hidden">{vi.shifts.completedLocked}</p>
+      )}
+      {/* Below the header, not inside the button row: a reason there widened the row
+          until it wrapped under the title, so the buttons moved with the ca's state. */}
+      {canReviewShift(user.role, shift.status as ShiftStatus) && completionRefusal && (
+        <p className="text-muted-foreground text-sm print:hidden">{completionRefusal}</p>
       )}
 
       <ShiftSummary
@@ -571,10 +572,9 @@ export default async function ShiftDetailPage({
         </Suspense>
       </section>
 
-      {/* Money beside debt, as the Excel phiếu lays it out: what the ca sold on credit and
-          took in or paid out on the left, who owes and the cash left on the right. On paper
-          every block is full width, as A4 is too narrow for two at the screen's text size. */}
-      <div className="grid gap-6 2xl:grid-cols-[3fr_2fr]">
+      {/* Every block full width at every size, on screen as on paper: the bán nợ, thu chi
+          and công nợ tables carry mã khách and amounts that need the room. */}
+      <div className="space-y-6">
         <div className="min-w-0 space-y-6">
           <ShiftDebtSales stationCode={code} rows={debtSaleRows} pendingCount={pendingDebtVisits} />
           <div id="thu-chi" className="scroll-mt-28">
