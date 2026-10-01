@@ -9,6 +9,7 @@ import { CashBalanceCard } from '@/components/shifts/cash-balance-card'
 import { CashEntriesTable } from '@/components/shifts/cash-entries-table'
 import { PrintButton } from '@/components/shifts/print-button'
 import { ReadingRow, type ReadingRowData } from '@/components/shifts/reading-row'
+import { SaveImageButton } from '@/components/shifts/save-image-button'
 import { ShiftCompleteButton, ShiftReopenButton } from '@/components/shifts/shift-complete-button'
 import { ShiftDebtLedger } from '@/components/shifts/shift-debt-ledger'
 import { ShiftDebtSales } from '@/components/shifts/shift-debt-sales'
@@ -369,6 +370,8 @@ export default async function ShiftDetailPage({
   const salesTotal = rows.reduce((sum, r) => sum + (r.totals?.amount ?? 0), 0)
   const cashTotals = cashEntryTotals(cashEntries)
   const shiftDay = shift.shiftDate.toISOString().slice(0, 10)
+  // The PDF's and the image's file name: "Chốt ca LAMDONG01 29-09-2026".
+  const sheetTitle = `${vi.shifts.title} ${station?.code ?? code} ${shiftDay.split('-').reverse().join('-')}`
 
   const status = shiftStatusInfo(shift.status)
   // Why Chốt ca is refused, read from the same rule the endpoint applies, so the
@@ -430,10 +433,9 @@ export default async function ShiftDetailPage({
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2 print:hidden">
-          {/* The phiếu on one A4 sheet for the Zalo nhóm — the browser's own print to PDF. */}
-          <PrintButton
-            title={`${vi.shifts.title} ${station?.code ?? code} ${shiftDay.split('-').reverse().join('-')}`}
-          />
+          {/* The phiếu for the Zalo nhóm: a PDF from the browser's own print, or one image. */}
+          <SaveImageButton title={sheetTitle} />
+          <PrintButton title={sheetTitle} />
           {/* Nhập hàng lives beside the shift controls: deliveries happen the
               same day the shift is closed, so this is where staff already are. */}
           {user.role !== 'viewer' && (

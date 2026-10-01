@@ -178,60 +178,82 @@
   scrollbar-color: color-mix(in oklch, var(--foreground) 30%, transparent) transparent;
 }
 
-/* In / Lưu PDF of the phiếu chốt ca (components/shifts/print-button.tsx): one A4 ngang
-   sheet for the Zalo nhóm — white paper, numbers only. What a block drops (ảnh, links,
-   hints) is marked print:hidden where it lives; the rules here are the page-wide ones. */
+/* The printed phiếu chốt ca — In / Lưu PDF (components/shifts/print-button.tsx) and Lưu
+   ảnh (components/shifts/save-image-button.tsx), one look for both: white paper, numbers
+   only. While an image is captured <html> carries .sheet-export, so the print: variant
+   and the page-wide rules below hold then too. What a block drops (ảnh, links, hints) is
+   marked print:hidden where it lives; the rules here are the page-wide ones. */
+@custom-variant print {
+  @media print {
+    @slot;
+  }
+  &:where(.sheet-export, .sheet-export *) {
+    @slot;
+  }
+}
+
 @media print {
   @page {
     size: A4 landscape;
     margin: 8mm;
   }
-  *,
-  *::before,
-  *::after {
-    background: transparent !important;
-    box-shadow: none !important;
+}
+
+html {
+  @variant print {
+    & *,
+    & *::before,
+    & *::after {
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    & [data-slot='sidebar'],
+    & img,
+    & button:not([role='checkbox']):not([role='combobox']),
+    & svg {
+      display: none !important;
+    }
+    /* …but a ticked Ghi nợ / Trả nợ cũ keeps its tick. */
+    & [role='checkbox'] svg {
+      display: block !important;
+    }
+    & main {
+      padding: 0 !important;
+    }
+    & main > div {
+      max-width: none !important;
+    }
+    /* Filled-in cells print as their value, not as an empty box around it. */
+    & input,
+    & [role='combobox'] {
+      border-color: transparent !important;
+      padding-inline: 0 !important;
+      height: auto !important;
+    }
+    & a {
+      color: inherit !important;
+      text-decoration: none !important;
+    }
+    & tr {
+      break-inside: avoid;
+    }
+    /* A block's title never ends a page with its table on the next. */
+    & h2,
+    & h3,
+    & h4 {
+      break-after: avoid;
+    }
+    /* Rows sit tighter on paper than on screen; a long ngày simply runs onto page 2. */
+    & td,
+    & th {
+      padding-top: 0.2rem !important;
+      padding-bottom: 0.2rem !important;
+    }
   }
-  [data-slot='sidebar'],
-  img,
-  button:not([role='checkbox']):not([role='combobox']),
-  svg {
-    display: none !important;
-  }
-  /* …but a ticked Ghi nợ / Trả nợ cũ keeps its tick. */
-  [role='checkbox'] svg {
-    display: block !important;
-  }
-  main {
-    padding: 0 !important;
-  }
-  main > div {
-    max-width: none !important;
-  }
-  /* Filled-in cells print as their value, not as an empty box around it. */
-  input,
-  [role='combobox'] {
-    border-color: transparent !important;
-    padding-inline: 0 !important;
-    height: auto !important;
-  }
-  a {
-    color: inherit !important;
-    text-decoration: none !important;
-  }
-  tr {
-    break-inside: avoid;
-  }
-  /* A block's title never ends a page with its table on the next. */
-  h2,
-  h3,
-  h4 {
-    break-after: avoid;
-  }
-  /* Rows sit tighter on paper than on screen; a long ngày simply runs onto page 2. */
-  td,
-  th {
-    padding-top: 0.2rem !important;
-    padding-bottom: 0.2rem !important;
-  }
+}
+
+/* The image is laid out at one width on every device — a phone's narrow screen would
+   otherwise clip the wide tables — about A4 ngang at the screen's text size. */
+html.sheet-export main > div {
+  width: 75rem !important;
 }

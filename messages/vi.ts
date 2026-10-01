@@ -592,6 +592,8 @@ export const vi = {
     debtAmount: 'Số tiền',
     debtEdit: 'Sửa',
     print: 'In / Lưu PDF',
+    saveImage: 'Lưu ảnh',
+    saveImageFailed: 'Không tạo được ảnh — thử lại, hoặc dùng In / Lưu PDF.',
     sumTotal: 'Tổng',
     debtPhotos: 'Ảnh',
     // Cột Ghi chú của bảng trụ, như cột Ghi chú trên phiếu chốt ca Excel: kế toán gõ tự do,
