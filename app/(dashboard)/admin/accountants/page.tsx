@@ -1,8 +1,12 @@
+import { Pencil } from 'lucide-react'
+
 import Link from 'next/link'
 
 import { AccountantForm } from '@/components/accountants/accountant-form'
 import { StationOverflow } from '@/components/accountants/station-overflow'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { activeStationsWithHolders } from '@/lib/accountants/station-holders'
 import { requireRole } from '@/lib/auth/session'
 import { isStationUncovered } from '@/lib/auth/station-access'
@@ -81,6 +85,7 @@ export default async function AccountantsPage() {
               <th className="p-2">{vi.accountants.username}</th>
               <th className="p-2">{vi.accountants.assignedStations}</th>
               <th className="p-2">{vi.accountants.accountStatus}</th>
+              <th className="w-px p-2" />
             </tr>
           </thead>
           <tbody>
@@ -98,16 +103,16 @@ export default async function AccountantsPage() {
                 stations.length > VISIBLE_STATIONS && held.length === stations.length
               const hidden = held.slice(VISIBLE_STATIONS)
               const status = accountantStatusInfo(accountant.isActive)
+              const href = `/admin/accountants/${encodeURIComponent(accountant.email)}`
               return (
                 <tr key={accountant.id} className="border-b">
                   {/* The only thing a row offers, now that mật khẩu and ngưng
                       hoạt động sit on the person's page with everything else
-                      done to them: the list says who there is, and points. */}
+                      done to them: the list says who there is, and points — by
+                      the name, and by the pencil at the row's end, since a name
+                      in plain ink did not read as somewhere to go. */}
                   <td className="p-2">
-                    <Link
-                      href={`/admin/accountants/${encodeURIComponent(accountant.email)}`}
-                      className="font-medium hover:underline"
-                    >
+                    <Link href={href} className="font-medium hover:underline">
                       {accountant.fullName}
                     </Link>
                   </td>
@@ -130,6 +135,23 @@ export default async function AccountantsPage() {
                   </td>
                   <td className="p-2">
                     <StatusBadge label={status.label} tone={status.tone} />
+                  </td>
+                  <td className="p-2 text-right">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          asChild
+                          size="icon-xs"
+                          variant="ghost"
+                          className="text-muted-foreground"
+                        >
+                          <Link href={href} aria-label={vi.common.edit}>
+                            <Pencil />
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{vi.common.edit}</TooltipContent>
+                    </Tooltip>
                   </td>
                 </tr>
               )
