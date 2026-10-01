@@ -226,6 +226,16 @@ html {
     & main > div {
       max-width: none !important;
     }
+    /* On screen a wide table scrolls inside its box; the sheet is wide enough for every
+       table, so the box opens up. Left as a scroll container, the capture reserves the
+       scrollbar's gutter on browsers whose scrollbars take space (Windows) and clips the
+       table's last row and right edge by exactly that much. */
+    & .overflow-x-auto {
+      overflow: visible !important;
+    }
+    & * {
+      scrollbar-width: none !important;
+    }
     /* Filled-in cells print as their value, not as an empty box around it. */
     & input,
     & [role='combobox'] {
