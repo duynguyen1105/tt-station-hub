@@ -86,6 +86,8 @@ const creditVisits: CreditVisit[] = [
     litersRead: 100,
     unitPriceRead: 22290,
     computedAmount: 2229000,
+    amountOverride: null,
+    unitPriceEdited: false,
     plate: '50E-75317',
   },
   {
@@ -95,6 +97,8 @@ const creditVisits: CreditVisit[] = [
     litersRead: 50,
     unitPriceRead: 20300,
     computedAmount: 1015000,
+    amountOverride: null,
+    unitPriceEdited: false,
     plate: '50H-76402',
   },
 ]
@@ -178,6 +182,8 @@ describe('buildMisaSalesVoucher — credit rows (bán nợ)', () => {
             litersRead: 100,
             unitPriceRead: 22290,
             computedAmount: 2229000,
+            amountOverride: null,
+            unitPriceEdited: false,
             plate: null, // walk-in: mang can / no plate
           },
         ],
@@ -201,6 +207,8 @@ describe('buildMisaSalesVoucher — credit rows (bán nợ)', () => {
             litersRead: 100,
             unitPriceRead: 21000, // pump read a DIFFERENT price than config (22290)
             computedAmount: 2100000,
+            amountOverride: null,
+            unitPriceEdited: false,
             plate: '50E-75317',
           },
         ],
@@ -225,6 +233,8 @@ describe('buildMisaSalesVoucher — credit rows (bán nợ)', () => {
             litersRead: 40,
             unitPriceRead: 24430,
             computedAmount: 977200,
+            amountOverride: null,
+            unitPriceEdited: false,
             plate: '50E-75317',
           },
         ],
@@ -233,6 +243,48 @@ describe('buildMisaSalesVoucher — credit rows (bán nợ)', () => {
     expect(result.errors).toContainEqual(
       expect.objectContaining({ code: 'missing_price', fuelType: 'DC' })
     )
+  })
+})
+
+describe('buildMisaSalesVoucher — numbers a người duyệt typed on Sửa số', () => {
+  const dcVisit: CreditVisit = {
+    id: 'v1',
+    customerId: 'c2',
+    fuelType: 'DC',
+    litersRead: 71.8,
+    unitPriceRead: 24430,
+    computedAmount: 1754074, // 71.8 × 24430
+    amountOverride: null,
+    unitPriceEdited: false,
+    plate: '49H-075.09',
+  }
+  const dcRow = (visit: CreditVisit, overrides: Partial<MisaBuildInput> = {}) =>
+    buildMisaSalesVoucher(baseInput({ creditVisits: [visit], ...overrides }))
+
+  it('writes a typed thành tiền as Thành tiền, keeping Số lượng and Đơn giá', () => {
+    const { rows, errors } = dcRow({ ...dcVisit, amountOverride: 1_754_000 })
+    expect(errors).toEqual([])
+    expect(rows.find((r) => r.kind === 'credit')).toMatchObject({
+      quantity: 71.8,
+      unitPrice: 24430,
+      amount: 1_754_000, // not 1,754,074
+    })
+  })
+
+  it('writes an edited đơn giá in place of the bảng giá', () => {
+    const { rows } = dcRow({ ...dcVisit, unitPriceRead: 24000, unitPriceEdited: true })
+    const row = rows.find((r) => r.kind === 'credit')
+    expect(row?.unitPrice).toBe(24000)
+    expect(row?.amount).toBe(1_723_200) // 71.8 × 24000
+  })
+
+  it('does not block an edited đơn giá on a fuel with no bảng giá', () => {
+    const { rows, errors } = dcRow(
+      { ...dcVisit, unitPriceRead: 24000, unitPriceEdited: true },
+      { prices: prices.filter((p) => p.fuelType !== 'DC'), readings: [], dispensers: [] }
+    )
+    expect(errors).toEqual([])
+    expect(rows.find((r) => r.kind === 'credit')?.unitPrice).toBe(24000)
   })
 })
 
@@ -501,6 +553,8 @@ describe('buildMisaSalesVoucher — per-fuel summary', () => {
             litersRead: 400, // > metered 300
             unitPriceRead: 22290,
             computedAmount: 8916000,
+            amountOverride: null,
+            unitPriceEdited: false,
             plate: '50E-75317',
           },
         ],
@@ -538,6 +592,8 @@ describe('buildMisaSalesVoucher — preflight warnings', () => {
             litersRead: 400, // > metered 300
             unitPriceRead: 22290,
             computedAmount: 8916000,
+            amountOverride: null,
+            unitPriceEdited: false,
             plate: '50E-75317',
           },
         ],

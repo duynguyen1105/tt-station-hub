@@ -124,6 +124,10 @@ export type CreditVisit = {
   litersRead: number | null
   unitPriceRead: number | null
   computedAmount: number | null
+  // The thành tiền a người duyệt typed (lib/debts/visit-amount.ts); null → none.
+  amountOverride: number | null
+  // A người duyệt changed the đơn giá on Sửa số (originalUnitPriceRead was stamped).
+  unitPriceEdited: boolean
   plate: string | null // confirmed plate, else AI-read plate
 }
 
@@ -348,7 +352,12 @@ export function buildMisaSalesVoucher(input: MisaBuildInput): MisaBuildResult {
 
     // Credit rows price from the config retail table (like cash rows), not the pump-read
     // price — the exported amount reflects the standard retail price on the sale date.
-    const price = priceOnDate(prices, fuelType, saleDate)
+    // What a người duyệt typed on Sửa số is the exception: an edited đơn giá replaces the
+    // bảng giá, and a typed thành tiền replaces the product, as the sổ công nợ charges.
+    const price =
+      visit.unitPriceEdited && visit.unitPriceRead !== null
+        ? visit.unitPriceRead
+        : priceOnDate(prices, fuelType, saleDate)
     if (price === null) {
       errors.push({
         code: 'missing_price',
@@ -378,7 +387,7 @@ export function buildMisaSalesVoucher(input: MisaBuildInput): MisaBuildResult {
       revenueAccount: stationConfig.revenueAccount,
       quantity: liters,
       unitPrice: price,
-      amount: Math.round(liters * price),
+      amount: visit.amountOverride ?? Math.round(liters * price),
       warehouse: map.warehouseCode,
       costAccount: stationConfig.costAccount,
       stockAccount: stationConfig.stockAccount,

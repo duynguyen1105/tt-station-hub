@@ -240,6 +240,8 @@ describe('buildDebtsList ↔ buildMisaSalesVoucher consistency', () => {
           litersRead: s.litersRead,
           unitPriceRead: null,
           computedAmount: null,
+          amountOverride: null,
+          unitPriceEdited: false,
           plate: s.plate,
         })
       ),

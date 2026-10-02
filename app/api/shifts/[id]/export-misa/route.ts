@@ -124,6 +124,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     litersRead: num(v.litersRead),
     unitPriceRead: num(v.unitPriceRead),
     computedAmount: num(v.computedAmount),
+    amountOverride: num(v.amountOverride),
+    unitPriceEdited: v.originalUnitPriceRead !== null,
     plate: v.plateConfirmed ?? v.plateRead,
   }))
 
