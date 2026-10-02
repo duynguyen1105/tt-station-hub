@@ -1,11 +1,19 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { CustomerLedgerFilterForm } from '@/components/debts/customer-ledger-filter-form'
 import { DebtOpeningForm } from '@/components/debts/debt-opening-form'
 import { canEditOpening } from '@/lib/auth/reading-policy'
 import { loadStationBySlug, requireStationAccess } from '@/lib/auth/station-guard'
+import {
+  type CustomerLedgerParams,
+  type LedgerKind,
+  customerLedgerSelection,
+  hasCustomerLedgerFilter,
+} from '@/lib/debts/customer-ledger-selection'
 import { dayKeyOf } from '@/lib/debts/ledger'
 import { todayKey } from '@/lib/debts/load-ledger'
+import { matchingDatePreset } from '@/lib/filters/date-presets'
 import { formatDate, formatLiters, formatVND } from '@/lib/format'
 import { fuelTypeLabeller } from '@/lib/fuels/load-catalogue'
 import { prisma } from '@/lib/prisma'
@@ -18,11 +26,16 @@ import { vi } from '@/messages/vi'
  * on in the order it happened, with the balance after each. A charge row says which
  * lượt xe it came from (biển số, lít × đơn giá) so a disputed line can be traced to
  * its photos; a thu nợ row links the ca whose Thu chi table recorded it.
+ *
+ * The bộ lọc (ngày, loại giao dịch, biển số) narrows the finished chain, so every line
+ * still shows the true Dư nợ after it — see `customerLedgerSelection`.
  */
 export default async function CustomerLedgerPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ code: string; no: string }>
+  searchParams: Promise<CustomerLedgerParams>
 }) {
   const { code, no } = await params
   const { id: stationId } = await loadStationBySlug(code)
@@ -85,7 +98,10 @@ export default async function CustomerLedgerPage({
   const opening = Number(customer.openingBalance)
   const rows: {
     id: string
-    date: Date
+    date: string
+    txDate: Date
+    kind: LedgerKind
+    plate: string | null
     charge: boolean
     amount: number
     detail: string
@@ -115,7 +131,10 @@ export default async function CustomerLedgerPage({
       : (tx.note ?? '')
     rows.push({
       id: tx.id,
-      date: tx.txDate,
+      date: dayKeyOf(tx.txDate),
+      txDate: tx.txDate,
+      kind: !charge ? 'payment' : shift ? 'advance' : 'sale',
+      plate: plate ?? null,
       charge,
       amount,
       detail,
@@ -125,6 +144,8 @@ export default async function CustomerLedgerPage({
     })
   }
   const balance = rows.length ? rows[rows.length - 1]!.balance : opening
+  const sel = customerLedgerSelection(await searchParams, opening, rows)
+  const activePreset = matchingDatePreset(sel.from, sel.to, new Date())
   const openingDate = customer.openingDate ? dayKeyOf(customer.openingDate) : null
   const cell = 'p-2 text-right font-mono'
 
@@ -158,6 +179,15 @@ export default async function CustomerLedgerPage({
         </div>
       </div>
 
+      <CustomerLedgerFilterForm
+        from={sel.from}
+        to={sel.to}
+        types={sel.types}
+        plates={sel.plates}
+        plateOptions={sel.plateOptions}
+        activePreset={activePreset}
+      />
+
       <table className="w-full text-sm">
         <thead>
           <tr className="text-muted-foreground border-b text-left">
@@ -172,17 +202,19 @@ export default async function CustomerLedgerPage({
           <tr className="text-muted-foreground border-b">
             <td className="p-2">—</td>
             <td className="p-2">
-              {customer.openingDate
-                ? `${vi.debts.openingBalance} (${formatDate(customer.openingDate)})`
-                : vi.debts.openingBalance}
+              {sel.from
+                ? vi.debts.balanceBefore(sel.from.split('-').reverse().join('/'))
+                : customer.openingDate
+                  ? `${vi.debts.openingBalance} (${formatDate(customer.openingDate)})`
+                  : vi.debts.openingBalance}
             </td>
             <td className={cell}></td>
             <td className={cell}></td>
-            <td className={cell}>{formatVND(opening)}</td>
+            <td className={cell}>{formatVND(sel.openingOfRange)}</td>
           </tr>
-          {rows.map((row) => (
+          {sel.rows.map((row) => (
             <tr key={row.id} className="border-b">
-              <td className="p-2 whitespace-nowrap">{formatDate(row.date)}</td>
+              <td className="p-2 whitespace-nowrap">{formatDate(row.txDate)}</td>
               <td className="p-2">
                 <span className="font-medium">
                   {row.charge
@@ -207,9 +239,22 @@ export default async function CustomerLedgerPage({
             </tr>
           ))}
         </tbody>
+        {sel.rows.length ? (
+          <tfoot>
+            <tr className="font-semibold">
+              <td className="p-2"></td>
+              <td className="p-2">{vi.debts.total}</td>
+              <td className={cell}>{formatVND(sel.totals.charge)}</td>
+              <td className={cell}>{formatVND(sel.totals.payment)}</td>
+              <td className={cell}>{formatVND(sel.closingOfRange)}</td>
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
-      {rows.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{vi.debts.ledgerEmpty}</p>
+      {sel.rows.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          {hasCustomerLedgerFilter(sel) ? vi.debts.ledgerEmptyFiltered : vi.debts.ledgerEmpty}
+        </p>
       ) : null}
     </div>
   )

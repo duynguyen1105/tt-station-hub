@@ -1138,6 +1138,18 @@ export const vi = {
     ledgerPayment: 'Trả',
     openingBalance: 'Số dư đầu kỳ',
     ledgerEmpty: 'Chưa có giao dịch nào.',
+    // A bộ lọc that matched nothing, as opposed to a khách with no giao dịch at all.
+    ledgerEmptyFiltered: 'Không có giao dịch nào khớp bộ lọc.',
+    // The opening row once Từ ngày is set: the true Dư nợ carried into the range.
+    balanceBefore: (date: string) => `Dư nợ trước ${date}`,
+    // Bộ lọc of the sổ công nợ: loại giao dịch and biển số, beside ngày.
+    txType: 'Loại giao dịch',
+    allTxTypes: 'Tất cả giao dịch',
+    txTypeCount: (n: number) => `${n} loại giao dịch`,
+    clearTxTypeFilter: 'Bỏ lọc theo loại giao dịch',
+    allPlates: 'Tất cả biển số',
+    plateCount: (n: number) => `${n} biển số`,
+    clearPlateFilter: 'Bỏ lọc theo biển số',
     // Nợ đầu kỳ: admin sets it once, when the trạm starts using the app.
     openingEdit: 'Nợ đầu kỳ',
     openingTitle: (name: string) => `Nợ đầu kỳ — ${name}`,
