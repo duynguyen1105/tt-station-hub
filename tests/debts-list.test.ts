@@ -11,6 +11,7 @@ import {
   type DebtVisitInput,
   buildDebtsList,
   isVisitOfShiftDay,
+  photoInvoiceDate,
   shiftDayWindow,
 } from '@/lib/misa-export/debts-list'
 
@@ -331,3 +332,31 @@ function fuelTypeLabelFor(productCode: string | undefined): string {
   if (productCode === 'XA E0') return 'Xăng E0'
   return productCode ?? ''
 }
+
+describe('photoInvoiceDate', () => {
+  const day = (d: string) => ({ photoDate: new Date(`${d}T00:00:00Z`) })
+  const none = { photoDate: null }
+
+  it('is null when no photo showed a ngày', () => {
+    expect(photoInvoiceDate([])).toBeNull()
+    expect(photoInvoiceDate([none, none])).toBeNull()
+  })
+
+  it("is the photos' ngày, skipping visits without one", () => {
+    expect(photoInvoiceDate([none, day('2026-09-28'), day('2026-09-28')])).toEqual(
+      new Date('2026-09-28T00:00:00Z')
+    )
+  })
+
+  it('takes the most frequent ngày when the photos differ', () => {
+    expect(photoInvoiceDate([day('2026-09-29'), day('2026-09-28'), day('2026-09-28')])).toEqual(
+      new Date('2026-09-28T00:00:00Z')
+    )
+  })
+
+  it('breaks a tie toward the earliest ngày', () => {
+    expect(photoInvoiceDate([day('2026-09-29'), day('2026-09-28')])).toEqual(
+      new Date('2026-09-28T00:00:00Z')
+    )
+  })
+})

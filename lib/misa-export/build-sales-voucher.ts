@@ -137,7 +137,7 @@ export type MisaBuildInput = {
   // Each defaults to saleDate when the caller omits it.
   postingDate?: Date // Ngày hạch toán (*)
   voucherDate?: Date // Ngày chứng từ (*)
-  invoiceDate?: Date // Ngày hóa đơn
+  invoiceDate?: Date // Ngày hóa đơn — the route passes the ngày on the bán nợ photos
   stationConfig: StationConfig | null
   fuelMap: FuelMapEntry[]
   prices: RetailPrice[]

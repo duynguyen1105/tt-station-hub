@@ -31,6 +31,7 @@ type PreflightResult = {
   errors: PreflightError[]
   warnings: PreflightWarning[]
   cashVoucherCounts: Record<CashVoucherKind, number>
+  invoiceDate: string | null // yyyy-MM-dd — the ngày on the ca's bán nợ photos
 }
 
 /** The Settings screen that fixes each blocking error, given the station. */
@@ -57,7 +58,7 @@ export function ExportPreflightDialog({
 }: {
   shiftId: string
   stationCode: string
-  shiftDate: string // yyyy-MM-dd — default for the voucher dates
+  shiftDate: string // yyyy-MM-dd — default for the voucher dates (Ngày hóa đơn: when no photo ngày)
 }) {
   const fuelLabel = useFuelTypeLabel()
   const [open, setOpen] = useState(false)
@@ -76,7 +77,10 @@ export function ExportPreflightDialog({
     setLoadError(false)
     fetch(`/api/shifts/${shiftId}/export-misa?preflight=1`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then((data: PreflightResult) => setResult(data))
+      .then((data: PreflightResult) => {
+        setResult(data)
+        if (data.invoiceDate) setInvoiceDate(data.invoiceDate)
+      })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
   }

@@ -14,7 +14,7 @@ import {
   type StationConfig,
   buildMisaSalesVoucher,
 } from '@/lib/misa-export/build-sales-voucher'
-import { debtVisitSelection } from '@/lib/misa-export/debts-list'
+import { debtVisitSelection, photoInvoiceDate } from '@/lib/misa-export/debts-list'
 import { misaRowsToXlsxBuffer } from '@/lib/misa-export/shift-to-excel'
 import { prisma } from '@/lib/prisma'
 
@@ -32,7 +32,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const searchParams = new URL(req.url).searchParams
   const preflight = searchParams.get('preflight') === '1'
   const confirmed = searchParams.get('confirm') === '1'
-  // Accountant-set voucher dates (yyyy-MM-dd) for H/I/N; undefined → builder uses the sale date.
+  // Accountant-set voucher dates (yyyy-MM-dd) for H/I/N; undefined → the sale date, except
+  // Ngày hóa đơn, which defaults to the ngày on the ca's bán nợ photos (photoInvoiceDate).
   const parseDate = (s: string | null): Date | undefined => {
     if (!s) return undefined
     const d = new Date(s)
@@ -135,11 +136,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     misaCode: c.misaCode,
   }))
 
+  const photoDate = photoInvoiceDate(visitRows)
+
   const result = buildMisaSalesVoucher({
     saleDate: shiftDate,
     postingDate,
     voucherDate,
-    invoiceDate,
+    invoiceDate: invoiceDate ?? photoDate ?? undefined,
     stationConfig,
     fuelMap: fuelMapEntries,
     prices,
@@ -151,7 +154,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   // Preflight mode → per-fuel math + fix-list + warnings as JSON, no file generated. It also
   // says how many Phiếu thu / Phiếu chi lines the ca's Thu chi table holds, so the dialog can
-  // offer those two files (app/api/shifts/[id]/export-misa/cash) only when they have lines.
+  // offer those two files (app/api/shifts/[id]/export-misa/cash) only when they have lines,
+  // and the photo ngày the dialog pre-fills Ngày hóa đơn with (yyyy-MM-dd, null → none).
   if (preflight) {
     const cashEntries = await prisma.shiftCashEntry.findMany({
       where: { shiftId: id },
@@ -160,6 +164,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({
       stationId,
       fuelSummary: result.fuelSummary,
+      invoiceDate: photoDate ? photoDate.toISOString().slice(0, 10) : null,
       errors: result.errors,
       warnings: result.warnings,
       cashVoucherCounts: cashVoucherCounts(

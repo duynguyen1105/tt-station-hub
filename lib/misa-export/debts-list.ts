@@ -82,6 +82,26 @@ export function isVisitOfShiftDay(
   return visit.visitDate >= start && visit.visitDate < end
 }
 
+/**
+ * The ngày on the ca's bán nợ photos — the default Ngày hóa đơn of its MISA sales voucher,
+ * so công nợ lands on the day the khách took the fuel even when the ảnh came in a day late.
+ * A ca's photos almost always share one ngày; when they don't, the most frequent wins, and
+ * a tie goes to the earliest. Null when no photo showed a ngày (the export then uses the ca's).
+ */
+export function photoInvoiceDate(visits: { photoDate: Date | null }[]): Date | null {
+  const counts = new Map<number, number>()
+  for (const v of visits) {
+    if (v.photoDate === null) continue
+    const t = v.photoDate.getTime()
+    counts.set(t, (counts.get(t) ?? 0) + 1)
+  }
+  let best: [number, number] | null = null
+  for (const [t, n] of counts) {
+    if (best === null || n > best[1] || (n === best[1] && t < best[0])) best = [t, n]
+  }
+  return best === null ? null : new Date(best[0])
+}
+
 /** One debt visit as consumed by the on-page bán-nợ list (a projection of DebtVehicleVisit). */
 export type DebtVisitInput = {
   customerId: string | null
