@@ -268,6 +268,8 @@ export const vi = {
       `Trạm đã có ${name} — mỗi số trụ chỉ có một. Muốn ${name} lấy thêm từ hầm này thì bấm ⋯ ở dòng ${name} → Sửa, tích thêm hầm rồi Lưu.`,
     fuelRequired: 'Vui lòng chọn nhiên liệu.',
     meterRequired: 'Trụ phải có ít nhất một đồng hồ, nếu không ca sẽ không chờ ảnh nào của trụ.',
+    noElectronicMeter: 'Trụ không có đồng hồ điện tử.',
+    noMechanicalMeter: 'Trụ không có đồng hồ cơ.',
   },
 
   tanks: {
@@ -706,16 +708,32 @@ export const vi = {
     aiSaw: 'AI thấy',
     aiNotes: 'Ghi chú AI',
     pickDispenser: 'Chọn trụ',
+    pickSlot: 'Loại đồng hồ',
     assign: 'Gán vào trụ',
+    unread: 'Chưa đọc được',
     assigned: 'Đã gán ảnh vào trụ và đọc lại số.',
     notAssignable: 'Ảnh này không thuộc ca nào hoặc không còn file gốc.',
     slotMissing: 'Trụ này không có loại đồng hồ đã chọn.',
     reason: {
       debt_unreconciled:
-        'Gửi trong ngữ cảnh công nợ nhưng không phải ảnh xe hay màn hình bán lẻ (tiền ≠ lít × đơn giá).',
+        'Ảnh gửi kèm bán nợ nhưng không phải ảnh xe, cũng không phải màn hình bán lẻ có đủ số tiền, số lít và đơn giá khớp nhau.',
       dip_without_value:
-        'Máy xếp là ảnh đo bồn nhưng không đọc được số đo — khả năng là ảnh trụ bị nhãn che.',
-      extraction_failed: 'Đọc ảnh thất bại.',
+        'Trông giống ảnh đo bồn nhưng không thấy số đo. Có thể là ảnh trụ bị che mất tên trụ.',
+      extraction_failed:
+        'Không đọc được ảnh này (ảnh mờ hoặc lỗi tạm thời). Gán vào trụ để đọc lại.',
+    },
+    // Lời giải thích cho người dùng khi ảnh không có lý do riêng — theo loại ảnh AI nhận ra.
+    hint: {
+      electronic_meter:
+        'Ảnh đồng hồ điện tử nhưng chưa biết của trụ nào (không đọc được tên trụ, hoặc trụ đó đã được duyệt).',
+      mechanical_meter:
+        'Ảnh đồng hồ cơ nhưng chưa biết của trụ nào (không đọc được tên trụ, hoặc trụ đó đã được duyệt).',
+      debt_meter:
+        'Ảnh màn hình số tiền của một lần bơm, không phải số chốt ca. Nếu đây là ảnh số chốt của trụ, hãy gán vào trụ.',
+      vehicle: 'Ảnh xe hoặc can, không có số đồng hồ.',
+      tank_dip: 'Ảnh đo bồn, không phải ảnh đồng hồ trụ.',
+      label_only: 'Ảnh chỉ có tên trụ, không thấy số đồng hồ.',
+      not_relevant: 'Không thấy trụ hay đồng hồ nào trong ảnh.',
     },
     routerType: {
       electronic_meter: 'Đồng hồ điện tử',

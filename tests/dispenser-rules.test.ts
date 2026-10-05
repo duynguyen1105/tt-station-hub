@@ -4,6 +4,7 @@ import {
   dispenserFuelFor,
   dispenserFuelOptions,
   refuseDispenserShape,
+  refuseMeterPatch,
 } from '@/lib/dispensers/rules'
 import { vi } from '@/messages/vi'
 
@@ -62,5 +63,31 @@ describe('dispenserFuelOptions', () => {
       ...sold,
       { fuelType: 'E5', name: 'Xăng E5' },
     ])
+  })
+})
+
+describe('refuseMeterPatch', () => {
+  const electronicOnly = { hasElectronicMeter: true, hasMechanicalMeter: false }
+  const mechanicalOnly = { hasElectronicMeter: false, hasMechanicalMeter: true }
+
+  it('writes a chỉ số on a đồng hồ the trụ has', () => {
+    expect(refuseMeterPatch(electronicOnly, { electronicReading: '11761.4' })).toBeNull()
+    expect(refuseMeterPatch(mechanicalOnly, { openingMechanicalReading: '100' })).toBeNull()
+  })
+
+  it('refuses a chỉ số on a đồng hồ the trụ does not have', () => {
+    expect(refuseMeterPatch(electronicOnly, { mechanicalReading: '5' })).toBe(
+      vi.dispensers.noMechanicalMeter
+    )
+    expect(refuseMeterPatch(electronicOnly, { openingMechanicalReading: '5' })).toBe(
+      vi.dispensers.noMechanicalMeter
+    )
+    expect(refuseMeterPatch(mechanicalOnly, { electronicReading: '5' })).toBe(
+      vi.dispensers.noElectronicMeter
+    )
+  })
+
+  it('lets a leftover chỉ số on a missing đồng hồ be cleared', () => {
+    expect(refuseMeterPatch(electronicOnly, { mechanicalReading: null })).toBeNull()
   })
 })

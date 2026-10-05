@@ -32,6 +32,21 @@ export const ROUTER_IMAGE_TYPES: readonly RouterResult['image_type'][] = [
   'not_relevant',
 ]
 
+// Letters only Vietnamese writes: the toned/hooked vowels and đ.
+const VIETNAMESE_LETTER = /[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]/i
+
+/**
+ * Whether a note reads as Vietnamese prose rather than English that quotes a few
+ * printed labels ("The label reads TRỤ 1"). Vietnamese sentences put a marked
+ * letter in well over a quarter of their words; English quoting labels does not.
+ */
+export function isVietnamese(text: string): boolean {
+  const words = text.split(/\s+/).filter((w) => /\p{L}/u.test(w))
+  if (words.length === 0) return false
+  const marked = words.filter((w) => VIETNAMESE_LETTER.test(w)).length
+  return marked / words.length >= 0.25
+}
+
 /** The ShiftPhoto columns that keep a photo visible in its ca's unmatched list, with why. */
 export function unmatchedTrace(
   reason: UnmatchedReason,
@@ -58,7 +73,11 @@ export function unmatchedTrace(
 export type UnmatchedPhotoTrace = {
   reason: UnmatchedReason | null
   routerType: RouterResult['image_type'] | null
-  /** What the AI said about the frame — the reader's notes, else the router's. */
+  /**
+   * What the AI said about the frame — the reader's notes, else the router's.
+   * Null when they are not Vietnamese: photos read before the readers were told
+   * to write Vietnamese carry English notes full of internal terms.
+   */
   notes: string | null
   error: string | null
 }
@@ -85,7 +104,7 @@ export function unmatchedPhotoTrace(raw: unknown): UnmatchedPhotoTrace {
       (ROUTER_IMAGE_TYPES as readonly string[]).includes(routerType)
         ? (routerType as RouterResult['image_type'])
         : null,
-    notes: typeof notes === 'string' && notes.trim() ? notes : null,
+    notes: typeof notes === 'string' && isVietnamese(notes) ? notes.trim() : null,
     error: typeof obj.error === 'string' ? obj.error : null,
   }
 }

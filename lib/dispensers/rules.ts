@@ -36,6 +36,38 @@ export function refuseDispenserShape(shape: DispenserShape): string | null {
   return null
 }
 
+/** The chỉ số a correction writes, by đồng hồ — `undefined` untouched, `null` cleared. */
+export type MeterPatch = {
+  openingElectronicReading?: string | null
+  electronicReading?: string | null
+  openingMechanicalReading?: string | null
+  mechanicalReading?: string | null
+}
+
+/**
+ * Why this chỉ số cannot be written to this trụ, or null when it can.
+ *
+ * A trụ with only one đồng hồ has no chỉ số on the other: a value keyed there would
+ * count litres on a meter that does not exist. Clearing one is let through, so a value
+ * left from before the trụ's đồng hồ were changed can still be taken off.
+ */
+export function refuseMeterPatch(shape: DispenserShape, patch: MeterPatch): string | null {
+  const writes = (value: string | null | undefined) => value !== undefined && value !== null
+  if (
+    !shape.hasElectronicMeter &&
+    (writes(patch.openingElectronicReading) || writes(patch.electronicReading))
+  ) {
+    return vi.dispensers.noElectronicMeter
+  }
+  if (
+    !shape.hasMechanicalMeter &&
+    (writes(patch.openingMechanicalReading) || writes(patch.mechanicalReading))
+  ) {
+    return vi.dispensers.noMechanicalMeter
+  }
+  return null
+}
+
 /** A nhiên liệu as an ô chọn shows it: the khóa it writes, and the tên it reads. */
 export type DispenserFuelOption = { fuelType: string; name: string }
 

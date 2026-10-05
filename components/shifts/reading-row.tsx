@@ -51,6 +51,10 @@ export type ReadingRowData = {
   stationCode?: string | null
   dispenserName: string
   fuelType: string
+  // The đồng hồ the trụ has. A trụ with only one has no chỉ số on the other,
+  // so that meter's cells are shown blank and cannot be typed into.
+  hasElectronicMeter: boolean
+  hasMechanicalMeter: boolean
   openingElectronicReading: string | null
   electronicReading: string | null
   openingMechanicalReading: string | null
@@ -203,7 +207,7 @@ function MeterLiters({
   value: number | null
   divergence?: number | null
 }) {
-  if (value === null) return <span className="text-muted-foreground">—</span>
+  if (value === null) return null
   if (divergence === null) return <>{formatLiters(value)}</>
   return <span className="text-amber-700 dark:text-amber-400">{formatLiters(value)}</span>
 }
@@ -418,43 +422,47 @@ export function ReadingRow({
         <div className="text-muted-foreground text-xs">{fuelLabel(data.fuelType)}</div>
       </td>
       <td className="p-2 font-mono">
-        <EditableReading
-          value={data.openingElectronicReading}
-          canEdit={adminOpening}
-          lockHint={showLocks ? openingLockHint : undefined}
-          busy={busy}
-          onSave={(next) => saveField('correct-opening', 'openingElectronicReading', next)}
-        />
+        {data.hasElectronicMeter && (
+          <EditableReading
+            value={data.openingElectronicReading}
+            canEdit={adminOpening}
+            lockHint={showLocks ? openingLockHint : undefined}
+            busy={busy}
+            onSave={(next) => saveField('correct-opening', 'openingElectronicReading', next)}
+          />
+        )}
       </td>
       <td className="p-2 font-mono">
-        <EditableReading
-          value={data.electronicReading}
-          canEdit={mayEditClosing}
-          lockHint={
-            showLocks
-              ? frozen && !completed
-                ? vi.correction.decisionLocked
-                : vi.correction.closingLocked
-              : undefined
-          }
-          confidence={data.electronicConfidence}
-          busy={busy}
-          leading={
-            <>
-              <SlotPhotos
-                photos={data.electronicPhotos}
-                label={vi.correction.closingElectronicLabel}
-                slots={electronicSlots}
-                canDetach={mayEditClosing}
-                rowBusy={busy}
-              />
-              {closingBelowOpening(data.openingElectronicReading, data.electronicReading) && (
-                <ClosingBelowOpeningIcon />
-              )}
-            </>
-          }
-          onSave={(next) => saveField('correct-closing', 'electronicReading', next)}
-        />
+        {data.hasElectronicMeter && (
+          <EditableReading
+            value={data.electronicReading}
+            canEdit={mayEditClosing}
+            lockHint={
+              showLocks
+                ? frozen && !completed
+                  ? vi.correction.decisionLocked
+                  : vi.correction.closingLocked
+                : undefined
+            }
+            confidence={data.electronicConfidence}
+            busy={busy}
+            leading={
+              <>
+                <SlotPhotos
+                  photos={data.electronicPhotos}
+                  label={vi.correction.closingElectronicLabel}
+                  slots={electronicSlots}
+                  canDetach={mayEditClosing}
+                  rowBusy={busy}
+                />
+                {closingBelowOpening(data.openingElectronicReading, data.electronicReading) && (
+                  <ClosingBelowOpeningIcon />
+                )}
+              </>
+            }
+            onSave={(next) => saveField('correct-closing', 'electronicReading', next)}
+          />
+        )}
       </td>
       {data.totals && (
         <td className="p-2 font-mono whitespace-nowrap">
@@ -462,43 +470,47 @@ export function ReadingRow({
         </td>
       )}
       <td className="p-2 font-mono">
-        <EditableReading
-          value={data.openingMechanicalReading}
-          canEdit={adminOpening}
-          lockHint={showLocks ? openingLockHint : undefined}
-          busy={busy}
-          onSave={(next) => saveField('correct-opening', 'openingMechanicalReading', next)}
-        />
+        {data.hasMechanicalMeter && (
+          <EditableReading
+            value={data.openingMechanicalReading}
+            canEdit={adminOpening}
+            lockHint={showLocks ? openingLockHint : undefined}
+            busy={busy}
+            onSave={(next) => saveField('correct-opening', 'openingMechanicalReading', next)}
+          />
+        )}
       </td>
       <td className="p-2 font-mono">
-        <EditableReading
-          value={data.mechanicalReading}
-          canEdit={mayEditClosing}
-          lockHint={
-            showLocks
-              ? frozen && !completed
-                ? vi.correction.decisionLocked
-                : vi.correction.closingLocked
-              : undefined
-          }
-          confidence={data.mechanicalConfidence}
-          busy={busy}
-          leading={
-            <>
-              <SlotPhotos
-                photos={data.mechanicalPhotos}
-                label={vi.correction.closingMechanicalLabel}
-                slots={mechanicalSlots}
-                canDetach={mayEditClosing}
-                rowBusy={busy}
-              />
-              {closingBelowOpening(data.openingMechanicalReading, data.mechanicalReading) && (
-                <ClosingBelowOpeningIcon />
-              )}
-            </>
-          }
-          onSave={(next) => saveField('correct-closing', 'mechanicalReading', next)}
-        />
+        {data.hasMechanicalMeter && (
+          <EditableReading
+            value={data.mechanicalReading}
+            canEdit={mayEditClosing}
+            lockHint={
+              showLocks
+                ? frozen && !completed
+                  ? vi.correction.decisionLocked
+                  : vi.correction.closingLocked
+                : undefined
+            }
+            confidence={data.mechanicalConfidence}
+            busy={busy}
+            leading={
+              <>
+                <SlotPhotos
+                  photos={data.mechanicalPhotos}
+                  label={vi.correction.closingMechanicalLabel}
+                  slots={mechanicalSlots}
+                  canDetach={mayEditClosing}
+                  rowBusy={busy}
+                />
+                {closingBelowOpening(data.openingMechanicalReading, data.mechanicalReading) && (
+                  <ClosingBelowOpeningIcon />
+                )}
+              </>
+            }
+            onSave={(next) => saveField('correct-closing', 'mechanicalReading', next)}
+          />
+        )}
       </td>
       {data.totals && (
         <>
@@ -520,11 +532,7 @@ export function ReadingRow({
             />
           </td>
           <td className="p-2 font-mono whitespace-nowrap">
-            {data.totals.amount === null ? (
-              <span className="text-muted-foreground">—</span>
-            ) : (
-              formatVND(data.totals.amount)
-            )}
+            {data.totals.amount !== null && formatVND(data.totals.amount)}
           </td>
         </>
       )}

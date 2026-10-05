@@ -332,6 +332,8 @@ export default async function ShiftDetailPage({
       // The nhiên liệu this ca was recorded against; a trụ with no reading yet
       // shows what it pumps today.
       fuelType: r?.fuelType ?? d.fuelType,
+      hasElectronicMeter: d.hasElectronicMeter,
+      hasMechanicalMeter: d.hasMechanicalMeter,
       openingElectronicReading: r?.openingElectronicReading?.toString() ?? null,
       electronicReading: r?.electronicReading?.toString() ?? null,
       openingMechanicalReading: r?.openingMechanicalReading?.toString() ?? null,
@@ -397,7 +399,6 @@ export default async function ShiftDetailPage({
       routerType: trace.routerType,
       reason: trace.reason,
       notes: trace.notes,
-      error: trace.error,
       extractedReading: p.extractedReading?.toString() ?? null,
     }
   })

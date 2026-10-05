@@ -168,6 +168,9 @@ export default async function ReviewShiftsPage({
                 stationCode: station?.code ?? '—',
                 dispenserName: dispenser?.displayName ?? '—',
                 fuelType: reading.fuelType,
+                // A trụ since removed shows both, as it was read.
+                hasElectronicMeter: dispenser?.hasElectronicMeter ?? true,
+                hasMechanicalMeter: dispenser?.hasMechanicalMeter ?? true,
                 openingElectronicReading: reading.openingElectronicReading?.toString() ?? null,
                 electronicReading: reading.electronicReading?.toString() ?? null,
                 openingMechanicalReading: reading.openingMechanicalReading?.toString() ?? null,

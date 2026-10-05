@@ -1,5 +1,7 @@
 'use client'
 
+import { Trash2 } from 'lucide-react'
+
 import { useState } from 'react'
 
 import { PhotoView } from '@/components/shared/photo-view'
@@ -40,8 +42,8 @@ export type UnmatchedPhotoData = {
   /** What the router called the frame, when it answered. */
   routerType: RouterResult['image_type'] | null
   reason: UnmatchedReason | null
+  /** The AI's own description of the frame, Vietnamese only (null for older English notes). */
   notes: string | null
-  error: string | null
   /** The number the shift reader got off it, if any — shown so the reviewer can sanity-check before gán. */
   extractedReading: string | null
 }
@@ -82,7 +84,7 @@ export function UnmatchedPhotos({
             <th className="p-2">{vi.shifts.debtPhotos}</th>
             <th className="p-2">{vi.unmatchedPhotos.receivedAt}</th>
             <th className="p-2">{vi.unmatchedPhotos.aiSaw}</th>
-            <th className="p-2"></th>
+            {canAssign && <th className="p-2"></th>}
           </tr>
         </thead>
         <tbody>
@@ -131,7 +133,13 @@ function UnmatchedPhotoRow({
 
   const label = photo.routerType
     ? vi.unmatchedPhotos.routerType[photo.routerType]
-    : vi.unmatchedPhotos.reason.extraction_failed
+    : vi.unmatchedPhotos.unread
+  // Plain Vietnamese for the reviewer — never the AI's own (English, technical) notes.
+  const explanation = photo.reason
+    ? vi.unmatchedPhotos.reason[photo.reason]
+    : photo.routerType
+      ? vi.unmatchedPhotos.hint[photo.routerType]
+      : vi.unmatchedPhotos.reason.extraction_failed
 
   return (
     <tr className="border-b align-top">
@@ -159,23 +167,30 @@ function UnmatchedPhotoRow({
             <span className="font-mono">{photo.extractedReading}</span>
           )}
         </div>
-        {photo.reason && (
-          <div className="text-xs text-amber-700 dark:text-amber-400">
-            {vi.unmatchedPhotos.reason[photo.reason]}
-          </div>
-        )}
+        <div
+          className={
+            photo.reason
+              ? 'text-xs text-amber-700 dark:text-amber-400'
+              : 'text-muted-foreground text-xs'
+          }
+        >
+          {explanation}
+        </div>
         {photo.notes && (
           <div className="text-muted-foreground text-xs">
             {vi.unmatchedPhotos.aiNotes}: {photo.notes}
           </div>
         )}
-        {photo.error && <div className="text-destructive text-xs">{photo.error}</div>}
       </td>
-      <td className="p-2">
-        {canAssign && (
-          <div className="flex flex-wrap items-center justify-end gap-1">
+      {canAssign && (
+        <td className="w-80 p-2">
+          <div className="grid grid-cols-[1fr_8rem] gap-2">
             <Select value={dispenserId} onValueChange={setDispenserId} disabled={busy}>
-              <SelectTrigger className="w-36">
+              <SelectTrigger
+                size="sm"
+                className="w-full"
+                aria-label={vi.unmatchedPhotos.pickDispenser}
+              >
                 <SelectValue placeholder={vi.unmatchedPhotos.pickDispenser} />
               </SelectTrigger>
               <SelectContent>
@@ -187,8 +202,8 @@ function UnmatchedPhotoRow({
               </SelectContent>
             </Select>
             <Select value={slot} onValueChange={(v) => setSlot(v as MeterSlot)} disabled={busy}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
+              <SelectTrigger size="sm" className="w-full" aria-label={vi.unmatchedPhotos.pickSlot}>
+                <SelectValue placeholder={vi.unmatchedPhotos.pickSlot} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="electronic" disabled={dispenser?.hasElectronicMeter === false}>
@@ -201,7 +216,7 @@ function UnmatchedPhotoRow({
             </Select>
             <Button
               size="sm"
-              variant="outline"
+              className="w-full"
               disabled={busy || !slotOffered}
               loading={busy}
               onClick={assign}
@@ -210,7 +225,13 @@ function UnmatchedPhotoRow({
             </Button>
             <AlertDialog open={removing} onOpenChange={setRemoving}>
               <AlertDialogTrigger asChild>
-                <Button size="sm" variant="destructive" disabled={busy}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive w-full"
+                  disabled={busy}
+                >
+                  <Trash2 />
                   {vi.photoFix.delete}
                 </Button>
               </AlertDialogTrigger>
@@ -239,8 +260,8 @@ function UnmatchedPhotoRow({
               </AlertDialogContent>
             </AlertDialog>
           </div>
-        )}
-      </td>
+        </td>
+      )}
     </tr>
   )
 }

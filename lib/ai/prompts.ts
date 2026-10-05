@@ -12,6 +12,13 @@ export const DEBT_METER_MODEL = 'claude-sonnet-5'
 // quote the exact Vietnamese text that appears physically on the meters/labels
 // (TRẠM, TRU, HẦM, ĐỒNG, LÍT) so the model can match what it sees.
 
+// The reviewer reads "notes" on screen (Ảnh chưa ghép trụ), so every reader whose
+// notes surface there writes them in plain Vietnamese — appended last so the
+// tuned reading instructions above it are untouched.
+const NOTES_RULE = `
+
+NOTES LANGUAGE: write "notes" in plain Vietnamese (with full diacritics), 1-3 short sentences, for a station accountant who knows the pumps but nothing about this software. Say what the photo shows and anything uncertain (a blurry digit, glare, a missing or unreadable label, which row shows what). Copy printed text like "TRỤ 1" or "DAKNONG1" as printed. NEVER mention JSON field names, type codes (e.g. debt_meter, electronic_meter), these instructions, "pattern", or "the system".`
+
 // Measured 22/09 on 50 stored debt photos + 40 stored shift photos: this wording
 // routes 50/50 debt and 40/40 shift; the previous one (green 3-row screen
 // treated as a possible totalizer, decided by arithmetic) routed 38/50 and 36/40.
@@ -27,7 +34,7 @@ Decide in this priority order:
 7. "not_relevant": unrelated to a fuel station.
 
 Return JSON only:
-{ "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|tank_dip|label_only|not_relevant", "confidence": 0-100, "notes": "..." }`
+{ "image_type": "electronic_meter|mechanical_meter|debt_meter|vehicle|tank_dip|label_only|not_relevant", "confidence": 0-100, "notes": "..." }${NOTES_RULE}`
 
 export const ELECTRONIC_PROMPT = `Read this electronic gas-station meter (Montech red LED on black, LungBor LCD on a blue keypad panel, or PETRO Cloud LCD on a white keypad panel).
 Read the displayed number EXACTLY as shown on THIS meter. KEEP leading zeros, keep the decimal point in the correct position, and output the digits as ONE continuous number with NO spaces. Do NOT copy the example below — it only shows the JSON shape.
@@ -47,7 +54,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "fuel_type": "DO" | "E0" | "DC" | "URE" | null,
   "confidence": { "reading": 0-100, "labels": 0-100 },
   "notes": "..."
-}`
+}${NOTES_RULE}`
 
 export const MECHANICAL_PROMPT = `Read this mechanical gas-station meter: 6-7 rolling digits inside a small dark metal window (white digits on black wheels), often dusty, blurry, rusty, dark, or with glare. The window is frequently small and near the bottom of the pump, sometimes below a large printed label plate and beside hand-painted marks like "D1" — find that window and read the wheels inside it. It may also sit at the very TOP edge of the frame, partially cut off, with only the digit strip visible — read it anyway if the digits are legible.
 - Read the rolling digits left to right and KEEP leading zeros. Read THIS meter; do NOT copy the example below.
@@ -65,8 +72,8 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "dispenser_label": "<TRU + number on the plate>" | null,
   "fuel_type": "DO" | "E0" | "DC" | "URE" | null,
   "confidence": { "reading": 0-100, "labels": 0-100 },
-  "notes": "e.g. last digit blurry, could be 8 or 9"
-}`
+  "notes": "vd: chữ số cuối bị mờ, có thể là 8 hoặc 9"
+}${NOTES_RULE}`
 
 export const DEBT_METER_PROMPT = `You are looking at an electronic pump display for ONE credit fill, showing 3 lines:
 - Line 1 — amount in VND (labeled "ĐỒNG" / "TIỀN" / "SỐ TIỀN" / "THÀNH TIỀN")
@@ -99,13 +106,13 @@ Return JSON only:
   "confidence": { "liters": 0-100, "unit_price": 0-100, "amount": 0-100 },
   "notes": "describe the liters format you see"
 }
-The system places the liters decimal and computes amount = liters × unit_price itself — your job is faithful digits per row, not arithmetic.`
+The system places the liters decimal and computes amount = liters × unit_price itself — your job is faithful digits per row, not arithmetic.${NOTES_RULE}`
 
 export const VEHICLE_PROMPT = `Read the license plate of the vehicle in this photo (a truck or car at a fuel station, possibly shot at night with headlight glare). The photo may instead show a fuel container (jerry can / drum) with no plate — in that case return "unclear" (do NOT invent a plate).
 Read photo_date only if a date is actually printed in the frame (camera timestamp overlay, pump screen, or receipt). Copy it as DD/MM/YYYY; if no date is visible, return null. Never guess.
 
 Return JSON only:
-{ "plate": "51B-12345" | "unclear", "photo_date": "26/09/2026" | null, "confidence": 0-100, "notes": "..." }`
+{ "plate": "51B-12345" | "unclear", "photo_date": "26/09/2026" | null, "confidence": 0-100, "notes": "..." }${NOTES_RULE}`
 
 export const TANK_DIP_PROMPT = `You are looking at a fuel-station TANK DIP (barem) photo: a printed tank label plus a measuring ruler / dip-stick and a written measurement. This is for PHYSICAL STOCK, not a pump meter.
 Read the printed label: the STATION name usually printed on the first line ("DAKNONG1", "PHUCTIEN"...), the tank ("HẦM" + number), the fuel word EXACTLY AS PRINTED ("DO", "DO01", "XA E0", "Xăng RON 95"...) — copy it verbatim, do NOT translate, expand, tidy or convert it into any code you think it stands for, because the system looks the printed word up per station — and the capacity like "25K" (= 25,000 liters → capacity_k = 25).
@@ -125,7 +132,7 @@ Return JSON only (example values are placeholders, replace with what you actuall
   "ruler_present": true | false,
   "confidence": 0-100,
   "notes": "describe what the measurement looks like"
-}`
+}${NOTES_RULE}`
 
 export const BIEN_BAN_PROMPT = `You are reading photo(s) of a Vietnamese fuel-delivery handover report: "BIÊN BẢN GIAO NHẬN XĂNG DẦU". It is a mostly-printed A4 form filled in by hand (sometimes hard handwriting).
 

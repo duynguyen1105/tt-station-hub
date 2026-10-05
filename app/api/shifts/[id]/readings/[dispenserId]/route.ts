@@ -12,6 +12,7 @@ import {
 } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { refuseMeterPatch } from '@/lib/dispensers/rules'
 import { prisma } from '@/lib/prisma'
 import { applyReadingCorrection } from '@/lib/readings/apply-correction'
 import { openingReadingsFor, shiftLockRefusal } from '@/lib/shifts/opening-reading'
@@ -58,6 +59,8 @@ export async function POST(
     where: { id: dispenserId, stationId: shift.stationId, isActive: true },
   })
   if (!dispenser) return notFound()
+  const meterRefusal = refuseMeterPatch(dispenser, patch)
+  if (meterRefusal) return badRequest(meterRefusal)
 
   const touchesOpening =
     patch.openingElectronicReading !== undefined || patch.openingMechanicalReading !== undefined

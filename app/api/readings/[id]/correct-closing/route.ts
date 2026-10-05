@@ -6,6 +6,7 @@ import { badRequest, forbidden, notFound, ok, unauthorized } from '@/lib/api/res
 import { type ShiftStatus, canEditClosing, isReadingFrozen } from '@/lib/auth/reading-policy'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
+import { refuseMeterPatch } from '@/lib/dispensers/rules'
 import { prisma } from '@/lib/prisma'
 import { applyReadingCorrection } from '@/lib/readings/apply-correction'
 import { shiftLockRefusal } from '@/lib/shifts/opening-reading'
@@ -34,6 +35,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (isReadingFrozen(user.role, reading.reviewStatus)) return forbidden()
   const dispenser = await prisma.dispenser.findUnique({ where: { id: reading.dispenserId } })
   if (!dispenser) return notFound()
+  const meterRefusal = refuseMeterPatch(dispenser, parsed.data)
+  if (meterRefusal) return badRequest(meterRefusal)
 
   const updated = await applyReadingCorrection({
     shiftId: reading.shiftId,
