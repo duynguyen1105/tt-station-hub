@@ -88,7 +88,7 @@ export default async function MisaPricesPage() {
               {/* A nhiên liệu priced the same everywhere gets one cell across both cột
                   vùng — kế toán reads one number because there is only one. */}
               {entry.areaIndependent ? (
-                <td className="p-2 align-top" colSpan={AREA_COLUMNS.length}>
+                <td className="p-2 align-middle" colSpan={AREA_COLUMNS.length}>
                   <PriceHistoryDialog
                     fuelLabel={entry.name}
                     areaLabel={vi.misaSettings.bothAreas}
@@ -100,7 +100,7 @@ export default async function MisaPricesPage() {
                 </td>
               ) : (
                 AREA_COLUMNS.map((area) => (
-                  <td key={area} className="p-2 align-top">
+                  <td key={area} className="p-2 align-middle">
                     <PriceHistoryDialog
                       fuelLabel={entry.name}
                       areaLabel={vi.fuelArea[area]}
@@ -112,7 +112,7 @@ export default async function MisaPricesPage() {
                   </td>
                 ))
               )}
-              <td className="p-2 align-top">
+              <td className="p-2 align-middle">
                 {/* The four fields the row's menu acts on, not the whole board row:
                     `cells` would ship every price on the row into the RSC payload a
                     second time. */}

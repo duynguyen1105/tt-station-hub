@@ -415,8 +415,8 @@ export function ReadingRow({
   }
 
   return (
-    <tr className="border-b align-top">
-      {data.stationCode != null && <td className="p-2 align-middle">{data.stationCode}</td>}
+    <tr className="border-b align-middle">
+      {data.stationCode != null && <td className="p-2">{data.stationCode}</td>}
       <td className="p-2">
         <div className="font-medium">{data.dispenserName}</div>
         <div className="text-muted-foreground text-xs">{fuelLabel(data.fuelType)}</div>

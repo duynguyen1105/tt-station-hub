@@ -519,13 +519,13 @@ export function FuelMix({
                         {t.priceToday}: {price === undefined ? '—' : formatVND(price)}
                       </span>
                     </td>
-                    <td className="readout py-2 text-right align-top">
+                    <td className="readout py-2 text-right align-middle">
                       {liters0(sold?.liters ?? 0)}
                       <span className="text-muted-foreground block text-xs">
                         {(((sold?.liters ?? 0) / month.liters) * 100).toFixed(0)}%
                       </span>
                     </td>
-                    <td className="readout py-2 text-right align-top">
+                    <td className="readout py-2 text-right align-middle">
                       {formatVND(sold?.amount ?? 0)}
                     </td>
                   </tr>

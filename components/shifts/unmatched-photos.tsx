@@ -142,7 +142,7 @@ function UnmatchedPhotoRow({
       : vi.unmatchedPhotos.reason.extraction_failed
 
   return (
-    <tr className="border-b align-top">
+    <tr className="border-b align-middle">
       <td className="p-2">
         <PhotoView
           url={photo.url}
