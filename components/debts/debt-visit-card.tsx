@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { CustomerForm } from '@/components/debts/customer-form'
 import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
 import { NoStationFuels } from '@/components/fuels/no-station-fuels'
+import { MoneyInput } from '@/components/shared/money-input'
 import { StatusBadge } from '@/components/shared/status-badge'
 import {
   AlertDialog,
@@ -606,12 +607,7 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="unitPrice">{vi.debts.unitPrice}</FieldLabel>
-                      <Input
-                        id="unitPrice"
-                        inputMode="numeric"
-                        value={unitPrice}
-                        onChange={(e) => setUnitPrice(e.target.value)}
-                      />
+                      <MoneyInput id="unitPrice" value={unitPrice} onValueChange={setUnitPrice} />
                       {data.boardPrice !== null && (
                         <FieldDescription>
                           {vi.debtReview.boardPrice}:{' '}
@@ -630,11 +626,10 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
                       <span>{vi.debtReview.amountManualToggle}</span>
                     </label>
                     {overrideOn && (
-                      <Input
+                      <MoneyInput
                         id="amountOverride"
-                        inputMode="numeric"
                         value={overrideAmount}
-                        onChange={(e) => setOverrideAmount(e.target.value)}
+                        onValueChange={setOverrideAmount}
                       />
                     )}
                     <FieldDescription>

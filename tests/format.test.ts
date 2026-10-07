@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import { parseNumericString } from '@/lib/ai/extract-visit'
-import { formatDate, formatDateTime, formatLiters, formatVND, groupThousands } from '@/lib/format'
+import {
+  caretAfterDigits,
+  formatDate,
+  formatDateTime,
+  formatLiters,
+  formatVND,
+  groupMoney,
+  groupThousands,
+  moneyDigits,
+} from '@/lib/format'
 
 // Company rule (Trường Thịnh): the DECIMAL separator is always "." — "," is only
 // ever a thousands separator. Numbers must stay calculation-friendly (Excel/MISA).
@@ -49,6 +58,29 @@ describe('groupThousands', () => {
     expect(groupThousands('abc')).toBe('')
     expect(groupThousands('0')).toBe('0')
     expect(groupThousands('007000')).toBe('7,000')
+  })
+})
+
+describe('money field helpers', () => {
+  it('strips a grouped amount back to digits', () => {
+    expect(moneyDigits('29,710 đ')).toBe('29710')
+    expect(moneyDigits('')).toBe('')
+    expect(moneyDigits('-1,500')).toBe('1500')
+    expect(moneyDigits('-1,500', true)).toBe('-1500')
+    expect(moneyDigits('-', true)).toBe('-')
+  })
+  it('groups a plain amount, keeping a minus', () => {
+    expect(groupMoney('29710')).toBe('29,710')
+    expect(groupMoney('-1234500')).toBe('-1,234,500')
+    expect(groupMoney('-')).toBe('-')
+    expect(groupMoney('')).toBe('')
+  })
+  it('finds the caret after n digits, skipping commas', () => {
+    expect(caretAfterDigits('1,234,500', 0)).toBe(0)
+    expect(caretAfterDigits('1,234,500', 1)).toBe(1)
+    expect(caretAfterDigits('1,234,500', 2)).toBe(3)
+    expect(caretAfterDigits('1,234,500', 7)).toBe(9)
+    expect(caretAfterDigits('-1,234', 2)).toBe(2)
   })
 })
 

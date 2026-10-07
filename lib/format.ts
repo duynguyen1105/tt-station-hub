@@ -49,6 +49,38 @@ export function groupThousands(value: string): string {
 }
 
 /**
+ * The plain amount behind a grouped money field: "1,234,500 đ" -> "1234500".
+ * A leading minus survives only when the field allows negatives (a khách trả trước).
+ */
+export function moneyDigits(value: string, allowNegative = false): string {
+  const negative = allowNegative && value.trim().startsWith('-')
+  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  return negative ? `-${digits}` : digits
+}
+
+/**
+ * A plain amount grouped for a money field: "-1234500" -> "-1,234,500".
+ * A lone "-" stays so the user can go on typing a negative amount.
+ */
+export function groupMoney(value: string): string {
+  const grouped = groupThousands(value)
+  return value.trim().startsWith('-') ? `-${grouped}` : grouped
+}
+
+/**
+ * Where the caret sits in `display` once `count` digits (or minus) lie before it —
+ * keeps the caret in place while a money field regroups under the user's typing.
+ */
+export function caretAfterDigits(display: string, count: number): number {
+  if (count <= 0) return 0
+  let seen = 0
+  for (let i = 0; i < display.length; i++) {
+    if (/[\d-]/.test(display.charAt(i)) && ++seen === count) return i + 1
+  }
+  return display.length
+}
+
+/**
  * Liters with comma thousands and a fixed number of decimals (default 2):
  * 1234.5 -> "1,234.50". Debt cards pass 3 to mirror the pump's LÍT row.
  */

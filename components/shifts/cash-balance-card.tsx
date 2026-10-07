@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { MoneyInput } from '@/components/shared/money-input'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -158,12 +159,7 @@ function CashOpeningDialog({ stationId, defaultDate }: { stationId: string; defa
         <div className="grid gap-3">
           <Field>
             <FieldLabel htmlFor="cash-opening-amount">{t.amount}</FieldLabel>
-            <Input
-              id="cash-opening-amount"
-              inputMode="numeric"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+            <MoneyInput id="cash-opening-amount" value={amount} onValueChange={setAmount} />
           </Field>
           <Field>
             <FieldLabel htmlFor="cash-opening-date">{t.effectiveDate}</FieldLabel>

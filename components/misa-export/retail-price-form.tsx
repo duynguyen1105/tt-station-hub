@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { MoneyInput } from '@/components/shared/money-input'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -184,12 +185,10 @@ export function RetailPriceForm({
                         key={key}
                         colSpan={area === null ? BOARD_AREA_ORDER.length : undefined}
                       >
-                        <Input
-                          type="number"
-                          inputMode="numeric"
+                        <MoneyInput
                           aria-label={`${entry.name} — ${areaLabel}`}
                           value={cells[key] ?? ''}
-                          onChange={(e) => setCells((prev) => ({ ...prev, [key]: e.target.value }))}
+                          onValueChange={(value) => setCells((prev) => ({ ...prev, [key]: value }))}
                         />
                         <p className="text-muted-foreground text-xs">
                           {inForce === null

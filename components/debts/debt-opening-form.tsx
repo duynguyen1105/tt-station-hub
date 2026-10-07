@@ -6,6 +6,7 @@ import { useId, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { MoneyInput } from '@/components/shared/money-input'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -79,11 +80,11 @@ export function DebtOpeningForm({
         <div className="grid gap-3">
           <Field>
             <FieldLabel htmlFor={`${id}-amount`}>{vi.debts.openingAmount}</FieldLabel>
-            <Input
+            <MoneyInput
               id={`${id}-amount`}
-              inputMode="numeric"
+              allowNegative
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onValueChange={setAmount}
             />
           </Field>
           <Field>
