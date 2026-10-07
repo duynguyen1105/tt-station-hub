@@ -244,7 +244,9 @@ export async function extractPlate(input: {
   }
 
   const image = await prepareImageForAI(input.imageBuffer)
-  const text = await callClaudeVision({ prompt: VEHICLE_PROMPT, images: [image], maxTokens: 200 })
+  // No tight max_tokens: the notes are Vietnamese now (prompts.ts NOTES_RULE), and a
+  // 200-token cap cut the JSON mid-note on most photos — the plate was then lost.
+  const text = await callClaudeVision({ prompt: VEHICLE_PROMPT, images: [image] })
   const parsed = vehiclePlateSchema.parse(parseJsonFromText(text))
 
   return {
