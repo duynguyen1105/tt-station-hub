@@ -626,7 +626,7 @@ export const vi = {
     // sách từng nhiên liệu của ngày đó đặt cạnh số lít thực trong hầm.
     stock: {
       title: 'Tồn kho',
-      openTab: 'Mở Quản lý kho →',
+      openTab: 'Mở Quản lý kho',
       tanksTitle: 'Tồn kho theo barem',
       tank: 'Hầm',
       fuel: 'Hàng',
@@ -652,7 +652,7 @@ export const vi = {
     // Khối Công nợ: sổ công nợ từng khách trong ngày của ca, chỉ khách có số khác 0.
     debtLedger: {
       title: 'Công nợ khách hàng',
-      openTab: 'Mở Quản lý công nợ →',
+      openTab: 'Mở Quản lý công nợ',
       customer: 'Mã MISA',
       opening: 'Nợ đầu ngày',
       // Bán nợ cộng tạm ứng/chi ghi nợ trong ngày.

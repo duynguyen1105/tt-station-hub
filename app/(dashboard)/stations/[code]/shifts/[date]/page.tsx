@@ -16,6 +16,7 @@ import { ShiftDebtSales } from '@/components/shifts/shift-debt-sales'
 import { ShiftStockSection } from '@/components/shifts/shift-stock-section'
 import { ShiftSummary } from '@/components/shifts/shift-summary'
 import { UnmatchedPhotos } from '@/components/shifts/unmatched-photos'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   type ShiftStatus,
@@ -88,9 +89,16 @@ function SectionHeading({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 print:break-after-avoid">
       <h3 className="text-base font-semibold">{title}</h3>
-      <Link href={href} className="text-primary text-sm underline print:hidden">
-        {linkLabel}
-      </Link>
+      {/* A soft primary tint, not the outline of the section's own actions, so
+          "go to another tab" never reads as "do something here". */}
+      <Button
+        asChild
+        variant="ghost"
+        size="xs"
+        className="bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary dark:hover:bg-primary/20 print:hidden"
+      >
+        <Link href={href}>{linkLabel}</Link>
+      </Button>
     </div>
   )
 }
