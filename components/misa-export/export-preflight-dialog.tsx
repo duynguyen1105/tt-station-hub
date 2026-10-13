@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import Link from 'next/link'
 
-import { useFuelTypeLabel } from '@/components/fuels/catalogue-provider'
+import { FuelSummaryTable } from '@/components/misa-export/fuel-summary-table'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { formatLiters } from '@/lib/format'
 import type { CashVoucherKind } from '@/lib/misa-export/build-cash-vouchers'
 import type {
   FuelSummary,
@@ -23,7 +22,6 @@ import type {
   PreflightWarning,
 } from '@/lib/misa-export/build-sales-voucher'
 import { stationHref, stationSlug } from '@/lib/stations/href'
-import { cn } from '@/lib/utils'
 import { vi } from '@/messages/vi'
 
 type PreflightResult = {
@@ -35,7 +33,7 @@ type PreflightResult = {
 }
 
 /** The Settings screen that fixes each blocking error, given the station. */
-function fixLink(error: PreflightError, stationCode: string): string {
+export function fixLink(error: PreflightError, stationCode: string): string {
   switch (error.code) {
     case 'missing_global_config':
       return '/settings/misa/config'
@@ -60,7 +58,6 @@ export function ExportPreflightDialog({
   stationCode: string
   shiftDate: string // yyyy-MM-dd — default for the voucher dates (Ngày hóa đơn: when no photo ngày)
 }) {
-  const fuelLabel = useFuelTypeLabel()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
@@ -112,53 +109,7 @@ export function ExportPreflightDialog({
           <div className="min-w-0 space-y-4">
             <section className="space-y-2">
               <h3 className="text-sm font-medium">{vi.misaExport.fuelMathTitle}</h3>
-              {result.fuelSummary.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{vi.misaExport.noFuelData}</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-muted-foreground border-b text-left whitespace-nowrap">
-                        <th className="p-2">{vi.misaExport.fuel}</th>
-                        <th className="p-2 text-right">{vi.misaExport.metered}</th>
-                        <th className="p-2 text-right">{vi.misaExport.airPurge}</th>
-                        <th className="p-2 text-right">{vi.misaExport.credit}</th>
-                        <th className="p-2 text-right">{vi.misaExport.cash}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.fuelSummary.map((f) => (
-                        <tr key={f.fuelType} className="border-b">
-                          <td className="p-2">{fuelLabel(f.fuelType)}</td>
-                          <td className="p-2 text-right font-mono whitespace-nowrap">
-                            {formatLiters(f.meteredLiters)}
-                          </td>
-                          {/* A nhiên liệu no trụ purged has nothing to report here, so the
-                            cell reads as blank rather than as a 0 somebody keyed in. */}
-                          <td className="p-2 text-right font-mono whitespace-nowrap">
-                            {f.airPurgeLiters === null ? (
-                              <span className="text-muted-foreground">—</span>
-                            ) : (
-                              formatLiters(f.airPurgeLiters)
-                            )}
-                          </td>
-                          <td className="p-2 text-right font-mono whitespace-nowrap">
-                            {formatLiters(f.creditLiters)}
-                          </td>
-                          <td
-                            className={cn(
-                              'p-2 text-right font-mono whitespace-nowrap',
-                              f.cashLiters < 0 && 'text-destructive font-medium'
-                            )}
-                          >
-                            {formatLiters(f.cashLiters)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <FuelSummaryTable summary={result.fuelSummary} />
             </section>
 
             {hasErrors && (

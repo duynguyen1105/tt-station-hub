@@ -4,6 +4,7 @@ import {
   MISA_REPORT_PAGE_SIZE,
   type MisaReportSelection,
   hasMisaReportFilter,
+  misaRangeSelection,
   misaReportSelection,
 } from '@/lib/misa-export/report-selection'
 
@@ -328,5 +329,41 @@ describe('hasMisaReportFilter', () => {
     // the screen shows the full list, and must say so.
     const selection = misaReportSelection({ from: '2026-13-40', station: STATION_B }, [STATION_A])
     expect(hasMisaReportFilter(selection)).toBe(false)
+  })
+})
+
+describe('misaRangeSelection', () => {
+  it('needs both Từ ngày and Đến ngày, each a real ngày', () => {
+    expect(misaRangeSelection({}, [STATION_A])).toBeNull()
+    expect(misaRangeSelection({ from: '2026-08-01' }, [STATION_A])).toBeNull()
+    expect(misaRangeSelection({ to: '2026-08-31' }, [STATION_A])).toBeNull()
+    expect(misaRangeSelection({ from: '2026-02-30', to: '2026-08-31' }, [STATION_A])).toBeNull()
+  })
+
+  it('selects what the list selects for the same trạm and ngày, unpaged', () => {
+    const params = { from: '2026-08-01', to: '2026-08-31', station: STATION_B }
+    const range = misaRangeSelection(params, [STATION_A, STATION_B])
+    const list = misaReportSelection(params, [STATION_A, STATION_B])
+    expect(range).toMatchObject({
+      where: list.where,
+      stations: [STATION_B],
+      from: '2026-08-01',
+      to: '2026-08-31',
+    })
+    expect(range?.where.status).toBe('completed')
+    expect(range).not.toHaveProperty('take')
+  })
+
+  it('reads each trạm’s ca oldest first, the order they were sold', () => {
+    const range = misaRangeSelection({ from: '2026-08-01', to: '2026-08-31' }, [STATION_A])
+    expect(range?.orderBy).toEqual([{ shiftDate: 'asc' }, { id: 'asc' }])
+  })
+
+  it('never reaches a trạm the viewer can’t', () => {
+    const range = misaRangeSelection({ from: '2026-08-01', to: '2026-08-31', station: STATION_C }, [
+      STATION_A,
+    ])
+    expect(range?.where.stationId).toEqual({ in: [STATION_A] })
+    expect(range?.stations).toEqual([])
   })
 })

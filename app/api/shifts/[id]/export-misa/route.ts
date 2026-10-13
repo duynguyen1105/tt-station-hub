@@ -4,26 +4,12 @@ import { forbidden, notFound, unauthorized } from '@/lib/api/response'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { cashVoucherCounts } from '@/lib/misa-export/build-cash-vouchers'
-import {
-  type CreditCustomer,
-  type CreditVisit,
-  type FuelMapEntry,
-  type RetailPrice,
-  type SaleDispenser,
-  type SaleReading,
-  type StationConfig,
-  buildMisaSalesVoucher,
-} from '@/lib/misa-export/build-sales-voucher'
-import { debtVisitSelection, photoInvoiceDate } from '@/lib/misa-export/debts-list'
+import { buildMisaSalesVoucher } from '@/lib/misa-export/build-sales-voucher'
+import { loadCashVoucherEntries, loadMisaSalesInputs } from '@/lib/misa-export/load-sales-inputs'
 import { misaRowsToXlsxBuffer } from '@/lib/misa-export/shift-to-excel'
 import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
-
-const APPROVED_READING_STATUSES = ['approved', 'auto_approved', 'corrected']
-
-const num = (d: { toNumber: () => number } | null): number | null =>
-  d === null ? null : d.toNumber()
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
@@ -55,101 +41,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // the preflight already answers with another trạm's figures.
   if (!(await canReachStation(user, station.id))) return forbidden()
 
-  const [config, fuelMap, priceRows, readingRows, dispenserRows, visitRows] = await Promise.all([
-    prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } }),
-    prisma.misaFuelMap.findMany({ where: { stationId } }),
-    prisma.misaRetailPrice.findMany({
-      where: { fuelArea: station.fuelArea },
-      orderBy: { effectiveDate: 'asc' },
-    }),
-    prisma.shiftReading.findMany({
-      where: { shiftId: id, reviewStatus: { in: APPROVED_READING_STATUSES } },
-      orderBy: { dispenserId: 'asc' },
-    }),
-    prisma.dispenser.findMany({ where: { stationId } }),
-    prisma.debtVehicleVisit.findMany(debtVisitSelection(stationId, shiftDate)),
-  ])
-
-  const customerIds = [
-    ...new Set(visitRows.map((v) => v.customerId).filter((cid): cid is string => cid !== null)),
-  ]
-  const customerRows =
-    customerIds.length > 0
-      ? await prisma.debtCustomer.findMany({ where: { id: { in: customerIds } } })
-      : []
-
-  // Each reading carries its own opening, the nhiên liệu it was recorded against and
-  // its own Xả gió, so the liters sold are the reading's closing minus that opening
-  // less that purge, and they price as the ca sold — a trụ converted since then does
-  // not move them.
-  const saleReadings: SaleReading[] = readingRows.map((r) => ({
-    dispenserId: r.dispenserId,
-    fuelType: r.fuelType,
-    openingElectronicReading: num(r.openingElectronicReading),
-    electronicReading: num(r.electronicReading),
-    airPurgeLiters: num(r.airPurgeLiters),
-  }))
-  const saleDispensers: SaleDispenser[] = dispenserRows.map((d) => ({
-    id: d.id,
-    fuelType: d.fuelType,
-  }))
-
-  const stationConfig: StationConfig | null =
-    config === null
-      ? null
-      : {
-          revenueAccount: config.revenueAccount,
-          costAccount: config.costAccount,
-          stockAccount: config.stockAccount,
-          creditDebitAccount: config.creditDebitAccount,
-          cashDebitAccount: config.cashDebitAccount,
-        }
-
-  const fuelMapEntries: FuelMapEntry[] = fuelMap.map((f) => ({
-    fuelType: f.fuelType,
-    productCode: f.productCode,
-    productName: f.productName ?? '',
-    warehouseCode: f.warehouseCode,
-  }))
-
-  const prices: RetailPrice[] = priceRows.map((p) => ({
-    fuelType: p.fuelType,
-    effectiveDate: p.effectiveDate,
-    unitPrice: p.unitPrice.toNumber(),
-  }))
-
-  const creditVisits: CreditVisit[] = visitRows.map((v) => ({
-    id: v.id,
-    customerId: v.customerId,
-    fuelType: v.fuelType,
-    litersRead: num(v.litersRead),
-    unitPriceRead: num(v.unitPriceRead),
-    computedAmount: num(v.computedAmount),
-    amountOverride: num(v.amountOverride),
-    unitPriceEdited: v.originalUnitPriceRead !== null,
-    plate: v.plateConfirmed ?? v.plateRead,
-  }))
-
-  const customers: CreditCustomer[] = customerRows.map((c) => ({
-    id: c.id,
-    name: c.name,
-    misaCode: c.misaCode,
-  }))
-
-  const photoDate = photoInvoiceDate(visitRows)
+  const loaded = (await loadMisaSalesInputs([shift], [station])).get(id)
+  if (!loaded) return notFound()
+  const { input, photoDate } = loaded
 
   const result = buildMisaSalesVoucher({
-    saleDate: shiftDate,
+    ...input,
     postingDate,
     voucherDate,
     invoiceDate: invoiceDate ?? photoDate ?? undefined,
-    stationConfig,
-    fuelMap: fuelMapEntries,
-    prices,
-    readings: saleReadings,
-    dispensers: saleDispensers,
-    creditVisits,
-    customers,
   })
 
   // Preflight mode → per-fuel math + fix-list + warnings as JSON, no file generated. It also
@@ -157,24 +57,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // offer those two files (app/api/shifts/[id]/export-misa/cash) only when they have lines,
   // and the photo ngày the dialog pre-fills Ngày hóa đơn with (yyyy-MM-dd, null → none).
   if (preflight) {
-    const cashEntries = await prisma.shiftCashEntry.findMany({
-      where: { shiftId: id },
-      select: { content: true, receipt: true, payment: true, transfer: true },
-    })
+    const cashEntries = (await loadCashVoucherEntries([id])).get(id) ?? []
     return NextResponse.json({
       stationId,
       fuelSummary: result.fuelSummary,
       invoiceDate: photoDate ? photoDate.toISOString().slice(0, 10) : null,
       errors: result.errors,
       warnings: result.warnings,
-      cashVoucherCounts: cashVoucherCounts(
-        cashEntries.map((e) => ({
-          content: e.content,
-          receipt: num(e.receipt),
-          payment: num(e.payment),
-          transfer: num(e.transfer),
-        }))
-      ),
+      cashVoucherCounts: cashVoucherCounts(cashEntries),
     })
   }
 

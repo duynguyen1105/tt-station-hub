@@ -152,6 +152,16 @@ nhờ quản trị viên (xoá lượt công nợ đã duyệt sẽ bỏ luôn k
   trong hộp), Diễn giải lý do (= Nội dung), Diễn giải, TK tiền mặt 11111 (Nợ ở phiếu
   thu, Có ở phiếu chi) và Số tiền. **Các cột còn lại kế toán tự điền trong MISA** (Số
   chứng từ, đối tượng, tài khoản đối ứng…). Nút mờ đi nếu ca không có dòng Thu / Chi.
+- **Xuất theo kỳ**: bấm **Xuất MISA theo kỳ** (góc trên bên phải) → tích các
+  **trạm** và chọn **Ngày chốt ca** (Từ ngày – Đến ngày, hoặc bấm _Tháng trước_). Hộp thoại mở
+  sẵn theo bộ lọc đang xem; nếu bộ lọc chưa có ngày thì mặc định là tháng trước. Mỗi loại
+  (Chứng từ bán hàng, Phiếu thu, Phiếu chi) ra **1 file** gồm tất cả ca **đã chốt** trong
+  khoảng, xếp theo trạm rồi theo ngày bán.
+  - Mỗi ca giữ ngày của chính nó: Ngày hạch toán / Ngày chứng từ = ngày bán, Ngày hóa
+    đơn = ngày trên ảnh bán nợ. **Số chứng từ để trống**, kế toán tự đánh số trong MISA.
+  - Nếu **một ca bất kỳ** trong khoảng còn lỗi (thiếu map nhiên liệu, giá, mã MISA của
+    khách…), hộp thoại liệt kê ca đó kèm nút **Sửa** và **không cho tải** Chứng từ bán
+    hàng cho đến khi sửa xong, để file không bao giờ thiếu doanh thu của ca nào.
 - Bảng chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 ## 10. Nguyên tắc quan trọng

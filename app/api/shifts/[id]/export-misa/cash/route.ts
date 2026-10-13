@@ -6,6 +6,7 @@ import {
   type CashVoucherKind,
   buildCashVoucherMatrix,
 } from '@/lib/misa-export/build-cash-vouchers'
+import { loadCashVoucherEntries } from '@/lib/misa-export/load-sales-inputs'
 import { cashVoucherToXlsxBuffer } from '@/lib/misa-export/shift-to-excel'
 import { prisma } from '@/lib/prisma'
 import { vi } from '@/messages/vi'
@@ -41,15 +42,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const [config, entries] = await Promise.all([
     prisma.misaGlobalConfig.findUnique({ where: { id: 'default' } }),
-    prisma.shiftCashEntry.findMany({ where: { shiftId: id }, orderBy: { position: 'asc' } }),
+    loadCashVoucherEntries([id]),
   ])
   const matrix = buildCashVoucherMatrix(kind, {
-    entries: entries.map((e) => ({
-      content: e.content,
-      receipt: e.receipt === null ? null : e.receipt.toNumber(),
-      payment: e.payment === null ? null : e.payment.toNumber(),
-      transfer: e.transfer === null ? null : e.transfer.toNumber(),
-    })),
+    entries: entries.get(id) ?? [],
     postingDate: parseDate(searchParams.get('postingDate')) ?? shift.shiftDate,
     voucherDate: parseDate(searchParams.get('voucherDate')) ?? shift.shiftDate,
     // The template's own default: "mặc định 11111".

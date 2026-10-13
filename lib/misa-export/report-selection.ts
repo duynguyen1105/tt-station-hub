@@ -109,3 +109,31 @@ export function hasMisaReportFilter(
 ): boolean {
   return Boolean(filter.from || filter.to || filter.stations.length)
 }
+
+/** What Xuất MISA theo kỳ reads: every chốt'd ca of a khoảng, unpaged. */
+export type MisaRangeSelection = {
+  where: Prisma.ShiftWhereInput
+  orderBy: Prisma.ShiftOrderByWithRelationInput[]
+  /** Từ ngày and Đến ngày as applied, `YYYY-MM-DD`. */
+  from: string
+  to: string
+  /** The trạm as applied, empty for every trạm the viewer can reach. */
+  stations: string[]
+}
+
+/**
+ * The ca Xuất MISA theo kỳ exports: exactly the ones the Báo cáo MISA list would show
+ * for the same trạm and ngày bán — chốt'd, of the trạm this viewer can reach — but all of
+ * them at once, oldest ngày first so each trạm's ca read in the order they were sold.
+ *
+ * Null unless both Từ ngày and Đến ngày name real ngày: an export with an open end would
+ * be every ca ever chốt'd, which nobody closing a period means to download.
+ */
+export function misaRangeSelection(
+  params: Omit<MisaReportParams, 'page'>,
+  stationIds: string[]
+): MisaRangeSelection | null {
+  const { where, stations, from, to } = misaReportSelection(params, stationIds)
+  if (!from || !to) return null
+  return { where, orderBy: [{ shiftDate: 'asc' }, { id: 'asc' }], from, to, stations }
+}

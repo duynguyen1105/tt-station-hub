@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { ExportPreflightDialog } from '@/components/misa-export/export-preflight-dialog'
+import { RangeExportDialog } from '@/components/misa-export/range-export-dialog'
 import { ReportFilterForm } from '@/components/misa-export/report-filter-form'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { requireUser } from '@/lib/auth/session'
@@ -8,6 +9,7 @@ import { reachableStationIds } from '@/lib/auth/station-guard'
 import { matchingDatePreset } from '@/lib/filters/date-presets'
 import { filterHref } from '@/lib/filters/params'
 import { formatDate } from '@/lib/format'
+import { UNKNOWN_STATION_CODE } from '@/lib/matching/station-label'
 import { APPROVED_VISIT_STATUSES } from '@/lib/misa-export/debts-list'
 import {
   MISA_REPORT_PAGE_SIZE,
@@ -32,9 +34,10 @@ export default async function MisaExportPage({
   // none is the empty table, not an error.
   const stationIds = await reachableStationIds(user)
   // Every trạm the viewer can reach, closed ones included — the mã the table
-  // prints and, in the same read, the options the trạm dropdown offers.
+  // prints and, in the same read, the options the trạm dropdown offers. The
+  // UNKNOWN holding trạm is inactive too but is no trạm at all: it never has a ca.
   const stations = await prisma.station.findMany({
-    where: { id: { in: stationIds } },
+    where: { id: { in: stationIds }, code: { not: UNKNOWN_STATION_CODE } },
     select: { id: true, code: true },
     orderBy: { code: 'asc' },
   })
@@ -92,9 +95,20 @@ export default async function MisaExportPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">{vi.nav.misaReport}</h1>
-        <span className="text-muted-foreground text-sm">{vi.misaExport.reportTotal(total)}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground text-sm whitespace-nowrap">
+            {vi.misaExport.reportTotal(total)}
+          </span>
+          {/* Opens on what the bộ lọc shows; kế toán picks trạm and ngày bán again in it. */}
+          <RangeExportDialog
+            stationOptions={stations}
+            from={selection.from}
+            to={selection.to}
+            stations={selection.stations}
+          />
+        </div>
       </div>
       {/* Not keyed by the filter: applying one must leave the menu where kế toán
           left it, and the bộ lọc already falls back to what the server applied. The

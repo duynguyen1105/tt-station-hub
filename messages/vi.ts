@@ -356,6 +356,22 @@ export const vi = {
     cashHint:
       'Phiếu thu / Phiếu chi lấy từ bảng Thu chi tiền mặt của ca, dùng Ngày hạch toán và Ngày chứng từ ở trên. Các cột còn lại kế toán tự điền trong MISA.',
     noCashRows: (label: string) => `Ca này không có dòng nào cho ${label}.`,
+    // Xuất MISA theo kỳ: the trạm and ngày bán kế toán picks in its own hộp thoại, and
+    // one file of each kind holding every chốt'd ca of them.
+    rangeAction: 'Xuất MISA theo kỳ',
+    rangeTitle: 'Xuất MISA theo kỳ kế toán',
+    rangeStations: 'Trạm',
+    rangeAllStations: 'Tất cả trạm',
+    rangeSaleDate: 'Ngày chốt ca',
+    rangeShiftCount: (count: number) => `${count} ca đã chốt`,
+    rangeEmpty: 'Không có ca nào đã chốt trong khoảng này.',
+    rangeNeedsDates: 'Chọn đủ Từ ngày và Đến ngày.',
+    rangeNeedsStation: 'Chọn ít nhất một trạm.',
+    rangeProblemsTitle: 'Các ca cần xử lý trước khi xuất',
+    rangeWarningTitle: 'Các ca có cảnh báo',
+    rangeDatesHint:
+      'Mỗi ca dùng ngày bán của chính nó cho Ngày hạch toán và Ngày chứng từ; Ngày hóa đơn là ngày trên ảnh bán nợ. Số chứng từ để trống, kế toán tự đánh số trong MISA.',
+    rangeNoCashRows: (label: string) => `Không ca nào trong khoảng này có dòng cho ${label}.`,
     errorCodes: {
       missing_global_config: 'Thiếu cấu hình MISA chung',
       missing_fuel_map: 'Thiếu map nhiên liệu',
