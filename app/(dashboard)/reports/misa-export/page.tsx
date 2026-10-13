@@ -97,29 +97,29 @@ export default async function MisaExportPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">{vi.nav.misaReport}</h1>
-        <div className="flex items-center gap-3">
-          <span className="text-muted-foreground text-sm whitespace-nowrap">
-            {vi.misaExport.reportTotal(total)}
-          </span>
-          {/* Opens on what the bộ lọc shows; kế toán picks trạm and ngày bán again in it. */}
-          <RangeExportDialog
-            stationOptions={stations}
-            from={selection.from}
-            to={selection.to}
-            stations={selection.stations}
-          />
-        </div>
+        {/* Opens on what the bộ lọc shows; kế toán picks trạm and ngày bán again in it. */}
+        <RangeExportDialog
+          stationOptions={stations}
+          from={selection.from}
+          to={selection.to}
+          stations={selection.stations}
+        />
       </div>
       {/* Not keyed by the filter: applying one must leave the menu where kế toán
           left it, and the bộ lọc already falls back to what the server applied. The
           trạm on offer are the same read the table prints names from. */}
-      <ReportFilterForm
-        from={selection.from}
-        to={selection.to}
-        stations={pickedSlugs}
-        stationOptions={stations}
-        activePreset={activePreset}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <ReportFilterForm
+          from={selection.from}
+          to={selection.to}
+          stations={pickedSlugs}
+          stationOptions={stations}
+          activePreset={activePreset}
+        />
+        <span className="text-muted-foreground border-border bg-background inline-flex h-8 items-center rounded-[min(var(--radius-md),10px)] border px-2.5 text-sm whitespace-nowrap shadow-xs">
+          {vi.misaExport.reportTotal(total)}
+        </span>
+      </div>
       {shifts.length === 0 ? (
         // A filtered list that matched nothing says so: "Chưa có ca nào." would read
         // as the system holding no ca at all, which is alarming and wrong when the

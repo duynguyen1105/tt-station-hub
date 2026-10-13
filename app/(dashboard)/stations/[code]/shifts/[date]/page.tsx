@@ -488,8 +488,8 @@ export default async function ShiftDetailPage({
         closingCash={cashBalance.kind === 'line' ? cashBalance.line.closing : null}
       />
 
-      {/* The phiếu is long; these jump to each block and stay under the top bar. */}
-      <nav className="bg-background/80 sticky top-14 z-10 -mx-1 flex flex-wrap gap-1 border-b px-1 py-2 backdrop-blur-sm print:hidden">
+      {/* The phiếu is long; these jump to each block and stay pinned to the top. */}
+      <nav className="bg-background/80 sticky top-12 z-10 -mx-1 flex flex-wrap gap-1 border-b px-1 py-2 backdrop-blur-sm md:top-0 print:hidden">
         {SECTION_LINKS.map((link) => (
           <a
             key={link.id}
@@ -501,7 +501,7 @@ export default async function ShiftDetailPage({
         ))}
       </nav>
 
-      <section id="tru-bom" className="scroll-mt-28 space-y-2">
+      <section id="tru-bom" className="scroll-mt-28 space-y-2 md:scroll-mt-16">
         <h3 className="text-base font-semibold">{vi.shifts.sections.pumps}</h3>
         {rows.length === 0 ? (
           <p className="text-muted-foreground text-sm">{vi.shifts.noReadings}</p>
@@ -557,7 +557,7 @@ export default async function ShiftDetailPage({
         </div>
       </section>
 
-      <section id="ton-kho" className="scroll-mt-28 space-y-2">
+      <section id="ton-kho" className="scroll-mt-28 space-y-2 md:scroll-mt-16">
         <SectionHeading
           title={vi.shifts.stock.title}
           href={`${stationHref(code)}/inventory`}
@@ -590,7 +590,7 @@ export default async function ShiftDetailPage({
       <div className="space-y-6">
         <div className="min-w-0 space-y-6">
           <ShiftDebtSales stationCode={code} rows={debtSaleRows} pendingCount={pendingDebtVisits} />
-          <div id="thu-chi" className="scroll-mt-28">
+          <div id="thu-chi" className="scroll-mt-28 md:scroll-mt-16">
             <CashEntriesTable
               shiftId={shift.id}
               initialEntries={cashEntries}
@@ -600,7 +600,7 @@ export default async function ShiftDetailPage({
           </div>
         </div>
         <div className="min-w-0 space-y-6">
-          <section id="cong-no" className="scroll-mt-28 space-y-2">
+          <section id="cong-no" className="scroll-mt-28 space-y-2 md:scroll-mt-16">
             <SectionHeading
               title={vi.shifts.debtLedger.title}
               href={`${stationHref(code)}/debts?date=${shiftDay}`}
@@ -610,7 +610,7 @@ export default async function ShiftDetailPage({
               <ShiftDebtLedger stationId={shift.stationId} stationCode={code} day={shiftDay} />
             </Suspense>
           </section>
-          <div id="ton-tien-mat" className="scroll-mt-28">
+          <div id="ton-tien-mat" className="scroll-mt-28 md:scroll-mt-16">
             <CashBalanceCard
               stationId={shift.stationId}
               line={cashBalance.kind === 'line' ? cashBalance.line : null}

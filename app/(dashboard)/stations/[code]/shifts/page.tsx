@@ -58,7 +58,9 @@ export default async function StationShiftsPage({
           statuses={selection.statuses}
           activePreset={activePreset}
         />
-        <span className="text-muted-foreground text-sm">{vi.shifts.total(total)}</span>
+        <span className="text-muted-foreground border-border bg-background inline-flex h-8 items-center rounded-[min(var(--radius-md),10px)] border px-2.5 text-sm whitespace-nowrap shadow-xs">
+          {vi.shifts.total(total)}
+        </span>
       </div>
       {shifts.length === 0 ? (
         // A filtered list that matched nothing says so: "Chưa có ca nào." would read as

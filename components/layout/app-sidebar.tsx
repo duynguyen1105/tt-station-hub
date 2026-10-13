@@ -22,11 +22,11 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { type AppRole } from '@/lib/auth/permissions'
 import { vi } from '@/messages/vi'
@@ -62,25 +62,26 @@ export function AppSidebar({ user }: AppSidebarProps) {
   const navItems = NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(user.role))
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-sidebar-border border-b p-4">
-        <div className="flex items-center gap-2.5">
-          <span className="text-sidebar-primary shrink-0">
+    // Collapses to an icon strip rather than off-screen: the toggle lives in this
+    // header, so it has to stay on screen to bring the sidebar back.
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-sidebar-border border-b p-4 group-data-[collapsible=icon]:px-2">
+        {/* h-9 in both states, so collapsing doesn't shift the menu up. */}
+        <div className="flex h-9 items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
+          <span className="text-sidebar-primary shrink-0 group-data-[collapsible=icon]:hidden">
             <BrandMark className="size-9" />
           </span>
-          <div className="leading-tight">
+          <div className="min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
             <div className="text-sidebar-foreground text-sm font-bold tracking-tight">
               {vi.appShortName}
             </div>
             <div className="label-micro text-sidebar-foreground/55">Trường Thịnh</div>
           </div>
+          <SidebarTrigger className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground shrink-0" />
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="label-micro text-sidebar-foreground/45">
-            Điều hướng
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {

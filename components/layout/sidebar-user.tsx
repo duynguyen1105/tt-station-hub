@@ -32,18 +32,24 @@ export function SidebarUser({ user }: SidebarUserProps) {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className="flex items-center gap-2 px-2 py-1.5">
+        {/* Collapsed to the icon strip, only the avatar fits. */}
+        <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:px-0">
           <Avatar className="size-8">
             <AvatarFallback>{user.fullName.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
-          <div className="min-w-0 flex-1 leading-tight">
+          <div className="min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
             <p className="truncate text-sm font-medium">{user.fullName}</p>
             <p className="text-muted-foreground truncate text-xs">{user.roleLabel}</p>
           </div>
         </div>
       </SidebarMenuItem>
       <SidebarMenuItem>
-        <SidebarMenuButton onClick={handleLogout} disabled={busy} aria-busy={busy || undefined}>
+        <SidebarMenuButton
+          onClick={handleLogout}
+          disabled={busy}
+          aria-busy={busy || undefined}
+          tooltip={vi.auth.logout}
+        >
           {busy ? <LoaderCircle className="animate-spin" /> : <LogOut />}
           <span>{vi.auth.logout}</span>
         </SidebarMenuButton>

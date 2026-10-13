@@ -361,8 +361,8 @@ export function DebtVisitCard({ data, canAct }: { data: DebtVisitCardData; canAc
   return (
     <Card
       id={`visit-${data.visitId}`}
-      // Reached from a ca's Bán nợ list by #visit-<id>: scrolled clear of the header, ringed.
-      className="target:ring-primary relative scroll-mt-20 overflow-hidden target:ring-2"
+      // Reached from a ca's Bán nợ list by #visit-<id>: scrolled clear of the phone bar, ringed.
+      className="target:ring-primary relative scroll-mt-20 overflow-hidden target:ring-2 md:scroll-mt-6"
     >
       <span className="bg-brass absolute inset-x-0 top-0 h-1" />
       <CardContent className="space-y-4 pt-5">

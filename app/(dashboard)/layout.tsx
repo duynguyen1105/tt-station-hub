@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers'
+
 import { FuelCatalogueProvider } from '@/components/fuels/catalogue-provider'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { RefreshOnReturn } from '@/components/layout/refresh-on-return'
@@ -17,11 +19,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // components among them cannot query for it themselves. Read after the auth gate, so
   // a request without a session redirects without touching the danh mục.
   const catalogue = await loadFuelCatalogue()
+  // The sidebar writes its expanded/collapsed state to this cookie; reading it here
+  // renders the next page in that state rather than expanding and snapping shut.
+  const sidebarOpen = (await cookies()).get('sidebar_state')?.value !== 'false'
 
   return (
     <FuelCatalogueProvider catalogue={catalogue}>
       <RefreshOnReturn />
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={sidebarOpen}>
         <AppSidebar
           user={{
             fullName: user.fullName,
@@ -31,22 +36,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
           }}
         />
         <SidebarInset className="min-w-0">
-          <header className="bg-background/80 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b backdrop-blur-sm print:hidden">
-            {/* brass operations rail */}
-            <span className="bg-brass h-full w-1 shrink-0" />
-            <SidebarTrigger className="-ml-1" />
-            <span className="bg-border h-5 w-px" />
-            <span className="label-micro hidden sm:inline">Hệ thống quản lý trạm</span>
-            <span className="text-brass label-micro mr-4 ml-auto hidden items-center gap-1.5 md:inline-flex">
-              <span className="bg-brass size-1.5 animate-pulse rounded-full" />
-              Trực tuyến
-            </span>
+          {/* Phones only: the sidebar is a sheet there, and this is the way to open it.
+              On desktop the toggle lives in the sidebar itself. */}
+          <header className="bg-background/80 sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b px-2 backdrop-blur-sm md:hidden print:hidden">
+            <SidebarTrigger />
+            <span className="text-sm font-semibold">{vi.appShortName}</span>
           </header>
-          <main className="flex-1 p-4 lg:p-6">
+          <div className="flex-1 p-4 lg:p-6">
             {/* 1600px: measured on the LAMDONG01 closing sheet at 2560px — wider only spreads
                 columns apart; narrower starts wrapping headers and fuel names. */}
             <div className="mx-auto w-full max-w-[100rem]">{children}</div>
-          </main>
+          </div>
         </SidebarInset>
       </SidebarProvider>
     </FuelCatalogueProvider>
