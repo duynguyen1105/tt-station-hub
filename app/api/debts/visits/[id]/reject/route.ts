@@ -28,7 +28,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     updated = await prisma.$transaction(async (db) => {
       const changed = await db.debtVehicleVisit.updateMany({
         where: { id, reviewStatus: visit.reviewStatus, reviewedAt: visit.reviewedAt },
-        data: { reviewStatus: decision.reviewStatus, reviewedBy: user.id, reviewedAt: new Date() },
+        // Rejecting a duyệt'd lượt xe takes its charge back, and with it its place in the
+        // duyệt order; a later Duyệt stamps a fresh one.
+        data: {
+          reviewStatus: decision.reviewStatus,
+          reviewedBy: user.id,
+          reviewedAt: new Date(),
+          approvedAt: null,
+        },
       })
       if (changed.count !== 1) throw new Error('stale')
       if (decision.charge === 'delete') {

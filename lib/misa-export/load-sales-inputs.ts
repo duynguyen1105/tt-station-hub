@@ -3,6 +3,7 @@ import type { CashVoucherEntry } from '@/lib/misa-export/build-cash-vouchers'
 import type { MisaBuildInput, StationConfig } from '@/lib/misa-export/build-sales-voucher'
 import {
   APPROVED_VISIT_STATUSES,
+  DEBT_VISIT_ORDER,
   isVisitOfShiftDay,
   photoInvoiceDate,
   shiftDayWindow,
@@ -67,7 +68,7 @@ export async function loadMisaSalesInputs(
           reviewStatus: { in: APPROVED_VISIT_STATUSES },
           visitDate: { gte: visitStart, lt: visitEnd },
         },
-        orderBy: [{ visitDate: 'asc' }, { id: 'asc' }],
+        orderBy: DEBT_VISIT_ORDER,
       }),
     ]
   )

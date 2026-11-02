@@ -120,6 +120,7 @@ database.
 ```bash
 pnpm db:phu-trach     # phụ trách: stations.assigned_accountant_id → station_accountants
 pnpm db:fuel-stamp    # ca readings: stamp the nhiên liệu their trụ pumps
+pnpm db:approved-at   # lượt bán nợ: approved_at from their charge, for the duyệt order
 pnpm exec tsx scripts/rename-zalo-columns.ts
 pnpm exec prisma db push --accept-data-loss
 pnpm db:generate

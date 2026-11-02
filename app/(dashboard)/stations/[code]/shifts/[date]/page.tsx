@@ -281,6 +281,7 @@ export default async function ShiftDetailPage({
     visits.map((v) => ({
       customerId: v.customerId,
       visitDate: v.visitDate,
+      approvedAt: v.approvedAt,
       fuelType: v.fuelType,
       litersRead: v.litersRead === null ? null : v.litersRead.toNumber(),
       amount: chargeAmountOf({

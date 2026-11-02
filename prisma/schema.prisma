@@ -527,6 +527,10 @@ model DebtVehicleVisit {
   anomalyReasons        String[]  @default([]) @map("anomaly_reasons")
   reviewedBy            String?   @map("reviewed_by") @db.Uuid
   reviewedAt            DateTime? @map("reviewed_at")
+  // When it was duyệt'd — set by Duyệt and nothing else, so a later Sửa (which moves
+  // reviewedAt) leaves it where it is. Null unless approved. The Bán nợ list and the
+  // MISA credit rows run in this order: the order the kế toán duyệt'd them in.
+  approvedAt            DateTime? @map("approved_at")
   createdAt             DateTime  @default(now()) @map("created_at")
 
   @@index([customerId, visitDate(sort: Desc)], map: "idx_visits_customer")

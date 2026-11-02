@@ -22,9 +22,21 @@ export function shiftDayWindow(shiftDate: Date): { start: Date; end: Date } {
 }
 
 /**
+ * The order a ca's lượt bán nợ are listed in — on the Bán nợ trong ca list and as the
+ * MISA file's credit rows alike: the order the kế toán duyệt'd them in, since they duyệt
+ * one khách at a time and read the list back the same way. A lượt xe sửa'd but not yet
+ * duyệt'd (`corrected`, no approvedAt) goes after them; the upload time breaks ties.
+ */
+export const DEBT_VISIT_ORDER = [
+  { approvedAt: { sort: 'asc', nulls: 'last' } },
+  { visitDate: 'asc' },
+  { id: 'asc' },
+] satisfies Prisma.DebtVehicleVisitOrderByWithRelationInput[]
+
+/**
  * The `findMany` args that select a ca's debt visits: this station, an
  * approved/corrected review status, and a `visitDate` inside the ca's day window,
- * ordered chronologically. The single predicate used by both the MISA export route
+ * in `DEBT_VISIT_ORDER`. The single predicate used by both the MISA export route
  * and the on-page bán-nợ list, so the two can't select different visits (spec §4).
  */
 export function debtVisitSelection(
@@ -38,7 +50,7 @@ export function debtVisitSelection(
       reviewStatus: { in: APPROVED_VISIT_STATUSES },
       visitDate: { gte: start, lt: end },
     },
-    orderBy: [{ visitDate: 'asc' }, { id: 'asc' }],
+    orderBy: DEBT_VISIT_ORDER,
   }
 }
 
@@ -106,6 +118,7 @@ export function photoInvoiceDate(visits: { photoDate: Date | null }[]): Date | n
 export type DebtVisitInput = {
   customerId: string | null
   visitDate: Date
+  approvedAt: Date | null
   fuelType: string | null
   litersRead: number | null
   plateRead: string | null
@@ -147,7 +160,7 @@ export type DebtListRow = {
  * Build the read-only "Bán nợ trong ca" list from a ca's approved/corrected debt
  * visits. Pure: caller selects the visits (station + `shiftDayWindow` + status) and
  * supplies their customers and the danh mục each visit's tên nhiên liệu is read from.
- * Rows are ordered by `visitDate` ascending.
+ * Rows run in `DEBT_VISIT_ORDER` (approval order), whatever order they are handed in.
  *
  * Column-1 id is the truck plate (`plateConfirmed ?? plateRead`), else the customer's
  * MISA code; `idIsMissing` is true when neither yields a value — such a row still
@@ -159,7 +172,12 @@ export function buildDebtsList(
   catalogue: readonly CatalogueFuel[]
 ): DebtListRow[] {
   return [...visits]
-    .sort((a, b) => a.visitDate.getTime() - b.visitDate.getTime())
+    .sort(
+      (a, b) =>
+        // Not yet approved sorts last, as `nulls: 'last'` does in the query.
+        (a.approvedAt?.getTime() ?? Infinity) - (b.approvedAt?.getTime() ?? Infinity) ||
+        a.visitDate.getTime() - b.visitDate.getTime()
+    )
     .map((v) => {
       const customer = v.customerId !== null ? customersById.get(v.customerId) : undefined
       const id = v.plateConfirmed ?? v.plateRead ?? customer?.misaCode ?? ''

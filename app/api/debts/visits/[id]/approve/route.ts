@@ -50,9 +50,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let updated
   try {
     updated = await prisma.$transaction(async (db) => {
+      const now = new Date()
       const changed = await db.debtVehicleVisit.updateMany({
         where: { id, reviewStatus: visit.reviewStatus, reviewedAt: visit.reviewedAt },
-        data: { reviewStatus: 'approved', reviewedBy: user.id, reviewedAt: new Date(), customerId },
+        data: {
+          reviewStatus: 'approved',
+          reviewedBy: user.id,
+          reviewedAt: now,
+          approvedAt: now,
+          customerId,
+        },
       })
       if (changed.count !== 1) throw new Error('stale')
       if (await db.debtTransaction.count({ where: { sourceRef: id, txType: 'charge' } }))

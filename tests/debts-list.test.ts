@@ -67,6 +67,7 @@ function visit(overrides: Partial<DebtVisitInput> = {}): DebtVisitInput {
   return {
     customerId: 'c1',
     visitDate: new Date('2026-06-27T02:00:00.000Z'),
+    approvedAt: null,
     fuelType: 'DO',
     litersRead: 100,
     plateRead: '50E-75317',
@@ -151,7 +152,36 @@ describe('buildDebtsList', () => {
     expect(row?.liters).toBe(42.5)
   })
 
-  it('orders rows by visitDate ascending regardless of input order', () => {
+  // A kế toán duyệt one khách at a time, so the list reads by khách even when their
+  // ảnh were uploaded interleaved with other khách's.
+  it('orders rows by approval time, not upload time', () => {
+    const at = (hhmm: string) => new Date(`2026-06-27T${hhmm}:00.000Z`)
+    const rows = buildDebtsList(
+      [
+        visit({ litersRead: 1, customerId: 'c1', visitDate: at('01:00'), approvedAt: at('09:00') }),
+        visit({ litersRead: 2, customerId: 'c2', visitDate: at('01:01'), approvedAt: at('09:05') }),
+        visit({ litersRead: 3, customerId: 'c1', visitDate: at('01:02'), approvedAt: at('09:01') }),
+        visit({ litersRead: 4, customerId: 'c2', visitDate: at('01:03'), approvedAt: at('09:06') }),
+      ],
+      listCustomers,
+      CATALOGUE
+    )
+    expect(rows.map((r) => r.liters)).toEqual([1, 3, 2, 4])
+  })
+
+  it('puts a lượt xe not yet approved after the approved ones', () => {
+    const rows = buildDebtsList(
+      [
+        visit({ litersRead: 2, approvedAt: null, visitDate: new Date('2026-06-27T01:00:00.000Z') }),
+        visit({ litersRead: 1, approvedAt: new Date('2026-06-27T09:00:00.000Z') }),
+      ],
+      listCustomers,
+      CATALOGUE
+    )
+    expect(rows.map((r) => r.liters)).toEqual([1, 2])
+  })
+
+  it('orders rows by visitDate ascending when none is approved yet', () => {
     const rows = buildDebtsList(
       [
         visit({ litersRead: 3, visitDate: new Date('2026-06-27T05:00:00.000Z') }),
@@ -258,6 +288,7 @@ describe('buildDebtsList ↔ buildMisaSalesVoucher consistency', () => {
         (s): DebtVisitInput => ({
           customerId: s.customerId,
           visitDate: s.visitDate,
+          approvedAt: null,
           fuelType: s.fuelType,
           litersRead: s.litersRead,
           plateRead: s.plate,
