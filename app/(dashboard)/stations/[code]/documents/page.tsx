@@ -59,7 +59,7 @@ export default async function StationDocumentsPage({
               <th className="p-2">{vi.documents.expiry}</th>
               <th className="p-2">{vi.documents.scan}</th>
               <th className="p-2">{vi.shifts.status}</th>
-              {user.role === 'admin' && <th className="p-2">{vi.common.actions}</th>}
+              {user.role !== 'viewer' && <th className="p-2">{vi.common.actions}</th>}
             </tr>
           </thead>
           <tbody>
@@ -89,22 +89,24 @@ export default async function StationDocumentsPage({
                   <td className="p-2">
                     <ExpiryBadge status={doc.status} />
                   </td>
-                  {user.role === 'admin' && (
+                  {user.role !== 'viewer' && (
                     <td className="p-2">
                       <div className="flex">
-                        <DocumentForm
-                          stationId={id}
-                          document={{
-                            id: doc.id,
-                            docType: doc.docType,
-                            docName: doc.docName,
-                            docNumber: doc.docNumber,
-                            issuedDate: doc.issuedDate?.toISOString().slice(0, 10) ?? null,
-                            expiryDate: doc.expiryDate?.toISOString().slice(0, 10) ?? null,
-                            issuingAuthority: doc.issuingAuthority,
-                            notes: doc.notes,
-                          }}
-                        />
+                        {user.role === 'admin' && (
+                          <DocumentForm
+                            stationId={id}
+                            document={{
+                              id: doc.id,
+                              docType: doc.docType,
+                              docName: doc.docName,
+                              docNumber: doc.docNumber,
+                              issuedDate: doc.issuedDate?.toISOString().slice(0, 10) ?? null,
+                              expiryDate: doc.expiryDate?.toISOString().slice(0, 10) ?? null,
+                              issuingAuthority: doc.issuingAuthority,
+                              notes: doc.notes,
+                            }}
+                          />
+                        )}
                         <DocumentDelete id={doc.id} />
                       </div>
                     </td>

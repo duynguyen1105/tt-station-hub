@@ -7,14 +7,8 @@ import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation, reachableStationIds } from '@/lib/auth/station-guard'
 import { documentStatus } from '@/lib/documents/expiry-checker'
+import { stationScan } from '@/lib/documents/scan'
 import { prisma } from '@/lib/prisma'
-import { uploadPhoto } from '@/lib/storage/photo-storage'
-
-const EXT_BY_TYPE: Record<string, string> = {
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'application/pdf': 'pdf',
-}
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
@@ -30,6 +24,7 @@ export async function GET(req: NextRequest) {
 }
 
 const createDocumentSchema = z.object({
+  id: z.string().uuid().optional(),
   stationId: z.string().uuid(),
   docType: z.string().min(1),
   docName: z.string().min(1),
@@ -42,9 +37,9 @@ const createDocumentSchema = z.object({
 })
 
 /**
- * Creates a legal document. Accepts multipart (fields + optional `scan` file —
- * the signed paper, stored under <STATION>/documents/) or the original JSON
- * body for API callers without a file.
+ * Creates a legal document. Accepts multipart (fields + optional `scanPath` — the
+ * signed paper, already uploaded via /api/documents/scan-upload together with the
+ * `id` it was issued for) or the original JSON body for API callers without a file.
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
@@ -53,12 +48,13 @@ export async function POST(req: NextRequest) {
   if (user.role === 'viewer') return forbidden()
 
   let raw: Record<string, unknown>
-  let scan: File | null = null
+  let scanPath: string | null = null
   if (req.headers.get('content-type')?.includes('multipart/form-data')) {
     const form = await req.formData().catch(() => null)
     if (!form) return badRequest()
     raw = {}
     for (const key of [
+      'id',
       'stationId',
       'docType',
       'docName',
@@ -71,8 +67,8 @@ export async function POST(req: NextRequest) {
       const value = form.get(key)
       if (typeof value === 'string' && value.trim() !== '') raw[key] = value
     }
-    const file = form.get('scan')
-    if (file instanceof File && file.size > 0) scan = file
+    const path = form.get('scanPath')
+    if (typeof path === 'string' && path) scanPath = path
   } else {
     raw = (await req.json().catch(() => null)) as Record<string, unknown>
   }
@@ -81,32 +77,26 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
   if (!(await canReachStation(user, parsed.data.stationId))) return forbidden()
 
-  const status = documentStatus(parsed.data.expiryDate ?? null, new Date())
-  const document = await prisma.stationDocument.create({ data: { ...parsed.data, status } })
-
-  // The scan uploads AFTER the row exists (path carries the document id); a
-  // failed upload never loses the document itself.
-  if (scan) {
-    try {
-      const station = await prisma.station.findUnique({
-        where: { id: parsed.data.stationId },
-        select: { code: true },
-      })
-      const ext = EXT_BY_TYPE[scan.type] ?? 'jpg'
-      const path = `${station?.code ?? 'UNKNOWN'}/documents/${document.id}.${ext}`
-      await uploadPhoto(path, Buffer.from(await scan.arrayBuffer()), scan.type || 'image/jpeg')
-      await prisma.stationDocument.update({ where: { id: document.id }, data: { fileUrl: path } })
-    } catch {
-      // Document stays valid without its scan.
-    }
+  if (scanPath) {
+    const station = await prisma.station.findUnique({
+      where: { id: parsed.data.stationId },
+      select: { code: true },
+    })
+    if (!station || !parsed.data.id || !stationScan(scanPath, station.code, parsed.data.id))
+      return badRequest()
   }
+
+  const status = documentStatus(parsed.data.expiryDate ?? null, new Date())
+  const document = await prisma.stationDocument.create({
+    data: { ...parsed.data, status, ...(scanPath ? { fileUrl: scanPath } : {}) },
+  })
 
   await writeAudit({
     userId: user.id,
     action: 'document.create',
     entity: 'station_document',
     entityId: document.id,
-    metadata: { scan: scan !== null },
+    metadata: { scan: scanPath !== null },
   })
   return created(document)
 }

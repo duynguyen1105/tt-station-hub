@@ -91,6 +91,7 @@ export const vi = {
 
   errors: {
     generic: 'Đã có lỗi xảy ra. Vui lòng thử lại.',
+    uploadFailed: 'Tải file lên thất bại — kiểm tra mạng rồi thử lại.',
     unauthorized: 'Bạn không có quyền truy cập.',
     notFound: 'Không tìm thấy dữ liệu.',
     missingOpening: 'Chưa có chỉ số đầu ca — vui lòng nhập trước khi duyệt.',
@@ -1103,6 +1104,8 @@ export const vi = {
     upload: 'Tải lên',
     uploading: 'Đang tải lên...',
     relatedSaved: 'Đã lưu tài liệu nhập hàng.',
+    docsFailed: (n: number) =>
+      `${n} tài liệu chưa tải lên được — mở biên bản và bấm "Tải thêm tài liệu" để tải lại.`,
     skipRelated: 'Để sau',
     done: 'Hoàn tất',
     // Receipt detail (trang xem lại biên bản)

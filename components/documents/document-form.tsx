@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSaveAction } from '@/hooks/use-save-action'
+import { putFile } from '@/lib/storage/put-file'
 import { vi } from '@/messages/vi'
 
 const docTypeOptions = Object.entries(vi.docType)
@@ -72,13 +73,35 @@ export function DocumentForm({
     if (document || expiryDate) form.set('expiryDate', expiryDate)
     if (document || issuingAuthority) form.set('issuingAuthority', issuingAuthority)
     if (document || notes) form.set('notes', notes)
-    const scan = scanRef.current?.files?.[0]
-    if (scan) form.set('scan', scan)
 
-    const res = await fetch(document ? `/api/documents/${document.id}` : '/api/documents', {
-      method: document ? 'PATCH' : 'POST',
-      body: form,
-    })
+    let res: Response
+    try {
+      const scan = scanRef.current?.files?.[0]
+      if (scan) {
+        // The scan goes straight to storage: a scanned PDF easily exceeds Vercel's
+        // 4.5 MB request cap, which fails before our API even runs.
+        const slot = await fetch('/api/documents/scan-upload', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ stationId, documentId: document?.id, contentType: scan.type }),
+        })
+        if (!slot.ok) throw new Error((await slot.json().catch(() => null))?.error)
+        const { data } = (await slot.json()) as {
+          data: { id: string; path: string; uploadUrl: string }
+        }
+        await putFile(data.uploadUrl, scan)
+        form.set('scanPath', data.path)
+        if (!document) form.set('id', data.id)
+      }
+      res = await fetch(document ? `/api/documents/${document.id}` : '/api/documents', {
+        method: document ? 'PATCH' : 'POST',
+        body: form,
+      })
+    } catch (error) {
+      setBusy(false)
+      toast.error((error instanceof Error && error.message) || vi.errors.generic)
+      return
+    }
     setBusy(false)
     if (res.ok) {
       if (document) toast.success(vi.documents.saved)

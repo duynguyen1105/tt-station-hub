@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { uploadReceiptDocs } from '@/components/inventory/upload-receipt-docs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { vi } from '@/messages/vi'
@@ -26,18 +27,15 @@ export function ReceiptDocUpload({ receiptId }: { receiptId: string }) {
       toast.error(vi.imports.selectDocs)
       return
     }
-    const form = new FormData()
-    for (const file of files) form.append('photos', file)
     setBusy(true)
-    const res = await fetch(`/api/imports/receipts/${receiptId}/documents`, {
-      method: 'POST',
-      body: form,
-    })
-    setBusy(false)
-    if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { error?: string } | null
-      toast.error(data?.error ?? vi.errors.generic)
+    try {
+      await uploadReceiptDocs(receiptId, [{ kind: 'related', files: [...files] }])
+    } catch (error) {
+      toast.error((error as Error).message)
+      router.refresh()
       return
+    } finally {
+      setBusy(false)
     }
     toast.success(vi.imports.relatedSaved)
     if (fileRef.current) fileRef.current.value = ''

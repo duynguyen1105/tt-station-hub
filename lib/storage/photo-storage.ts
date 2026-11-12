@@ -32,6 +32,26 @@ export async function uploadPhoto(
   return { path }
 }
 
+const EXT_BY_TYPE: Record<string, string> = {
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'application/pdf': 'pdf',
+}
+
+/** Storage file extension for an uploaded file's MIME type (photos default to jpg). */
+export const fileExt = (contentType: string) => EXT_BY_TYPE[contentType] ?? 'jpg'
+
+/**
+ * Signed URL the browser PUTs a file to directly — big scans skip Vercel's 4.5 MB
+ * request-body cap. The mock points at the local dev upload route instead.
+ */
+export async function createUploadUrl(path: string): Promise<string> {
+  if (MOCK_ROOT) return `/api/dev-storage?path=${encodeURIComponent(path)}`
+  const { data, error } = await createAdminClient().storage.from(BUCKET).createSignedUploadUrl(path)
+  if (error) throw error
+  return data.signedUrl
+}
+
 /** Deletes a stored scan/photo (including files in the local storage mock). */
 export async function deletePhoto(path: string): Promise<void> {
   if (MOCK_ROOT) {

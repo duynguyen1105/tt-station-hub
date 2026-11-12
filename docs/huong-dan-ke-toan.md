@@ -70,8 +70,9 @@ Hàng chờ chỉ liệt kê ca của **các trạm bạn phụ trách**.
 
 ## 5. Giấy tờ pháp lý (tab **Giấy tờ**)
 
-- Thêm giấy tờ, đính kèm bản scan, nhập ngày hết hạn. Sửa hoặc xóa giấy tờ đã
-  lưu: nhờ quản trị viên.
+- Thêm giấy tờ, đính kèm bản scan (ảnh hoặc PDF, file lớn vẫn tải được), nhập
+  ngày hết hạn. Xóa giấy tờ lưu nhầm: bấm **Xóa** trên dòng. Sửa giấy tờ đã lưu:
+  nhờ quản trị viên.
 - Màu trạng thái: **xanh** (còn hạn), **vàng** (sắp hết — trong 60 ngày),
   **đỏ** (hết hạn). Hệ thống tự nhắc trước **60 / 30 / 15 ngày**.
 
@@ -194,7 +195,7 @@ hoặc ca đã chốt thì chỉ **quản trị viên** sửa được:
 - **Nhập hàng**: mở phiếu → **Sửa phiếu** (ngày, tài xế, xe bồn, số lượng / số
   lít từng hầm…). Tồn kho tự điều chỉnh theo chênh lệch.
 - **Phát sinh nhập tay** (Hàng tồn → Sổ sách theo ngày): Sửa / Xóa.
-- **Giấy tờ pháp lý**: Sửa / Xóa. **Thông tin trạm**: nút **Sửa thông tin trạm**
+- **Giấy tờ pháp lý**: Sửa. **Thông tin trạm**: nút **Sửa thông tin trạm**
   ở đầu trang trạm (mã, tên, chi nhánh, địa chỉ).
 
 Mọi lần sửa đều ghi nhật ký (ai sửa, số cũ, số mới, lúc nào).

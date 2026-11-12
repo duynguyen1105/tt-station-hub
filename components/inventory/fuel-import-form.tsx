@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 
 import { useFuelCatalogue } from '@/components/fuels/catalogue-provider'
 import { NoStationFuels } from '@/components/fuels/no-station-fuels'
+import { uploadReceiptDocs } from '@/components/inventory/upload-receipt-docs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +33,7 @@ import {
   type StationFuelMapping,
   fuelWordResolver,
 } from '@/lib/fuels/catalogue'
+import { toJpeg } from '@/lib/images/to-jpeg'
 import { type BienBanExtraction, type TankSideCheck, parseVnNumber } from '@/lib/imports/bien-ban'
 import {
   type BindingRefusal,
@@ -555,10 +557,25 @@ export function FuelImportForm({
     if (!collected) return
     const files = collected.bienBan
     setStationMismatch(null)
-    const form = new FormData()
-    for (const file of files) form.append('photos', file)
-    form.append('stationId', stationId)
     setBusy(true)
+    const form = new FormData()
+    try {
+      // Phone photos of a 2-page biên bản easily pass Vercel's 4.5 MB request cap;
+      // the AI only reads ≤ 1568 px anyway. The originals are stored on confirm.
+      for (const file of files) {
+        const url = URL.createObjectURL(file)
+        try {
+          form.append('photos', await toJpeg(url), 'photo.jpg')
+        } finally {
+          URL.revokeObjectURL(url)
+        }
+      }
+    } catch (error) {
+      setBusy(false)
+      toast.error((error as Error).message)
+      return
+    }
+    form.append('stationId', stationId)
     const res = await fetch('/api/imports/extract', { method: 'POST', body: form })
     setBusy(false)
     if (!res.ok) {
@@ -734,12 +751,10 @@ export function FuelImportForm({
 
     const form = new FormData()
     form.set('payload', JSON.stringify(payload))
-    for (const file of bienBanFiles) form.append('bienBan', file)
-    for (const file of pxkFiles) form.append('pxk', file)
     setBusy(true)
     const res = await fetch('/api/imports/receipts', { method: 'POST', body: form })
-    setBusy(false)
     if (!res.ok) {
+      setBusy(false)
       const data = (await res.json().catch(() => null)) as { error?: string } | null
       toast.error(data?.error ?? vi.errors.generic)
       return
@@ -747,6 +762,12 @@ export function FuelImportForm({
     const { data } = (await res.json()) as { data: { id: string } }
     setReceiptId(data.id)
     toast.success(vi.imports.receiptSaved)
+    // The receipt is saved; its papers go straight to storage (scans can be big PDFs).
+    await uploadReceiptDocs(data.id, [
+      { kind: 'bien_ban', files: bienBanFiles },
+      { kind: 'phieu_xuat_kho', files: pxkFiles },
+    ]).catch((error: Error) => toast.error(error.message))
+    setBusy(false)
     router.refresh()
     setStep(3)
   }
@@ -757,18 +778,14 @@ export function FuelImportForm({
       finish()
       return
     }
-    const form = new FormData()
-    for (const file of files) form.append('photos', file)
     setBusy(true)
-    const res = await fetch(`/api/imports/receipts/${receiptId}/documents`, {
-      method: 'POST',
-      body: form,
-    })
-    setBusy(false)
-    if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as { error?: string } | null
-      toast.error(data?.error ?? vi.errors.generic)
+    try {
+      await uploadReceiptDocs(receiptId, [{ kind: 'related', files: [...files] }])
+    } catch (error) {
+      toast.error((error as Error).message)
       return
+    } finally {
+      setBusy(false)
     }
     toast.success(vi.imports.relatedSaved)
     finish()

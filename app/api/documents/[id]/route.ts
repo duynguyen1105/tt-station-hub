@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { type NextRequest } from 'next/server'
@@ -8,8 +7,9 @@ import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
 import { canReachStation } from '@/lib/auth/station-guard'
 import { documentStatus } from '@/lib/documents/expiry-checker'
+import { ownedScan, stationScan } from '@/lib/documents/scan'
 import { prisma } from '@/lib/prisma'
-import { deletePhoto, uploadPhoto } from '@/lib/storage/photo-storage'
+import { deletePhoto } from '@/lib/storage/photo-storage'
 
 const date = z.union([z.null(), z.coerce.date()]).optional()
 const updateSchema = z
@@ -27,18 +27,6 @@ const updateSchema = z
 
 type Context = { params: Promise<{ id: string }> }
 
-// Only files this row's scan-upload path created belong to this document. JSON callers
-// can attach arbitrary URLs, which must never become arbitrary storage deletion targets.
-function ownedScan(path: string | null, id: string): path is string {
-  if (!path || path.startsWith('/') || path.includes('..') || path.includes('://')) return false
-  const filename = path.split('/documents/')[1]
-  return (
-    !!filename &&
-    (filename.startsWith(`${id}.`) || filename.startsWith(`${id}-`)) &&
-    !filename.includes('/')
-  )
-}
-
 export async function PATCH(req: NextRequest, { params }: Context) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
@@ -49,7 +37,7 @@ export async function PATCH(req: NextRequest, { params }: Context) {
   if (!(await canReachStation(user, old.stationId))) return forbidden()
 
   let raw: unknown
-  let scan: File | null = null
+  let scanPath: string | null = null
   if (req.headers.get('content-type')?.includes('multipart/form-data')) {
     const form = await req.formData().catch(() => null)
     if (!form) return badRequest()
@@ -66,38 +54,35 @@ export async function PATCH(req: NextRequest, { params }: Context) {
       const value = form.get(key)
       if (typeof value === 'string') (raw as Record<string, unknown>)[key] = value.trim() || null
     }
-    const file = form.get('scan')
-    if (file instanceof File && file.size > 0) scan = file
+    const path = form.get('scanPath')
+    if (typeof path === 'string' && path) scanPath = path
   } else {
     raw = await req.json().catch(() => null)
   }
   const parsed = updateSchema.safeParse(raw)
   if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
-  if (!Object.keys(parsed.data).length && !scan) return badRequest()
+  if (!Object.keys(parsed.data).length && !scanPath) return badRequest()
   const fields = parsed.data
   const status = documentStatus(
     fields.expiryDate === undefined ? old.expiryDate : fields.expiryDate,
     new Date()
   )
-  let path: string | null = null
-  if (scan) {
+  if (scanPath) {
+    // The scan was PUT straight to storage via /api/documents/scan-upload.
     const station = await prisma.station.findUnique({
       where: { id: old.stationId },
       select: { code: true },
     })
-    const ext =
-      { 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' }[scan.type] ?? 'jpg'
-    path = `${station?.code ?? 'UNKNOWN'}/documents/${id}-${randomUUID()}.${ext}`
-    await uploadPhoto(path, Buffer.from(await scan.arrayBuffer()), scan.type || 'image/jpeg')
+    if (!station || !stationScan(scanPath, station.code, id)) return badRequest()
   }
   let updated
   try {
     updated = await prisma.stationDocument.update({
       where: { id },
-      data: { ...fields, status, ...(path ? { fileUrl: path } : {}) },
+      data: { ...fields, status, ...(scanPath ? { fileUrl: scanPath } : {}) },
     })
   } catch (error) {
-    if (path) await deletePhoto(path)
+    if (scanPath) await deletePhoto(scanPath)
     throw error
   }
   if (old.fileUrl && old.fileUrl !== updated.fileUrl && ownedScan(old.fileUrl, id))
@@ -115,7 +100,8 @@ export async function PATCH(req: NextRequest, { params }: Context) {
 export async function DELETE(_req: NextRequest, { params }: Context) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
-  if (user.role !== 'admin') return forbidden()
+  // Accountants clean up their own stations' papers too; viewers only read.
+  if (user.role === 'viewer') return forbidden()
   const { id } = await params
   const old = await prisma.stationDocument.findUnique({ where: { id } })
   if (!old) return notFound()

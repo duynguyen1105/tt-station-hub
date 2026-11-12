@@ -1,77 +1,64 @@
+import { z } from 'zod'
+
 import { type NextRequest } from 'next/server'
 
-import { badRequest, created, forbidden, notFound, unauthorized } from '@/lib/api/response'
+import { badRequest, created, forbidden, unauthorized } from '@/lib/api/response'
 import { writeAudit } from '@/lib/auth/audit'
 import { getCurrentUser } from '@/lib/auth/session'
-import { canReachStation } from '@/lib/auth/station-guard'
+import { RECEIPT_DOC_KINDS, isReceiptDocPath, receiptForUpload } from '@/lib/imports/receipt-docs'
 import { prisma } from '@/lib/prisma'
-import { uploadPhoto } from '@/lib/storage/photo-storage'
 
-const EXT_BY_TYPE: Record<string, string> = {
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'application/pdf': 'pdf',
-}
+const schema = z.object({
+  files: z
+    .array(
+      z.object({
+        kind: z.enum(RECEIPT_DOC_KINDS),
+        path: z.string(),
+        fileName: z.string().max(255).nullable(),
+        contentType: z.string().max(100).nullable(),
+      })
+    )
+    .min(1)
+    .max(50),
+})
 
 /**
- * Second wizard step: archives ALL photos related to the delivery session
- * (seals, tanker gauges, dip sticks, pumps...) against the confirmed receipt,
- * kept for later reconciliation.
+ * Records a receipt's papers once the browser has PUT them to storage through
+ * ./upload-urls: the biên bản pages and phiếu xuất kho right after confirm, and
+ * ALL photos related to the delivery session (seals, tanker gauges, dip sticks,
+ * pumps...) in the wizard's last step or later from the receipt page.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return unauthorized()
-  if (user.role === 'viewer') return forbidden()
+  const receipt = await receiptForUpload(user, (await ctx.params).id)
+  if (!receipt) return forbidden()
+  const parsed = schema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) return badRequest(undefined, parsed.error.flatten())
+  const { files } = parsed.data
+  if (!files.every((f) => isReceiptDocPath(f.path, receipt.code, receipt.id, f.kind)))
+    return badRequest()
 
-  const { id } = await ctx.params
-  const receipt = await prisma.fuelImportReceipt.findUnique({
-    where: { id },
-    select: { id: true, stationId: true },
-  })
-  if (!receipt) return notFound()
-  if (!(await canReachStation(user, receipt.stationId))) return forbidden()
-  const station = await prisma.station.findUnique({
-    where: { id: receipt.stationId },
-    select: { code: true },
-  })
-  if (!station) return notFound()
-
-  const form = await req.formData().catch(() => null)
-  if (!form) return badRequest()
-  const files = form.getAll('photos').filter((f): f is File => f instanceof File)
-  if (files.length === 0) return badRequest()
-
-  // Offset so a second batch never overwrites the first one's paths.
-  const existing = await prisma.fuelImportDocument.count({
-    where: { receiptId: receipt.id, kind: 'related' },
-  })
-  let uploaded = 0
-  for (const [index, file] of files.entries()) {
-    try {
-      const ext = EXT_BY_TYPE[file.type] ?? 'jpg'
-      const path = `${station.code}/imports/receipts/${receipt.id}/related-${existing + index}.${ext}`
-      await uploadPhoto(path, Buffer.from(await file.arrayBuffer()), file.type || 'image/jpeg')
-      await prisma.fuelImportDocument.create({
-        data: {
-          receiptId: receipt.id,
-          kind: 'related',
-          storagePath: path,
-          fileName: file.name || null,
-          contentType: file.type || null,
-        },
-      })
-      uploaded++
-    } catch {
-      // Skip the failed file; the client reports how many made it.
-    }
-  }
+  // One by one, in picking order: the receipt page lists papers by createdAt.
+  for (const file of files)
+    await prisma.fuelImportDocument.create({
+      data: {
+        receiptId: receipt.id,
+        kind: file.kind,
+        storagePath: file.path,
+        fileName: file.fileName,
+        contentType: file.contentType,
+      },
+    })
 
   await writeAudit({
     userId: user.id,
     action: 'fuel_import_receipt.documents',
     entity: 'fuel_import_receipt',
     entityId: receipt.id,
-    metadata: { photos: uploaded },
+    metadata: Object.fromEntries(
+      RECEIPT_DOC_KINDS.map((kind) => [kind, files.filter((f) => f.kind === kind).length])
+    ),
   })
-  return created({ photos: uploaded })
+  return created({ photos: files.length })
 }

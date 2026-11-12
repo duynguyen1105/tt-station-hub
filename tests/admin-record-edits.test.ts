@@ -127,7 +127,10 @@ describe('admin edits of existing records', () => {
       expect(
         (await editDocument(request('PATCH', { docName: 'Mới' }), context(documentId))).status
       ).toBe(403)
-      expect((await deleteDocument(request('DELETE'), context(documentId))).status).toBe(403)
+      // Accountants may delete legal documents of their stations; viewers may not.
+      expect((await deleteDocument(request('DELETE'), context(documentId))).status).toBe(
+        role === 'viewer' ? 403 : 200
+      )
       expect(
         (await editStation(request('PATCH', { code: 'NEW' }), context(stationId))).status
       ).toBe(403)
@@ -201,18 +204,27 @@ describe('admin edits of existing records', () => {
     expect(storage.deletePhoto).not.toHaveBeenCalled()
   })
 
-  it('replaces a scan with a fresh path and deletes the prior owned file', async () => {
-    const form = new FormData()
-    form.set('scan', new File(['scan'], 'scan.pdf', { type: 'application/pdf' }))
-    const res = await editDocument(
-      new NextRequest('http://localhost/api/documents/id', { method: 'PATCH', body: form }),
-      context(documentId)
-    )
-    expect(res.status).toBe(200)
-    expect(storage.uploadPhoto).toHaveBeenCalledWith(
-      expect.stringMatching(new RegExp(`^OLD/documents/${documentId}-.*\\.pdf$`)),
-      expect.any(Buffer),
-      'application/pdf'
+  it('accepts only a scan path in its own station/document slot, then drops the old file', async () => {
+    const patchScan = (scanPath: string) => {
+      const form = new FormData()
+      form.set('scanPath', scanPath)
+      return editDocument(
+        new NextRequest('http://localhost/api/documents/id', { method: 'PATCH', body: form }),
+        context(documentId)
+      )
+    }
+    for (const foreign of [
+      `OTHER/documents/${documentId}-x.pdf`,
+      `OLD/documents/00000000-0000-4000-8000-000000000009-x.pdf`,
+      `OLD/documents/../${documentId}-x.pdf`,
+    ])
+      expect((await patchScan(foreign)).status).toBe(400)
+    expect(db.stationDocument.update).not.toHaveBeenCalled()
+
+    const fresh = `OLD/documents/${documentId}-new.pdf`
+    expect((await patchScan(fresh)).status).toBe(200)
+    expect(db.stationDocument.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ fileUrl: fresh }) })
     )
     expect(storage.deletePhoto).toHaveBeenCalledWith(`OLD/documents/${documentId}.pdf`)
   })

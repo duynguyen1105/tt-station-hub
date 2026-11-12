@@ -11,14 +11,7 @@ import { checkStationOnPaper } from '@/lib/imports/station-check'
 import { shiftDateFor } from '@/lib/photos/ingest'
 import { prisma } from '@/lib/prisma'
 import { nextReceiptNo } from '@/lib/stations/next-no'
-import { uploadPhoto } from '@/lib/storage/photo-storage'
 import { vi } from '@/messages/vi'
-
-const EXT_BY_TYPE: Record<string, string> = {
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'application/pdf': 'pdf',
-}
 
 const optionalText = z
   .string()
@@ -106,10 +99,11 @@ function stationOnRawExtract(rawExtract: unknown): string | null {
 
 /**
  * Confirms a reviewed biên bản giao nhận: stores the receipt (all sections as
- * reviewed), creates one FuelImport per tank that actually received fuel
- * (those liters move the inventory balance, same as the classic slip), and
- * attaches the biên bản photos. Related session photos arrive in a second
- * step via /api/imports/receipts/[id]/documents.
+ * reviewed) and creates one FuelImport per tank that actually received fuel
+ * (those liters move the inventory balance, same as the classic slip). The
+ * papers — biên bản pages, phiếu xuất kho, related photos — go straight to
+ * storage afterwards via /api/imports/receipts/[id]/documents (a scanned PDF
+ * would not fit through this request's 4.5 MB cap).
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
@@ -231,36 +225,6 @@ export async function POST(req: NextRequest) {
     return { receipt: receiptRow, importIds: ids }
   })
 
-  // Both papers upload AFTER the rows exist (paths carry the receipt id): the
-  // biên bản pages and the phiếu xuất kho the wizard requires alongside them.
-  // A failed upload never loses the receipt — the doc list just ends up shorter.
-  const uploadDocs = async (field: string, kind: string, prefix: string) => {
-    const files = form.getAll(field).filter((f): f is File => f instanceof File)
-    let uploaded = 0
-    for (const [index, file] of files.entries()) {
-      try {
-        const ext = EXT_BY_TYPE[file.type] ?? 'jpg'
-        const path = `${station.code}/imports/receipts/${receipt.id}/${prefix}-${index}.${ext}`
-        await uploadPhoto(path, Buffer.from(await file.arrayBuffer()), file.type || 'image/jpeg')
-        await prisma.fuelImportDocument.create({
-          data: {
-            receiptId: receipt.id,
-            kind,
-            storagePath: path,
-            fileName: file.name || null,
-            contentType: file.type || null,
-          },
-        })
-        uploaded++
-      } catch {
-        // The receipt stays valid without this document.
-      }
-    }
-    return uploaded
-  }
-  const uploaded = await uploadDocs('bienBan', 'bien_ban', 'bien-ban')
-  const pxkUploaded = await uploadDocs('pxk', 'phieu_xuat_kho', 'pxk')
-
   await writeAudit({
     userId: user.id,
     action: 'fuel_import_receipt.create',
@@ -269,9 +233,7 @@ export async function POST(req: NextRequest) {
     metadata: {
       stationId: data.stationId,
       imports: importIds,
-      bienBanPhotos: uploaded,
-      pxkPhotos: pxkUploaded,
     },
   })
-  return created({ id: receipt.id, imports: importIds, bienBanPhotos: uploaded })
+  return created({ id: receipt.id, imports: importIds })
 }
